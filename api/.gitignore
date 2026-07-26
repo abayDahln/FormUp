@@ -1,0 +1,13 @@
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+publish/
+appsettings.Development.json
+appsettings.*.local.json
+.env
+graphify-out/
+*.user
+*.suo
+.vs/
+graphify-out/
