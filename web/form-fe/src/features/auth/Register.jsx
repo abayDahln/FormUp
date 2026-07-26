@@ -1,26 +1,27 @@
+
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-const Login = () => {
+const Register = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const navigate = useNavigate();
 
-    const handleLogin = (e) => {
+    const handleRegister = (e) => {
         e.preventDefault();
 
         // Siapkan payload untuk dikirim ke API
         // const payload = { email, password };
 
-        // TODO: Panggil API Login (misal menggunakan fetch atau axios)
+        // TODO: Panggil API Register (misal menggunakan fetch atau axios)
         // try {
-        //   const response = await axios.post('URL_API/login', payload);
+        //   const response = await axios.post('URL_API/register', payload);
         //   if (response.data.token) {
         //     localStorage.setItem('token', response.data.token);
         //     navigate('/dashboard');
         //   }
         // } catch (error) {
-        //   console.error("Login gagal", error);
+        //   console.error("Register gagal", error);
         // }
 
         navigate('/dashboard');
@@ -39,10 +40,11 @@ const Login = () => {
 
                 <div className="flex-1 text-white max-w-xl pl-2 lg:pl-4 text-center lg:text-left">
                     <h1 className="text-4xl sm:text-5xl lg:text-[54px] font-bold tracking-tight mb-4 leading-[1.1] text-white">
-                        Create without limits
+                        GET STARTED
                     </h1>
                     <p className="text-base sm:text-lg lg:text-[17px] text-white/95 font-medium leading-relaxed max-w-sm">
-                        Build forms, surveys, quizzes, and exams with a simple, intuitive experience.
+                        Create your FormUp account and bring your ideas to life.
+
                     </p>
                 </div>
 
@@ -50,14 +52,14 @@ const Login = () => {
 
                     <div className="mb-7">
                         <h2 className="text-[32px] font-bold text-black tracking-tight mb-1">
-                            Welcome Back!
+                            Create an Account
                         </h2>
                         <p className="text-[15px] font-bold text-gray-600/90">
-                            Sign in to access your FormUp workspace
+                            Sign up to access your FormUp workspace
                         </p>
                     </div>
 
-                    <form onSubmit={handleLogin} className="space-y-4">
+                    <form onSubmit={handleRegister} className="space-y-4">
                         <div>
                             <label
                                 htmlFor="username"
@@ -98,17 +100,17 @@ const Login = () => {
                             type="submit"
                             className="w-full mt-8 py-3.5 px-6 bg-[#14a098] hover:bg-[#118b84] active:scale-[0.98] text-white font-bold rounded-full shadow-[0_6px_20px_rgba(20,160,152,0.3)] transition-all duration-200 text-[16px] tracking-wide"
                         >
-                            Login
+                            Register
                         </button>
                     </form>
 
                     <div className="mt-6 text-center flex flex-col items-center gap-0.5">
-                        <span className="text-[13px] font-bold text-gray-600">New here?</span>
+                        <span className="text-[13px] font-bold text-gray-600">Already have an account?</span>
                         <Link
-                            to="/register"
+                            to="/login"
                             className="text-[14px] font-extrabold text-gray-800 hover:text-[#14a098] transition-colors"
                         >
-                            Create an account
+                            Sign in
                         </Link>
                     </div>
 
@@ -119,4 +121,4 @@ const Login = () => {
     );
 };
 
-export default Login;
+export default Register;
