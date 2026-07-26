@@ -5,6 +5,8 @@ import { Link, useNavigate } from 'react-router-dom';
 const Register = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [fullName, setFullName] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const navigate = useNavigate();
 
     const handleRegister = (e) => {
@@ -24,94 +26,156 @@ const Register = () => {
         //   console.error("Register gagal", error);
         // }
 
-        navigate('/dashboard');
+        navigate('/login');
     };
 
     return (
-        <div className="relative min-h-screen w-full bg-gradient-to-br from-[#0b7c76] via-[#2cb6ab] to-[#e4fcf9] flex items-center justify-center p-6 md:p-12 overflow-hidden select-none">
+        <div className="relative w-screen h-screen overflow-hidden flex items-center justify-center select-none bg-slate-900">
+            
+            <div 
+                className="absolute w-[1728px] h-[1117px] overflow-hidden flex items-center justify-center"
+                style={{
+                    // Gradasi Background Utama: Atas-Kiri (#E1F9F4) ke Bawah-Kanan (#018081)
+                    background: 'linear-gradient(200deg, #E1F9F4 0%, #E1F9F4 35%, #018081 75%, #004D4E 100%)'               
+                }}
+            >
 
-            <div className="absolute -top-[20%] -left-[10%] w-[900px] h-[900px] rounded-full bg-[#1e4584] pointer-events-none z-0"></div>
+                {/* LAYER 2: Ellipse 4 - Bola Biru Tua Atas Kiri (Dekat / Dimajuin) */}
+                <div
+                    className="absolute pointer-events-none rounded-full"
+                    style={{
+                        width: '700px',
+                        height: '700px',
+                        top: '10px',
+                        left: '50px',
+                        background: 'linear-gradient(160deg, rgba(21, 61, 195, 0.48) 9%, #0A1D5D 100%)',                        opacity: 0.8,
+                        zIndex: 2
+                    }}
+                ></div>
 
-            <div className="absolute -bottom-[20%] -right-[10%] w-[800px] h-[800px] rounded-full bg-[#99f3eb] pointer-events-none z-0"></div>
+                {/* LAYER 3: Ellipse 5 - Bola Mint Toska Bawah Kanan (Maju) */}
+                <div
+                    className="absolute pointer-events-none rounded-full"
+                    style={{
+                        width: '700px',
+                        height: '700px',
+                        bottom: '-20px',
+                        right: '120px',
+                        background: 'linear-gradient(135deg, #6FF6DF 0%, rgba(10,29,93,0.7) 100%)',
+                        zIndex: 3
+                    }}
+                ></div>
 
-            <div className="absolute -bottom-[25%] right-[5%] w-[700px] h-[700px] rounded-full bg-[#20a49b] opacity-40 mix-blend-multiply pointer-events-none z-0"></div>
 
-            <div className="relative z-10 w-full max-w-[1100px] flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-8">
+                {/* LAYER 4 (Paling Depan): Konten Utama & Form Card */}
+                <div className="relative z-10 w-full max-w-[1280px] px-16 flex flex-row items-center justify-between gap-12">
 
-                <div className="flex-1 text-white max-w-xl pl-2 lg:pl-4 text-center lg:text-left">
-                    <h1 className="text-4xl sm:text-5xl lg:text-[54px] font-bold tracking-tight mb-4 leading-[1.1] text-white">
-                        GET STARTED
-                    </h1>
-                    <p className="text-base sm:text-lg lg:text-[17px] text-white/95 font-medium leading-relaxed max-w-sm">
+                    <div className="flex-1 flex flex-col justify-end text-white max-w-xl mt-50">
+                        <h1 className="text-[56px] font-bold tracking-tight mb-4 leading-[1.1] text-white">
+                            Get Started
+                        </h1>
+                        <p className="text-[18px] text-white/95 font-medium leading-relaxed max-w-md">
                         Create your FormUp account and bring your ideas to life.
-
-                    </p>
-                </div>
-
-                <div className="w-full max-w-[450px] bg-white/20 backdrop-blur-[18px] border border-white/40 rounded-[28px] p-8 sm:p-10 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)]">
-
-                    <div className="mb-7">
-                        <h2 className="text-[32px] font-bold text-black tracking-tight mb-1">
-                            Create an Account
-                        </h2>
-                        <p className="text-[15px] font-bold text-gray-600/90">
-                            Sign up to access your FormUp workspace
                         </p>
                     </div>
 
-                    <form onSubmit={handleRegister} className="space-y-4">
-                        <div>
-                            <label
-                                htmlFor="username"
-                                className="block text-[14px] font-extrabold text-gray-800 mb-1.5"
-                            >
-                                Username
-                            </label>
-                            <input
-                                id="username"
-                                type="text"
-                                placeholder="Input Your Email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                                className="w-full px-4 py-3.5 rounded-xl border border-white/60 bg-white/40 text-gray-900 placeholder:text-gray-400/90 font-bold focus:outline-none focus:bg-white/60 focus:ring-2 focus:ring-[#16a096] transition-all text-[14px]"
-                            />
+                    {/* Form Card Glassmorphism */}
+                    <div className="w-[550px]">
+                        <div className="w-full bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-[28px] p-5 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)]">
+
+                            <div className="mb-3">
+                                <h2 className="text-[32px] font-bold text-black tracking-tight">
+                                    Create Your Account
+                                </h2>
+                                <p className="text-[14px] font-bold text-gray-700/80">
+                                    Start building with FormUp
+                                </p>
+                            </div>
+
+                            <form onSubmit={handleRegister} className="space-y-1">
+                                <div>
+                                <label htmlFor="fullName" className="block text-[13px] font-extrabold text-gray-800 mb-1.5">
+                                    Full Name
+                                </label>
+                                <input
+                                    id="fullName"
+                                    type="text"
+                                    placeholder="Input Your Name"
+                                    value={fullName}
+                                    onChange={(e) => setFullName(e.target.value)}
+                                    required
+                                    className="w-full px-4 py-3 rounded-xl border border-white/60 bg-white/40 text-gray-900 placeholder:text-gray-400 font-bold focus:outline-none focus:bg-white/60 focus:ring-2 focus:ring-[#16a096] transition-all text-[14px]"
+                                />
+                            </div>
+                                <div>
+                                    <label
+                                        htmlFor="username"
+                                        className="block text-[13px] font-extrabold text-gray-800 mb-1.5"
+                                    >
+                                        Username
+                                    </label>
+                                    <input
+                                        id="username"
+                                        type="text"
+                                        placeholder="Input Your Email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        required
+                                        className="w-full px-4 py-3 rounded-xl border border-white/60 bg-white/40 text-gray-900 placeholder:text-gray-400 font-bold focus:outline-none focus:bg-white/60 focus:ring-2 focus:ring-[#16a096] transition-all text-[14px]"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label
+                                        htmlFor="password"
+                                        className="block text-[13px] font-extrabold text-gray-800 mb-1.5"
+                                    >
+                                        Password
+                                    </label>
+                                    <input
+                                        id="password"
+                                        type="password"
+                                        placeholder="Input Your Password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        required
+                                        className="w-full px-4 py-3 rounded-xl border border-white/60 bg-white/40 text-gray-900 placeholder:text-gray-400 font-bold focus:outline-none focus:bg-white/60 focus:ring-2 focus:ring-[#16a096] transition-all text-[14px]"
+                                    />
+                                </div>
+                                <div>
+                                <label htmlFor="confirmPassword" className="block text-[13px] font-extrabold text-gray-800 mb-1.5">
+                                    Confirm Password
+                                </label>
+                                <input
+                                    id="confirmPassword"
+                                    type="password"
+                                    placeholder="Confirm Your Password"
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    required
+                                    className="w-full px-4 py-3 rounded-xl border border-white/60 bg-white/40 text-gray-900 placeholder:text-gray-400 font-bold focus:outline-none focus:bg-white/60 focus:ring-2 focus:ring-[#16a096] transition-all text-[14px]"
+                                />
+                            </div>
+
+                                <button
+                                    type="submit"
+                                    className="w-full mt-9 py-3.5 px-6 bg-[#14a098] hover:bg-[#118b84] active:scale-[0.98] text-white font-bold rounded-full shadow-[0_6px_20px_rgba(20,160,152,0.3)] transition-all duration-200 text-[15px] tracking-wide"
+                                >
+                                    Create Account
+                                </button>
+                            </form>
+
+                            <div className="mt-1 text-center flex flex-col items-center gap-0.5">
+                                <span className="text-[12px] font-bold text-gray-600">Already have an account?</span>
+                                <Link
+                                    to="/login"
+                                    className="text-[13px] font-extrabold text-gray-800 hover:text-[#14a098] transition-colors"
+                                >
+                                    Sign In
+                                </Link>
+                            </div>
+
                         </div>
-
-                        <div>
-                            <label
-                                htmlFor="password"
-                                className="block text-[14px] font-extrabold text-gray-800 mb-1.5"
-                            >
-                                Password
-                            </label>
-                            <input
-                                id="password"
-                                type="password"
-                                placeholder="Input Your Password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                                className="w-full px-4 py-3.5 rounded-xl border border-white/60 bg-white/40 text-gray-900 placeholder:text-gray-400/90 font-bold focus:outline-none focus:bg-white/60 focus:ring-2 focus:ring-[#16a096] transition-all text-[14px]"
-                            />
-                        </div>
-
-                        <button
-                            type="submit"
-                            className="w-full mt-8 py-3.5 px-6 bg-[#14a098] hover:bg-[#118b84] active:scale-[0.98] text-white font-bold rounded-full shadow-[0_6px_20px_rgba(20,160,152,0.3)] transition-all duration-200 text-[16px] tracking-wide"
-                        >
-                            Register
-                        </button>
-                    </form>
-
-                    <div className="mt-6 text-center flex flex-col items-center gap-0.5">
-                        <span className="text-[13px] font-bold text-gray-600">Already have an account?</span>
-                        <Link
-                            to="/login"
-                            className="text-[14px] font-extrabold text-gray-800 hover:text-[#14a098] transition-colors"
-                        >
-                            Sign in
-                        </Link>
                     </div>
 
                 </div>
