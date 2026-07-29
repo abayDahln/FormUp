@@ -4,11 +4,38 @@ import { Link, useNavigate } from 'react-router-dom';
 const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
-        navigate('/dashboard');
+        setError('');
+        setLoading(true);
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/Auth/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, password }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.status === 200) {
+                // Simpan token & user dari login
+                localStorage.setItem('token', data.data.token);
+                localStorage.setItem('user', JSON.stringify(data.data.user));
+                navigate('/dashboard');
+            } else {
+                setError(data.message || 'Login gagal. Periksa email dan password.');
+            }
+        } catch (err) {
+            setError('Terjadi kesalahan jaringan. Coba lagi.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -74,6 +101,13 @@ const Login = () => {
                                 </p>
                             </div>
 
+                            {/* Error Message */}
+                            {error && (
+                                <div className="mb-3 px-4 py-2.5 bg-red-500/20 border border-red-400/50 rounded-xl">
+                                    <p className="text-[13px] font-bold text-red-700">{error}</p>
+                                </div>
+                            )}
+
                             <form onSubmit={handleLogin} className="space-y-4">
                                 <div>
                                     <label
@@ -113,9 +147,10 @@ const Login = () => {
 
                                 <button
                                     type="submit"
-                                    className="w-full mt-6 py-3.5 px-6 bg-[#14a098] hover:bg-[#118b84] active:scale-[0.98] text-white font-bold rounded-full shadow-[0_6px_20px_rgba(20,160,152,0.3)] transition-all duration-200 text-[15px] tracking-wide"
+                                    disabled={loading}
+                                    className="w-full mt-6 py-3.5 px-6 bg-[#14a098] hover:bg-[#118b84] active:scale-[0.98] text-white font-bold rounded-full shadow-[0_6px_20px_rgba(20,160,152,0.3)] transition-all duration-200 text-[15px] tracking-wide disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
-                                    Login
+                                    {loading ? 'Signing in...' : 'Login'}
                                 </button>
                             </form>
 

@@ -1,8 +1,8 @@
 // App.jsx
 import { Routes, Route, Navigate } from 'react-router-dom';
-import Login from '../src/features/auth/Login';
-import Register from '../src/features/auth/Register';
-import UserHome from '../src/features/dashboard/userDashboard/userhome';
+import Login from './features/auth/Login';
+import Register from './features/auth/Register';
+import UserHome from './features/dashboard/userDashboard/userhome';
 
 function App() {
   return (
