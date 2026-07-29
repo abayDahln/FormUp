@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 const Login = () => {
@@ -6,68 +6,139 @@ const Login = () => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [scale, setScale] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return Math.max(window.innerWidth / 1728, 0.45);
+        }
+        return 1;
+    });
     const navigate = useNavigate();
 
-    const handleLogin = async (e) => {
+    useEffect(() => {
+        const handleResize = () => {
+            const baseWidth = 1728;
+            const currentWidth = window.innerWidth;
+            const calculatedScale = Math.max(currentWidth / baseWidth, 0.45);
+            setScale(calculatedScale);
+        };
+
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Fungsi handleLogin yang diperbaiki
+    // const handleLogin = async (e) => {
+    //     e.preventDefault();
+    //     setError('');
+    //     setLoading(true);
+
+    //     try {
+    //         const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+    //         const response = await fetch(`${API_BASE_URL}/api/Auth/login`, {
+    //             method: 'POST',
+    //             headers: {
+    //                 'accept': 'text/plain',
+    //                 'Content-Type': 'application/json',
+    //             },
+    //             body: JSON.stringify({
+    //                 email: email,
+    //                 password: password,
+    //             }),
+    //         });
+
+    //         const responseText = await response.text();
+    //         let data;
+    //         try {
+    //             data = JSON.parse(responseText);
+    //         } catch {
+    //             data = responseText;
+    //         }
+
+    //         if (response.ok) {
+    //             // Ekstrak token dari string plain text atau JSON object
+    //             const token = typeof data === 'string' ? data : (data.token || data.data?.token || data.accessToken);
+
+    //             if (token) {
+    //                 localStorage.setItem('token', token);
+    //                 if (typeof data === 'object' && (data.user || data.data?.user)) {
+    //                     localStorage.setItem('user', JSON.stringify(data.user || data.data?.user));
+    //                 }
+    //                 navigate('/dashboard');
+    //             } else {
+    //                 setError('Login berhasil, namun Token tidak ditemukan.');
+    //             }
+    //         } else {
+    //             const errorMessage = typeof data === 'object' ? (data.message || data.title) : data;
+    //             setError(errorMessage || 'Email atau password salah.');
+    //         }
+    //     } catch (err) {
+    //         console.error('Error Login:', err);
+    //         setError('Terjadi kesalahan koneksi ke server.');
+    //     } finally {
+    //         setLoading(false);
+    //     }
+    // };
+
+ const handleLogin = (e) => {
         e.preventDefault();
-        setError('');
         setLoading(true);
-        try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/Auth/login`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email, password }),
-            });
 
-            const data = await response.json();
+        // Simpan dummy session ke localStorage
+        localStorage.setItem('token', 'dummy-token-bypass-12345');
+        localStorage.setItem(
+            'user', 
+            JSON.stringify({
+                fullname: "John Doe",
+                username: "johndoe",
+                email: email || "john@example.com",
+                password: 'john123'
+            })
+        );
 
-            if (response.ok && data.status === 200) {
-                // Simpan token & user dari login
-                localStorage.setItem('token', data.data.token);
-                localStorage.setItem('user', JSON.stringify(data.data.user));
-                navigate('/dashboard');
-            } else {
-                setError(data.message || 'Login gagal. Periksa email dan password.');
-            }
-        } catch (err) {
-            setError('Terjadi kesalahan jaringan. Coba lagi.');
-        } finally {
+        setTimeout(() => {
             setLoading(false);
-        }
+            navigate('/dashboard');
+        }, 400);
     };
 
     return (
-        <div className="relative w-screen h-screen overflow-hidden flex items-center justify-center select-none bg-slate-900">
+        /* Outer Viewport Box */
+        <div className="w-screen h-screen overflow-hidden bg-[#004D4E] flex items-center justify-center select-none">
             
+            {/* Scaled Canvas Container */}
             <div 
-                className="absolute w-[1728px] h-[1117px] overflow-hidden flex items-center justify-center"
+                className="relative shrink-0 flex items-center justify-center"
                 style={{
-                    // Gradasi Background Utama: Atas-Kiri (#E1F9F4) ke Bawah-Kanan (#018081)
-                    background: 'linear-gradient(200deg, #E1F9F4 0%, #E1F9F4 35%, #018081 75%, #004D4E 100%)'               
+                    width: '2228px', 
+                    height: '1117px',
+                    transform: `scale(${scale})`,
+                    transformOrigin: 'center center',
+                    background: 'linear-gradient(200deg, #E1F9F4 0%, #E1F9F4 35%, #018081 75%, #004D4E 100%)'
                 }}
             >
 
-                {/* LAYER 2: Ellipse 4 - Bola Biru Tua Atas Kiri (Dekat / Dimajuin) */}
+                {/* LAYER 2: Ellipse 4 - Bola Biru Tua Atas Kiri */}
                 <div
                     className="absolute pointer-events-none rounded-full"
                     style={{
-                        width: '700px',
-                        height: '700px',
+                        width: '750px',
+                        height: '750px',
                         top: '10px',
                         left: '50px',
-                        background: 'linear-gradient(160deg, rgba(21, 61, 195, 0.48) 9%, #0A1D5D 100%)',                        opacity: 0.8,
+                        background: 'linear-gradient(-143deg, #6FF6DF 0%, rgba(15, 136, 158, 0.7) 100%)',
+                        opacity: 0.5,        
                         zIndex: 2
                     }}
                 ></div>
 
-                {/* LAYER 3: Ellipse 5 - Bola Mint Toska Bawah Kanan (Maju) */}
+                {/* LAYER 3: Ellipse 5 - Bola Mint Toska Bawah Kanan */}
                 <div
                     className="absolute pointer-events-none rounded-full"
                     style={{
-                        width: '700px',
-                        height: '700px',
+                        width: '750px',
+                        height: '750px',
                         bottom: '-20px',
                         right: '120px',
                         background: 'linear-gradient(135deg, #6FF6DF 0%, rgba(10,29,93,0.7) 100%)',
@@ -75,11 +146,10 @@ const Login = () => {
                     }}
                 ></div>
 
-
-                {/* LAYER 4 (Paling Depan): Konten Utama & Form Card */}
+                {/* LAYER 4: Konten Utama & Form Card */}
                 <div className="relative z-10 w-full max-w-[1280px] px-16 flex flex-row items-center justify-between gap-12">
 
-                    <div className="flex-1 flex flex-col justify-end text-white max-w-xl mt-50">
+                    <div className="flex-1 flex flex-col justify-end text-white max-w-xl mt-40">
                         <h1 className="text-[56px] font-bold tracking-tight mb-4 leading-[1.1] text-white">
                             Create without limits
                         </h1>
@@ -89,8 +159,8 @@ const Login = () => {
                     </div>
 
                     {/* Form Card Glassmorphism */}
-                    <div className="w-[420px]">
-                        <div className="w-full bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-[28px] p-9 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)]">
+                    <div className="w-full max-w-[550px] px-4">
+                        <div className="w-full min-h-[500px] bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-[28px] p-10 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] ml-30">
 
                             <div className="mb-6">
                                 <h2 className="text-[32px] font-bold text-black tracking-tight mb-1">
@@ -114,7 +184,7 @@ const Login = () => {
                                         htmlFor="username"
                                         className="block text-[13px] font-extrabold text-gray-800 mb-1.5"
                                     >
-                                        Username
+                                        Email
                                     </label>
                                     <input
                                         id="username"
@@ -174,4 +244,4 @@ const Login = () => {
     );
 };
 
-export default Login;   
+export default Login;
