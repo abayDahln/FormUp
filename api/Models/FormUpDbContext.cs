@@ -35,6 +35,8 @@ public partial class FormUpDbContext : DbContext
 
     public virtual DbSet<User> Users { get; set; }
 
+    public virtual DbSet<Feedback> Feedbacks { get; set; }
+
     public virtual DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -58,6 +60,9 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.DeletedAt)
                 .HasColumnType("datetime")
                 .HasColumnName("deleted_at");
+            entity.Property(e => e.TakenDownAt)
+                .HasColumnType("datetime")
+                .HasColumnName("taken_down_at");
             entity.Property(e => e.Description).HasColumnName("description");
             entity.Property(e => e.FormLink)
                 .HasMaxLength(100)
@@ -356,6 +361,52 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.Username)
                 .HasMaxLength(50)
                 .HasColumnName("username");
+        });
+
+        modelBuilder.Entity<Feedback>(entity =>
+        {
+            entity.ToTable("Feedback");
+
+            entity.HasKey(e => e.Id).HasName("PK__Feedback__3213E83F3D69895B");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+
+            entity.Property(e => e.FormId).HasColumnName("form_id");
+
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+
+            entity.Property(e => e.ResponseId).HasColumnName("response_id");
+
+            entity.Property(e => e.Reason)
+                .HasMaxLength(100)
+                .HasColumnName("reason");
+
+            entity.Property(e => e.Description)
+                .HasMaxLength(2000)
+                .HasColumnName("description");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("created_at");
+
+            entity.HasOne(d => d.Form)
+                .WithMany()
+                .HasForeignKey(d => d.FormId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_Feedback_Form");
+
+            entity.HasOne(d => d.User)
+                .WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_Feedback_User");
+
+            entity.HasOne(d => d.Response)
+                .WithMany()
+                .HasForeignKey(d => d.ResponseId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK_Feedback_Response");
         });
 
         modelBuilder.Entity<PasswordResetToken>(entity =>

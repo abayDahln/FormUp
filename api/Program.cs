@@ -167,6 +167,7 @@ namespace FormUpAPI
                     c.RoutePrefix = "swagger";
                 });
             }
+            app.UseStaticFiles();
             app.UseCors("AllowFrontend");
             app.UseHttpsRedirection();
 

@@ -47,6 +47,8 @@ public class UserDto
     public string Email { get; set; } = null!;
     public string? Role { get; set; }
     public string? ProfileImage { get; set; }
+    public string? Birthdate { get; set; }
     public bool? IsActive { get; set; }
     public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }

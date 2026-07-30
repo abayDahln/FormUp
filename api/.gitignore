@@ -7,6 +7,9 @@ appsettings.Development.json
 appsettings.*.local.json
 .env
 graphify-out/
+wwwroot/profile/
+wwwroot/banner/
+wwwroot/questions/
 *.user
 *.suo
 .vs/

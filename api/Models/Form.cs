@@ -25,6 +25,8 @@ public partial class Form
 
     public DateTime? DeletedAt { get; set; }
 
+    public DateTime? TakenDownAt { get; set; }
+
     public virtual FormSetting? FormSetting { get; set; }
 
     public virtual ICollection<Question> Questions { get; set; } = new List<Question>();

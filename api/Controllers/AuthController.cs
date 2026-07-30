@@ -52,7 +52,6 @@ public class AuthController : ControllerBase
             Role = "USER",
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
         };
 
         if (DateOnly.TryParse(request.Birthdate, out var birthdate))
@@ -193,7 +192,9 @@ public class AuthController : ControllerBase
         Email = user.Email,
         Role = user.Role,
         ProfileImage = user.ProfileImage,
+        Birthdate = user.Birthdate?.ToString("yyyy-MM-dd"),
         IsActive = user.IsActive,
         CreatedAt = user.CreatedAt,
+        UpdatedAt = user.UpdatedAt,
     };
 }
