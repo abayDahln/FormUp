@@ -4,6 +4,7 @@ import {
     Folder, 
     MessageSquare, 
     LayoutTemplate, 
+    History,
     LogOut,
 } from 'lucide-react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
@@ -18,16 +19,17 @@ export default function Sidebar() {
         navigate('/login');
     };
 
-    // Daftar menu disimpan dalam array agar lebih rapi
+    // Daftar menu disimpan dalam array
     const menuItems = [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { path: '/my-forms', icon: Folder, label: 'My Forms' },
         { path: '/responses', icon: MessageSquare, label: 'Responses' },
         { path: '/templates', icon: LayoutTemplate, label: 'Templates' },
+        { path: '/history', icon: History, label: 'History' }, 
     ];
 
     return (
-        <aside className="w-64 bg-[#6DBFB3] text-white flex-col justify-between p-6 shadow-lg hidden md:flex shrink-0">
+        <aside className="w-64 bg-[#6DBFB3] text-white flex flex-col justify-between p-6 shadow-lg hidden md:flex shrink-0 min-h-screen">
             <div className="space-y-8">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-white/20 rounded-xl">
