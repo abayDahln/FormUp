@@ -28,86 +28,83 @@ const Login = () => {
     }, []);
 
     // Fungsi handleLogin yang diperbaiki
-    // const handleLogin = async (e) => {
-    //     e.preventDefault();
-    //     setError('');
-    //     setLoading(true);
-
-    //     try {
-    //         const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-    //         const response = await fetch(`${API_BASE_URL}/api/Auth/login`, {
-    //             method: 'POST',
-    //             headers: {
-    //                 'accept': 'text/plain',
-    //                 'Content-Type': 'application/json',
-    //             },
-    //             body: JSON.stringify({
-    //                 email: email,
-    //                 password: password,
-    //             }),
-    //         });
-
-    //         const responseText = await response.text();
-    //         let data;
-    //         try {
-    //             data = JSON.parse(responseText);
-    //         } catch {
-    //             data = responseText;
-    //         }
-
-    //         if (response.ok) {
-    //             // Ekstrak token dari string plain text atau JSON object
-    //             const token = typeof data === 'string' ? data : (data.token || data.data?.token || data.accessToken);
-
-    //             if (token) {
-    //                 localStorage.setItem('token', token);
-    //                 if (typeof data === 'object' && (data.user || data.data?.user)) {
-    //                     localStorage.setItem('user', JSON.stringify(data.user || data.data?.user));
-    //                 }
-    //                 navigate('/dashboard');
-    //             } else {
-    //                 setError('Login berhasil, namun Token tidak ditemukan.');
-    //             }
-    //         } else {
-    //             const errorMessage = typeof data === 'object' ? (data.message || data.title) : data;
-    //             setError(errorMessage || 'Email atau password salah.');
-    //         }
-    //     } catch (err) {
-    //         console.error('Error Login:', err);
-    //         setError('Terjadi kesalahan koneksi ke server.');
-    //     } finally {
-    //         setLoading(false);
-    //     }
-    // };
-
- const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
+        setError('');
         setLoading(true);
 
-        // Simpan dummy session ke localStorage
-        localStorage.setItem('token', 'dummy-token-bypass-12345');
-        localStorage.setItem(
-            'user', 
-            JSON.stringify({
-                fullname: "John Doe",
-                username: "johndoe",
-                email: email || "john@example.com",
-                password: 'john123'
-            })
-        );
+        try {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-        setTimeout(() => {
+            const response = await fetch(`${API_BASE_URL}/api/Auth/login`, {
+                method: 'POST',
+                headers: {
+                    'accept': 'text/plain',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: email,
+                    password: password,
+                }),
+            });
+
+            const responseText = await response.text();
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch {
+                data = responseText;
+            }
+
+            if (response.ok) {
+                // Ekstrak token dari string plain text atau JSON object
+                const token = typeof data === 'string' ? data : (data.token || data.data?.token || data.accessToken);
+
+                if (token) {
+                    localStorage.setItem('token', token);
+                    if (typeof data === 'object' && (data.user || data.data?.user)) {
+                        localStorage.setItem('user', JSON.stringify(data.user || data.data?.user));
+                    }
+                    navigate('/dashboard');
+                } else {
+                    setError('Login berhasil, namun Token tidak ditemukan.');
+                }
+            } else {
+                const errorMessage = typeof data === 'object' ? (data.message || data.title) : data;
+                setError(errorMessage || 'Email atau password salah.');
+            }
+        } catch (err) {
+            console.error('Error Login:', err);
+            setError('Terjadi kesalahan koneksi ke server.');
+        } finally {
             setLoading(false);
-            navigate('/dashboard');
-        }, 400);
+        }
     };
 
+//  const handleLogin = (e) => {
+//         e.preventDefault();
+//         setLoading(true);
+
+//         // Simpan dummy session ke localStorage
+//         localStorage.setItem('token', 'dummy-token-bypass-12345');
+//         localStorage.setItem(
+//             'user', 
+//             JSON.stringify({
+//                 fullname: "John Doe",
+//                 username: "johndoe",
+//                 email: email || "john@example.com",
+//                 password: 'john123'
+//             })
+//         );
+
+//         setTimeout(() => {
+//             setLoading(false);
+//             navigate('/dashboard');
+//         }, 400);
+//     };
+
     return (
-        /* Outer Viewport Box */
         <div className="w-screen h-screen overflow-hidden bg-[#004D4E] flex items-center justify-center select-none">
-            
-            {/* Scaled Canvas Container */}
             <div 
                 className="relative shrink-0 flex items-center justify-center"
                 style={{
@@ -119,7 +116,6 @@ const Login = () => {
                 }}
             >
 
-                {/* LAYER 2: Ellipse 4 - Bola Biru Tua Atas Kiri */}
                 <div
                     className="absolute pointer-events-none rounded-full"
                     style={{
@@ -133,7 +129,6 @@ const Login = () => {
                     }}
                 ></div>
 
-                {/* LAYER 3: Ellipse 5 - Bola Mint Toska Bawah Kanan */}
                 <div
                     className="absolute pointer-events-none rounded-full"
                     style={{
@@ -146,9 +141,7 @@ const Login = () => {
                     }}
                 ></div>
 
-                {/* LAYER 4: Konten Utama & Form Card */}
-                <div className="relative z-10 w-full max-w-[1280px] px-16 flex flex-row items-center justify-between gap-12">
-
+                <div className="relative z-10 w-full max-w-7xl px-16 flex flex-row items-center justify-between gap-12">
                     <div className="flex-1 flex flex-col justify-end text-white max-w-xl mt-40">
                         <h1 className="text-[56px] font-bold tracking-tight mb-4 leading-[1.1] text-white">
                             Create without limits
@@ -158,10 +151,8 @@ const Login = () => {
                         </p>
                     </div>
 
-                    {/* Form Card Glassmorphism */}
-                    <div className="w-full max-w-[550px] px-4">
-                        <div className="w-full min-h-[500px] bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-[28px] p-10 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] ml-30">
-
+                    <div className="w-full max-w-137.5 px-4">
+                        <div className="w-full min-h-125 bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-[28px] p-10 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] ml-30">
                             <div className="mb-6">
                                 <h2 className="text-[32px] font-bold text-black tracking-tight mb-1">
                                     Welcome Back!
@@ -171,7 +162,6 @@ const Login = () => {
                                 </p>
                             </div>
 
-                            {/* Error Message */}
                             {error && (
                                 <div className="mb-3 px-4 py-2.5 bg-red-500/20 border border-red-400/50 rounded-xl">
                                     <p className="text-[13px] font-bold text-red-700">{error}</p>
