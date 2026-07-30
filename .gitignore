@@ -1,72 +1,70 @@
+# --- .NET / ASP.NET Core ---
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+*.userosscache
+*.userprefs
+.vs/
+.csproj.user
+
+# --- Rider / JetBrains ---
+.idea/
+
+# --- Node / Frontend ---
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-lerna-debug.log*
+dist/
 
-# Environment
+# --- Secrets & config ---
+appsettings.Development.json
+appsettings.*.local.json
+appsettings.local.json
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.secrets
 
-# Editor
-.web/
+# --- Publish ---
+publish/
+
+# --- NuGet ---
+packages/
+*.nupkg
+*.snupkg
+
+# --- Database ---
+*.mdf
+*.ldf
+*.db
+*.sqlite
+*.sqlite3
+Migrations/
+
+# --- Logs ---
+*.log
+*.err
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+*.bak
+
+# --- IDE / Editor ---
+*.sln.docstates
+*.sln.ide/
+.vscode/
+
+# --- Uploads ---
+wwwroot/profile/
+wwwroot/banner/
+wwwroot/questions/
+
+# --- Graphify output ---
+graphify-out/
+AGENTS.md
 .history/
 
-# IDE & Editor
-.vs/
-.vscode/
-.idea/
-*.swp
-*.swo
-*.swn
-*.swn
-*.swo
-*~
-*.iml
-.ionide/
-
-# OS Files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-
-# Logs & Temp
-*.log
-*.tmp
-*.temp
-*.swp
-*.bak
-*.orig
-*.old
-*~
-
-# Secrets & Credentials
-*.key
-*.pem
-*.p12
-*.pfx
-*.cert
-*.cer
-*.crt
-*.secret
-secrets/
-credentials/
-
-# Docker
-docker-compose.override.yml
-
-# Coverage & Reports
-coverage/
-*.lcov
-*.coverage
-htmlcov/
+package.json
+package-lock.json
