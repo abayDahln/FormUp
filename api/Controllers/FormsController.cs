@@ -97,8 +97,8 @@ public class FormsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        form.DeletedAt = DateTime.UtcNow;
-        form.UpdatedAt = DateTime.UtcNow;
+        form.DeletedAt = JakartaTime.Now;
+        form.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Form deleted"));
@@ -131,7 +131,7 @@ public class FormsController : ControllerBase
         if (request.BannerImage != null)
             form.BannerImage = request.BannerImage;
 
-        form.UpdatedAt = DateTime.UtcNow;
+        form.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Form updated", MapFormResponse(form)));
@@ -159,7 +159,7 @@ public class FormsController : ControllerBase
             Description = request.Description,
             BannerImage = request.BannerImage,
             FormLink = Guid.NewGuid().ToString("N")[..12],
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = JakartaTime.Now,
         };
 
         _db.Forms.Add(form);
@@ -215,7 +215,7 @@ public class FormsController : ControllerBase
         }
 
         form.BannerImage = $"/banner/{uniqueName}";
-        form.UpdatedAt = DateTime.UtcNow;
+        form.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Banner uploaded", new { bannerImage = form.BannerImage }));
@@ -240,7 +240,7 @@ public class FormsController : ControllerBase
             form.FormSetting = new FormSetting
             {
                 FormId = form.Id,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = JakartaTime.Now,
             };
             _db.FormSettings.Add(form.FormSetting);
         }
@@ -263,8 +263,8 @@ public class FormsController : ControllerBase
         if (request.CloseFormTime.HasValue)
             form.FormSetting.CloseFormTime = request.CloseFormTime;
 
-        form.FormSetting.UpdatedAt = DateTime.UtcNow;
-        form.UpdatedAt = DateTime.UtcNow;
+        form.FormSetting.UpdatedAt = JakartaTime.Now;
+        form.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Settings updated", new FormSettingDto
@@ -297,13 +297,13 @@ public class FormsController : ControllerBase
         if (form.StatusId == publishedStatus.Id)
         {
             form.StatusId = draftStatus.Id;
-            form.UpdatedAt = DateTime.UtcNow;
+            form.UpdatedAt = JakartaTime.Now;
             await _db.SaveChangesAsync();
             return Ok(new ApiResponse<object>(200, "Form unpublished"));
         }
 
         form.StatusId = publishedStatus.Id;
-        form.UpdatedAt = DateTime.UtcNow;
+        form.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Form published"));

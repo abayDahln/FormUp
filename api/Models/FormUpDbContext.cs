@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 
@@ -39,6 +39,8 @@ public partial class FormUpDbContext : DbContext
 
     public virtual DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
 
+    public virtual DbSet<RegistrationOtp> RegistrationOtps { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Form>(entity =>
@@ -54,7 +56,7 @@ public partial class FormUpDbContext : DbContext
                 .HasMaxLength(255)
                 .HasColumnName("banner_image");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
+                .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
                 .HasColumnType("datetime")
                 .HasColumnName("created_at");
             entity.Property(e => e.DeletedAt)
@@ -100,7 +102,7 @@ public partial class FormUpDbContext : DbContext
                 .HasColumnType("datetime")
                 .HasColumnName("close_form_time");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
+                .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
                 .HasColumnType("datetime")
                 .HasColumnName("created_at");
             entity.Property(e => e.FormId).HasColumnName("form_id");
@@ -134,7 +136,7 @@ public partial class FormUpDbContext : DbContext
 
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
+                .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
                 .HasColumnType("datetime")
                 .HasColumnName("created_at");
             entity.Property(e => e.Status)
@@ -150,7 +152,7 @@ public partial class FormUpDbContext : DbContext
 
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
+                .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
                 .HasColumnType("datetime")
                 .HasColumnName("created_at");
             entity.Property(e => e.IsCorrect)
@@ -180,7 +182,7 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.CorrectAnswer).HasColumnName("correct_answer");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
+                .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
                 .HasColumnType("datetime")
                 .HasColumnName("created_at");
             entity.Property(e => e.DeletedAt)
@@ -224,7 +226,7 @@ public partial class FormUpDbContext : DbContext
 
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
+                .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
                 .HasColumnType("datetime")
                 .HasColumnName("created_at");
             entity.Property(e => e.Type)
@@ -241,7 +243,7 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.AnswerValue).HasColumnName("answer_value");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
+                .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
                 .HasColumnType("datetime")
                 .HasColumnName("created_at");
             entity.Property(e => e.OptionId).HasColumnName("option_id");
@@ -273,7 +275,7 @@ public partial class FormUpDbContext : DbContext
 
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
+                .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
                 .HasColumnType("datetime")
                 .HasColumnName("created_at");
             entity.Property(e => e.FormId).HasColumnName("form_id");
@@ -309,7 +311,7 @@ public partial class FormUpDbContext : DbContext
 
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
+                .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
                 .HasColumnType("datetime")
                 .HasColumnName("created_at");
             entity.Property(e => e.Status)
@@ -330,7 +332,7 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.Birthdate).HasColumnName("birthdate");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
+                .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
                 .HasColumnType("datetime")
                 .HasColumnName("created_at");
             entity.Property(e => e.DeletedAt)
@@ -354,6 +356,7 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.Role)
                 .HasMaxLength(20)
                 .HasDefaultValue("USER")
+                .IsRequired()
                 .HasColumnName("role");
             entity.Property(e => e.UpdatedAt)
                 .HasColumnType("datetime")
@@ -386,7 +389,7 @@ public partial class FormUpDbContext : DbContext
                 .HasColumnName("description");
 
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
+                .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
                 .HasColumnType("datetime")
                 .HasColumnName("created_at");
 
@@ -415,22 +418,62 @@ public partial class FormUpDbContext : DbContext
 
             entity.HasKey(e => e.Id);
 
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+
             entity.Property(e => e.Otp)
                 .HasMaxLength(6)
-                .IsRequired();
+                .IsRequired()
+                .HasColumnName("otp");
 
             entity.Property(e => e.ExpiresAt)
                 .HasColumnType("datetime")
-                .IsRequired();
+                .IsRequired()
+                .HasColumnName("expires_at");
+
+            entity.Property(e => e.IsUsed)
+                .HasColumnName("is_used");
 
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())")
-                .HasColumnType("datetime");
+                .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
+                .HasColumnType("datetime")
+                .HasColumnName("created_at");
 
             entity.HasOne(e => e.User)
                 .WithMany()
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RegistrationOtp>(entity =>
+        {
+            entity.ToTable("RegistrationOtp");
+
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id).HasColumnName("id");
+
+            entity.Property(e => e.Email)
+                .HasMaxLength(100)
+                .IsRequired()
+                .HasColumnName("email");
+
+            entity.Property(e => e.Otp)
+                .HasMaxLength(6)
+                .IsRequired()
+                .HasColumnName("otp");
+
+            entity.Property(e => e.ExpiresAt)
+                .HasColumnType("datetime")
+                .IsRequired()
+                .HasColumnName("expires_at");
+
+            entity.Property(e => e.IsUsed)
+                .HasColumnName("is_used");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
+                .HasColumnType("datetime")
+                .HasColumnName("created_at");
         });
 
         OnModelCreatingPartial(modelBuilder);

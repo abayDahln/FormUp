@@ -1,10 +1,10 @@
 namespace FormUpAPI.Models;
 
-public class PasswordResetToken
+public class RegistrationOtp
 {
     public int Id { get; set; }
 
-    public int UserId { get; set; }
+    public string Email { get; set; } = null!;
 
     public string Otp { get; set; } = null!;
 
@@ -13,6 +13,4 @@ public class PasswordResetToken
     public bool IsUsed { get; set; }
 
     public DateTime CreatedAt { get; set; }
-
-    public virtual User User { get; set; } = null!;
 }

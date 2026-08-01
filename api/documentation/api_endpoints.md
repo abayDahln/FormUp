@@ -24,18 +24,47 @@ Semua response menggunakan wrapper `ApiResponse<T>`:
 
 # Auth Endpoints (Sudah Diimplementasikan)
 
-## 1. Register
+## 1. Register (Kirim OTP)
 
 `POST /api/auth/register`
+
+Kirim OTP verifikasi ke email. User **belum dibuat** di tahap ini.
 
 **Request:**
 ```json
 {
   "fullname": "John Doe",
-  "username": "johndoe",
+  "email": "john@example.com",
+  "password": "SecurePass123!"
+}
+```
+
+**Response 200:**
+```json
+{
+  "status": 200,
+  "message": "OTP has been sent to your email",
+  "data": null
+}
+```
+
+**Validasi:** email belum terdaftar, format field benar. `username` dan `birthdate` **opsional** — bisa diisi nanti lewat `PUT /api/users/me`.
+
+---
+
+## 2. Verify Registration (Selesaikan Register)
+
+`POST /api/auth/verify-registration`
+
+Verifikasi OTP lalu buat user. Body sama seperti register + field `otp`.
+
+**Request:**
+```json
+{
+  "fullname": "John Doe",
   "email": "john@example.com",
   "password": "SecurePass123!",
-  "birthdate": "1990-01-15"
+  "otp": "123456"
 }
 ```
 
@@ -61,9 +90,15 @@ Semua response menggunakan wrapper `ApiResponse<T>`:
 }
 ```
 
+**Validasi:**
+- OTP berlaku 15 menit
+- Jika OTP salah/kedaluwarsa → `400 Invalid or expired OTP`
+- OTP sekali pakai (langsung invalid setelah dipakai)
+- Panggil `register` lagi untuk kirim ulang OTP baru (OTP lama otomatis dibatalkan)
+
 ---
 
-## 2. Login
+## 3. Login
 
 `POST /api/auth/login`
 
@@ -90,7 +125,7 @@ Semua response menggunakan wrapper `ApiResponse<T>`:
 
 ---
 
-## 3. Refresh Token
+## 4. Refresh Token
 
 `POST /api/auth/refresh`
 
@@ -110,7 +145,7 @@ Semua response menggunakan wrapper `ApiResponse<T>`:
 
 ---
 
-## 4. Lupa Password
+## 5. Lupa Password
 
 `POST /api/auth/forgot-password`
 
@@ -132,7 +167,7 @@ Semua response menggunakan wrapper `ApiResponse<T>`:
 
 ---
 
-## 5. Reset Password
+## 6. Reset Password
 
 `POST /api/auth/reset-password`
 

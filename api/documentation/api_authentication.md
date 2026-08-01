@@ -16,31 +16,60 @@ Authorization: Bearer <your-jwt-token>
 
 ## Endpoint Autentikasi
 
-### 1. Register
+### 1. Register (Kirim OTP)
 
 **Endpoint:**
 ```
 POST /api/auth/register
 ```
 
+Kirim OTP verifikasi ke email. User **belum dibuat** di tahap ini.
+
 **Request:**
 ```json
 {
   "fullname": "John Doe",
-  "username": "johndoe",
   "email": "john@example.com",
-  "password": "SecurePass123!",
-  "birthdate": "1990-01-15"
+  "password": "SecurePass123!"
 }
 ```
 
 **Validasi:**
 - `fullname` — wajib
-- `username` — min 3 karakter, unik
 - `email` — format valid, unik
 - `password` — min 8 karakter
+- `username` — opsional, min 3 karakter jika diisi (bisa diisi nanti via `PUT /api/users/me`)
 - `birthdate` — opsional, format `yyyy-MM-dd`
-- `role` — opsional, default `"USER"`
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "OTP has been sent to your email",
+  "data": null
+}
+```
+
+---
+
+### 2. Verify Registration (Selesaikan Register)
+
+**Endpoint:**
+```
+POST /api/auth/verify-registration
+```
+
+Verifikasi OTP lalu buat user. Body sama seperti register + field `otp`.
+
+**Request:**
+```json
+{
+  "fullname": "John Doe",
+  "email": "john@example.com",
+  "password": "SecurePass123!",
+  "otp": "123456"
+}
+```
 
 **Response (201 Created):**
 ```json
@@ -64,9 +93,15 @@ POST /api/auth/register
 }
 ```
 
+**Validasi:**
+- OTP berlaku 15 menit
+- OTP salah/kedaluwarsa → `400 Invalid or expired OTP`
+- OTP sekali pakai
+- Panggil `register` lagi untuk kirim ulang OTP baru (OTP lama dibatalkan)
+
 ---
 
-### 2. Login
+### 3. Login
 
 **Endpoint:**
 ```

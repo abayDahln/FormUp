@@ -8,7 +8,7 @@ Menyimpan data user dan akun.
 |-------|------|----------|--------|-----------|
 | id | int | Ya | Ya | Primary key (auto-increment) |
 | fullname | string(100) | Ya | Tidak | Nama lengkap user |
-| username | string(50) | Ya | Ya | Username untuk login |
+| username | string(50) | Tidak | Ya | Username (opsional saat register, bisa diisi nanti lewat profile) |
 | email | string(100) | Ya | Ya | Email address |
 | password | string(255) | Ya | Tidak | Hash password (PBKDF2 SHA256, format `salt.hash`) |
 | role | string(20) | Tidak | Tidak | `"USER"` default, bisa juga `"ADMIN"` |
@@ -168,10 +168,41 @@ Tabel-tabel ini diisi saat migrasi dan hanya dibaca (read-only).
 
 ---
 
-## 9. Entity Relationships
+## 9. RegistrationOtp (OTP Registrasi)
+
+OTP untuk alur register 2 langkah (`/api/auth/register` → `/api/auth/verify-registration`). User **belum ada** saat OTP dikirim, jadi tabel ini tidak punya FK ke User.
+
+| Field | Type | Required | Keterangan |
+|-------|------|----------|-----------|
+| id | int | Ya | Primary key (auto-increment) |
+| email | string(100) | Ya | Email yang didaftarkan |
+| otp | string(6) | Ya | Kode OTP (6 digit) |
+| expires_at | datetime | Ya | Waktu kedaluwarsa (15 menit sejak dibuat) |
+| is_used | boolean | Ya | Sudah dipakai (default: false) |
+| created_at | datetime | Ya | Waktu dibuat |
+
+---
+
+## 10. PasswordResetToken (OTP Reset Password)
+
+OTP untuk alur forgot/reset password (`/api/auth/forgot-password` → `/api/auth/reset-password`). Hanya dibuat jika user sudah terdaftar.
+
+| Field | Type | Required | Keterangan |
+|-------|------|----------|-----------|
+| id | int | Ya | Primary key (auto-increment) |
+| user_id | int | Ya | FK ke User |
+| otp | string(6) | Ya | Kode OTP (6 digit) |
+| expires_at | datetime | Ya | Waktu kedaluwarsa (15 menit sejak dibuat) |
+| is_used | boolean | Ya | Sudah dipakai (default: false) |
+| created_at | datetime | Ya | Waktu dibuat |
+
+---
+
+## 11. Entity Relationships
 
 ```
 User (1) ---< (N) Form
+User (1) ---< (N) PasswordResetToken
   |
   +--- (1) ---< (N) Response
 
@@ -187,13 +218,15 @@ Response (1) ---< (N) RespondentAnswer
 Response (1) ---  (1) ResponseStatus
 
 OptionQuestion (1) ---< (N) RespondentAnswer
+
+RegistrationOtp — tanpa relasi (user belum terdaftar)
 ```
 
 > Semua primary key menggunakan `int` auto-increment. Tidak ada UUID.
 
 ---
 
-## 10. Aturan Umum
+## 12. Aturan Umum
 
 | Aturan | Keterangan |
 |--------|-----------|

@@ -57,7 +57,7 @@ public class FeedbacksController : ControllerBase
             ResponseId = response?.Id,
             Reason = request.Reason,
             Description = request.Description,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = JakartaTime.Now,
         };
 
         _db.Feedbacks.Add(feedback);
@@ -172,7 +172,7 @@ public class FeedbacksController : ControllerBase
         if (feedback.Form.TakenDownAt != null)
             return BadRequest(new ApiResponse<object>(400, "Form is already taken down"));
 
-        feedback.Form.TakenDownAt = DateTime.UtcNow;
+        feedback.Form.TakenDownAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Form has been taken down"));

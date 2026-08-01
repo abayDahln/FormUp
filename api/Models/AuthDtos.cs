@@ -3,7 +3,7 @@ namespace FormUpAPI.Models;
 public class RegisterRequest
 {
     public string Fullname { get; set; } = null!;
-    public string Username { get; set; } = null!;
+    public string? Username { get; set; }
     public string Email { get; set; } = null!;
     public string Password { get; set; } = null!;
     public string? Birthdate { get; set; }
@@ -32,6 +32,16 @@ public class ResetPasswordRequest
     public string NewPassword { get; set; } = null!;
 }
 
+public class VerifyRegistrationRequest
+{
+    public string Fullname { get; set; } = null!;
+    public string? Username { get; set; }
+    public string Email { get; set; } = null!;
+    public string Password { get; set; } = null!;
+    public string? Birthdate { get; set; }
+    public string Otp { get; set; } = null!;
+}
+
 public class AuthResponse
 {
     public string Token { get; set; } = null!;
@@ -43,7 +53,7 @@ public class UserDto
 {
     public int Id { get; set; }
     public string Fullname { get; set; } = null!;
-    public string Username { get; set; } = null!;
+    public string? Username { get; set; }
     public string Email { get; set; } = null!;
     public string? Role { get; set; }
     public string? ProfileImage { get; set; }

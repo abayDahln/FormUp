@@ -14,3 +14,4 @@ wwwroot/questions/
 *.suo
 .vs/
 graphify-out/
+opencode.json

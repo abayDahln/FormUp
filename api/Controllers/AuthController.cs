@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using FormUpAPI.Models;
 using FormUpAPI.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -25,33 +25,80 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<ActionResult<ApiResponse<object>>> Register([FromBody] RegisterRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Fullname))
-            return BadRequest(new ApiResponse<object>(400, "Fullname is required"));
-
-        if (string.IsNullOrWhiteSpace(request.Username) || request.Username.Length < 3)
-            return BadRequest(new ApiResponse<object>(400, "Username must be at least 3 characters"));
-
-        if (string.IsNullOrWhiteSpace(request.Email) || !Regex.IsMatch(request.Email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
-            return BadRequest(new ApiResponse<object>(400, "Valid email is required"));
-
-        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
-            return BadRequest(new ApiResponse<object>(400, "Password must be at least 8 characters"));
+        var validationError = ValidateRegistration(request.Fullname, request.Username, request.Email, request.Password);
+        if (validationError != null)
+            return BadRequest(new ApiResponse<object>(400, validationError));
 
         if (await _db.Users.AnyAsync(u => u.Email == request.Email))
             return Conflict(new ApiResponse<object>(409, "Email already registered"));
 
-        if (await _db.Users.AnyAsync(u => u.Username == request.Username))
+        if (!string.IsNullOrWhiteSpace(request.Username) && await _db.Users.AnyAsync(u => u.Username == request.Username))
             return Conflict(new ApiResponse<object>(409, "Username already taken"));
+
+        var existingOtp = await _db.RegistrationOtps
+            .Where(t => t.Email == request.Email && !t.IsUsed && t.ExpiresAt > JakartaTime.Now)
+            .ToListAsync();
+        _db.RegistrationOtps.RemoveRange(existingOtp);
+
+        var otp = Random.Shared.Next(100_000, 999_999).ToString();
+        _db.RegistrationOtps.Add(new RegistrationOtp
+        {
+            Email = request.Email,
+            Otp = otp,
+            ExpiresAt = JakartaTime.Now.AddMinutes(15),
+            CreatedAt = JakartaTime.Now,
+        });
+        await _db.SaveChangesAsync();
+
+        try
+        {
+            await _email.SendOtpAsync(request.Email, otp, "register");
+        }
+        catch
+        {
+            return StatusCode(500, new ApiResponse<object>(500, "Failed to send email. Check SMTP configuration."));
+        }
+
+        return Ok(new ApiResponse<object>(200, "OTP has been sent to your email"));
+    }
+
+    [HttpPost("verify-registration")]
+    public async Task<ActionResult<ApiResponse<object>>> VerifyRegistration([FromBody] VerifyRegistrationRequest request)
+    {
+        var validationError = ValidateRegistration(request.Fullname, request.Username, request.Email, request.Password);
+        if (validationError != null)
+            return BadRequest(new ApiResponse<object>(400, validationError));
+
+        if (string.IsNullOrWhiteSpace(request.Otp))
+            return BadRequest(new ApiResponse<object>(400, "OTP is required"));
+
+        if (await _db.Users.AnyAsync(u => u.Email == request.Email))
+            return Conflict(new ApiResponse<object>(409, "Email already registered"));
+
+        if (!string.IsNullOrWhiteSpace(request.Username) && await _db.Users.AnyAsync(u => u.Username == request.Username))
+            return Conflict(new ApiResponse<object>(409, "Username already taken"));
+
+        var token = await _db.RegistrationOtps
+            .FirstOrDefaultAsync(t =>
+                t.Email == request.Email &&
+                t.Otp == request.Otp &&
+                !t.IsUsed &&
+                t.ExpiresAt > JakartaTime.Now);
+
+        if (token == null)
+            return BadRequest(new ApiResponse<object>(400, "Invalid or expired OTP"));
+
+        token.IsUsed = true;
 
         var user = new User
         {
             Fullname = request.Fullname,
-            Username = request.Username,
+            Username = string.IsNullOrWhiteSpace(request.Username) ? null : request.Username,
             Email = request.Email,
             Password = PasswordHelper.Hash(request.Password),
             Role = "USER",
             IsActive = true,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = JakartaTime.Now,
         };
 
         if (DateOnly.TryParse(request.Birthdate, out var birthdate))
@@ -60,11 +107,11 @@ public class AuthController : ControllerBase
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
-        var (token, expiresAt) = _jwt.GenerateToken(user);
+        var (jwtToken, expiresAt) = _jwt.GenerateToken(user);
 
-        return CreatedAtAction(nameof(Register), new ApiResponse<object>(201, "User registered successfully", new AuthResponse
+        return CreatedAtAction(nameof(VerifyRegistration), new ApiResponse<object>(201, "User registered successfully", new AuthResponse
         {
-            Token = token,
+            Token = jwtToken,
             ExpiresAt = expiresAt,
             User = MapUserDto(user),
         }));
@@ -126,7 +173,7 @@ public class AuthController : ControllerBase
             return Ok(new ApiResponse<object>(200, "If the email exists, an OTP has been sent"));
 
         var existingTokens = await _db.PasswordResetTokens
-            .Where(t => t.UserId == user.Id && !t.IsUsed && t.ExpiresAt > DateTime.UtcNow)
+            .Where(t => t.UserId == user.Id && !t.IsUsed && t.ExpiresAt > JakartaTime.Now)
             .ToListAsync();
         _db.PasswordResetTokens.RemoveRange(existingTokens);
 
@@ -135,14 +182,14 @@ public class AuthController : ControllerBase
         {
             UserId = user.Id,
             Otp = otp,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(15),
-            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = JakartaTime.Now.AddMinutes(15),
+            CreatedAt = JakartaTime.Now,
         });
         await _db.SaveChangesAsync();
 
         try
         {
-            await _email.SendOtpAsync(user.Email, otp);
+            await _email.SendOtpAsync(user.Email, otp, "forgot_password");
         }
         catch
         {
@@ -170,18 +217,35 @@ public class AuthController : ControllerBase
                 t.UserId == user.Id &&
                 t.Otp == request.Otp &&
                 !t.IsUsed &&
-                t.ExpiresAt > DateTime.UtcNow);
+                t.ExpiresAt > JakartaTime.Now);
 
         if (token == null)
             return BadRequest(new ApiResponse<object>(400, "Invalid or expired OTP"));
 
         token.IsUsed = true;
         user.Password = PasswordHelper.Hash(request.NewPassword);
-        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedAt = JakartaTime.Now;
 
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Password has been reset successfully"));
+    }
+
+    private static string? ValidateRegistration(string? fullname, string? username, string? email, string? password)
+    {
+        if (string.IsNullOrWhiteSpace(fullname))
+            return "Fullname is required";
+
+        if (!string.IsNullOrWhiteSpace(username) && username.Length < 3)
+            return "Username must be at least 3 characters";
+
+        if (string.IsNullOrWhiteSpace(email) || !Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+            return "Valid email is required";
+
+        if (string.IsNullOrWhiteSpace(password) || password.Length < 8)
+            return "Password must be at least 8 characters";
+
+        return null;
     }
 
     private static UserDto MapUserDto(User user) => new()

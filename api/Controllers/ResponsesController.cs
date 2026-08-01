@@ -37,7 +37,7 @@ public class ResponsesController : ControllerBase
         if (form.StatusId == closedStatus.Id)
             return BadRequest(new ApiResponse<object>(400, "Form is closed"));
 
-        if (form.FormSetting?.CloseFormTime != null && form.FormSetting.CloseFormTime < DateTime.UtcNow)
+        if (form.FormSetting?.CloseFormTime != null && form.FormSetting.CloseFormTime < JakartaTime.Now)
             return BadRequest(new ApiResponse<object>(400, "Form submission period has ended"));
 
         if (!string.IsNullOrEmpty(form.FormSetting?.FormToken))
@@ -80,8 +80,8 @@ public class ResponsesController : ControllerBase
             FormId = formId,
             RespondentId = respondentId,
             StatusId = newStatus.Id,
-            SubmittedAt = DateTime.UtcNow,
-            CreatedAt = DateTime.UtcNow,
+            SubmittedAt = JakartaTime.Now,
+            CreatedAt = JakartaTime.Now,
         };
 
         _db.Responses.Add(response);
@@ -93,7 +93,7 @@ public class ResponsesController : ControllerBase
             QuestionId = a.QuestionId,
             OptionId = a.OptionId,
             AnswerValue = a.AnswerValue,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = JakartaTime.Now,
         }).ToList();
 
         _db.RespondentAnswers.AddRange(answers);
@@ -125,7 +125,7 @@ public class ResponsesController : ControllerBase
                 Id = r.Id,
                 RespondentName = r.Respondent != null ? r.Respondent.Fullname : null,
                 Status = r.Status!.Status,
-                SubmittedAt = r.SubmittedAt ?? r.CreatedAt ?? DateTime.UtcNow,
+                SubmittedAt = r.SubmittedAt ?? r.CreatedAt ?? JakartaTime.Now,
             })
             .ToListAsync();
 
@@ -163,7 +163,7 @@ public class ResponsesController : ControllerBase
             FormId = response.FormId,
             RespondentName = response.Respondent?.Fullname,
             Status = response.Status?.Status ?? "unknown",
-            SubmittedAt = response.SubmittedAt ?? response.CreatedAt ?? DateTime.UtcNow,
+            SubmittedAt = response.SubmittedAt ?? response.CreatedAt ?? JakartaTime.Now,
             Answers = response.RespondentAnswers.Select(a => new AnswerDetail
             {
                 QuestionId = a.QuestionId,
@@ -200,7 +200,7 @@ public class ResponsesController : ControllerBase
             return BadRequest(new ApiResponse<object>(400, "Invalid status ID"));
 
         response.StatusId = request.StatusId;
-        response.UpdatedAt = DateTime.UtcNow;
+        response.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Status updated"));

@@ -23,7 +23,7 @@ public class EmailService
         _fromName = smtp["FromName"] ?? "FormUp";
     }
 
-    public async Task SendOtpAsync(string toEmail, string otp)
+    public async Task SendOtpAsync(string toEmail, string otp, string purpose)
     {
         using var client = new SmtpClient(_smtpHost, _smtpPort)
         {
@@ -31,12 +31,18 @@ public class EmailService
             EnableSsl = true,
         };
 
+        var (subject, heading) = purpose switch
+        {
+            "register" => ("FormUp — Verification OTP", "Verify Your Account"),
+            _ => ("FormUp — Password Reset OTP", "Password Reset Request"),
+        };
+
         var mail = new MailMessage
         {
             From = new MailAddress(_fromEmail, _fromName),
-            Subject = "FormUp — Password Reset OTP",
+            Subject = subject,
             Body = $"""
-            <h2>Password Reset Request</h2>
+            <h2>{heading}</h2>
             <p>Your OTP code is:</p>
             <h1 style="letter-spacing: 8px; font-size: 32px; background: #f4f4f4; padding: 12px 24px; text-align: center;">{otp}</h1>
             <p>This code expires in <strong>15 minutes</strong>.</p>

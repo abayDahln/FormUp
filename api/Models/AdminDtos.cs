@@ -4,7 +4,7 @@ public class AdminUserListItem
 {
     public int Id { get; set; }
     public string Fullname { get; set; } = null!;
-    public string Username { get; set; } = null!;
+    public string? Username { get; set; }
     public string Email { get; set; } = null!;
     public string Role { get; set; } = null!;
     public bool? IsActive { get; set; }
@@ -17,7 +17,7 @@ public class AdminUserDetailResponse
 {
     public int Id { get; set; }
     public string Fullname { get; set; } = null!;
-    public string Username { get; set; } = null!;
+    public string? Username { get; set; }
     public string Email { get; set; } = null!;
     public string? Role { get; set; }
     public string? ProfileImage { get; set; }

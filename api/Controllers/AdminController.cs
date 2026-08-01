@@ -92,7 +92,7 @@ public class AdminController : ControllerBase
             return BadRequest(new ApiResponse<object>(400, "Cannot ban an admin"));
 
         user.IsActive = false;
-        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "User has been banned"));
@@ -110,7 +110,7 @@ public class AdminController : ControllerBase
             return NotFound(new ApiResponse<object>(404, "User not found"));
 
         user.IsActive = true;
-        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "User has been activated"));
@@ -128,9 +128,9 @@ public class AdminController : ControllerBase
         if (user.Role == "ADMIN")
             return BadRequest(new ApiResponse<object>(400, "Cannot delete an admin"));
 
-        user.DeletedAt = DateTime.UtcNow;
+        user.DeletedAt = JakartaTime.Now;
         user.IsActive = false;
-        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "User deleted"));
@@ -227,8 +227,8 @@ public class AdminController : ControllerBase
         if (form.TakenDownAt != null)
             return BadRequest(new ApiResponse<object>(400, "Form is already taken down"));
 
-        form.TakenDownAt = DateTime.UtcNow;
-        form.UpdatedAt = DateTime.UtcNow;
+        form.TakenDownAt = JakartaTime.Now;
+        form.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Form has been taken down"));
@@ -249,7 +249,7 @@ public class AdminController : ControllerBase
             return BadRequest(new ApiResponse<object>(400, "Form is not taken down"));
 
         form.TakenDownAt = null;
-        form.UpdatedAt = DateTime.UtcNow;
+        form.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Form has been restored"));
@@ -266,8 +266,8 @@ public class AdminController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        form.DeletedAt = DateTime.UtcNow;
-        form.UpdatedAt = DateTime.UtcNow;
+        form.DeletedAt = JakartaTime.Now;
+        form.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Form deleted"));

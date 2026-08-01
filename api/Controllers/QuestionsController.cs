@@ -98,7 +98,7 @@ public class QuestionsController : ControllerBase
                     IsRequired = item.IsRequired ?? false,
                     CorrectAnswer = item.CorrectAnswer,
                     RandomizeOptions = item.RandomizeOptions ?? false,
-                    CreatedAt = DateTime.UtcNow,
+                    CreatedAt = JakartaTime.Now,
                 };
 
                 _db.Questions.Add(question);
@@ -113,7 +113,7 @@ public class QuestionsController : ControllerBase
                         OptionText = o.OptionText,
                         IsCorrect = o.IsCorrect ?? false,
                         OptionOrder = i + 1,
-                        CreatedAt = DateTime.UtcNow,
+                        CreatedAt = JakartaTime.Now,
                     }).ToList();
 
                     _db.OptionQuestions.AddRange(options);
@@ -182,8 +182,8 @@ public class QuestionsController : ControllerBase
                 await _db.Questions
                     .Where(q => oldQuestionIds.Contains(q.Id))
                     .ExecuteUpdateAsync(s => s
-                        .SetProperty(q => q.DeletedAt, DateTime.UtcNow)
-                        .SetProperty(q => q.UpdatedAt, DateTime.UtcNow));
+                        .SetProperty(q => q.DeletedAt, JakartaTime.Now)
+                        .SetProperty(q => q.UpdatedAt, JakartaTime.Now));
             }
 
             var createdIds = new List<int>();
@@ -206,7 +206,7 @@ public class QuestionsController : ControllerBase
                     IsRequired = item.IsRequired ?? false,
                     CorrectAnswer = item.CorrectAnswer,
                     RandomizeOptions = item.RandomizeOptions ?? false,
-                    CreatedAt = DateTime.UtcNow,
+                    CreatedAt = JakartaTime.Now,
                 };
 
                 _db.Questions.Add(question);
@@ -221,7 +221,7 @@ public class QuestionsController : ControllerBase
                         OptionText = o.OptionText,
                         IsCorrect = o.IsCorrect ?? false,
                         OptionOrder = i + 1,
-                        CreatedAt = DateTime.UtcNow,
+                        CreatedAt = JakartaTime.Now,
                     }).ToList();
 
                     _db.OptionQuestions.AddRange(options);
@@ -329,7 +329,7 @@ public class QuestionsController : ControllerBase
                     IsRequired = row.IsRequired,
                     CorrectAnswer = row.CorrectAnswer,
                     RandomizeOptions = row.RandomizeOptions,
-                    CreatedAt = DateTime.UtcNow,
+                    CreatedAt = JakartaTime.Now,
                 };
 
                 _db.Questions.Add(question);
@@ -342,7 +342,7 @@ public class QuestionsController : ControllerBase
                         QuestionId = question.Id,
                         OptionText = opt,
                         OptionOrder = i + 1,
-                        CreatedAt = DateTime.UtcNow,
+                        CreatedAt = JakartaTime.Now,
                     }).ToList();
 
                     _db.OptionQuestions.AddRange(options);
@@ -416,7 +416,7 @@ public class QuestionsController : ControllerBase
         }
 
         question.QuestionAudio = $"/questions/audio/{uniqueName}";
-        question.UpdatedAt = DateTime.UtcNow;
+        question.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Audio uploaded", new { questionAudio = question.QuestionAudio }));
@@ -475,7 +475,7 @@ public class QuestionsController : ControllerBase
         }
 
         question.QuestionImage = $"/questions/images/{uniqueName}";
-        question.UpdatedAt = DateTime.UtcNow;
+        question.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Image uploaded", new { questionImage = question.QuestionImage }));
