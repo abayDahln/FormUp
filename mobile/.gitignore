@@ -27,11 +27,19 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+.flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
 /build/
 /coverage/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # Symbolication related
 app.*.symbols
@@ -43,3 +51,40 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Android-specific
+.gradle/
+local.properties
+**/flutter_plugin_registrant.txt
+*.apk
+*.ap_
+*.aab
+**/android/app/key.properties
+**/*.keystore
+**/*.jks
+
+# iOS-specific
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+project.xcworkspace/
+xcuserdata/
+**/Pods/
+**/Podfile.lock
+.symlinks/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# Ignore non-mobile platform directories completely to keep git light
+/linux/
+/macos/
+/web/
+/windows/
+
+# Ponytail / OpenCode config
+opencode.json

@@ -1,7 +1,8 @@
 class QuestionModel {
   String id;
   String questionText;
-  String type; // 'essay', 'multiple_choice', 'checkbox', 'dropdown', 'date_time', 'upload'
+  String
+  type; // 'essay', 'multiple_choice', 'checkbox', 'dropdown', 'date_time', 'upload'
   List<String>? options;
   List<String>? correctAnswer;
   bool isRequired;
