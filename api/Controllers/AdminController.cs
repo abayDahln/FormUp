@@ -2,12 +2,14 @@ using System.Security.Claims;
 using FormUpAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace FormUpAPI.Controllers;
 
 [Route("api/admin")]
 [ApiController]
+[EnableRateLimiting("creator")]
 [Authorize]
 public class AdminController : ControllerBase
 {

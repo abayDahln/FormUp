@@ -2,6 +2,7 @@ using System.Security.Claims;
 using FormUpAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace FormUpAPI.Controllers;
@@ -19,26 +20,32 @@ public class ResponsesController : ControllerBase
 
     [HttpPost("api/forms/{formId}/responses")]
     [AllowAnonymous]
+    [EnableRateLimiting("submit")]
     public async Task<ActionResult<ApiResponse<object>>> Submit(int formId, [FromBody] SubmitResponseRequest request)
     {
+        // Honeypot: terisi oleh bot → balas sukses palsu tanpa menyimpan.
+        if (!string.IsNullOrWhiteSpace(request.Honeypot))
+            return Ok(new ApiResponse<object>(201, "Response submitted", new { responseId = 0 }));
+
         var form = await _db.Forms
             .Include(f => f.FormSetting)
             .FirstOrDefaultAsync(f => f.Id == formId && f.DeletedAt == null);
 
-        if (form == null)
-            return NotFound(new ApiResponse<object>(404, "Form not found"));
+        // Pesan generik supaya link yang tidak ada/tertutup tidak bisa dibedakan (anti link-guessing).
+        if (form == null || form.TakenDownAt != null)
+            return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
 
         var publishedStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "published");
         var closedStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "closed");
 
         if (form.StatusId != publishedStatus.Id && form.StatusId != closedStatus.Id)
-            return BadRequest(new ApiResponse<object>(400, "Form is not accepting responses"));
+            return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
 
         if (form.StatusId == closedStatus.Id)
-            return BadRequest(new ApiResponse<object>(400, "Form is closed"));
+            return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
 
         if (form.FormSetting?.CloseFormTime != null && form.FormSetting.CloseFormTime < JakartaTime.Now)
-            return BadRequest(new ApiResponse<object>(400, "Form submission period has ended"));
+            return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
 
         if (!string.IsNullOrEmpty(form.FormSetting?.FormToken))
         {
@@ -46,16 +53,30 @@ public class ResponsesController : ControllerBase
                 return Unauthorized(new ApiResponse<object>(401, "Invalid or missing form token"));
         }
 
+        var idempotencyKey = Request.Headers["Idempotency-Key"].ToString();
+        if (!string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            var existingResponse = await _db.Responses
+                .FirstOrDefaultAsync(r => r.FormId == formId && r.IdempotencyKey == idempotencyKey);
+            if (existingResponse != null)
+                return Ok(new ApiResponse<object>(201, "Response submitted", new { responseId = existingResponse.Id }));
+        }
+
         if (form.FormSetting?.OneResponse == true)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var alreadySubmitted = false;
+
             if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var userId))
-            {
-                var existing = await _db.Responses
+                alreadySubmitted = await _db.Responses
                     .AnyAsync(r => r.FormId == formId && r.RespondentId == userId);
-                if (existing)
-                    return BadRequest(new ApiResponse<object>(400, "You have already submitted a response"));
-            }
+
+            if (!alreadySubmitted && !string.IsNullOrWhiteSpace(request.Fingerprint))
+                alreadySubmitted = await _db.Responses
+                    .AnyAsync(r => r.FormId == formId && r.RespondentFingerprint == request.Fingerprint);
+
+            if (alreadySubmitted)
+                return BadRequest(new ApiResponse<object>(400, "You have already submitted a response"));
         }
 
         var questionIds = request.Answers.Select(a => a.QuestionId).ToList();
@@ -79,6 +100,8 @@ public class ResponsesController : ControllerBase
         {
             FormId = formId,
             RespondentId = respondentId,
+            RespondentFingerprint = string.IsNullOrWhiteSpace(request.Fingerprint) ? null : request.Fingerprint,
+            IdempotencyKey = string.IsNullOrWhiteSpace(idempotencyKey) ? null : idempotencyKey,
             StatusId = newStatus.Id,
             SubmittedAt = JakartaTime.Now,
             CreatedAt = JakartaTime.Now,
@@ -207,14 +230,14 @@ public class ResponsesController : ControllerBase
     }
 
     [HttpGet("api/forms/{formId}/responses/export")]
-    public async Task<IActionResult> Export(int formId)
+    public async Task<IActionResult> Export(int formId, CancellationToken ct)
     {
         var user = await GetCurrentUser();
         if (user == null)
             return Unauthorized(new ApiResponse<object>(401, "User not found"));
 
         var form = await _db.Forms
-            .FirstOrDefaultAsync(f => f.Id == formId && f.UserId == user.Id && f.DeletedAt == null);
+            .FirstOrDefaultAsync(f => f.Id == formId && f.UserId == user.Id && f.DeletedAt == null, ct);
 
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
@@ -222,7 +245,7 @@ public class ResponsesController : ControllerBase
         var questions = await _db.Questions
             .Where(q => q.FormId == formId && q.DeletedAt == null)
             .OrderBy(q => q.QuestionOrder)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         var responses = await _db.Responses
             .Include(r => r.Respondent)
@@ -231,7 +254,7 @@ public class ResponsesController : ControllerBase
                 .ThenInclude(a => a.Option)
             .Where(r => r.FormId == formId)
             .OrderByDescending(r => r.SubmittedAt)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         using var writer = new System.IO.StringWriter();
 

@@ -11,7 +11,7 @@ public class JwtService
     private readonly string _key;
     private readonly string _issuer;
     private readonly string _audience;
-    private readonly int _expiryMinutes;
+    private readonly int _accessTokenMinutes;
 
     public JwtService(IConfiguration configuration)
     {
@@ -19,12 +19,12 @@ public class JwtService
         _key = Environment.GetEnvironmentVariable("JWT_KEY") ?? jwtSettings["Key"] ?? "";
         _issuer = jwtSettings["Issuer"] ?? "FormUpAPI";
         _audience = jwtSettings["Audience"] ?? "FormUpClient";
-        _expiryMinutes = int.TryParse(jwtSettings["ExpiryMinutes"], out var exp) ? exp : 10080;
+        _accessTokenMinutes = int.TryParse(jwtSettings["AccessTokenMinutes"], out var exp) ? exp : 60;
     }
 
     public (string token, DateTime expiresAt) GenerateToken(User user)
     {
-        var expiresAt = DateTime.UtcNow.AddMinutes(_expiryMinutes);
+        var expiresAt = DateTime.UtcNow.AddMinutes(_accessTokenMinutes);
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_key));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 

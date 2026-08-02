@@ -4,8 +4,10 @@ using ClosedXML.Excel;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using FormUpAPI.Models;
+using FormUpAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using UglyToad.PdfPig;
 
@@ -13,6 +15,7 @@ namespace FormUpAPI.Controllers;
 
 [Route("api/forms/{formId}/questions")]
 [ApiController]
+[EnableRateLimiting("creator")]
 [Authorize]
 public class QuestionsController : ControllerBase
 {
@@ -252,13 +255,8 @@ public class QuestionsController : ControllerBase
         if (file == null || file.Length == 0)
             return BadRequest(new ApiResponse<object>(400, "No file uploaded"));
 
-        if (file.Length > 5 * 1024 * 1024)
+        if (file.Length > FileValidation.MaxImportBytes)
             return BadRequest(new ApiResponse<object>(400, "File size must be under 5 MB"));
-
-        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-        var allowedExts = new[] { ".xlsx", ".xls", ".csv", ".pdf", ".docx" };
-        if (!allowedExts.Contains(ext))
-            return BadRequest(new ApiResponse<object>(400, "Only .xlsx, .xls, .csv, .pdf, and .docx files are allowed"));
 
         var user = await GetCurrentUser();
         if (user == null)
@@ -273,6 +271,26 @@ public class QuestionsController : ControllerBase
         using var stream = new MemoryStream();
         await file.CopyToAsync(stream);
         stream.Position = 0;
+
+        var contentExt = FileValidation.DetectImportExt(stream);
+        var originalExt = Path.GetExtension(file.FileName).ToLowerInvariant();
+        string ext;
+        if (contentExt == null)
+        {
+            if (originalExt != ".csv")
+                return BadRequest(new ApiResponse<object>(400, "Only .xlsx, .xls, .csv, .pdf, and .docx files are allowed"));
+            ext = ".csv";
+        }
+        else if (contentExt == ".zip")
+        {
+            if (originalExt is not (".xlsx" or ".xls" or ".docx"))
+                return BadRequest(new ApiResponse<object>(400, "Only .xlsx, .xls, .csv, .pdf, and .docx files are allowed"));
+            ext = originalExt;
+        }
+        else
+        {
+            ext = contentExt;
+        }
 
         List<ImportRow> rows;
 
@@ -369,18 +387,16 @@ public class QuestionsController : ControllerBase
         if (file == null || file.Length == 0)
             return BadRequest(new ApiResponse<object>(400, "No file uploaded"));
 
-        var allowedExts = new[] { ".mp3", ".wav", ".ogg", ".m4a", ".aac", ".webm" };
-        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-        var allowedTypes = new[] { "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/aac", "audio/webm" };
-
-        if (!allowedExts.Contains(ext))
-            return BadRequest(new ApiResponse<object>(400, "Only MP3, WAV, OGG, M4A, AAC, and WebM audio files are allowed"));
-
-        if (!allowedTypes.Contains(file.ContentType))
-            return BadRequest(new ApiResponse<object>(400, "Invalid file type"));
-
-        if (file.Length > 20 * 1024 * 1024)
+        if (file.Length > FileValidation.MaxAudioBytes)
             return BadRequest(new ApiResponse<object>(400, "File size must be under 20 MB"));
+
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        ms.Position = 0;
+
+        var ext = FileValidation.DetectAudioExt(ms);
+        if (ext == null)
+            return BadRequest(new ApiResponse<object>(400, "Invalid audio file. Only MP3, WAV, OGG, M4A, AAC, and WebM are allowed"));
 
         var user = await GetCurrentUser();
         if (user == null)
@@ -403,9 +419,10 @@ public class QuestionsController : ControllerBase
         Directory.CreateDirectory(uploadDir);
         var filePath = Path.Combine(uploadDir, uniqueName);
 
+        ms.Position = 0;
         using (var stream = new FileStream(filePath, FileMode.Create))
         {
-            await file.CopyToAsync(stream);
+            await ms.CopyToAsync(stream);
         }
 
         if (!string.IsNullOrEmpty(question.QuestionAudio))
@@ -428,18 +445,16 @@ public class QuestionsController : ControllerBase
         if (file == null || file.Length == 0)
             return BadRequest(new ApiResponse<object>(400, "No file uploaded"));
 
-        var allowedExts = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
-
-        if (!allowedExts.Contains(ext))
-            return BadRequest(new ApiResponse<object>(400, "Only JPG, PNG, GIF, and WebP files are allowed"));
-
-        if (!allowedTypes.Contains(file.ContentType))
-            return BadRequest(new ApiResponse<object>(400, "Invalid file type"));
-
-        if (file.Length > 10 * 1024 * 1024)
+        if (file.Length > FileValidation.MaxImageBytes)
             return BadRequest(new ApiResponse<object>(400, "File size must be under 10 MB"));
+
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        ms.Position = 0;
+
+        var ext = FileValidation.DetectImageExt(ms);
+        if (ext == null)
+            return BadRequest(new ApiResponse<object>(400, "Invalid image file. Only JPG, PNG, GIF, and WebP are allowed"));
 
         var user = await GetCurrentUser();
         if (user == null)
@@ -462,9 +477,10 @@ public class QuestionsController : ControllerBase
         Directory.CreateDirectory(uploadDir);
         var filePath = Path.Combine(uploadDir, uniqueName);
 
+        ms.Position = 0;
         using (var stream = new FileStream(filePath, FileMode.Create))
         {
-            await file.CopyToAsync(stream);
+            await ms.CopyToAsync(stream);
         }
 
         if (!string.IsNullOrEmpty(question.QuestionImage))

@@ -15,11 +15,6 @@ public class LoginRequest
     public string Password { get; set; } = null!;
 }
 
-public class RefreshRequest
-{
-    public string Token { get; set; } = null!;
-}
-
 public class ForgotPasswordRequest
 {
     public string Email { get; set; } = null!;

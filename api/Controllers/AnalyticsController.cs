@@ -2,12 +2,14 @@ using System.Security.Claims;
 using FormUpAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace FormUpAPI.Controllers;
 
 [Route("api/forms/{formId}/analytics")]
 [ApiController]
+[EnableRateLimiting("creator")]
 [Authorize]
 public class AnalyticsController : ControllerBase
 {
@@ -19,14 +21,14 @@ public class AnalyticsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<object>>> GetAnalytics(int formId)
+    public async Task<ActionResult<ApiResponse<object>>> GetAnalytics(int formId, CancellationToken ct)
     {
         var user = await GetCurrentUser();
         if (user == null)
             return Unauthorized(new ApiResponse<object>(401, "User not found"));
 
         var form = await _db.Forms
-            .FirstOrDefaultAsync(f => f.Id == formId && f.UserId == user.Id && f.DeletedAt == null);
+            .FirstOrDefaultAsync(f => f.Id == formId && f.UserId == user.Id && f.DeletedAt == null, ct);
 
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
@@ -35,7 +37,7 @@ public class AnalyticsController : ControllerBase
             .Include(q => q.OptionQuestions)
             .Where(q => q.FormId == formId && q.DeletedAt == null)
             .OrderBy(q => q.QuestionOrder)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         var totalQuestions = questions.Count;
         var scorableQuestions = questions.Count(q =>
@@ -48,7 +50,7 @@ public class AnalyticsController : ControllerBase
                 .ThenInclude(a => a.Option)
             .Where(r => r.FormId == formId)
             .OrderByDescending(r => r.SubmittedAt)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         var respondents = new List<RespondentAnalytics>();
         var allScores = new List<double>();

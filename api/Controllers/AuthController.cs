@@ -3,12 +3,14 @@ using FormUpAPI.Models;
 using FormUpAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace FormUpAPI.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
+[EnableRateLimiting("auth")]
 public class AuthController : ControllerBase
 {
     private readonly FormUpDbContext _db;
@@ -141,6 +143,7 @@ public class AuthController : ControllerBase
         }));
     }
 
+    // ponytail: refresh stateless (tanpa tabel), cukup perpanjang dari access token valid.
     [HttpPost("refresh")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<object>>> Refresh()

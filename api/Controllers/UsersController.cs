@@ -1,13 +1,16 @@
 using System.Security.Claims;
 using FormUpAPI.Models;
+using FormUpAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace FormUpAPI.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
+[EnableRateLimiting("creator")]
 [Authorize]
 public class UsersController : ControllerBase
 {
@@ -95,18 +98,16 @@ public class UsersController : ControllerBase
         if (file == null || file.Length == 0)
             return BadRequest(new ApiResponse<object>(400, "No file uploaded"));
 
-        var allowedExts = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
-
-        if (!allowedExts.Contains(ext))
-            return BadRequest(new ApiResponse<object>(400, "Only JPG, PNG, GIF, and WebP files are allowed"));
-
-        if (!allowedTypes.Contains(file.ContentType))
-            return BadRequest(new ApiResponse<object>(400, "Invalid file type"));
-
-        if (file.Length > 10 * 1024 * 1024)
+        if (file.Length > FileValidation.MaxImageBytes)
             return BadRequest(new ApiResponse<object>(400, "File size must be under 10 MB"));
+
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        ms.Position = 0;
+
+        var ext = FileValidation.DetectImageExt(ms);
+        if (ext == null)
+            return BadRequest(new ApiResponse<object>(400, "Invalid image file. Only JPG, PNG, GIF, and WebP are allowed"));
 
         var user = await GetCurrentUser();
         if (user == null)
@@ -117,9 +118,10 @@ public class UsersController : ControllerBase
         Directory.CreateDirectory(uploadDir);
         var filePath = Path.Combine(uploadDir, uniqueName);
 
+        ms.Position = 0;
         using (var stream = new FileStream(filePath, FileMode.Create))
         {
-            await file.CopyToAsync(stream);
+            await ms.CopyToAsync(stream);
         }
 
         if (!string.IsNullOrEmpty(user.ProfileImage))

@@ -54,6 +54,22 @@ public class EmailService
         };
         mail.To.Add(toEmail);
 
-        await client.SendMailAsync(mail);
+        // ponytail: 3x percobaan dgn backoff; circuit-breaker penuh untuk layanan eksternal menyusul.
+        Exception? last = null;
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                await client.SendMailAsync(mail);
+                return;
+            }
+            catch (Exception ex) when (attempt < 2)
+            {
+                last = ex;
+                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+            }
+        }
+
+        throw last ?? new InvalidOperationException("Failed to send email");
     }
 }

@@ -280,6 +280,12 @@ public partial class FormUpDbContext : DbContext
                 .HasColumnName("created_at");
             entity.Property(e => e.FormId).HasColumnName("form_id");
             entity.Property(e => e.RespondentId).HasColumnName("respondent_id");
+            entity.Property(e => e.RespondentFingerprint)
+                .HasMaxLength(128)
+                .HasColumnName("respondent_fingerprint");
+            entity.Property(e => e.IdempotencyKey)
+                .HasMaxLength(128)
+                .HasColumnName("idempotency_key");
             entity.Property(e => e.StatusId).HasColumnName("status_id");
             entity.Property(e => e.SubmittedAt)
                 .HasColumnType("datetime")
@@ -287,6 +293,8 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.UpdatedAt)
                 .HasColumnType("datetime")
                 .HasColumnName("updated_at");
+
+            entity.HasIndex(e => new { e.FormId, e.IdempotencyKey }, "UQ__Response__form_idempotency").IsUnique();
 
             entity.HasOne(d => d.Form).WithMany(p => p.Responses)
                 .HasForeignKey(d => d.FormId)
@@ -447,7 +455,6 @@ public partial class FormUpDbContext : DbContext
         modelBuilder.Entity<RegistrationOtp>(entity =>
         {
             entity.ToTable("RegistrationOtp");
-
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.Id).HasColumnName("id");

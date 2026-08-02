@@ -1,12 +1,14 @@
 using FormUpAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace FormUpAPI.Controllers;
 
 [Route("api")]
 [ApiController]
+[EnableRateLimiting("creator")]
 public class FeedbacksController : ControllerBase
 {
     private readonly FormUpDbContext _db;
