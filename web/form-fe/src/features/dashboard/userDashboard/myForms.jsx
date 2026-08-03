@@ -1,65 +1,100 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../../components/layout/Sidebar';
 import Topbar from '../../../components/layout/Topbar';
 import {
-    Plus,
-    MoreVertical,
-    MessageSquare,
-    Calendar,
-    Edit3,
-    Eye,
-    Play,
-    CheckCircle2
+    Plus, MoreVertical, MessageSquare, Calendar,
+    Edit3, Eye, Trash2, Globe, Lock, CheckCircle2
 } from 'lucide-react';
+import { getMyForms, deleteForm, togglePublishForm, clearSession, assetUrl } from '../../../services/apiService';
 
 const MyForms = () => {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('All');
     const [myForms, setMyForms] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [openMenuId, setOpenMenuId] = useState(null);
+    const [actionLoading, setActionLoading] = useState(null);
+    const menuRef = useRef(null);
 
-    // Fetch Data dari API C#
     useEffect(() => {
         const fetchMyForms = async () => {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-            const token = localStorage.getItem('token');
-
             try {
                 setLoading(true);
-                const res = await fetch(`${API_BASE_URL}/api/Forms/my-forms`, {
-                    headers: { 
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
+                const result = await getMyForms();
 
-                const result = await res.json();
-                
-                if (result.data) {
+                if (result.status === 401) {
+                    clearSession();
+                    navigate('/login');
+                    return;
+                }
+
+                if (result.ok && Array.isArray(result.data)) {
                     setMyForms(result.data);
                 }
             } catch (err) {
-                console.error("Error fetching my forms:", err);
+                console.error('Error fetching forms:', err);
             } finally {
                 setLoading(false);
             }
         };
 
         fetchMyForms();
+    }, [navigate]);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (menuRef.current && !menuRef.current.contains(e.target)) {
+                setOpenMenuId(null);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Perhitungan Statistik Otomatis
-    const publishedForms = myForms.filter(f => (f.status?.name?.toUpperCase() === 'PUBLISHED' || f.statusId === 2));
-    const draftForms = myForms.filter(f => (f.status?.name?.toUpperCase() === 'DRAFT' || f.statusId === 1));
-    const totalSubmissions = myForms.reduce((acc, form) => acc + (form.responses?.length || 0), 0);
+    const handleTogglePublish = async (formId) => {
+        setActionLoading(formId);
+        setOpenMenuId(null);
+        try {
+            const result = await togglePublishForm(formId);
+            if (result.ok) {
+                const updated = await getMyForms();
+                if (updated.ok && Array.isArray(updated.data)) {
+                    setMyForms(updated.data);
+                }
+            }
+        } catch (err) {
+            console.error('Toggle publish error:', err);
+        } finally {
+            setActionLoading(null);
+        }
+    };
 
-    // Filter list form berdasarkan tab yang aktif
+    const handleDelete = async (formId) => {
+        if (!window.confirm('Delete this form? This action cannot be undone.')) return;
+        setActionLoading(formId);
+        setOpenMenuId(null);
+        try {
+            const result = await deleteForm(formId);
+            if (result.ok) {
+                setMyForms(prev => prev.filter(f => f.id !== formId));
+            }
+        } catch (err) {
+            console.error('Delete form error:', err);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const publishedForms = myForms.filter(f => f.status?.toLowerCase() === 'published');
+    const draftForms = myForms.filter(f => f.status?.toLowerCase() === 'draft');
+    const totalResponses = myForms.reduce((acc, f) => acc + (f.responseCount ?? 0), 0);
+
     const filteredForms = myForms.filter((form) => {
-        const statusName = (form.status?.name || (form.statusId === 2 ? 'PUBLISHED' : 'DRAFT')).toUpperCase();
-        if (activeTab === 'Published') return statusName === 'PUBLISHED';
-        if (activeTab === 'Draft') return statusName === 'DRAFT';
-        return true; // 'All'
+        const s = form.status?.toLowerCase() ?? 'draft';
+        if (activeTab === 'Published') return s === 'published';
+        if (activeTab === 'Draft') return s === 'draft';
+        return true;
     });
 
     const tabs = [
@@ -70,20 +105,14 @@ const MyForms = () => {
 
     return (
         <div className="flex min-h-screen w-full bg-[#F4F8F7] font-sans antialiased text-slate-800 overflow-hidden">
-            {/* Sidebar tetap di kiri */}
             <Sidebar />
 
-            {/* Container Konten Utama */}
             <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-
-                {/* Main memiliki padding sehingga Topbar & Konten ikut mengambang */}
                 <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 space-y-6">
 
-                    {/* Topbar sekarang ada di dalam main, jadi otomatis mengambang / punya jarak */}
                     <Topbar />
 
-                    {/* Bagian Header & Tabs */}
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-0 pt-2">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pt-2">
                         <div>
                             <h1 className="text-[28px] font-bold text-slate-900 tracking-tight">My Forms</h1>
                             <p className="text-sm text-slate-500 font-medium mt-0.5">
@@ -91,16 +120,16 @@ const MyForms = () => {
                             </p>
                         </div>
 
-                        {/* Custom Tabs */}
                         <div className="flex items-center bg-gray-100/80 p-1.5 rounded-full border border-gray-200">
                             {tabs.map((tab) => (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`px-6 py-2.5 rounded-full text-[14px] font-bold transition-all duration-200 ${activeTab === tab.id
+                                    className={`px-6 py-2.5 rounded-full text-[14px] font-bold transition-all duration-200 ${
+                                        activeTab === tab.id
                                             ? 'bg-white text-gray-900 shadow-sm border border-gray-200/50'
                                             : 'text-gray-500 hover:text-gray-700'
-                                        }`}
+                                    }`}
                                 >
                                     {tab.label}
                                 </button>
@@ -108,32 +137,26 @@ const MyForms = () => {
                         </div>
                     </div>
 
-                    {/* Bagian Statistik */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {/* Total Submissions Card */}
-                        <div className="bg-[#126f63] rounded-2xl p-6 text-white shadow-sm relative overflow-hidden md:col-span-2 lg:col-span-1 xl:col-span-1">
+                        <div className="bg-[#126f63] rounded-2xl p-6 text-white shadow-sm relative overflow-hidden md:col-span-2 lg:col-span-1">
                             <div className="relative z-10">
-                                <p className="text-white/80 font-bold text-[11px] uppercase tracking-wider mb-1">Total Submissions</p>
-                                <h2 className="text-3xl font-extrabold tracking-tight">{totalSubmissions.toLocaleString()}</h2>
+                                <p className="text-white/80 font-bold text-[11px] uppercase tracking-wider mb-1">Total Responses</p>
+                                <h2 className="text-3xl font-extrabold tracking-tight">{totalResponses.toLocaleString()}</h2>
                             </div>
-                            <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                            <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
                         </div>
 
-                        {/* Active Forms Card */}
-                        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm md:col-span-2 lg:col-span-1 xl:col-span-1">
+                        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm md:col-span-2 lg:col-span-1">
                             <p className="text-slate-400 font-bold text-[11px] uppercase tracking-wider mb-1">Active Forms</p>
                             <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">{publishedForms.length}</h2>
                             <p className="text-[#00897B] flex items-center text-xs font-bold mt-2">
-                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> All systems online
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Live & accepting responses
                             </p>
                         </div>
                     </div>
 
-                    {/* Rendering Konten Berdasarkan Tab yang Aktif */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-
-                        {/* Card Create New Form (Selalu muncul) */}
-                        <div 
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" ref={menuRef}>
+                        <div
                             onClick={() => navigate('/create-form')}
                             className="bg-white border-2 border-dashed border-slate-200 rounded-2xl min-h-[280px] flex flex-col items-center justify-center cursor-pointer hover:border-[#6DBFB3] transition-colors group shadow-sm"
                         >
@@ -146,7 +169,6 @@ const MyForms = () => {
                             </p>
                         </div>
 
-                        {/* Item Cards Form dari API */}
                         {loading ? (
                             <div className="col-span-full py-12 text-center text-slate-400 text-sm font-medium">
                                 Loading forms...
@@ -157,39 +179,73 @@ const MyForms = () => {
                             </div>
                         ) : (
                             filteredForms.map((form) => {
-                                const statusName = form.status?.name || (form.statusId === 2 ? 'PUBLISHED' : 'DRAFT');
-                                const isPublished = statusName.toUpperCase() === 'PUBLISHED';
-                                const responseCount = form.responses?.length || 0;
-                                const createdDate = form.createdAt 
-                                    ? new Date(form.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) 
+                                const status = typeof form.status === 'string' ? form.status : 'draft';
+                                const isPublished = status.toLowerCase() === 'published';
+                                const responseCount = form.responseCount ?? 0;
+                                const isActing = actionLoading === form.id;
+                                const createdDate = form.createdAt
+                                    ? new Date(form.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                                     : 'Recent';
 
                                 return (
-                                    <div key={form.id} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                                    <div
+                                        key={form.id}
+                                        className={`bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col ${isActing ? 'opacity-60 pointer-events-none' : ''}`}
+                                    >
                                         <div className="h-32 bg-gradient-to-br from-teal-50 to-blue-50 relative p-4 flex items-start justify-end border-b border-slate-100 overflow-hidden">
                                             {form.bannerImage ? (
-                                                <img src={form.bannerImage} alt={form.title} className="absolute inset-0 w-full h-full object-cover" />
+                                                <img src={assetUrl(form.bannerImage)} alt={form.title} className="absolute inset-0 w-full h-full object-cover" />
                                             ) : (
                                                 <div className="absolute inset-x-6 top-6 bottom-0 bg-white shadow-sm rounded-t-xl border border-slate-200 border-b-0 opacity-80 flex flex-col gap-2 p-3">
-                                                    <div className="w-1/2 h-2 bg-slate-200 rounded-full"></div>
-                                                    <div className="w-full h-2 bg-slate-100 rounded-full"></div>
-                                                    <div className="w-3/4 h-2 bg-slate-100 rounded-full"></div>
+                                                    <div className="w-1/2 h-2 bg-slate-200 rounded-full" />
+                                                    <div className="w-full h-2 bg-slate-100 rounded-full" />
+                                                    <div className="w-3/4 h-2 bg-slate-100 rounded-full" />
                                                 </div>
                                             )}
-                                            <span className={`relative z-10 px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wider flex items-center shadow-sm ${
-                                                isPublished 
-                                                    ? 'bg-teal-50 text-[#00897B]' 
-                                                    : 'bg-slate-100 text-slate-500'
+                                            <span className={`relative z-10 px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wider shadow-sm ${
+                                                isPublished ? 'bg-teal-50 text-[#00897B]' : 'bg-slate-100 text-slate-500'
                                             }`}>
-                                                {statusName}
+                                                {status}
                                             </span>
+
+                                            <div className="relative z-10 ml-2">
+                                                <button
+                                                    onClick={() => setOpenMenuId(openMenuId === form.id ? null : form.id)}
+                                                    className="p-1.5 bg-white/80 backdrop-blur-sm rounded-full text-slate-600 hover:bg-white shadow-sm transition-all"
+                                                >
+                                                    <MoreVertical className="w-4 h-4" />
+                                                </button>
+
+                                                {openMenuId === form.id && (
+                                                    <div className="absolute right-0 top-8 w-44 bg-white rounded-xl shadow-lg border border-slate-100 z-50 py-1 overflow-hidden">
+                                                        <button
+                                                            onClick={() => handleTogglePublish(form.id)}
+                                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                                                        >
+                                                            {isPublished ? <Lock className="w-3.5 h-3.5 text-amber-500" /> : <Globe className="w-3.5 h-3.5 text-teal-500" />}
+                                                            {isPublished ? 'Unpublish' : 'Publish'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => navigate(`/forms/${form.id}/edit`)}
+                                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                                                        >
+                                                            <Edit3 className="w-3.5 h-3.5 text-blue-500" /> Edit Form
+                                                        </button>
+                                                        <div className="border-t border-slate-100 my-1" />
+                                                        <button
+                                                            onClick={() => handleDelete(form.id)}
+                                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
+
                                         <div className="p-4 flex flex-col flex-1">
                                             <div className="flex justify-between items-start mb-3">
                                                 <h3 className="text-sm font-bold text-slate-800 leading-tight line-clamp-1">{form.title}</h3>
-                                                <button className="text-slate-400 hover:text-slate-600">
-                                                    <MoreVertical className="w-4 h-4" />
-                                                </button>
                                             </div>
                                             <div className="flex items-center gap-3 mb-5 text-xs font-medium text-slate-500">
                                                 <span className="flex items-center gap-1">
@@ -200,25 +256,17 @@ const MyForms = () => {
                                                 </span>
                                             </div>
                                             <div className="mt-auto flex gap-2">
-                                                {!isPublished ? (
-                                                    <button 
-                                                        onClick={() => navigate(`/forms/${form.id}/edit`)}
-                                                        className="flex-1 bg-[#126f63] hover:bg-[#0e5c52] text-white font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 text-xs transition-colors"
-                                                    >
-                                                        <Play className="w-3.5 h-3.5 fill-current" /> Publish
-                                                    </button>
-                                                ) : null}
-                                                <button 
+                                                <button
                                                     onClick={() => navigate(`/forms/${form.id}/edit`)}
                                                     className="flex-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 text-xs transition-colors"
                                                 >
                                                     <Edit3 className="w-3.5 h-3.5" /> Edit
                                                 </button>
-                                                <button 
+                                                <button
                                                     onClick={() => navigate(`/forms/${form.id}/responses`)}
                                                     className="flex-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 text-xs transition-colors"
                                                 >
-                                                    <Eye className="w-3.5 h-3.5" /> View
+                                                    <Eye className="w-3.5 h-3.5" /> Responses
                                                 </button>
                                             </div>
                                         </div>
@@ -226,7 +274,6 @@ const MyForms = () => {
                                 );
                             })
                         )}
-
                     </div>
 
                 </main>

@@ -1,106 +1,82 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-    Plus,
-    FileText,
-    Users,
-    Star,
-    Clock,
-    // LayoutDashboard, 
-    // Folder, 
-    // MessageSquare, 
-    // LayoutTemplate, 
-
-    MoreVertical,
-    Edit3,
-    BarChart2
-} from 'lucide-react';
+import { Plus, FileText, Users, Star, Clock, MoreVertical, Edit3, BarChart2 } from 'lucide-react';
 import Sidebar from '../../../components/layout/Sidebar';
 import Topbar from '../../../components/layout/Topbar';
+import { getMyForms, getLocalUser, clearSession, assetUrl } from '../../../services/apiService';
+
+const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+};
 
 const UserHome = () => {
     const navigate = useNavigate();
-
-    // const [user, setUser] = useState({});
     const [myForms, setMyForms] = useState([]);
-    const [allResponses, setAllResponses] = useState([]);
     const [loading, setLoading] = useState(true);
-
-    const [user, setUser] = useState(() => {
-        return JSON.parse(localStorage.getItem('user') || '{}');
-    });
-
+    const [user] = useState(() => getLocalUser());
 
     useEffect(() => {
-        // const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
-        // setUser(savedUser);
-
-
-        const fetchDashboardData = async () => {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-            const token = localStorage.getItem('token');
-
+        const fetchData = async () => {
             try {
                 setLoading(true);
-                const [formsRes, responsesRes] = await Promise.all([
-                    fetch(`${API_BASE_URL}/api/Forms/my-forms`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    }),
-                    fetch(`${API_BASE_URL}/api/Responses`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    })
-                ]);
+                const formsResult = await getMyForms();
 
-                const formsJson = await formsRes.json();
-                const responsesJson = await responsesRes.json();
+                if (formsResult.status === 401) {
+                    clearSession();
+                    navigate('/login');
+                    return;
+                }
 
-                if (formsJson.data) setMyForms(formsJson.data);
-                if (responsesJson.data) setAllResponses(responsesJson.data);
-
+                if (formsResult.ok && Array.isArray(formsResult.data)) {
+                    setMyForms(formsResult.data);
+                }
             } catch (err) {
-                console.error("Error fetching dashboard data:", err);
+                console.error('Dashboard fetch error:', err);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchDashboardData();
-    }, []);
+        fetchData();
+    }, [navigate]);
 
-
+    const totalResponses = myForms.reduce((acc, f) => acc + (f.responseCount ?? 0), 0);
+    const publishedCount = myForms.filter(f => f.status?.toLowerCase() === 'published').length;
+    const draftCount = myForms.filter(f => f.status?.toLowerCase() === 'draft').length;
+    const recentForms = [...myForms]
+        .sort((a, b) => new Date(b.updatedAt ?? b.createdAt) - new Date(a.updatedAt ?? a.createdAt))
+        .slice(0, 8);
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-screen w-full bg-[#F4F8F7] font-sans antialiased text-slate-800">
-                <p className="text-lg font-semibold text-slate-600">Loading dashboard...</p>
+            <div className="flex items-center justify-center min-h-screen w-full bg-[#F4F8F7]">
+                <p className="text-lg font-semibold text-slate-500">Loading dashboard...</p>
             </div>
         );
     }
 
     return (
         <div className="flex min-h-screen w-full bg-[#F4F8F7] font-sans antialiased text-slate-800">
-
             <Sidebar />
 
-            {/* MAIN CONTENT AREA */}
             <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
                 <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 space-y-6">
 
                     <Topbar />
 
-                    {/* WELCOME */}
                     <div>
                         <h2 className="text-xl sm:text-2xl font-bold text-slate-800">
-                            Good Morning, {user?.fullname ? user.fullname.split(' ')[0] : 'Alex'}
+                            {getGreeting()}, {user?.fullname ? user.fullname.split(' ')[0] : 'there'} 👋
                         </h2>
                         <p className="text-xs text-slate-500 font-medium mt-1">
                             Here's how your forms are performing today.
                         </p>
                     </div>
 
-                    {/* STAT CARDS */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {/* 1. TOTAL FORMS */}
                         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
                             <div>
                                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Forms</p>
@@ -111,39 +87,30 @@ const UserHome = () => {
                             </div>
                         </div>
 
-                        {/* 2. TOTAL RESPONSES */}
                         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
                             <div>
                                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Responses</p>
-                                <h3 className="text-2xl font-extrabold text-slate-800">
-                                    {myForms.reduce((acc, form) => acc + (form.responses?.length || 0), 0)}
-                                </h3>
+                                <h3 className="text-2xl font-extrabold text-slate-800">{totalResponses}</h3>
                             </div>
                             <div className="p-2.5 rounded-xl bg-teal-50 text-[#00897B]">
                                 <Users size={20} />
                             </div>
                         </div>
 
-                        {/* 3. TOTAL PUBLISHED FORMS */}
                         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
                             <div>
-                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Published Form</p>
-                                <h3 className="text-2xl font-extrabold text-slate-800">
-                                    {myForms.filter(f => f.status?.name?.toUpperCase() === 'PUBLISHED' || f.statusId === 2).length}
-                                </h3>
+                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Published</p>
+                                <h3 className="text-2xl font-extrabold text-slate-800">{publishedCount}</h3>
                             </div>
                             <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600">
                                 <Star size={20} />
                             </div>
                         </div>
 
-                        {/* 4. TOTAL DRAFT FORMS */}
                         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
                             <div>
-                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Draft Form</p>
-                                <h3 className="text-2xl font-extrabold text-slate-800">
-                                    {myForms.filter(f => f.status?.name?.toUpperCase() === 'DRAFT' || f.statusId === 1).length}
-                                </h3>
+                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Draft</p>
+                                <h3 className="text-2xl font-extrabold text-slate-800">{draftCount}</h3>
                             </div>
                             <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
                                 <Clock size={20} />
@@ -151,31 +118,32 @@ const UserHome = () => {
                         </div>
                     </div>
 
-                    {/* RECENT FORMS */}
                     <section className="space-y-4">
                         <div className="flex items-center justify-between">
                             <div>
                                 <h3 className="text-base font-bold text-slate-800">Recent Forms</h3>
-                                <p className="text-xs text-slate-400 font-medium">Manage and track your active collections</p>
+                                <p className="text-xs text-slate-400 font-medium">Your most recently updated forms</p>
                             </div>
-                            <button className="text-xs font-bold text-[#00897B] hover:underline">View all forms &gt;</button>
+                            <button
+                                onClick={() => navigate('/my-forms')}
+                                className="text-xs font-bold text-[#00897B] hover:underline"
+                            >
+                                View all &rarr;
+                            </button>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                            {myForms.map((form) => {
-                                // Penyesuaian nama property dari backend C#
-                                const statusName = form.status?.name || (form.statusId === 2 ? 'PUBLISHED' : 'DRAFT');
-                                const isPublished = statusName.toUpperCase() === 'PUBLISHED';
-                                const responseCount = form.responses?.length || 0;
+                            {recentForms.map((form) => {
+                                const status = typeof form.status === 'string' ? form.status : 'draft';
+                                const isPublished = status.toLowerCase() === 'published';
+                                const responseCount = form.responseCount ?? 0;
 
                                 return (
                                     <div key={form.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col justify-between overflow-hidden">
-
-                                        {/* Jika form punya Banner Image (Sesuai properti C#: BannerImage) */}
-                                        {form.bannerImage && (
+                                        {form.bannerImage ? (
                                             <div className="h-28 w-full relative overflow-hidden bg-slate-100">
                                                 <img
-                                                    src={form.bannerImage}
+                                                    src={assetUrl(form.bannerImage)}
                                                     alt={form.title}
                                                     className="w-full h-full object-cover"
                                                 />
@@ -183,7 +151,7 @@ const UserHome = () => {
                                                     <MoreVertical size={14} />
                                                 </button>
                                             </div>
-                                        )}
+                                        ) : null}
 
                                         <div className="p-4 flex-1 flex flex-col justify-between">
                                             <div>
@@ -199,9 +167,8 @@ const UserHome = () => {
                                                 )}
                                                 <h4 className="text-sm font-bold text-slate-800 line-clamp-1">{form.title}</h4>
                                                 <div className="flex items-center justify-between mt-2">
-                                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider ${isPublished ? 'bg-teal-50 text-[#00897B]' : 'bg-slate-100 text-slate-500'
-                                                        }`}>
-                                                        {statusName}
+                                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider ${isPublished ? 'bg-teal-50 text-[#00897B]' : 'bg-slate-100 text-slate-500'}`}>
+                                                        {status}
                                                     </span>
                                                     <p className="text-xs text-slate-400 font-medium">
                                                         {responseCount} responses
@@ -228,39 +195,18 @@ const UserHome = () => {
                                 );
                             })}
 
-                            {/* Tombol Create New Form */}
                             <div
-                                onClick={() => navigate('/create-form')}
-                                className="bg-white p-5 rounded-2xl border-2 border-dashed border-slate-200 shadow-sm hover:border-[#6DBFB3] transition-all flex flex-col items-center justify-center text-center cursor-pointer h-full min-h-50 group"
+                                onClick={() => navigate('/my-forms')}
+                                className="bg-white p-5 rounded-2xl border-2 border-dashed border-slate-200 shadow-sm hover:border-[#6DBFB3] transition-all flex flex-col items-center justify-center text-center cursor-pointer min-h-[180px] group"
                             >
                                 <div className="w-10 h-10 rounded-full bg-teal-50 text-[#00897B] flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                                     <Plus size={20} />
                                 </div>
                                 <h4 className="text-xs font-bold text-slate-800">Create New Form</h4>
-                                <p className="text-[11px] text-slate-400 font-medium mt-1 max-w-40">
+                                <p className="text-[11px] text-slate-400 font-medium mt-1 max-w-[140px]">
                                     Start from a template or build from scratch.
                                 </p>
                             </div>
-                        </div>
-                    </section>
-
-                    {/* RECENT RESPONSES */}
-                    <section className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-                        <h3 className="text-sm font-bold text-slate-800">Recent Response Activity</h3>
-                        <div className="space-y-3">
-                            {allResponses.map((res, index) => (
-                                <div key={res.id || index} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-teal-50 text-[#00897B] flex items-center justify-center font-bold text-xs shrink-0">
-                                            {res.userName ? res.userName.charAt(0) : 'U'}
-                                        </div>
-                                        <p className="text-xs font-semibold text-slate-700">
-                                            <span className="font-bold text-slate-900">{res.userName || 'User'}</span> submitted '{res.formTitle || 'Form'}'
-                                        </p>
-                                    </div>
-                                    <span className="text-[10px] text-slate-400 font-medium shrink-0">Baru saja</span>
-                                </div>
-                            ))}
                         </div>
                     </section>
 

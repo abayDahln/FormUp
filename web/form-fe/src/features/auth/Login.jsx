@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { login, saveSession } from '../../services/apiService';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -27,80 +28,27 @@ const Login = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // Fungsi handleLogin yang diperbaiki
-    // const handleLogin = async (e) => {
-    //     e.preventDefault();
-    //     setError('');
-    //     setLoading(true);
-
-    //     try {
-    //         const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-    //         const response = await fetch(`${API_BASE_URL}/api/Auth/login`, {
-    //             method: 'POST',
-    //             headers: {
-    //                 'accept': 'text/plain',
-    //                 'Content-Type': 'application/json',
-    //             },
-    //             body: JSON.stringify({
-    //                 email: email,
-    //                 password: password,
-    //             }),
-    //         });
-
-    //         const responseText = await response.text();
-    //         let data;
-    //         try {
-    //             data = JSON.parse(responseText);
-    //         } catch {
-    //             data = responseText;
-    //         }
-
-    //         if (response.ok) {
-    //             // Ekstrak token dari string plain text atau JSON object
-    //             const token = typeof data === 'string' ? data : (data.token || data.data?.token || data.accessToken);
-
-    //             if (token) {
-    //                 localStorage.setItem('token', token);
-    //                 if (typeof data === 'object' && (data.user || data.data?.user)) {
-    //                     localStorage.setItem('user', JSON.stringify(data.user || data.data?.user));
-    //                 }
-    //                 navigate('/dashboard');
-    //             } else {
-    //                 setError('Login berhasil, namun Token tidak ditemukan.');
-    //             }
-    //         } else {
-    //             const errorMessage = typeof data === 'object' ? (data.message || data.title) : data;
-    //             setError(errorMessage || 'Email atau password salah.');
-    //         }
-    //     } catch (err) {
-    //         console.error('Error Login:', err);
-    //         setError('Terjadi kesalahan koneksi ke server.');
-    //     } finally {
-    //         setLoading(false);
-    //     }
-    // };
-
- const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
+        setError('');
         setLoading(true);
 
-        // Simpan dummy session ke localStorage
-        localStorage.setItem('token', 'dummy-token-bypass-12345');
-        localStorage.setItem(
-            'user', 
-            JSON.stringify({
-                fullname: "John Doe",
-                username: "johndoe",
-                email: email || "john@example.com",
-                password: 'john123'
-            })
-        );
+        try {
+            const result = await login(email, password);
 
-        setTimeout(() => {
+            if (result.ok && result.data?.token) {
+                // Simpan token + data user ke localStorage
+                saveSession(result.data);
+                navigate('/dashboard');
+            } else {
+                setError(result.message || 'Email atau password salah.');
+            }
+        } catch (err) {
+            console.error('Error Login:', err);
+            setError('Terjadi kesalahan koneksi ke server.');
+        } finally {
             setLoading(false);
-            navigate('/dashboard');
-        }, 400);
+        }
     };
 
     return (

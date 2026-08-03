@@ -4,12 +4,11 @@ import {
     Moon
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { getLocalUser, assetUrl } from '../../services/apiService';
 
 export default function Topbar() {
 
-    const [user, setUser] = useState(() => {
-        return JSON.parse(localStorage.getItem('user') || '{}');
-    });
+    const [user, setUser] = useState(() => getLocalUser());
 
     // State tema (true jika Dark Mode ON, false jika Light Mode/OFF)
     const [isDark, setIsDark] = useState(() => {
@@ -69,7 +68,10 @@ export default function Topbar() {
                         <p className="text-[10px] text-slate-400 font-semibold uppercase">PRO PLAN</p>
                     </div>
                     <img
-                        src={user?.profileImage || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"}
+                        src={assetUrl(
+                                user?.profileImage,
+                                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
+                            )}
                         alt="Profile"
                         className="w-9 h-9 rounded-full object-cover border border-slate-300 shadow-sm"
                     />
