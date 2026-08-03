@@ -37,6 +37,7 @@ Menyimpan data form yang dibuat user.
 | created_at | datetime | Ya | Tidak | Waktu dibuat |
 | updated_at | datetime | Ya | Tidak | Waktu terakhir diubah |
 | deleted_at | datetime | Tidak | Tidak | Soft delete (null = aktif) |
+| taken_down_at | datetime | Tidak | Tidak | Di-takedown admin (null = normal). Form ber-taken-down ditolak di endpoint publik |
 
 ---
 
@@ -48,6 +49,7 @@ Relasi 1:1 dengan Form. Row di-auto-create saat pertama kali settings di-PATCH.
 |-------|------|----------|-----------|
 | id | int | Ya | Primary key (auto-increment) |
 | form_id | int | Ya | FK ke Form |
+| form_type_id | int | Ya | FK ke FormType (1=Single Page, 2=Multi Page). Default 1 saat row auto-create |
 | show_score | boolean | Tidak | Tampilkan score setelah submit (default: false) |
 | randomize_questions | boolean | Tidak | Acak urutan pertanyaan (default: false) |
 | form_token | string(255) | Tidak | Token/password untuk akses form |
@@ -166,6 +168,13 @@ Tabel-tabel ini diisi saat migrasi dan hanya dibaca (read-only).
 | 2 | reviewed | Respon sudah direview |
 | 3 | flagged | Respon ditandai perlu perhatian khusus |
 
+### FormType
+
+| ID | Type | Keterangan |
+|----|------|-----------|
+| 1 | Single Page | Semua pertanyaan tampil dalam satu halaman |
+| 2 | Multi Page | Pertanyaan dibagi per halaman (per-segment) |
+
 ---
 
 ## 9. RegistrationOtp (OTP Registrasi)
@@ -209,6 +218,8 @@ User (1) ---< (N) PasswordResetToken
 Form (1) ---< (N) Question
 Form (1) ---  (1) FormSetting
 Form (1) ---  (1) FormStatus
+
+FormType (1) ---< (N) FormSetting
 
 Question (1) ---< (N) OptionQuestion
 Question (1) ---< (N) RespondentAnswer

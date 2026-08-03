@@ -9,6 +9,8 @@ public partial class FormSetting
 
     public int FormId { get; set; }
 
+    public int FormTypeId { get; set; }
+
     public bool? ShowScore { get; set; }
 
     public bool? RandomizeQuestions { get; set; }
@@ -26,4 +28,6 @@ public partial class FormSetting
     public DateTime? UpdatedAt { get; set; }
 
     public virtual Form Form { get; set; } = null!;
+
+    public virtual FormType? FormType { get; set; }
 }

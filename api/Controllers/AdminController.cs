@@ -203,6 +203,7 @@ public class AdminController : ControllerBase
             responseCount = await _db.Responses.CountAsync(r => r.FormId == form.Id),
             settings = form.FormSetting == null ? null : new FormSettingDto
             {
+                FormTypeId = form.FormSetting.FormTypeId,
                 ShowScore = form.FormSetting.ShowScore,
                 RandomizeQuestions = form.FormSetting.RandomizeQuestions,
                 TimerDuration = form.FormSetting.TimerDuration,

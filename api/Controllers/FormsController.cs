@@ -76,6 +76,7 @@ public class FormsController : ControllerBase
             ResponseCount = await _db.Responses.CountAsync(r => r.FormId == form.Id),
             Settings = form.FormSetting == null ? null : new FormSettingDto
             {
+                FormTypeId = form.FormSetting.FormTypeId,
                 ShowScore = form.FormSetting.ShowScore,
                 RandomizeQuestions = form.FormSetting.RandomizeQuestions,
                 TimerDuration = form.FormSetting.TimerDuration,
@@ -134,6 +135,20 @@ public class FormsController : ControllerBase
         if (request.BannerImage != null)
             form.BannerImage = request.BannerImage;
 
+        if (request.FormLink != null)
+        {
+            var newLink = request.FormLink.Trim().ToLowerInvariant().Replace(' ', '-');
+            if (newLink.Length < 3 || newLink.Length > 100 ||
+                !System.Text.RegularExpressions.Regex.IsMatch(newLink, "^[a-z0-9]+(?:-[a-z0-9]+)*$"))
+                return BadRequest(new ApiResponse<object>(400, "Form link hanya boleh huruf kecil, angka, dan tanda strip (-), tanpa spasi, minimal 3 karakter"));
+
+            var clash = await _db.Forms.AnyAsync(f => f.FormLink == newLink && f.Id != form.Id);
+            if (clash)
+                return Conflict(new ApiResponse<object>(409, "Form link sudah dipakai form lain"));
+
+            form.FormLink = newLink;
+        }
+
         form.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
@@ -168,7 +183,7 @@ public class FormsController : ControllerBase
         _db.Forms.Add(form);
         await _db.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(Create), new ApiResponse<object>(201, "Form created", MapFormResponse(form)));
+        return CreatedAtAction(nameof(GetById), new { id = form.Id }, new ApiResponse<object>(201, "Form created", MapFormResponse(form)));
     }
 
     [HttpPost("{id}/banner")]
@@ -242,6 +257,7 @@ public class FormsController : ControllerBase
             form.FormSetting = new FormSetting
             {
                 FormId = form.Id,
+                FormTypeId = 1,
                 CreatedAt = JakartaTime.Now,
             };
             _db.FormSettings.Add(form.FormSetting);
@@ -265,12 +281,21 @@ public class FormsController : ControllerBase
         if (request.CloseFormTime.HasValue)
             form.FormSetting.CloseFormTime = request.CloseFormTime;
 
+        if (request.FormTypeId.HasValue)
+        {
+            var typeExists = await _db.FormTypes.AnyAsync(t => t.Id == request.FormTypeId.Value);
+            if (!typeExists)
+                return BadRequest(new ApiResponse<object>(400, "Invalid form type ID"));
+            form.FormSetting.FormTypeId = request.FormTypeId.Value;
+        }
+
         form.FormSetting.UpdatedAt = JakartaTime.Now;
         form.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Settings updated", new FormSettingDto
         {
+            FormTypeId = form.FormSetting.FormTypeId,
             ShowScore = form.FormSetting.ShowScore,
             RandomizeQuestions = form.FormSetting.RandomizeQuestions,
             TimerDuration = form.FormSetting.TimerDuration,

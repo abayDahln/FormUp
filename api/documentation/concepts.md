@@ -44,9 +44,9 @@
 **Kenapa penting:** Ini konsep yang **unik untuk FormUp** dibanding aplikasi web/mobile pada umumnya, karena sifat form-nya publik dan bisa diisi tanpa login.
 
 **Konsep yang dibutuhkan:**
-- **Deteksi submission ganda** — untuk form yang settingnya "satu respons per orang", butuh cara mengenali "orang yang sama" meskipun mereka tidak login. Ini biasanya memakai kombinasi fingerprint device/browser, bukan hanya IP (karena IP bisa berubah atau dipakai bersama).
-- **Perlindungan dari bot otomatis** — form publik rentan diisi oleh script otomatis untuk spam data. Butuh mekanisme deteksi yang tidak mengganggu pengisi manusia biasa (misalnya field tersembunyi yang hanya terisi oleh bot, atau verifikasi tanpa interaksi eksplisit).
-- **Validasi bahwa form masih aktif** — form yang sudah ditutup (`status: closed`) atau sudah melewati batas waktu harus menolak submission baru dengan pesan yang jelas.
+- **Deteksi submission ganda** — untuk form yang settingnya "satu respons per orang". Saat ini hanya berlaku untuk responden yang **login** (dilacak via `respondent_id`). Deteksi untuk responden anonim via fingerprint device/browser **belum dibuat** (ditunda — lihat `future_features.md`).
+- **Perlindungan dari bot otomatis** — **belum dibuat** (ditunda — lihat `future_features.md`). Ide: field tersembunyi yang hanya terisi oleh bot, atau verifikasi tanpa interaksi eksplisit.
+- **Validasi bahwa form masih aktif** — form yang sudah ditutup (`status: closed`), di-takedown, atau sudah melewati `close_form_time` menolak submission baru dengan pesan generik.
 - **Perlindungan penebakan link form** — kalau seseorang mencoba menebak-nebak link form yang tidak ada atau bersifat privat, pesan error harus generik (tidak boleh membedakan "form tidak ada" dengan "form ada tapi privat"), supaya tidak membantu orang lain menebak-nebak.
 
 ---
@@ -55,7 +55,9 @@
 
 **Kenapa penting:** Baik web maupun mobile mungkin melakukan retry otomatis saat request gagal karena koneksi tidak stabil. Kalau submission form ikut di-retry tanpa mekanisme pengaman, satu jawaban bisa tersimpan dua kali di database — padahal request pertama sebenarnya sudah berhasil, cuma responsnya yang tidak sampai ke client karena koneksi putus di tengah jalan.
 
-**Konsep yang dibutuhkan:**
+**Status: ditunda** — mekanisme idempotency-key belum dibuat (lihat `future_features.md`). Untuk MVP, double-submit akibat retry bisa dicegah sebagian lewat rate limiting per form+IP dan `one_response`.
+
+**Konsep yang dibutuhkan (saat implementasi nanti):**
 - Setiap aksi yang **mengubah data** (bukan sekadar membaca) dan berpotensi di-retry harus punya cara untuk mengenali "ini request yang sama yang dicoba lagi" versus "ini request baru yang berbeda". Dengan begitu, kalau ada percobaan kedua dari request yang identik, backend cukup mengembalikan hasil yang sudah ada sebelumnya, bukan memproses ulang dari nol.
 - Ini penting khususnya untuk submit response form, karena datanya tidak bisa dengan mudah "dibersihkan" duplikatnya secara manual setelah masuk database dalam jumlah besar.
 

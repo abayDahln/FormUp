@@ -5,6 +5,7 @@ public class UpdateFormRequest
     public string? Title { get; set; }
     public string? Description { get; set; }
     public string? BannerImage { get; set; }
+    public string? FormLink { get; set; }
 }
 
 public class CreateFormRequest
@@ -43,6 +44,7 @@ public class FormDetailResponse
 
 public class FormSettingDto
 {
+    public int FormTypeId { get; set; }
     public bool? ShowScore { get; set; }
     public bool? RandomizeQuestions { get; set; }
     public int? TimerDuration { get; set; }
@@ -52,12 +54,27 @@ public class FormSettingDto
 
 public class UpdateFormSettingsRequest
 {
+    public int? FormTypeId { get; set; }
     public bool? ShowScore { get; set; }
     public bool? RandomizeQuestions { get; set; }
     public string? FormToken { get; set; }
     public int? TimerDuration { get; set; }
     public bool? OneResponse { get; set; }
     public DateTime? CloseFormTime { get; set; }
+}
+
+// ponytail: DTO publik responden, jangan bocorkan CorrectAnswer/IsCorrect
+public class PublicFormDetails
+{
+    public int Id { get; set; }
+    public string Title { get; set; } = null!;
+    public string? Description { get; set; }
+    public string? BannerImage { get; set; }
+    public bool RequiresToken { get; set; }
+    public bool? ShowScore { get; set; }
+    public int? TimerDuration { get; set; }
+    public bool? RandomizeQuestions { get; set; }
+    public List<QuestionResponse> Questions { get; set; } = new();
 }
 
 public class ShareInfoResponse

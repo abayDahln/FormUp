@@ -11,10 +11,6 @@ public partial class Response
 
     public int? RespondentId { get; set; }
 
-    public string? RespondentFingerprint { get; set; }
-
-    public string? IdempotencyKey { get; set; }
-
     public int StatusId { get; set; }
 
     public DateTime? SubmittedAt { get; set; }

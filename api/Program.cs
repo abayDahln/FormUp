@@ -193,8 +193,10 @@ namespace FormUpAPI
                 // Submit form publik: longgar + berbasis kombinasi form+IP (bukan cuma IP).
                 options.AddPolicy("submit", context =>
                 {
-                    var formId = context.Request.RouteValues["formId"]?.ToString() ?? "0";
-                    var key = $"{context.Connection.RemoteIpAddress}:{formId}";
+                    var formKey = context.Request.RouteValues["formId"]?.ToString()
+                        ?? context.Request.RouteValues["formLink"]?.ToString()
+                        ?? "0";
+                    var key = $"{context.Connection.RemoteIpAddress}:{formKey}";
                     return RateLimitPartition.GetSlidingWindowLimiter(key, _ => new SlidingWindowRateLimiterOptions
                     {
                         PermitLimit = 60,

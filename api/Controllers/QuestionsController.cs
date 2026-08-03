@@ -138,7 +138,7 @@ public class QuestionsController : ControllerBase
             .OrderBy(q => q.QuestionOrder)
             .ToListAsync();
 
-        return CreatedAtAction(nameof(Create), new ApiResponse<object>(201, $"{questions.Count} questions created", questions.Select(MapQuestion).ToList()));
+        return CreatedAtAction(nameof(GetAll), new { formId }, new ApiResponse<object>(201, $"{questions.Count} questions created", questions.Select(MapQuestion).ToList()));
     }
 
     [HttpPut]
@@ -171,50 +171,62 @@ public class QuestionsController : ControllerBase
 
         try
         {
-            var oldQuestionIds = await _db.Questions
+            var existingQuestions = await _db.Questions
+                .Include(q => q.OptionQuestions)
                 .Where(q => q.FormId == formId && q.DeletedAt == null)
-                .Select(q => q.Id)
                 .ToListAsync();
 
-            if (oldQuestionIds.Count > 0)
-            {
-                await _db.OptionQuestions
-                    .Where(o => oldQuestionIds.Contains(o.QuestionId))
-                    .ExecuteDeleteAsync();
-
-                await _db.Questions
-                    .Where(q => oldQuestionIds.Contains(q.Id))
-                    .ExecuteUpdateAsync(s => s
-                        .SetProperty(q => q.DeletedAt, JakartaTime.Now)
-                        .SetProperty(q => q.UpdatedAt, JakartaTime.Now));
-            }
-
-            var createdIds = new List<int>();
-            var order = 0;
+            var existingById = existingQuestions.ToDictionary(q => q.Id);
+            var nextOrder = existingQuestions.Count > 0 ? existingQuestions.Max(q => q.QuestionOrder) : 0;
+            var submittedIds = request.Questions
+                .Where(q => q.Id.HasValue && existingById.ContainsKey(q.Id.Value))
+                .Select(q => q.Id!.Value)
+                .ToHashSet();
 
             foreach (var item in request.Questions)
             {
                 if (string.IsNullOrWhiteSpace(item.Question))
                     continue;
 
-                order++;
-                var question = new Question
+                Question question;
+                if (item.Id.HasValue && existingById.TryGetValue(item.Id.Value, out var existing))
                 {
-                    FormId = formId,
-                    TypeId = item.TypeId,
-                    Question1 = item.Question,
-                    QuestionOrder = item.QuestionOrder ?? order,
-                    QuestionImage = item.QuestionImage,
-                    QuestionAudio = item.QuestionAudio,
-                    IsRequired = item.IsRequired ?? false,
-                    CorrectAnswer = item.CorrectAnswer,
-                    RandomizeOptions = item.RandomizeOptions ?? false,
-                    CreatedAt = JakartaTime.Now,
-                };
+                    question = existing;
+                    question.TypeId = item.TypeId;
+                    question.Question1 = item.Question;
+                    question.QuestionOrder = item.QuestionOrder ?? question.QuestionOrder;
+                    question.QuestionImage = item.QuestionImage;
+                    question.QuestionAudio = item.QuestionAudio;
+                    question.IsRequired = item.IsRequired ?? false;
+                    question.CorrectAnswer = item.CorrectAnswer;
+                    question.RandomizeOptions = item.RandomizeOptions ?? false;
+                    question.UpdatedAt = JakartaTime.Now;
+                }
+                else
+                {
+                    question = new Question
+                    {
+                        FormId = formId,
+                        TypeId = item.TypeId,
+                        Question1 = item.Question,
+                        QuestionOrder = item.QuestionOrder ?? ++nextOrder,
+                        QuestionImage = item.QuestionImage,
+                        QuestionAudio = item.QuestionAudio,
+                        IsRequired = item.IsRequired ?? false,
+                        CorrectAnswer = item.CorrectAnswer,
+                        RandomizeOptions = item.RandomizeOptions ?? false,
+                        CreatedAt = JakartaTime.Now,
+                    };
 
-                _db.Questions.Add(question);
-                await _db.SaveChangesAsync();
-                createdIds.Add(question.Id);
+                    _db.Questions.Add(question);
+                    await _db.SaveChangesAsync();
+                }
+
+                if (question.OptionQuestions.Count > 0)
+                {
+                    _db.OptionQuestions.RemoveRange(question.OptionQuestions);
+                    question.OptionQuestions.Clear();
+                }
 
                 if (item.Options?.Count > 0)
                 {
@@ -229,14 +241,34 @@ public class QuestionsController : ControllerBase
 
                     _db.OptionQuestions.AddRange(options);
                 }
+
+                await _db.SaveChangesAsync();
             }
 
-            await _db.SaveChangesAsync();
+            // Pertanyaan aktif yang tidak ada di payload → soft delete.
+            var removedIds = existingQuestions
+                .Where(q => !submittedIds.Contains(q.Id))
+                .Select(q => q.Id)
+                .ToList();
+
+            if (removedIds.Count > 0)
+            {
+                await _db.OptionQuestions
+                    .Where(o => removedIds.Contains(o.QuestionId))
+                    .ExecuteDeleteAsync();
+
+                await _db.Questions
+                    .Where(q => removedIds.Contains(q.Id))
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(q => q.DeletedAt, JakartaTime.Now)
+                        .SetProperty(q => q.UpdatedAt, JakartaTime.Now));
+            }
+
             await tx.CommitAsync();
 
             var questions = await _db.Questions
                 .Include(q => q.OptionQuestions.OrderBy(o => o.OptionOrder))
-                .Where(q => createdIds.Contains(q.Id))
+                .Where(q => q.FormId == formId && q.DeletedAt == null)
                 .OrderBy(q => q.QuestionOrder)
                 .ToListAsync();
 
@@ -247,6 +279,36 @@ public class QuestionsController : ControllerBase
             await tx.RollbackAsync();
             throw;
         }
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<object>>> Delete(int formId, int id)
+    {
+        var user = await GetCurrentUser();
+        if (user == null)
+            return Unauthorized(new ApiResponse<object>(401, "User not found"));
+
+        var form = await _db.Forms
+            .FirstOrDefaultAsync(f => f.Id == formId && f.UserId == user.Id && f.DeletedAt == null);
+
+        if (form == null)
+            return NotFound(new ApiResponse<object>(404, "Form not found"));
+
+        var question = await _db.Questions
+            .FirstOrDefaultAsync(q => q.Id == id && q.FormId == formId && q.DeletedAt == null);
+
+        if (question == null)
+            return NotFound(new ApiResponse<object>(404, "Question not found"));
+
+        await _db.OptionQuestions
+            .Where(o => o.QuestionId == id)
+            .ExecuteDeleteAsync();
+
+        question.DeletedAt = JakartaTime.Now;
+        question.UpdatedAt = JakartaTime.Now;
+        await _db.SaveChangesAsync();
+
+        return Ok(new ApiResponse<object>(200, "Question deleted"));
     }
 
     [HttpPost("import")]

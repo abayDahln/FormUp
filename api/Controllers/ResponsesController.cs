@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FormUpAPI.Models;
+using FormUpAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -23,106 +24,7 @@ public class ResponsesController : ControllerBase
     [EnableRateLimiting("submit")]
     public async Task<ActionResult<ApiResponse<object>>> Submit(int formId, [FromBody] SubmitResponseRequest request)
     {
-        // Honeypot: terisi oleh bot → balas sukses palsu tanpa menyimpan.
-        if (!string.IsNullOrWhiteSpace(request.Honeypot))
-            return Ok(new ApiResponse<object>(201, "Response submitted", new { responseId = 0 }));
-
-        var form = await _db.Forms
-            .Include(f => f.FormSetting)
-            .FirstOrDefaultAsync(f => f.Id == formId && f.DeletedAt == null);
-
-        // Pesan generik supaya link yang tidak ada/tertutup tidak bisa dibedakan (anti link-guessing).
-        if (form == null || form.TakenDownAt != null)
-            return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
-
-        var publishedStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "published");
-        var closedStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "closed");
-
-        if (form.StatusId != publishedStatus.Id && form.StatusId != closedStatus.Id)
-            return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
-
-        if (form.StatusId == closedStatus.Id)
-            return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
-
-        if (form.FormSetting?.CloseFormTime != null && form.FormSetting.CloseFormTime < JakartaTime.Now)
-            return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
-
-        if (!string.IsNullOrEmpty(form.FormSetting?.FormToken))
-        {
-            if (string.IsNullOrEmpty(request.Token) || request.Token != form.FormSetting.FormToken)
-                return Unauthorized(new ApiResponse<object>(401, "Invalid or missing form token"));
-        }
-
-        var idempotencyKey = Request.Headers["Idempotency-Key"].ToString();
-        if (!string.IsNullOrWhiteSpace(idempotencyKey))
-        {
-            var existingResponse = await _db.Responses
-                .FirstOrDefaultAsync(r => r.FormId == formId && r.IdempotencyKey == idempotencyKey);
-            if (existingResponse != null)
-                return Ok(new ApiResponse<object>(201, "Response submitted", new { responseId = existingResponse.Id }));
-        }
-
-        if (form.FormSetting?.OneResponse == true)
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var alreadySubmitted = false;
-
-            if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var userId))
-                alreadySubmitted = await _db.Responses
-                    .AnyAsync(r => r.FormId == formId && r.RespondentId == userId);
-
-            if (!alreadySubmitted && !string.IsNullOrWhiteSpace(request.Fingerprint))
-                alreadySubmitted = await _db.Responses
-                    .AnyAsync(r => r.FormId == formId && r.RespondentFingerprint == request.Fingerprint);
-
-            if (alreadySubmitted)
-                return BadRequest(new ApiResponse<object>(400, "You have already submitted a response"));
-        }
-
-        var questionIds = request.Answers.Select(a => a.QuestionId).ToList();
-        var validQuestions = await _db.Questions
-            .Where(q => q.FormId == formId && q.DeletedAt == null)
-            .Select(q => q.Id)
-            .ToListAsync();
-
-        var invalidIds = questionIds.Except(validQuestions).ToList();
-        if (invalidIds.Count > 0)
-            return BadRequest(new ApiResponse<object>(400, $"Invalid question IDs: {string.Join(", ", invalidIds)}"));
-
-        int? respondentId = null;
-        var userIdClaim2 = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (!string.IsNullOrEmpty(userIdClaim2) && int.TryParse(userIdClaim2, out var uid))
-            respondentId = uid;
-
-        var newStatus = await _db.ResponseStatuses.FirstAsync(s => s.Status == "new");
-
-        var response = new Response
-        {
-            FormId = formId,
-            RespondentId = respondentId,
-            RespondentFingerprint = string.IsNullOrWhiteSpace(request.Fingerprint) ? null : request.Fingerprint,
-            IdempotencyKey = string.IsNullOrWhiteSpace(idempotencyKey) ? null : idempotencyKey,
-            StatusId = newStatus.Id,
-            SubmittedAt = JakartaTime.Now,
-            CreatedAt = JakartaTime.Now,
-        };
-
-        _db.Responses.Add(response);
-        await _db.SaveChangesAsync();
-
-        var answers = request.Answers.Select(a => new RespondentAnswer
-        {
-            ResponseId = response.Id,
-            QuestionId = a.QuestionId,
-            OptionId = a.OptionId,
-            AnswerValue = a.AnswerValue,
-            CreatedAt = JakartaTime.Now,
-        }).ToList();
-
-        _db.RespondentAnswers.AddRange(answers);
-        await _db.SaveChangesAsync();
-
-        return Ok(new ApiResponse<object>(201, "Response submitted", new { responseId = response.Id }));
+        return await ResponseSubmission.SaveAsync(_db, User, formId, request);
     }
 
     [HttpGet("api/forms/{formId}/responses")]

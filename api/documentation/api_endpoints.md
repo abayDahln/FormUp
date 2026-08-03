@@ -1,6 +1,6 @@
 # API Endpoints FormUp
 
-**Status: Development** — seluruh endpoint auth, user, form, question, response, feedback, admin, dan analytics sudah diimplementasikan.
+**Status: Development** — seluruh endpoint auth, user, form, question, response, feedback, admin, analytics, dan **public form** sudah diimplementasikan.
 
 ## Base URL
 
@@ -439,6 +439,7 @@ Menampilkan semua form yang pernah dikerjakan oleh user, diurutkan dari terbaru.
     "status": "draft",
     "responseCount": 0,
     "settings": {
+      "formTypeId": 1,
       "showScore": null,
       "randomizeQuestions": null,
       "timerDuration": null,
@@ -463,7 +464,8 @@ Menampilkan semua form yang pernah dikerjakan oleh user, diurutkan dari terbaru.
 ```json
 {
   "title": "Judul Baru",
-  "description": "Deskripsi baru"
+  "description": "Deskripsi baru",
+  "formLink": "survey-kepuasan-mahasiswa-2024"
 }
 ```
 
@@ -475,6 +477,11 @@ Menampilkan semua form yang pernah dikerjakan oleh user, diurutkan dari terbaru.
   "data": { ... }
 }
 ```
+
+**`formLink` (opsional):** user bisa mengedit sendiri link `/f/{code}`.
+- Otomatis di-normalisasi: trim, huruf kecil, spasi → strip (`-`).
+- Valid: hanya huruf kecil, angka, dan `-` di antara kata (contoh `survey-kepuasan-2024`). Minimal 3 karakter, maksimal 100.
+- Unik global — jika sudah dipakai form lain (termasuk form soft-deleted) → `409 Conflict`.
 
 ---
 
@@ -540,6 +547,7 @@ curl -X POST http://localhost:5000/api/forms/1/banner \
 **Request:** (semua field opsional — hanya field yang dikirim akan berubah)
 ```json
 {
+  "formTypeId": 1,
   "showScore": true,
   "randomizeQuestions": false,
   "formToken": "abc123",
@@ -555,6 +563,7 @@ curl -X POST http://localhost:5000/api/forms/1/banner \
   "status": 200,
   "message": "Settings updated",
   "data": {
+    "formTypeId": 1,
     "showScore": true,
     "randomizeQuestions": false,
     "timerDuration": 300,
@@ -567,6 +576,7 @@ curl -X POST http://localhost:5000/api/forms/1/banner \
 **Notes:**
 - Jika `FormSetting` row belum ada, akan auto-create saat pertama kali di-PATCH
 - `formToken` bisa di-set ke `null` dengan mengirim `"formToken": null`
+- `formTypeId` harus ID `FormType` yang valid (1=Single Page, 2=Multi Page); invalid → `400`. Kolom `form_type_id` di DB **NOT NULL** — jika tidak dikirim, row baru otomatis memakai default `1` (Single Page)
 - Setting hanya bisa diubah oleh pemilik form (diverifikasi via JWT)
 
 ---
@@ -619,6 +629,100 @@ Toggle status draft ↔ published.
 **Headers:** `Authorization: Bearer <token>`
 
 Returns PNG image langsung (Content-Type: `image/png`).
+
+---
+
+# Public Form Endpoints (Responden, Tanpa Login)
+
+Endpoint ini dipakai responden untuk mengerjakan form lewat link `/f/{code}` (web: route `/f/:code`, mobile: deep link). **Tidak butuh JWT.**
+
+## 1. Ambil Form Publik
+
+`GET /api/public/forms/{formLink}`
+
+**Response 200:**
+```json
+{
+  "status": 200,
+  "message": "OK",
+  "data": {
+    "id": 1,
+    "title": "Survey Kepuasan",
+    "description": "...",
+    "bannerImage": null,
+    "requiresToken": false,
+    "showScore": true,
+    "timerDuration": 300,
+    "randomizeQuestions": false,
+    "questions": [
+      {
+        "id": 1,
+        "typeId": 1,
+        "question": "Apa warna langit?",
+        "questionOrder": 1,
+        "questionImage": null,
+        "questionAudio": null,
+        "isRequired": true,
+        "correctAnswer": null,
+        "randomizeOptions": false,
+        "options": [
+          { "id": 1, "optionText": "Biru", "optionImage": null, "isCorrect": null, "optionOrder": 1 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Catatan anti-bocor:**
+- `correctAnswer` dan `isCorrect` selalu `null` — jawaban benar tidak boleh bocor ke responden.
+- `responseCount` tidak dikirim — itu data internal creator.
+- `requiresToken = true` jika form memakai `FormToken`. Jika `true`, request wajib menyertakan `?token=<token>` di query; salah/kurang → `401` generik.
+
+**Gate (semua kondisi ini → `404` generik `"Form not found or unavailable"`):**
+- `formLink` tidak ditemukan / form sudah soft-delete
+- Form di-takedown admin (`taken_down_at` terisi)
+- Status bukan `published`
+- `closeFormTime` sudah lewat
+
+**Response 404:**
+```json
+{
+  "status": 404,
+  "message": "Form not found or unavailable",
+  "data": null
+}
+```
+
+---
+
+## 2. Submit Response (Publik via Link)
+
+`POST /api/public/forms/{formLink}/responses`
+
+Sama persis seperti `POST /api/forms/{formId}/responses` (lihat Response Endpoints di bawah), tapi menerima `formLink` (kode dari `/f/{code}`) bukan `formId`.
+
+**Request:**
+```json
+{
+  "token": "abc123",
+  "answers": [
+    { "questionId": 1, "optionId": 2 },
+    { "questionId": 2, "answerValue": "Jawaban text" }
+  ]
+}
+```
+
+Gate & validasi sama dengan GET publik + submit biasa. **Response 201:**
+```json
+{
+  "status": 201,
+  "message": "Response submitted",
+  "data": { "responseId": 1 }
+}
+```
+
+**Rate limit:** policy `submit` — 60/menit per kombinasi IP + `formLink`.
 
 ---
 
@@ -690,19 +794,68 @@ Buat soal + opsi sekaligus dalam 1 request.
 
 ---
 
-## 3. Ganti Semua Questions (Replace)
+## 3. Simpan / Update Questions
 
 `PUT /api/forms/{formId}/questions`
 
 **Headers:** `Authorization: Bearer <token>`
 
-Hapus semua soal lama (soft delete) + ganti dengan yang baru. Body sama seperti create.
+Update soal **in-place** (bukan replace-all lagi). Setiap item boleh membawa `id`:
+- Item dengan `id` yang cocok dengan soal aktif → soal **di-update** (teks, tipe, order, opsi, dsb).
+- Item tanpa `id` → soal **baru** dibuat.
+- Soal aktif yang **tidak ada** di payload → di-soft-delete.
 
-**Response 200:** Array questions baru.
+Opsi selalu diganti utuh per soal (hapus lama, buat ulang dari `options`).
+
+**Request:**
+```json
+{
+  "questions": [
+    {
+      "id": 1,
+      "typeId": 1,
+      "question": "Apa warna langit? (diubah)",
+      "isRequired": true,
+      "options": [
+        { "optionText": "Biru", "isCorrect": true },
+        { "optionText": "Ungu", "isCorrect": false }
+      ]
+    },
+    {
+      "typeId": 3,
+      "question": "2+2 berapa? (soal baru)",
+      "isRequired": true,
+      "correctAnswer": "4"
+    }
+  ]
+}
+```
+
+**Response 200:** Array questions aktif setelah save (dengan ID masing-masing).
+
+**Catatan:** Karena update in-place, `questionId` pada response lama tetap valid — analitik & export tidak kehilangan history saat soal diedit.
 
 ---
 
-## 4. Upload Image Question
+## 4. Hapus Pertanyaan
+
+`DELETE /api/forms/{formId}/questions/{id}`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Soft delete satu pertanyaan beserta opsi-nya. Hanya pemilik form.
+
+**Response 200:**
+```json
+{
+  "status": 200,
+  "message": "Question deleted"
+}
+```
+
+---
+
+## 5. Upload Image Question
 
 `POST /api/forms/{formId}/questions/{id}/upload-image`
 
@@ -729,7 +882,7 @@ Upload & langsung set `questionImage` ke question ID tersebut. File lama otomati
 
 ---
 
-## 5. Upload Audio Question
+## 6. Upload Audio Question
 
 `POST /api/forms/{formId}/questions/{id}/upload-audio`
 
@@ -756,7 +909,7 @@ Upload audio untuk soal. File lama otomatis dihapus.
 
 ---
 
-## 6. Import Soal dari File
+## 7. Import Soal dari File
 
 `POST /api/forms/{formId}/questions/import`
 

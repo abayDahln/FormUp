@@ -39,6 +39,7 @@ public class SaveQuestionsRequest
 
 public class QuestionItem
 {
+    public int? Id { get; set; }
     public int TypeId { get; set; }
     public string Question { get; set; } = null!;
     public int? QuestionOrder { get; set; }

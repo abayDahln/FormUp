@@ -141,6 +141,30 @@ Dokumentasi lengkap FormUp API sudah dipecah menjadi beberapa file untuk memudah
 
 ---
 
+### 8. FORM-LINK-FLOW.md
+**Konten:** Alur mengerjakan form publik via link `/f/{code}` untuk web & mobile
+- Endpoint publik `GET/POST /api/public/forms/{formLink}`
+- Arsitektur: `/f/{code}` milik client (SPA web / deep link mobile), backend hanya API
+- DTO anti-bocor (`correctAnswer`/`isCorrect` null)
+- Verifikasi manual lewat Swagger
+
+**Gunakan untuk:** Implementasi form runner (web & mobile)
+**Status:** Implemented
+
+---
+
+### 9. FUTURE-FEATURES.md
+**Konten:** Daftar fitur yang sengaja ditunda dari MVP
+- Honeypot (anti-bot spam)
+- Idempotency-Key (anti-duplikat submit)
+- Respondent Fingerprint (one-response untuk responden anonim)
+- Cara implementasi ulang + kapan dibutuhkan
+
+**Gunakan untuk:** Roadmap fitur stabil/besar berikutnya
+**Status:** Deferred
+
+---
+
 ## Navigasi Cepat
 
 ### Berdasarkan Role
@@ -214,6 +238,8 @@ Dokumentasi FormUp API/
 ├── DATA-MODELS.md                # Database schema & models
 ├── DEPLOYMENT.md                 # Deploy & monitoring
 ├── REQUIREMENTS.md               # Detailed requirements
+├── FORM-LINK-FLOW.md             # Alur form publik via /f/{code}
+├── FUTURE-FEATURES.md            # Fitur tertunda (honeypot, idempotency, fingerprint)
 └── DOCUMENTATION-INDEX.md        # File ini (navigasi)
 ```
 
@@ -266,6 +292,8 @@ Dokumentasi FormUp API/
 - [Database Models](./DATA-MODELS.md)
 - [Deployment & Monitoring](./DEPLOYMENT.md)
 - [Requirements & Specs](./REQUIREMENTS.md)
+- [Form Link Flow (Form Publik)](./FORM-LINK-FLOW.md)
+- [Future Features (Ditunda)](./FUTURE-FEATURES.md)
 
 ---
 

@@ -21,6 +21,8 @@ public partial class FormUpDbContext : DbContext
 
     public virtual DbSet<FormStatus> FormStatuses { get; set; }
 
+    public virtual DbSet<FormType> FormTypes { get; set; }
+
     public virtual DbSet<OptionQuestion> OptionQuestions { get; set; }
 
     public virtual DbSet<Question> Questions { get; set; }
@@ -106,6 +108,7 @@ public partial class FormUpDbContext : DbContext
                 .HasColumnType("datetime")
                 .HasColumnName("created_at");
             entity.Property(e => e.FormId).HasColumnName("form_id");
+            entity.Property(e => e.FormTypeId).HasColumnName("form_type_id");
             entity.Property(e => e.FormToken)
                 .HasMaxLength(50)
                 .HasColumnName("form_token");
@@ -126,6 +129,10 @@ public partial class FormUpDbContext : DbContext
             entity.HasOne(d => d.Form).WithOne(p => p.FormSetting)
                 .HasForeignKey<FormSetting>(d => d.FormId)
                 .HasConstraintName("FK__FormSetti__form___5165187F");
+
+            entity.HasOne(d => d.FormType).WithMany(p => p.FormSettings)
+                .HasForeignKey(d => d.FormTypeId)
+                .OnDelete(DeleteBehavior.ClientSetNull);
         });
 
         modelBuilder.Entity<FormStatus>(entity =>
@@ -142,6 +149,22 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
                 .HasColumnName("status");
+        });
+
+        modelBuilder.Entity<FormType>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__FormType__3213E83FE1FFAC61");
+
+            entity.ToTable("FormType");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
+                .HasColumnType("datetime")
+                .HasColumnName("created_at");
+            entity.Property(e => e.Type)
+                .HasMaxLength(50)
+                .HasColumnName("type");
         });
 
         modelBuilder.Entity<OptionQuestion>(entity =>
@@ -280,12 +303,6 @@ public partial class FormUpDbContext : DbContext
                 .HasColumnName("created_at");
             entity.Property(e => e.FormId).HasColumnName("form_id");
             entity.Property(e => e.RespondentId).HasColumnName("respondent_id");
-            entity.Property(e => e.RespondentFingerprint)
-                .HasMaxLength(128)
-                .HasColumnName("respondent_fingerprint");
-            entity.Property(e => e.IdempotencyKey)
-                .HasMaxLength(128)
-                .HasColumnName("idempotency_key");
             entity.Property(e => e.StatusId).HasColumnName("status_id");
             entity.Property(e => e.SubmittedAt)
                 .HasColumnType("datetime")
@@ -293,8 +310,6 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.UpdatedAt)
                 .HasColumnType("datetime")
                 .HasColumnName("updated_at");
-
-            entity.HasIndex(e => new { e.FormId, e.IdempotencyKey }, "UQ__Response__form_idempotency").IsUnique();
 
             entity.HasOne(d => d.Form).WithMany(p => p.Responses)
                 .HasForeignKey(d => d.FormId)

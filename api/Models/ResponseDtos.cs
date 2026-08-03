@@ -3,8 +3,6 @@ namespace FormUpAPI.Models;
 public class SubmitResponseRequest
 {
     public string? Token { get; set; }
-    public string? Fingerprint { get; set; }
-    public string? Honeypot { get; set; }
     public List<AnswerRequest> Answers { get; set; } = new();
 }
 
