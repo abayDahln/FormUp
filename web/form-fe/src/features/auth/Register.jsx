@@ -58,8 +58,10 @@ const Register = () => {
 
             const data = await response.json();
 
-            if (response.ok && data.status === 201) {
-                navigate('/login');
+            if (response.ok && data.status === 200) {
+                navigate('/verify', {
+                    state: { fullname, username, email, password, birthdate }
+                });
             } else {
                 setError(data.message || 'Registrasi gagal. Coba lagi.');
             }
@@ -130,9 +132,9 @@ const Register = () => {
                                 <p className="text-[14px] font-bold text-gray-700/80">
                                     Start building with FormUp
                                 </p>
-                                
+
                             </div>
-                            
+
                             {error && (
                                 <div className="mb-3 px-4 py-2.5 bg-red-500/20 border border-red-400/50 rounded-xl">
                                     <p className="text-[13px] font-bold text-red-700">{error}</p>

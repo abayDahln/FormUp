@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './features/auth/Login';
 import Register from './features/auth/Register';
+import Verify from '../src/features/auth/VerifyRegister';
 import UserHome from './features/dashboard/userDashboard/userhome';
 import MyForms from './features/dashboard/userDashboard/myForms';
 import TemplatesPage from './features/dashboard/userDashboard/templateForm';
@@ -20,6 +21,7 @@ function App() {
 
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/verify" element={<Verify />} />
       <Route path="/f/:formLink" element={<FormRunnerPage />} />
 
       <Route path="/dashboard" element={<ProtectedRoute><UserHome /></ProtectedRoute>} />

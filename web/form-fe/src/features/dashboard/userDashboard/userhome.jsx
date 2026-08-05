@@ -50,14 +50,88 @@ const UserHome = () => {
         .sort((a, b) => new Date(b.updatedAt ?? b.createdAt) - new Date(a.updatedAt ?? a.createdAt))
         .slice(0, 8);
 
+    // =====================================
+    // SKELETON LOADING STATE
+    // =====================================
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-screen w-full bg-[#F4F8F7]">
-                <p className="text-lg font-semibold text-slate-500">Loading dashboard...</p>
+            <div className="flex min-h-screen w-full bg-[#F4F8F7] font-sans antialiased text-slate-800">
+                {/* Sidebar tetap dirender agar tidak lompat */}
+                <Sidebar />
+
+                <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+                    <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 space-y-6">
+                        
+                        {/* Topbar tetap dirender */}
+                        <Topbar />
+
+                        {/* Skeleton Greeting */}
+                        <div className="animate-pulse">
+                            <div className="h-8 bg-slate-200 rounded-md w-48 sm:w-64 mb-2"></div>
+                            <div className="h-3 bg-slate-200 rounded-md w-56 mt-2"></div>
+                        </div>
+
+                        {/* Skeleton Stats Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {[1, 2, 3, 4].map((i) => (
+                                <div key={i} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between animate-pulse">
+                                    <div className="w-full">
+                                        <div className="h-3 bg-slate-200 rounded-md w-20 mb-3"></div>
+                                        <div className="h-7 bg-slate-200 rounded-md w-12"></div>
+                                    </div>
+                                    <div className="w-10 h-10 rounded-xl bg-slate-200 shrink-0"></div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Skeleton Recent Forms */}
+                        <section className="space-y-4">
+                            <div className="flex items-center justify-between animate-pulse">
+                                <div>
+                                    <div className="h-5 bg-slate-200 rounded-md w-28 mb-1.5"></div>
+                                    <div className="h-3 bg-slate-200 rounded-md w-40"></div>
+                                </div>
+                                <div className="h-3 bg-slate-200 rounded-md w-16"></div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                {[1, 2, 3, 4].map((i) => (
+                                    <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between overflow-hidden animate-pulse">
+                                        {/* Skeleton Image Banner */}
+                                        <div className="h-28 w-full bg-slate-200"></div>
+
+                                        <div className="p-4 flex-1 flex flex-col justify-between">
+                                            <div>
+                                                {/* Skeleton Title */}
+                                                <div className="h-4 bg-slate-200 rounded-md w-3/4 mb-4"></div>
+                                                
+                                                {/* Skeleton Badges / Responses */}
+                                                <div className="flex items-center justify-between mt-2">
+                                                    <div className="h-4 bg-slate-200 rounded-md w-16"></div>
+                                                    <div className="h-3 bg-slate-200 rounded-md w-20"></div>
+                                                </div>
+                                            </div>
+
+                                            {/* Skeleton Buttons */}
+                                            <div className="flex items-center gap-2 pt-4 mt-4 border-t border-slate-100">
+                                                <div className="flex-1 h-8 bg-slate-200 rounded-lg"></div>
+                                                <div className="flex-1 h-8 bg-slate-200 rounded-lg"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+
+                    </main>
+                </div>
             </div>
         );
     }
 
+    // =====================================
+    // MAIN CONTENT (DATA LOADED)
+    // =====================================
     return (
         <div className="flex min-h-screen w-full bg-[#F4F8F7] font-sans antialiased text-slate-800">
             <Sidebar />
