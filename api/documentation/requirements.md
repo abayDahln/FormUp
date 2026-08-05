@@ -341,7 +341,9 @@ Microsoft.AspNetCore.Identity
 **Responses**
 - id (UUID, PK)
 - form_id (FK)
-- respondent_id (FK, nullable)
+- respondent_id (FK, nullable) — null untuk guest
+- respondent_name (nullable) — nama tamu opsional
+- guest_token (nullable) — pengenal guest (one-response & ambil hasil)
 - status_id (FK)
 - submitted_at, created_at, updated_at
 
@@ -358,13 +360,14 @@ Microsoft.AspNetCore.Identity
 - form_id (FK)
 - show_score, randomize_questions
 - form_token, timer_duration
-- one_response, close_form_time
+- one_response, required_login
+- open_form_time (set-once), close_form_time (bisa di-update)
 - created_at, updated_at
 
 ### Reference Tables
-- FormStatus (draft, published, archived, closed)
-- QuestionType (multiple_choice, checkbox, text, etc)
-- ResponseStatus (new, reviewed, flagged)
+- FormStatus (Draft, Published, Closed)
+- QuestionType (Essay, Multiple Choice, Checkbox, Date Time, True False)
+- ResponseStatus (In Progress, Submitted, new)
 
 ---
 

@@ -13,6 +13,8 @@ public partial class Response
 
     public string? RespondentName { get; set; }
 
+    public string? GuestToken { get; set; }
+
     public int StatusId { get; set; }
 
     public DateTime? SubmittedAt { get; set; }

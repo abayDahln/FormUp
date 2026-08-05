@@ -29,7 +29,7 @@ Menyimpan data form yang dibuat user.
 |-------|------|----------|--------|-----------|
 | id | int | Ya | Ya | Primary key (auto-increment) |
 | user_id | int | Ya | Tidak | FK ke User (pemilik form) |
-| status_id | int | Ya | Tidak | FK ke FormStatus (1=draft, 2=published, 3=archived, 4=closed) |
+| status_id | int | Ya | Tidak | FK ke FormStatus (1=Draft, 2=Published, 3=Closed) |
 | title | string(255) | Ya | Tidak | Judul form |
 | description | text | Tidak | Tidak | Deskripsi form |
 | banner_image | string(255) | Tidak | Tidak | Path banner (contoh: `/banner/xxx.jpg`) |
@@ -54,8 +54,10 @@ Relasi 1:1 dengan Form. Row di-auto-create saat pertama kali settings di-PATCH.
 | randomize_questions | boolean | Tidak | Acak urutan pertanyaan (default: false) |
 | form_token | string(255) | Tidak | Token/password untuk akses form |
 | timer_duration | int | Tidak | Batas waktu pengerjaan (menit, 0 = unlimited) |
-| one_response | boolean | Tidak | Batasi 1 response per orang (default: false) |
-| close_form_time | datetime | Tidak | Form otomatis tutup pada waktu ini |
+| one_response | boolean | Tidak | Batasi 1 response per orang (default: false). Untuk user login dihitung via `respondent_id`; untuk guest via `guest_token` yang dikirim klien |
+| required_login | boolean | Tidak | Wajib login untuk mengerjakan (default: false). Guest ditolak 401 |
+| open_form_time | datetime | Tidak | Form otomatis buka pada waktu ini. **Hanya bisa di-set sekali, tidak bisa diubah** |
+| close_form_time | datetime | Tidak | Form otomatis tutup pada waktu ini (bisa di-update bebas) |
 | created_at | datetime | Ya | Waktu dibuat |
 | updated_at | datetime | Ya | Waktu terakhir diubah |
 
@@ -108,8 +110,10 @@ Satu submission dari form oleh responden.
 |-------|------|----------|-----------|
 | id | int | Ya | Primary key (auto-increment) |
 | form_id | int | Ya | FK ke Form |
-| respondent_id | int | Tidak | FK ke User (null untuk anonymous) |
-| status_id | int | Ya | FK ke ResponseStatus (1=new, 2=reviewed, 3=flagged) |
+| respondent_id | int | Tidak | FK ke User (null untuk anonymous/guest) |
+| respondent_name | string(100) | Tidak | Nama tamu dari responden tanpa login (opsional) |
+| guest_token | string(64) | Tidak | Token pengenal guest (client generate / server auto). Dipakai untuk one-response guest & ambil hasil via endpoint publik |
+| status_id | int | Ya | FK ke ResponseStatus (1=In Progress, 2=Submitted, 3=new) |
 | submitted_at | datetime | Ya | Waktu respon disubmit |
 | created_at | datetime | Ya | Waktu dibuat |
 | updated_at | datetime | Ya | Waktu terakhir diubah |
@@ -140,33 +144,27 @@ Tabel-tabel ini diisi saat migrasi dan hanya dibaca (read-only).
 
 | ID | Status | Keterangan |
 |----|--------|-----------|
-| 1 | draft | Form masih draft, belum dipublikasi |
-| 2 | published | Form sudah dipublikasi dan aktif |
-| 3 | archived | Form diarsipkan |
-| 4 | closed | Form ditutup, tidak menerima response baru |
+| 1 | Draft | Form masih draft, belum dipublikasi |
+| 2 | Published | Form sudah dipublikasi dan aktif (soal terkunci, tidak bisa diedit) |
+| 3 | Closed | Form ditutup, tidak menerima response baru |
 
 ### QuestionType
 
 | ID | Type | Keterangan |
 |----|------|-----------|
-| 1 | multiple_choice | Pilih satu dari beberapa opsi |
-| 2 | checkbox | Pilih lebih dari satu opsi |
-| 3 | text | Input text pendek |
-| 4 | textarea | Input text panjang |
-| 5 | dropdown | Dropdown selection |
-| 6 | rating | Rating bintang |
-| 7 | date | Date picker |
-| 8 | time | Time picker |
-| 9 | file_upload | File upload |
-| 10 | linear_scale | Linear scale selection |
+| 1 | Essay | Jawaban text bebas |
+| 2 | Multiple Choice | Pilih satu dari beberapa opsi (jawaban benar = `is_correct`) |
+| 3 | Checkbox | Pilih lebih dari satu opsi |
+| 4 | Date Time | Input tanggal/waktu |
+| 5 | True False | Benar/Salah |
 
 ### ResponseStatus
 
 | ID | Status | Keterangan |
 |----|--------|-----------|
-| 1 | new | Respon baru, belum direview |
-| 2 | reviewed | Respon sudah direview |
-| 3 | flagged | Respon ditandai perlu perhatian khusus |
+| 1 | In Progress | Masih dikerjakan |
+| 2 | Submitted | Sudah dikirim |
+| 3 | new | Respon baru (status awal saat submit, dipakai kode) |
 
 ### FormType
 
@@ -244,4 +242,4 @@ RegistrationOtp — tanpa relasi (user belum terdaftar)
 | Soft delete | Semua entitas utama punya `deleted_at`. Jangan hapus baris, set `deleted_at` saja. |
 | Password | Format `salt.hash` — PBKDF2 dengan SHA256, 100.000 iterasi. |
 | Unique | `email` dan `username` di User, `form_link` di Form. |
-| Timestamps | `created_at` dan `updated_at` diisi otomatis oleh database (`GETDATE()`). |
+| Timestamps | `created_at` dan `updated_at` memakai waktu WIB (UTC+7, `dateadd(hour, 7, getutcdate())`), bukan `GETDATE()` lokal. |

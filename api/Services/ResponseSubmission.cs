@@ -55,7 +55,9 @@ public static class ResponseSubmission
         if (form.FormSetting?.CloseFormTime != null && form.FormSetting.CloseFormTime < JakartaTime.Now)
             return Unavailable(FormAccess.Closed, form);
 
-        if (form.FormSetting?.RequiredLogin == true && user.Identity?.IsAuthenticated != true)
+        var isAuthenticated = user.Identity?.IsAuthenticated == true;
+
+        if (form.FormSetting?.RequiredLogin == true && !isAuthenticated)
             return new UnauthorizedObjectResult(new ApiResponse<object>(401, "Login required to access this form"));
 
         if (!string.IsNullOrEmpty(form.FormSetting?.FormToken))
@@ -66,12 +68,20 @@ public static class ResponseSubmission
 
         if (form.FormSetting?.OneResponse == true)
         {
-            var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var alreadySubmitted = false;
 
-            if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var userId))
+            if (isAuthenticated)
+            {
+                var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var userId))
+                    alreadySubmitted = await db.Responses
+                        .AnyAsync(r => r.FormId == formId && r.RespondentId == userId);
+            }
+            else if (!string.IsNullOrEmpty(body.GuestToken))
+            {
                 alreadySubmitted = await db.Responses
-                    .AnyAsync(r => r.FormId == formId && r.RespondentId == userId);
+                    .AnyAsync(r => r.FormId == formId && r.GuestToken == body.GuestToken);
+            }
 
             if (alreadySubmitted)
                 return new BadRequestObjectResult(new ApiResponse<object>(400, "You have already submitted a response"));
@@ -95,6 +105,11 @@ public static class ResponseSubmission
         // ponytail: nama tamu hanya untuk responden tanpa login; user login diidentifikasi lewat RespondentId
         var respondentName = respondentId == null ? body.RespondentName : null;
 
+        // ponytail: guest token dipakai untuk one-response guest & untuk mengambil hasil lewat endpoint publik
+        var guestToken = respondentId == null
+            ? (string.IsNullOrWhiteSpace(body.GuestToken) ? Guid.NewGuid().ToString("N") : body.GuestToken)
+            : null;
+
         var newStatus = await db.ResponseStatuses.FirstAsync(s => s.Status == "new");
 
         var response = new Response
@@ -102,6 +117,7 @@ public static class ResponseSubmission
             FormId = formId,
             RespondentId = respondentId,
             RespondentName = respondentName,
+            GuestToken = guestToken,
             StatusId = newStatus.Id,
             SubmittedAt = JakartaTime.Now,
             CreatedAt = JakartaTime.Now,
@@ -122,6 +138,6 @@ public static class ResponseSubmission
         db.RespondentAnswers.AddRange(answers);
         await db.SaveChangesAsync();
 
-        return new OkObjectResult(new ApiResponse<object>(201, "Response submitted", new { responseId = response.Id }));
+        return new OkObjectResult(new ApiResponse<object>(201, "Response submitted", new { responseId = response.Id, guestToken }));
     }
 }

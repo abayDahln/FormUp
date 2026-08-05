@@ -363,6 +363,64 @@ curl -X POST http://localhost:5000/api/users/me/profile-image \
 
 Menampilkan semua form yang pernah dikerjakan oleh user, diurutkan dari terbaru.
 
+Untuk melihat **hasil** (nilai, benar/salah) dari salah satu item, panggil endpoint hasil publik `GET /api/public/forms/{formLink}/responses/{responseId}` sambil membawa JWT pemilik respons (lihat bagian Public Form Endpoints §4).
+
+---
+
+# Reference Endpoints (Sudah Diimplementasikan)
+
+Butuh JWT. Dipakai builder form untuk mengisi dropdown tipe/status.
+
+## 1. Form Types
+
+`GET /api/references/form-types`
+
+**Response 200:**
+```json
+{
+  "status": 200,
+  "message": "OK",
+  "data": [
+    { "id": 1, "type": "Single Page" },
+    { "id": 2, "type": "Multi Page" }
+  ]
+}
+```
+
+## 2. Form Statuses
+
+`GET /api/references/form-statuses`
+
+```json
+{
+  "status": 200,
+  "message": "OK",
+  "data": [
+    { "id": 1, "status": "Draft" },
+    { "id": 2, "status": "Published" },
+    { "id": 3, "status": "Closed" }
+  ]
+}
+```
+
+## 3. Question Types
+
+`GET /api/references/question-types`
+
+```json
+{
+  "status": 200,
+  "message": "OK",
+  "data": [
+    { "id": 1, "type": "Essay" },
+    { "id": 2, "type": "Multiple Choice" },
+    { "id": 3, "type": "Checkbox" },
+    { "id": 4, "type": "Date Time" },
+    { "id": 5, "type": "True False" }
+  ]
+}
+```
+
 ---
 
 # Form Endpoints (Sudah Diimplementasikan)
@@ -444,6 +502,8 @@ Menampilkan semua form yang pernah dikerjakan oleh user, diurutkan dari terbaru.
       "randomizeQuestions": null,
       "timerDuration": null,
       "oneResponse": null,
+      "requiredLogin": null,
+      "openFormTime": null,
       "closeFormTime": null
     },
     "createdAt": "...",
@@ -553,6 +613,8 @@ curl -X POST http://localhost:5000/api/forms/1/banner \
   "formToken": "abc123",
   "timerDuration": 300,
   "oneResponse": true,
+  "requiredLogin": false,
+  "openFormTime": "2026-12-01T08:00:00Z",
   "closeFormTime": "2026-12-31T23:59:59Z"
 }
 ```
@@ -568,6 +630,8 @@ curl -X POST http://localhost:5000/api/forms/1/banner \
     "randomizeQuestions": false,
     "timerDuration": 300,
     "oneResponse": true,
+    "requiredLogin": false,
+    "openFormTime": "2026-12-01T08:00:00Z",
     "closeFormTime": "2026-12-31T23:59:59Z"
   }
 }
@@ -577,6 +641,9 @@ curl -X POST http://localhost:5000/api/forms/1/banner \
 - Jika `FormSetting` row belum ada, akan auto-create saat pertama kali di-PATCH
 - `formToken` bisa di-set ke `null` dengan mengirim `"formToken": null`
 - `formTypeId` harus ID `FormType` yang valid (1=Single Page, 2=Multi Page); invalid → `400`. Kolom `form_type_id` di DB **NOT NULL** — jika tidak dikirim, row baru otomatis memakai default `1` (Single Page)
+- `requiredLogin = true` → responden wajib login untuk mengerjakan (guest ditolak 401)
+- **`openFormTime` hanya bisa di-set sekali** — jika sudah pernah di-set, set kedua → `400 Open form time sudah diatur dan tidak bisa diubah`
+- `closeFormTime` **bisa di-update** bebas kapan saja
 - Setting hanya bisa diubah oleh pemilik form (diverifikasi via JWT)
 
 ---
@@ -634,11 +701,15 @@ Returns PNG image langsung (Content-Type: `image/png`).
 
 # Public Form Endpoints (Responden, Tanpa Login)
 
-Endpoint ini dipakai responden untuk mengerjakan form lewat link `/f/{code}` (web: route `/f/:code`, mobile: deep link). **Tidak butuh JWT.**
+Endpoint ini dipakai responden untuk mengerjakan form lewat link `/f/{code}` (web: route `/f/:code`, mobile: deep link). **Tidak butuh JWT** (kecuali form `requiresLogin`).
 
-## 1. Ambil Form Publik
+Alur 2-langkah agar **soal aman**: GET info+requirement dulu, baru POST `/questions` untuk ambil soal.
+
+## 1. Ambil Info + Requirement Form Publik
 
 `GET /api/public/forms/{formLink}`
+
+Balas meta + requirement form, **tanpa soal**.
 
 **Response 200:**
 ```json
@@ -651,17 +722,55 @@ Endpoint ini dipakai responden untuk mengerjakan form lewat link `/f/{code}` (we
     "description": "...",
     "bannerImage": null,
     "requiresToken": false,
+    "requiresLogin": false,
     "showScore": true,
     "timerDuration": 300,
     "randomizeQuestions": false,
+    "openFormTime": null,
+    "closeFormTime": null
+  }
+}
+```
+
+**Gate — pesan dibedakan:**
+
+| Kondisi | HTTP | Message |
+|---------|------|---------|
+| `formLink` tidak ada / soft-delete / takedown / status bukan `published` | 404 | `Form tidak ditemukan` |
+| `openFormTime` belum lewat | 403 | `Form belum dibuka` (data berisi `openFormTime`) |
+| `closeFormTime` sudah lewat | 403 | `Form sudah ditutup` (data berisi `closeFormTime`) |
+
+## 2. Ambil Soal Publik
+
+`POST /api/public/forms/{formLink}/questions`
+
+Kirim JSON `{ token?, name? }`:
+- `token` — wajib jika `requiresToken` true (token form).
+- `name` — nama tamu (opsional, jika form tidak `requiresLogin`).
+
+**Request:**
+```json
+{ "token": "abc123", "name": "Budi" }
+```
+
+**Validasi sebelum soal dikirim:**
+- `requiresLogin = true` dan tidak bawa JWT → `401 Login required to access this form`
+- Form ber-`FormToken` dan `token` salah/kosong → `401 Invalid or missing form token`
+- Gate 404/403 open/closed sama seperti GET di atas
+
+**Response 200:**
+```json
+{
+  "status": 200,
+  "message": "OK",
+  "data": {
+    "formId": 1,
     "questions": [
       {
         "id": 1,
-        "typeId": 1,
+        "typeId": 2,
         "question": "Apa warna langit?",
         "questionOrder": 1,
-        "questionImage": null,
-        "questionAudio": null,
         "isRequired": true,
         "correctAnswer": null,
         "randomizeOptions": false,
@@ -674,38 +783,20 @@ Endpoint ini dipakai responden untuk mengerjakan form lewat link `/f/{code}` (we
 }
 ```
 
-**Catatan anti-bocor:**
-- `correctAnswer` dan `isCorrect` selalu `null` — jawaban benar tidak boleh bocor ke responden.
-- `responseCount` tidak dikirim — itu data internal creator.
-- `requiresToken = true` jika form memakai `FormToken`. Jika `true`, request wajib menyertakan `?token=<token>` di query; salah/kurang → `401` generik.
+**Catatan anti-bocor:** `correctAnswer` dan `isCorrect` selalu `null`. `responseCount` tidak pernah dikirim.
 
-**Gate (semua kondisi ini → `404` generik `"Form not found or unavailable"`):**
-- `formLink` tidak ditemukan / form sudah soft-delete
-- Form di-takedown admin (`taken_down_at` terisi)
-- Status bukan `published`
-- `closeFormTime` sudah lewat
-
-**Response 404:**
-```json
-{
-  "status": 404,
-  "message": "Form not found or unavailable",
-  "data": null
-}
-```
-
----
-
-## 2. Submit Response (Publik via Link)
+## 3. Submit Response (Publik via Link)
 
 `POST /api/public/forms/{formLink}/responses`
 
-Sama persis seperti `POST /api/forms/{formId}/responses` (lihat Response Endpoints di bawah), tapi menerima `formLink` (kode dari `/f/{code}`) bukan `formId`.
+Sama persis seperti `POST /api/forms/{formId}/responses` (lihat Response Endpoints), tapi menerima `formLink`.
 
 **Request:**
 ```json
 {
   "token": "abc123",
+  "respondentName": "Budi",
+  "guestToken": "kode-unik-persisten-dari-client",
   "answers": [
     { "questionId": 1, "optionId": 2 },
     { "questionId": 2, "answerValue": "Jawaban text" }
@@ -713,20 +804,66 @@ Sama persis seperti `POST /api/forms/{formId}/responses` (lihat Response Endpoin
 }
 ```
 
-Gate & validasi sama dengan GET publik + submit biasa. **Response 201:**
+**Response 201:**
 ```json
 {
   "status": 201,
   "message": "Response submitted",
-  "data": { "responseId": 1 }
+  "data": { "responseId": 1, "guestToken": "..." }
 }
 ```
 
+- `guestToken` di-generate server (GUID) jika klien tidak mengirim; **disimpan & dikembalikan** supaya klien bisa ambil hasil.
+- `guestToken` `null` untuk user login.
+- `oneResponse = true`: user login dicek via `respondentId`; **guest dicek via `guestToken`** yang sama → submit kedua ditolak `400 You have already submitted a response`.
+
 **Rate limit:** policy `submit` — 60/menit per kombinasi IP + `formLink`.
+
+## 4. Lihat Hasil (Responden)
+
+`GET /api/public/forms/{formLink}/responses/{responseId}?token=<guestToken>`
+
+Akses:
+- **Guest:** wajib `?token=` berisi `guestToken` yang cocok (token salah → `401`).
+- **User login:** bawa JWT, hanya pemilik respons (`respondent_id`) yang boleh (`401` untuk user lain).
+
+**Response 200 (jika `showScore = true`):**
+```json
+{
+  "status": 200,
+  "message": "OK",
+  "data": {
+    "responseId": 1,
+    "formId": 1,
+    "formTitle": "Survey Kepuasan",
+    "showScore": true,
+    "score": 100.0,
+    "correctCount": 2,
+    "wrongCount": 0,
+    "totalQuestions": 2,
+    "scorableQuestions": 2,
+    "answeredCount": 2,
+    "answers": [
+      {
+        "questionId": 1,
+        "question": "2+2 berapa?",
+        "typeId": 1,
+        "answerText": "4",
+        "correctAnswer": "4",
+        "isCorrect": true
+      }
+    ]
+  }
+}
+```
+
+**Jika `showScore = false`:** `score`, `correctCount`, `wrongCount` = 0/null dan per soal `correctAnswer`/`isCorrect` tidak dikirim (hanya jawaban responden).
 
 ---
 
 # Question Endpoints (Sudah Diimplementasikan)
+
+> **Kunci edit:** jika form berstatus `published`, semua endpoint mutasi soal di bawah ditolak `400 Soal tidak dapat diubah karena form sudah dipublish` (mencegah nilai/data tidak konsisten saat responden sedang mengerjakan). Unpublish form dulu untuk mengedit.
 
 ## 1. Daftar Pertanyaan
 
@@ -993,6 +1130,8 @@ type_id: 1
 ```json
 {
   "token": null,
+  "respondentName": "Budi",
+  "guestToken": "kode-unik-persisten-dari-client",
   "answers": [
     { "questionId": 1, "optionId": 2 },
     { "questionId": 2, "answerValue": "Jawaban text" },
@@ -1005,9 +1144,11 @@ Untuk pilihan ganda: kirim `optionId`. Untuk text: kirim `answerValue`.
 
 **Validasi:**
 - Form harus berstatus `published`
-- Jika `closeFormTime` sudah lewat → ditolak
+- Jika `openFormTime` belum lewat → `403 Form belum dibuka`
+- Jika `closeFormTime` sudah lewat → `403 Form sudah ditutup`
+- Jika `requiresLogin = true` → wajib bawa JWT (tanpa login → `401`)
 - Jika form memerlukan token → body wajib menyertakan `token` yang sesuai
-- Jika `oneResponse = true` dan user sudah pernah submit → ditolak
+- Jika `oneResponse = true` dan sudah pernah submit → ditolak `400`. User login dicek via `respondent_id`; **guest dicek via `guestToken`** yang sama
 - `questionId` harus milik form tersebut
 
 **Response 201:**
@@ -1015,9 +1156,11 @@ Untuk pilihan ganda: kirim `optionId`. Untuk text: kirim `answerValue`.
 {
   "status": 201,
   "message": "Response submitted",
-  "data": { "responseId": 1 }
+  "data": { "responseId": 1, "guestToken": null }
 }
 ```
+
+- `guestToken` diisi GUID (server generate) jika submit sebagai guest tanpa mengirim; `null` untuk user login. Simpan di client (mis. localStorage) untuk ambil hasil & cek one-response.
 
 ---
 

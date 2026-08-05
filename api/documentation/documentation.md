@@ -143,10 +143,10 @@ Dokumentasi lengkap FormUp API sudah dipecah menjadi beberapa file untuk memudah
 
 ### 8. FORM-LINK-FLOW.md
 **Konten:** Alur mengerjakan form publik via link `/f/{code}` untuk web & mobile
-- Endpoint publik `GET/POST /api/public/forms/{formLink}`
-- Arsitektur: `/f/{code}` milik client (SPA web / deep link mobile), backend hanya API
-- DTO anti-bocor (`correctAnswer`/`isCorrect` null)
-- Verifikasi manual lewat Swagger
+- Endpoint publik: `GET /api/public/forms/{formLink}` (info + requirement), `POST .../questions` (ambil soal, validasi token/login), `POST .../responses` (submit), `GET .../responses/{id}` (hasil)
+- Soal aman: tidak bocor di GET pertama, hanya dikirim setelah requirement terpenuhi
+- Setting `requiresLogin`, `openFormTime` (set-once), `closeFormTime`
+- One-response untuk guest via `guestToken`; skor di endpoint hasil diatur `showScore`
 
 **Gunakan untuk:** Implementasi form runner (web & mobile)
 **Status:** Implemented

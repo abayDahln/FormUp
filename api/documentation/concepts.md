@@ -44,10 +44,10 @@
 **Kenapa penting:** Ini konsep yang **unik untuk FormUp** dibanding aplikasi web/mobile pada umumnya, karena sifat form-nya publik dan bisa diisi tanpa login.
 
 **Konsep yang dibutuhkan:**
-- **Deteksi submission ganda** — untuk form yang settingnya "satu respons per orang". Saat ini hanya berlaku untuk responden yang **login** (dilacak via `respondent_id`). Deteksi untuk responden anonim via fingerprint device/browser **belum dibuat** (ditunda — lihat `future_features.md`).
+- **Deteksi submission ganda** — untuk form yang settingnya "satu respons per orang". User login dilacak via `respondent_id`; **guest dilacak via `guest_token`** yang dikirim klien (client harus menyimpan token yang sama, mis. localStorage). Keduanya ditolak `400` jika sudah pernah submit.
 - **Perlindungan dari bot otomatis** — **belum dibuat** (ditunda — lihat `future_features.md`). Ide: field tersembunyi yang hanya terisi oleh bot, atau verifikasi tanpa interaksi eksplisit.
-- **Validasi bahwa form masih aktif** — form yang sudah ditutup (`status: closed`), di-takedown, atau sudah melewati `close_form_time` menolak submission baru dengan pesan generik.
-- **Perlindungan penebakan link form** — kalau seseorang mencoba menebak-nebak link form yang tidak ada atau bersifat privat, pesan error harus generik (tidak boleh membedakan "form tidak ada" dengan "form ada tapi privat"), supaya tidak membantu orang lain menebak-nebak.
+- **Validasi bahwa form masih aktif** — form yang sudah ditutup, di-takedown, atau melewati `close_form_time` / belum melewati `open_form_time` menolak submission. **Pesan dibedakan**: `404 Form tidak ditemukan` (tidak ada/takedown/bukan published), `403 Form belum dibuka` (belum `open_form_time`), `403 Form sudah ditutup` (lewat `close_form_time` / status closed).
+- **Perlindungan penebakan link form** — untuk form yang **tidak ditemukan**, pesan tetap generik (`404 Form tidak ditemukan`) supaya tidak membantu menebak link privat. Catatan: status `403 belum dibuka/ditutup` memang mengungkap bahwa form itu ada — ini sengaja diminta agar responden tahu kapan form bisa dikerjakan.
 
 ---
 

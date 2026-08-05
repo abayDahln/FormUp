@@ -34,19 +34,19 @@
 
 ## 3. Respondent Fingerprint (One-Response untuk Responden Anonim)
 
-**Status:** dihapus dari `ResponseSubmission.cs`, `Response` model, `FormUpDbContext` (kolom `respondent_fingerprint`).
+**Status: ✅ sudah diimplementasi** dengan versi sederhana: kolom `guest_token` di tabel `Response`.
 
-**Tujuan:** pengenal anonim responden (hash device/browser, dikirim klien) untuk fitur `OneResponse = true` — cek "sudah pernah isi" untuk responden yang **tidak login**, karena tanpa akun tidak ada id yang bisa dilacak. Sekarang cek one-response hanya berlaku untuk responden yang login (via `RespondentId`).
+Klien mengirim `guestToken` persisten (mis. tersimpan di localStorage) di body submit. Dipakai untuk:
+- Cek one-response untuk guest (`oneResponse = true` → submit kedua dengan token sama ditolak `400`).
+- Mengambil hasil lewat `GET /api/public/forms/{link}/responses/{id}?token=<guestToken>`.
 
-**Cara implementasi ulang:**
-1. Tambah kolom `RespondentFingerprint` (varchar 128) di tabel `Response`.
-2. Di blok `OneResponse` di `ResponseSubmission.SaveAsync`, tambah cek `RespondentFingerprint` bila `Fingerprint` dari klien terisi.
+Jika klien tidak mengirim `guestToken`, server membuat GUID dan **mengembalikannya** di respons submit (`data.guestToken`).
 
-**Kapan dibutuhkan:** ketika `OneResponse` perlu dipaksa untuk responden anonim (form tanpa login).
+**Peningkatan yang mungkin (deferred):** hash device/browser (fingerprint) untuk identitas yang lebih pasif tanpa bergantung klien. Tambah kolom `RespondentFingerprint` bila nanti butuh.
 
 ---
 
 ## Catatan
 
-- Kolom `idempotency_key` & `respondent_fingerprint` (plus unique index) sudah **dihapus** dari tabel `Response` di database. Saat implementasi ulang, tambahkan lewat migration/SQL: `ALTER TABLE [Response] ADD idempotency_key varchar(128), respondent_fingerprint varchar(128);` + index unique `(form_id, idempotency_key)`.
+- Kolom `idempotency_key` sudah **dihapus** dari tabel `Response` di database. Kolom `respondent_fingerprint` juga sudah dihapus dan **digantikan** `guest_token` (lihat §3). Saat implementasi ulang, tambahkan lewat migration/SQL.
 - Tambahkan fitur di atas **satu per satu**, jangan sekaligus, supaya dampaknya mudah diverifikasi.

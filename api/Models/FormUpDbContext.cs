@@ -312,6 +312,9 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.RespondentName)
                 .HasMaxLength(100)
                 .HasColumnName("respondent_name");
+            entity.Property(e => e.GuestToken)
+                .HasMaxLength(64)
+                .HasColumnName("guest_token");
             entity.Property(e => e.StatusId).HasColumnName("status_id");
             entity.Property(e => e.SubmittedAt)
                 .HasColumnType("datetime")

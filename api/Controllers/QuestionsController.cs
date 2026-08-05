@@ -64,6 +64,10 @@ public class QuestionsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
+        var blocked = await EnsureNotPublished(form);
+        if (blocked != null)
+            return blocked;
+
         var typeIds = request.Questions.Select(q => q.TypeId).Distinct().ToList();
         var validTypes = await _db.QuestionTypes
             .Where(t => typeIds.Contains(t.Id))
@@ -156,6 +160,10 @@ public class QuestionsController : ControllerBase
 
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
+
+        var blocked = await EnsureNotPublished(form);
+        if (blocked != null)
+            return blocked;
 
         var typeIds = request.Questions.Select(q => q.TypeId).Distinct().ToList();
         var validTypes = await _db.QuestionTypes
@@ -294,6 +302,10 @@ public class QuestionsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
+        var blocked = await EnsureNotPublished(form);
+        if (blocked != null)
+            return blocked;
+
         var question = await _db.Questions
             .FirstOrDefaultAsync(q => q.Id == id && q.FormId == formId && q.DeletedAt == null);
 
@@ -329,6 +341,10 @@ public class QuestionsController : ControllerBase
 
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
+
+        var blocked = await EnsureNotPublished(form);
+        if (blocked != null)
+            return blocked;
 
         using var stream = new MemoryStream();
         await file.CopyToAsync(stream);
@@ -470,6 +486,10 @@ public class QuestionsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
+        var blocked = await EnsureNotPublished(form);
+        if (blocked != null)
+            return blocked;
+
         var question = await _db.Questions
             .FirstOrDefaultAsync(q => q.Id == id && q.FormId == formId && q.DeletedAt == null);
 
@@ -528,6 +548,10 @@ public class QuestionsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
+        var blocked = await EnsureNotPublished(form);
+        if (blocked != null)
+            return blocked;
+
         var question = await _db.Questions
             .FirstOrDefaultAsync(q => q.Id == id && q.FormId == formId && q.DeletedAt == null);
 
@@ -566,6 +590,15 @@ public class QuestionsController : ControllerBase
             return null;
 
         return await _db.Users.FindAsync(userId);
+    }
+
+    // ponytail: kunci agar nilai/data tidak berubah di tengah-tengah responden mengerjakan
+    private async Task<ActionResult?> EnsureNotPublished(Form form)
+    {
+        var publishedStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "published");
+        if (form.StatusId == publishedStatus.Id)
+            return BadRequest(new ApiResponse<object>(400, "Soal tidak dapat diubah karena form sudah dipublish"));
+        return null;
     }
 
     private static QuestionResponse MapQuestion(Question q) => new()

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using FormUpAPI.Models;
 using FormUpAPI.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -79,6 +80,43 @@ public class PublicFormsController : ControllerBase
             return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
 
         return await ResponseSubmission.SaveAsync(_db, User, form.Id, request);
+    }
+
+    // Hasil untuk responden: guest wajib bawa guestToken, user login wajib jadi pemilik respons.
+    [HttpGet("forms/{formLink}/responses/{responseId}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<object>>> GetResult(string formLink, int responseId, [FromQuery] string? token)
+    {
+        var form = await _db.Forms
+            .Include(f => f.FormSetting)
+            .FirstOrDefaultAsync(f => f.FormLink == formLink && f.DeletedAt == null);
+
+        if (form == null || form.TakenDownAt != null)
+            return NotFound(new ApiResponse<object>(404, "Form tidak ditemukan"));
+
+        var response = await _db.Responses
+            .Include(r => r.RespondentAnswers)
+                .ThenInclude(a => a.Option)
+            .FirstOrDefaultAsync(r => r.Id == responseId && r.FormId == form.Id);
+
+        if (response == null)
+            return NotFound(new ApiResponse<object>(404, "Response tidak ditemukan"));
+
+        var isOwner = User.Identity?.IsAuthenticated == true
+            && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid)
+            && response.RespondentId == uid;
+
+        var isGuest = response.GuestToken != null && response.GuestToken == token;
+
+        if (!isOwner && !isGuest)
+            return Unauthorized(new ApiResponse<object>(401, "Token tidak valid untuk melihat hasil ini"));
+
+        var questions = await _db.Questions
+            .Include(q => q.OptionQuestions)
+            .Where(q => q.FormId == form.Id && q.DeletedAt == null)
+            .ToListAsync();
+
+        return Ok(new ApiResponse<object>(200, "OK", ResponseScorer.BuildResult(form, response, questions)));
     }
 
     private ActionResult? CheckAccess(Form form, string? token)

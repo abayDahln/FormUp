@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FormUpAPI.Models;
+using FormUpAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -40,9 +41,7 @@ public class AnalyticsController : ControllerBase
             .ToListAsync(ct);
 
         var totalQuestions = questions.Count;
-        var scorableQuestions = questions.Count(q =>
-            !string.IsNullOrEmpty(q.CorrectAnswer) ||
-            q.OptionQuestions.Any(o => o.IsCorrect == true));
+        var scorableQuestions = ResponseScorer.CountScorable(questions);
 
         var responses = await _db.Responses
             .Include(r => r.Respondent)
@@ -69,9 +68,9 @@ public class AnalyticsController : ControllerBase
                 if (answer != null)
                     answeredCount++;
 
-                var answerText = GetAnswerText(answer, q);
-                var correctAnswer = GetCorrectAnswerText(q);
-                var isCorrect = IsAnswerCorrect(answer, q);
+                var answerText = ResponseScorer.GetAnswerText(answer, q);
+                var correctAnswer = ResponseScorer.GetCorrectAnswerText(q);
+                var isCorrect = ResponseScorer.IsAnswerCorrect(answer, q);
 
                 if (isCorrect == true)
                     correctCount++;
@@ -120,46 +119,6 @@ public class AnalyticsController : ControllerBase
             AverageScore = averageScore,
             Respondents = respondents,
         }));
-    }
-
-    private static string? GetAnswerText(RespondentAnswer? answer, Question question)
-    {
-        if (answer == null) return null;
-        if (answer.OptionId.HasValue && answer.Option != null)
-            return answer.Option.OptionText;
-        return answer.AnswerValue;
-    }
-
-    private static string? GetCorrectAnswerText(Question question)
-    {
-        if (!string.IsNullOrEmpty(question.CorrectAnswer))
-            return question.CorrectAnswer;
-
-        var correctOption = question.OptionQuestions
-            .FirstOrDefault(o => o.IsCorrect == true);
-        return correctOption?.OptionText;
-    }
-
-    private static bool? IsAnswerCorrect(RespondentAnswer? answer, Question question)
-    {
-        if (answer == null) return null;
-
-        if (!string.IsNullOrEmpty(question.CorrectAnswer))
-        {
-            var isCorrect = string.Equals(answer.AnswerValue?.Trim(),
-                question.CorrectAnswer.Trim(),
-                StringComparison.OrdinalIgnoreCase);
-            return isCorrect ? true : false;
-        }
-
-        var correctOption = question.OptionQuestions
-            .FirstOrDefault(o => o.IsCorrect == true);
-        if (correctOption != null)
-        {
-            return answer.OptionId == correctOption.Id;
-        }
-
-        return null;
     }
 
     private async Task<User?> GetCurrentUser()
