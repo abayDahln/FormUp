@@ -103,6 +103,9 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.CloseFormTime)
                 .HasColumnType("datetime")
                 .HasColumnName("close_form_time");
+            entity.Property(e => e.OpenFormTime)
+                .HasColumnType("datetime")
+                .HasColumnName("open_form_time");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("(dateadd(hour, 7, getutcdate()))")
                 .HasColumnType("datetime")
@@ -115,6 +118,9 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.OneResponse)
                 .HasDefaultValue(false)
                 .HasColumnName("one_response");
+            entity.Property(e => e.RequiredLogin)
+                .HasDefaultValue(false)
+                .HasColumnName("required_login");
             entity.Property(e => e.RandomizeQuestions)
                 .HasDefaultValue(false)
                 .HasColumnName("randomize_questions");
@@ -303,6 +309,9 @@ public partial class FormUpDbContext : DbContext
                 .HasColumnName("created_at");
             entity.Property(e => e.FormId).HasColumnName("form_id");
             entity.Property(e => e.RespondentId).HasColumnName("respondent_id");
+            entity.Property(e => e.RespondentName)
+                .HasMaxLength(100)
+                .HasColumnName("respondent_name");
             entity.Property(e => e.StatusId).HasColumnName("status_id");
             entity.Property(e => e.SubmittedAt)
                 .HasColumnType("datetime")

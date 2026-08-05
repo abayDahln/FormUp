@@ -81,6 +81,8 @@ public class FormsController : ControllerBase
                 RandomizeQuestions = form.FormSetting.RandomizeQuestions,
                 TimerDuration = form.FormSetting.TimerDuration,
                 OneResponse = form.FormSetting.OneResponse,
+                RequiredLogin = form.FormSetting.RequiredLogin,
+                OpenFormTime = form.FormSetting.OpenFormTime,
                 CloseFormTime = form.FormSetting.CloseFormTime,
             },
             CreatedAt = form.CreatedAt,
@@ -278,6 +280,17 @@ public class FormsController : ControllerBase
         if (request.OneResponse.HasValue)
             form.FormSetting.OneResponse = request.OneResponse.Value;
 
+        if (request.RequiredLogin.HasValue)
+            form.FormSetting.RequiredLogin = request.RequiredLogin.Value;
+
+        // ponytail: open_form_time sekali set saja, tidak bisa diubah; close_form_time bebas di-update
+        if (request.OpenFormTime.HasValue)
+        {
+            if (form.FormSetting.OpenFormTime.HasValue)
+                return BadRequest(new ApiResponse<object>(400, "Open form time sudah diatur dan tidak bisa diubah"));
+            form.FormSetting.OpenFormTime = request.OpenFormTime;
+        }
+
         if (request.CloseFormTime.HasValue)
             form.FormSetting.CloseFormTime = request.CloseFormTime;
 
@@ -300,6 +313,8 @@ public class FormsController : ControllerBase
             RandomizeQuestions = form.FormSetting.RandomizeQuestions,
             TimerDuration = form.FormSetting.TimerDuration,
             OneResponse = form.FormSetting.OneResponse,
+            RequiredLogin = form.FormSetting.RequiredLogin,
+            OpenFormTime = form.FormSetting.OpenFormTime,
             CloseFormTime = form.FormSetting.CloseFormTime,
         }));
     }

@@ -48,7 +48,7 @@ public class ResponsesController : ControllerBase
             .Select(r => new ResponseListItem
             {
                 Id = r.Id,
-                RespondentName = r.Respondent != null ? r.Respondent.Fullname : null,
+                RespondentName = r.Respondent != null ? r.Respondent.Fullname : r.RespondentName,
                 Status = r.Status!.Status,
                 SubmittedAt = r.SubmittedAt ?? r.CreatedAt ?? JakartaTime.Now,
             })
@@ -86,7 +86,7 @@ public class ResponsesController : ControllerBase
         {
             Id = response.Id,
             FormId = response.FormId,
-            RespondentName = response.Respondent?.Fullname,
+            RespondentName = response.Respondent?.Fullname ?? response.RespondentName,
             Status = response.Status?.Status ?? "unknown",
             SubmittedAt = response.SubmittedAt ?? response.CreatedAt ?? JakartaTime.Now,
             Answers = response.RespondentAnswers.Select(a => new AnswerDetail
@@ -167,7 +167,7 @@ public class ResponsesController : ControllerBase
 
         foreach (var r in responses)
         {
-            writer.Write($"{r.Id},{r.SubmittedAt:yyyy-MM-dd HH:mm:ss},{EscapeCsv(r.Respondent?.Fullname ?? "Anonymous")}");
+            writer.Write($"{r.Id},{r.SubmittedAt:yyyy-MM-dd HH:mm:ss},{EscapeCsv(r.Respondent?.Fullname ?? r.RespondentName ?? "Anonymous")}");
 
             foreach (var q in questions)
             {

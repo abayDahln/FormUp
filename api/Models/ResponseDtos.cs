@@ -3,6 +3,7 @@ namespace FormUpAPI.Models;
 public class SubmitResponseRequest
 {
     public string? Token { get; set; }
+    public string? RespondentName { get; set; }
     public List<AnswerRequest> Answers { get; set; } = new();
 }
 

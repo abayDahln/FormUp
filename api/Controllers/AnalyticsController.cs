@@ -97,7 +97,7 @@ public class AnalyticsController : ControllerBase
             respondents.Add(new RespondentAnalytics
             {
                 ResponseId = response.Id,
-                RespondentName = response.Respondent?.Fullname,
+                RespondentName = response.Respondent?.Fullname ?? response.RespondentName,
                 SubmittedAt = response.SubmittedAt ?? response.CreatedAt ?? DateTime.MinValue,
                 AnsweredCount = answeredCount,
                 TotalQuestions = totalQuestions,

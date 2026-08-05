@@ -26,9 +26,35 @@ public class PublicFormsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
 
-        var requiresToken = !string.IsNullOrEmpty(form.FormSetting?.FormToken);
-        if (requiresToken && Request.Query["token"].ToString() != form.FormSetting!.FormToken)
-            return Unauthorized(new ApiResponse<object>(401, "Invalid or missing form token"));
+        // ponytail: tanpa soal di sini — soal hanya lewat /questions setelah requirement terpenuhi
+        return Ok(new ApiResponse<object>(200, "OK", new PublicFormDetails
+        {
+            Id = form.Id,
+            Title = form.Title,
+            Description = form.Description,
+            BannerImage = form.BannerImage,
+            RequiresToken = !string.IsNullOrEmpty(form.FormSetting?.FormToken),
+            RequiresLogin = form.FormSetting?.RequiredLogin == true,
+            ShowScore = form.FormSetting?.ShowScore,
+            TimerDuration = form.FormSetting?.TimerDuration,
+            RandomizeQuestions = form.FormSetting?.RandomizeQuestions,
+            OpenFormTime = form.FormSetting?.OpenFormTime,
+            CloseFormTime = form.FormSetting?.CloseFormTime,
+        }));
+    }
+
+    [HttpPost("forms/{formLink}/questions")]
+    [AllowAnonymous]
+    [EnableRateLimiting("submit")]
+    public async Task<ActionResult<ApiResponse<object>>> GetQuestions(string formLink, [FromBody] PublicQuestionsRequest request)
+    {
+        var form = await ResolveFormAsync(formLink);
+        if (form == null)
+            return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
+
+        var accessError = CheckAccess(form, request.Token);
+        if (accessError != null)
+            return accessError;
 
         var questions = await _db.Questions
             .Include(q => q.OptionQuestions.OrderBy(o => o.OptionOrder))
@@ -36,16 +62,9 @@ public class PublicFormsController : ControllerBase
             .OrderBy(q => q.QuestionOrder)
             .ToListAsync();
 
-        return Ok(new ApiResponse<object>(200, "OK", new PublicFormDetails
+        return Ok(new ApiResponse<object>(200, "OK", new PublicQuestionsResponse
         {
-            Id = form.Id,
-            Title = form.Title,
-            Description = form.Description,
-            BannerImage = form.BannerImage,
-            RequiresToken = requiresToken,
-            ShowScore = form.FormSetting?.ShowScore,
-            TimerDuration = form.FormSetting?.TimerDuration,
-            RandomizeQuestions = form.FormSetting?.RandomizeQuestions,
+            FormId = form.Id,
             Questions = questions.Select(MapPublicQuestion).ToList(),
         }));
     }
@@ -62,6 +81,20 @@ public class PublicFormsController : ControllerBase
         return await ResponseSubmission.SaveAsync(_db, User, form.Id, request);
     }
 
+    private ActionResult? CheckAccess(Form form, string? token)
+    {
+        if (form.FormSetting?.RequiredLogin == true && User.Identity?.IsAuthenticated != true)
+            return Unauthorized(new ApiResponse<object>(401, "Login required to access this form"));
+
+        if (!string.IsNullOrEmpty(form.FormSetting?.FormToken))
+        {
+            if (string.IsNullOrEmpty(token) || token != form.FormSetting.FormToken)
+                return Unauthorized(new ApiResponse<object>(401, "Invalid or missing form token"));
+        }
+
+        return null;
+    }
+
     private async Task<Form?> ResolveFormAsync(string formLink)
     {
         var form = await _db.Forms
@@ -73,6 +106,9 @@ public class PublicFormsController : ControllerBase
 
         var publishedStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "published");
         if (form.StatusId != publishedStatus.Id)
+            return null;
+
+        if (form.FormSetting?.OpenFormTime != null && form.FormSetting.OpenFormTime > JakartaTime.Now)
             return null;
 
         if (form.FormSetting?.CloseFormTime != null && form.FormSetting.CloseFormTime < JakartaTime.Now)

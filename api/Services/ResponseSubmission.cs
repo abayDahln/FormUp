@@ -5,8 +5,29 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FormUpAPI.Services;
 
+public enum FormAccess
+{
+    Ok,
+    NotFound,
+    NotOpen,
+    Closed,
+}
+
 public static class ResponseSubmission
 {
+    // ponytail: pesan dibedakan agar klien tahu alasan — tidak ditemukan / belum dibuka / sudah ditutup
+    public static ObjectResult Unavailable(FormAccess access, Form? form)
+    {
+        var (status, message, data) = access switch
+        {
+            FormAccess.NotOpen => (403, "Form belum dibuka", (object?)new { openFormTime = form?.FormSetting?.OpenFormTime }),
+            FormAccess.Closed => (403, "Form sudah ditutup", new { closeFormTime = form?.FormSetting?.CloseFormTime }),
+            _ => (404, "Form tidak ditemukan", null),
+        };
+
+        return new ObjectResult(new ApiResponse<object>(status, message, data)) { StatusCode = status };
+    }
+
     public static async Task<ActionResult> SaveAsync(
         FormUpDbContext db, ClaimsPrincipal user,
         int formId, SubmitResponseRequest body)
@@ -15,21 +36,27 @@ public static class ResponseSubmission
             .Include(f => f.FormSetting)
             .FirstOrDefaultAsync(f => f.Id == formId && f.DeletedAt == null);
 
-        // Pesan generik supaya link yang tidak ada/tertutup tidak bisa dibedakan (anti link-guessing).
+        // Pesan dibedakan agar klien tahu alasan: tidak ditemukan / belum dibuka / sudah ditutup.
         if (form == null || form.TakenDownAt != null)
-            return new NotFoundObjectResult(new ApiResponse<object>(404, "Form not found or unavailable"));
+            return Unavailable(FormAccess.NotFound, form);
 
         var publishedStatus = await db.FormStatuses.FirstAsync(s => s.Status == "published");
         var closedStatus = await db.FormStatuses.FirstAsync(s => s.Status == "closed");
 
-        if (form.StatusId != publishedStatus.Id && form.StatusId != closedStatus.Id)
-            return new NotFoundObjectResult(new ApiResponse<object>(404, "Form not found or unavailable"));
-
         if (form.StatusId == closedStatus.Id)
-            return new NotFoundObjectResult(new ApiResponse<object>(404, "Form not found or unavailable"));
+            return Unavailable(FormAccess.Closed, form);
+
+        if (form.StatusId != publishedStatus.Id)
+            return Unavailable(FormAccess.NotFound, form);
+
+        if (form.FormSetting?.OpenFormTime != null && form.FormSetting.OpenFormTime > JakartaTime.Now)
+            return Unavailable(FormAccess.NotOpen, form);
 
         if (form.FormSetting?.CloseFormTime != null && form.FormSetting.CloseFormTime < JakartaTime.Now)
-            return new NotFoundObjectResult(new ApiResponse<object>(404, "Form not found or unavailable"));
+            return Unavailable(FormAccess.Closed, form);
+
+        if (form.FormSetting?.RequiredLogin == true && user.Identity?.IsAuthenticated != true)
+            return new UnauthorizedObjectResult(new ApiResponse<object>(401, "Login required to access this form"));
 
         if (!string.IsNullOrEmpty(form.FormSetting?.FormToken))
         {
@@ -65,12 +92,16 @@ public static class ResponseSubmission
         if (!string.IsNullOrEmpty(userIdClaim2) && int.TryParse(userIdClaim2, out var uid))
             respondentId = uid;
 
+        // ponytail: nama tamu hanya untuk responden tanpa login; user login diidentifikasi lewat RespondentId
+        var respondentName = respondentId == null ? body.RespondentName : null;
+
         var newStatus = await db.ResponseStatuses.FirstAsync(s => s.Status == "new");
 
         var response = new Response
         {
             FormId = formId,
             RespondentId = respondentId,
+            RespondentName = respondentName,
             StatusId = newStatus.Id,
             SubmittedAt = JakartaTime.Now,
             CreatedAt = JakartaTime.Now,

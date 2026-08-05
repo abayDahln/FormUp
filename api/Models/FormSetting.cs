@@ -21,6 +21,10 @@ public partial class FormSetting
 
     public bool? OneResponse { get; set; }
 
+    public bool? RequiredLogin { get; set; }
+
+    public DateTime? OpenFormTime { get; set; }
+
     public DateTime? CloseFormTime { get; set; }
 
     public DateTime? CreatedAt { get; set; }

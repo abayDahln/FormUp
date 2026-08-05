@@ -49,6 +49,8 @@ public class FormSettingDto
     public bool? RandomizeQuestions { get; set; }
     public int? TimerDuration { get; set; }
     public bool? OneResponse { get; set; }
+    public bool? RequiredLogin { get; set; }
+    public DateTime? OpenFormTime { get; set; }
     public DateTime? CloseFormTime { get; set; }
 }
 
@@ -60,6 +62,8 @@ public class UpdateFormSettingsRequest
     public string? FormToken { get; set; }
     public int? TimerDuration { get; set; }
     public bool? OneResponse { get; set; }
+    public bool? RequiredLogin { get; set; }
+    public DateTime? OpenFormTime { get; set; }
     public DateTime? CloseFormTime { get; set; }
 }
 
@@ -71,9 +75,23 @@ public class PublicFormDetails
     public string? Description { get; set; }
     public string? BannerImage { get; set; }
     public bool RequiresToken { get; set; }
+    public bool RequiresLogin { get; set; }
     public bool? ShowScore { get; set; }
     public int? TimerDuration { get; set; }
     public bool? RandomizeQuestions { get; set; }
+    public DateTime? OpenFormTime { get; set; }
+    public DateTime? CloseFormTime { get; set; }
+}
+
+public class PublicQuestionsRequest
+{
+    public string? Token { get; set; }
+    public string? Name { get; set; }
+}
+
+public class PublicQuestionsResponse
+{
+    public int FormId { get; set; }
     public List<QuestionResponse> Questions { get; set; } = new();
 }
 
