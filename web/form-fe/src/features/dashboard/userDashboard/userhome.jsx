@@ -271,13 +271,13 @@ const UserHome = () => {
 
                             <div
                                 onClick={() => navigate('/my-forms')}
-                                className="bg-white p-5 rounded-2xl border-2 border-dashed border-slate-200 shadow-sm hover:border-[#6DBFB3] transition-all flex flex-col items-center justify-center text-center cursor-pointer min-h-[180px] group"
+                                className="bg-white p-5 rounded-2xl border-2 border-dashed border-slate-200 shadow-sm hover:border-[#6DBFB3] transition-all flex flex-col items-center justify-center text-center cursor-pointer min-h-45 group"
                             >
                                 <div className="w-10 h-10 rounded-full bg-teal-50 text-[#00897B] flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                                     <Plus size={20} />
                                 </div>
                                 <h4 className="text-xs font-bold text-slate-800">Create New Form</h4>
-                                <p className="text-[11px] text-slate-400 font-medium mt-1 max-w-[140px]">
+                                <p className="text-[11px] text-slate-400 font-medium mt-1 max-w-35 ">
                                     Start from a template or build from scratch.
                                 </p>
                             </div>

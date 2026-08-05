@@ -2,13 +2,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     Save, Plus, Trash2, ChevronUp, ChevronDown,
-    Globe, Lock, Settings, Share2, ArrowLeft, Upload
+    Globe, Lock, ArrowLeft, Upload, FileUp, Image, Music, Download
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import {
     getFormById, getQuestions, saveQuestions, updateForm,
     togglePublishForm, updateFormSettings, getFormShare,
-    uploadFormBanner, clearSession, assetUrl
+    uploadFormBanner, clearSession, assetUrl,
+    deleteQuestion, importQuestions, uploadQuestionImage, uploadQuestionAudio,
+    templateDownloadUrl
 } from '../../services/apiService';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -25,14 +27,19 @@ const QUESTION_TYPES = [
 ];
 
 const newQuestion = (order) => ({
-    _id: `q_${Date.now()}_${order}`,
+    _id: `q_new_${Date.now()}_${order}`,
+    id: null,
     question: '',
     typeId: 1,
     questionOrder: order,
     isRequired: false,
-    options: [{ optionText: '', isCorrect: false }],
     correctAnswer: '',
+    options: [{ optionText: '', isCorrect: false }],
+    questionImage: null,
+    questionAudio: null,
 });
+
+const needsOptions = (typeId) => [1, 2, 5].includes(typeId);
 
 export default function FormBuilder() {
     const { id } = useParams();
@@ -47,21 +54,19 @@ export default function FormBuilder() {
     const [shareInfo, setShareInfo] = useState(null);
     const [qrBlobUrl, setQrBlobUrl] = useState(null);
     const [toast, setToast] = useState(null);
+    const [importLoading, setImportLoading] = useState(false);
 
     const [settings, setSettings] = useState({
         showScore: false,
         randomizeQuestions: false,
         oneResponse: false,
-        timerDuration: null,
+        timerDuration: '',
     });
 
     useEffect(() => {
         const load = async () => {
             setLoading(true);
-            const [formRes, qRes] = await Promise.all([
-                getFormById(id),
-                getQuestions(id),
-            ]);
+            const [formRes, qRes] = await Promise.all([getFormById(id), getQuestions(id)]);
             if (formRes.status === 401) { clearSession(); navigate('/login'); return; }
             if (formRes.ok && formRes.data) {
                 setForm(formRes.data);
@@ -70,7 +75,7 @@ export default function FormBuilder() {
                     showScore: s.showScore ?? false,
                     randomizeQuestions: s.randomizeQuestions ?? false,
                     oneResponse: s.oneResponse ?? false,
-                    timerDuration: s.timerDuration ?? null,
+                    timerDuration: s.timerDuration ?? '',
                 });
             }
             if (qRes.ok && Array.isArray(qRes.data) && qRes.data.length > 0) {
@@ -82,6 +87,8 @@ export default function FormBuilder() {
                     questionOrder: q.questionOrder ?? i + 1,
                     isRequired: q.isRequired ?? false,
                     correctAnswer: q.correctAnswer ?? '',
+                    questionImage: q.questionImage ?? null,
+                    questionAudio: q.questionAudio ?? null,
                     options: q.options?.length > 0 ? q.options : [{ optionText: '', isCorrect: false }],
                 })));
             } else {
@@ -94,7 +101,7 @@ export default function FormBuilder() {
 
     const showToast = (msg, type = 'success') => {
         setToast({ msg, type });
-        setTimeout(() => setToast(null), 3000);
+        setTimeout(() => setToast(null), 3500);
     };
 
     const handleSaveQuestions = async () => {
@@ -117,6 +124,22 @@ export default function FormBuilder() {
         setSaving(false);
         if (res.ok) {
             showToast('Questions saved!');
+            // Reload to get real IDs
+            const qRes = await getQuestions(id);
+            if (qRes.ok && Array.isArray(qRes.data)) {
+                setQuestions(qRes.data.map((q, i) => ({
+                    _id: `q_${q.id}`,
+                    id: q.id,
+                    question: q.question,
+                    typeId: q.typeId,
+                    questionOrder: q.questionOrder ?? i + 1,
+                    isRequired: q.isRequired ?? false,
+                    correctAnswer: q.correctAnswer ?? '',
+                    questionImage: q.questionImage ?? null,
+                    questionAudio: q.questionAudio ?? null,
+                    options: q.options?.length > 0 ? q.options : [{ optionText: '', isCorrect: false }],
+                })));
+            }
         } else {
             showToast(res.message || 'Failed to save', 'error');
         }
@@ -152,9 +175,10 @@ export default function FormBuilder() {
         if (res.ok) {
             setShareInfo(res.data);
             const token = localStorage.getItem('token');
-            const qrRes = await fetch(`${API_BASE_URL}/api/Forms/${id}/share/qr?frontendUrl=${encodeURIComponent(window.location.origin)}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const qrRes = await fetch(
+                `${API_BASE_URL}/api/Forms/${id}/share/qr?frontendUrl=${encodeURIComponent(window.location.origin)}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
             if (qrRes.ok) {
                 const blob = await qrRes.blob();
                 setQrBlobUrl(URL.createObjectURL(blob));
@@ -175,13 +199,70 @@ export default function FormBuilder() {
         }
     };
 
-    const addQuestion = () => {
-        setQuestions(prev => [...prev, newQuestion(prev.length + 1)]);
+    const handleImportFile = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setImportLoading(true);
+        const res = await importQuestions(id, file);
+        setImportLoading(false);
+        if (res.ok) {
+            showToast(`Imported! ${res.message}`);
+            const qRes = await getQuestions(id);
+            if (qRes.ok && Array.isArray(qRes.data)) {
+                setQuestions(qRes.data.map((q, i) => ({
+                    _id: `q_${q.id}`,
+                    id: q.id,
+                    question: q.question,
+                    typeId: q.typeId,
+                    questionOrder: q.questionOrder ?? i + 1,
+                    isRequired: q.isRequired ?? false,
+                    correctAnswer: q.correctAnswer ?? '',
+                    questionImage: q.questionImage ?? null,
+                    questionAudio: q.questionAudio ?? null,
+                    options: q.options?.length > 0 ? q.options : [{ optionText: '', isCorrect: false }],
+                })));
+            }
+        } else {
+            showToast(res.message || 'Import failed', 'error');
+        }
+        e.target.value = '';
     };
 
-    const removeQuestion = (idx) => {
+    const handleDeleteQuestion = async (idx) => {
+        const q = questions[idx];
+        if (q.id) {
+            const res = await deleteQuestion(id, q.id);
+            if (!res.ok) { showToast(res.message || 'Failed to delete', 'error'); return; }
+        }
         setQuestions(prev => prev.filter((_, i) => i !== idx));
+        showToast('Question removed');
     };
+
+    const handleUploadQuestionImage = async (idx, file) => {
+        const q = questions[idx];
+        if (!q.id) { showToast('Save questions first before uploading image', 'error'); return; }
+        const res = await uploadQuestionImage(id, q.id, file);
+        if (res.ok) {
+            updateQuestion(idx, 'questionImage', res.data?.questionImage ?? null);
+            showToast('Image uploaded!');
+        } else {
+            showToast(res.message || 'Upload failed', 'error');
+        }
+    };
+
+    const handleUploadQuestionAudio = async (idx, file) => {
+        const q = questions[idx];
+        if (!q.id) { showToast('Save questions first before uploading audio', 'error'); return; }
+        const res = await uploadQuestionAudio(id, q.id, file);
+        if (res.ok) {
+            updateQuestion(idx, 'questionAudio', res.data?.questionAudio ?? null);
+            showToast('Audio uploaded!');
+        } else {
+            showToast(res.message || 'Upload failed', 'error');
+        }
+    };
+
+    const addQuestion = () => setQuestions(prev => [...prev, newQuestion(prev.length + 1)]);
 
     const moveQuestion = (idx, dir) => {
         setQuestions(prev => {
@@ -193,37 +274,29 @@ export default function FormBuilder() {
         });
     };
 
-    const updateQuestion = (idx, field, value) => {
+    const updateQuestion = (idx, field, value) =>
         setQuestions(prev => prev.map((q, i) => i === idx ? { ...q, [field]: value } : q));
-    };
 
-    const addOption = (qIdx) => {
+    const addOption = (qIdx) =>
         setQuestions(prev => prev.map((q, i) =>
             i === qIdx ? { ...q, options: [...q.options, { optionText: '', isCorrect: false }] } : q
         ));
-    };
 
-    const updateOption = (qIdx, oIdx, field, value) => {
+    const updateOption = (qIdx, oIdx, field, value) =>
         setQuestions(prev => prev.map((q, i) =>
-            i === qIdx ? {
-                ...q, options: q.options.map((o, j) => j === oIdx ? { ...o, [field]: value } : o)
-            } : q
+            i === qIdx ? { ...q, options: q.options.map((o, j) => j === oIdx ? { ...o, [field]: value } : o) } : q
         ));
-    };
 
-    const removeOption = (qIdx, oIdx) => {
+    const removeOption = (qIdx, oIdx) =>
         setQuestions(prev => prev.map((q, i) =>
             i === qIdx ? { ...q, options: q.options.filter((_, j) => j !== oIdx) } : q
         ));
-    };
-
-    const needsOptions = (typeId) => [1, 2, 5].includes(typeId);
 
     const isPublished = form?.status?.toLowerCase() === 'published';
 
     if (loading) return (
         <div className="flex items-center justify-center min-h-screen bg-slate-50">
-            <p className="text-slate-500 font-medium">Loading form...</p>
+            <p className="text-slate-400 text-sm">Loading form...</p>
         </div>
     );
 
@@ -232,6 +305,7 @@ export default function FormBuilder() {
             <Sidebar />
 
             <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+                {/* Top bar */}
                 <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 min-w-0">
                         <button onClick={() => navigate('/my-forms')} className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg">
@@ -242,7 +316,6 @@ export default function FormBuilder() {
                             <p className="text-[11px] text-slate-400">Form Builder</p>
                         </div>
                     </div>
-
                     <div className="flex items-center gap-2 shrink-0">
                         <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${isPublished ? 'bg-teal-50 text-teal-600' : 'bg-slate-100 text-slate-500'}`}>
                             {isPublished ? 'Published' : 'Draft'}
@@ -266,22 +339,24 @@ export default function FormBuilder() {
                     </div>
                 </div>
 
+                {/* Toast */}
                 {toast && (
-                    <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-semibold text-white ${toast.type === 'error' ? 'bg-red-500' : 'bg-teal-600'}`}>
+                    <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-semibold text-white transition-all ${toast.type === 'error' ? 'bg-red-500' : 'bg-teal-600'}`}>
                         {toast.msg}
                     </div>
                 )}
 
+                {/* Tabs */}
                 <div className="flex border-b border-slate-200 bg-white px-6">
                     {[
                         { key: 'questions', label: '📝 Questions' },
-                        { key: 'settings', label: 'Settings' },
-                        { key: 'share', label: 'Share' },
+                        { key: 'settings', label: '⚙️ Settings' },
+                        { key: 'share', label: '🔗 Share' },
                     ].map(tab => (
                         <button
                             key={tab.key}
                             onClick={() => { setActiveTab(tab.key); if (tab.key === 'share' && !shareInfo) handleLoadShare(); }}
-                            className={`py-3 px-4 text-sm font-bold border-b-2 transition-all capitalize ${activeTab === tab.key ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                            className={`py-3 px-4 text-sm font-bold border-b-2 transition-all ${activeTab === tab.key ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                         >
                             {tab.label}
                         </button>
@@ -290,20 +365,18 @@ export default function FormBuilder() {
 
                 <div className="p-6 max-w-3xl mx-auto w-full space-y-4">
 
+                    {/* ── QUESTIONS TAB ── */}
                     {activeTab === 'questions' && (
                         <>
+                            {/* Form info */}
                             <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-                                <h2 className="text-sm font-bold text-slate-600 uppercase tracking-wide">Form Info</h2>
+                                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide">Form Info</h2>
                                 <div>
                                     <label className="text-xs font-semibold text-slate-500 mb-1 block">Title</label>
                                     <input
                                         value={form?.title ?? ''}
-                                        onChange={async (e) => {
-                                            setForm(f => ({ ...f, title: e.target.value }));
-                                        }}
-                                        onBlur={async () => {
-                                            if (form?.title) await updateForm(id, { title: form.title, description: form.description });
-                                        }}
+                                        onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                                        onBlur={() => form?.title && updateForm(id, { title: form.title, description: form.description })}
                                         className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
                                     />
                                 </div>
@@ -311,10 +384,8 @@ export default function FormBuilder() {
                                     <label className="text-xs font-semibold text-slate-500 mb-1 block">Description</label>
                                     <textarea
                                         value={form?.description ?? ''}
-                                        onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
-                                        onBlur={async () => {
-                                            await updateForm(id, { title: form.title, description: form.description });
-                                        }}
+                                        onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                                        onBlur={() => updateForm(id, { title: form.title, description: form.description })}
                                         rows={2}
                                         className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
                                     />
@@ -324,21 +395,45 @@ export default function FormBuilder() {
                                     {form?.bannerImage && (
                                         <img src={assetUrl(form.bannerImage)} alt="banner" className="w-full h-24 object-cover rounded-lg mb-2" />
                                     )}
-                                    <label className="flex items-center gap-2 cursor-pointer px-3 py-2 border border-dashed border-slate-300 rounded-lg text-xs text-slate-500 hover:border-teal-400 hover:text-teal-600 transition-all">
+                                    <label className="flex items-center gap-2 cursor-pointer px-3 py-2 border border-dashed border-slate-300 rounded-lg text-xs text-slate-500 hover:border-teal-400 hover:text-teal-600 transition-all w-fit">
                                         <Upload size={14} /> Upload Banner
                                         <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
                                     </label>
                                 </div>
                             </div>
 
+                            {/* Import toolbar */}
+                            <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center gap-3">
+                                <span className="text-xs font-bold text-slate-500">Import Questions:</span>
+                                <label className={`flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold cursor-pointer hover:border-teal-400 hover:text-teal-600 transition-all ${importLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    <FileUp size={13} /> {importLoading ? 'Importing...' : 'Upload File'}
+                                    <input type="file" accept=".csv,.xlsx,.xls,.pdf,.docx" className="hidden" onChange={handleImportFile} />
+                                </label>
+                                <span className="text-slate-300 text-xs">|</span>
+                                <span className="text-xs text-slate-500">Download template:</span>
+                                {['csv', 'xlsx', 'docx', 'pdf'].map(fmt => (
+                                    <a
+                                        key={fmt}
+                                        href={templateDownloadUrl(fmt)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-bold rounded-lg transition-all"
+                                    >
+                                        <Download size={11} /> {fmt.toUpperCase()}
+                                    </a>
+                                ))}
+                            </div>
+
+                            {/* Question cards */}
                             {questions.map((q, idx) => (
                                 <div key={q._id} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-                                    <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
                                         <span className="text-xs font-bold text-slate-400">Q{idx + 1}</span>
+                                        {q.id && <span className="text-[10px] text-slate-300">#{q.id}</span>}
                                         <div className="flex items-center gap-1 ml-auto">
                                             <button onClick={() => moveQuestion(idx, -1)} className="p-1 text-slate-300 hover:text-slate-600 rounded"><ChevronUp size={15} /></button>
                                             <button onClick={() => moveQuestion(idx, 1)} className="p-1 text-slate-300 hover:text-slate-600 rounded"><ChevronDown size={15} /></button>
-                                            <button onClick={() => removeQuestion(idx)} className="p-1 text-red-300 hover:text-red-500 rounded"><Trash2 size={15} /></button>
+                                            <button onClick={() => handleDeleteQuestion(idx)} className="p-1 text-red-300 hover:text-red-500 rounded"><Trash2 size={15} /></button>
                                         </div>
                                     </div>
 
@@ -368,6 +463,7 @@ export default function FormBuilder() {
                                         </label>
                                     </div>
 
+                                    {/* Options for choice types */}
                                     {needsOptions(q.typeId) && (
                                         <div className="space-y-1.5 pl-2 border-l-2 border-slate-100">
                                             {q.options.map((opt, oIdx) => (
@@ -377,7 +473,7 @@ export default function FormBuilder() {
                                                         checked={opt.isCorrect}
                                                         onChange={e => updateOption(idx, oIdx, 'isCorrect', e.target.checked)}
                                                         className="rounded shrink-0"
-                                                        title="Correct answer"
+                                                        title="Mark as correct answer"
                                                     />
                                                     <input
                                                         placeholder={`Option ${oIdx + 1}`}
@@ -385,7 +481,7 @@ export default function FormBuilder() {
                                                         onChange={e => updateOption(idx, oIdx, 'optionText', e.target.value)}
                                                         className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400"
                                                     />
-                                                    <button onClick={() => removeOption(idx, oIdx)} className="text-red-300 hover:text-red-500">
+                                                    <button onClick={() => removeOption(idx, oIdx)} className="text-red-300 hover:text-red-500 shrink-0">
                                                         <Trash2 size={13} />
                                                     </button>
                                                 </div>
@@ -394,7 +490,8 @@ export default function FormBuilder() {
                                         </div>
                                     )}
 
-                                    {!needsOptions(q.typeId) && (q.typeId === 3 || q.typeId === 4) && (
+                                    {/* Correct answer for text types */}
+                                    {[3, 4].includes(q.typeId) && (
                                         <div>
                                             <label className="text-[11px] text-slate-400 block mb-1">Correct answer (optional)</label>
                                             <input
@@ -404,6 +501,43 @@ export default function FormBuilder() {
                                                 className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400"
                                             />
                                         </div>
+                                    )}
+
+                                    {/* Media uploads (only if question already saved) */}
+                                    {q.id && (
+                                        <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-100">
+                                            {q.questionImage ? (
+                                                <div className="flex items-center gap-2">
+                                                    <img src={assetUrl(q.questionImage)} alt="question" className="h-12 w-20 object-cover rounded-lg border border-slate-200" />
+                                                    <label className="text-[11px] text-teal-600 cursor-pointer hover:underline">
+                                                        Change image
+                                                        <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionImage(idx, e.target.files[0])} />
+                                                    </label>
+                                                </div>
+                                            ) : (
+                                                <label className="flex items-center gap-1.5 px-2.5 py-1.5 border border-dashed border-slate-200 rounded-lg text-[11px] text-slate-500 cursor-pointer hover:border-teal-400 hover:text-teal-600 transition-all">
+                                                    <Image size={12} /> Add image
+                                                    <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionImage(idx, e.target.files[0])} />
+                                                </label>
+                                            )}
+                                            {q.questionAudio ? (
+                                                <div className="flex items-center gap-2">
+                                                    <audio controls src={assetUrl(q.questionAudio)} className="h-8 text-xs" />
+                                                    <label className="text-[11px] text-teal-600 cursor-pointer hover:underline">
+                                                        Change audio
+                                                        <input type="file" accept="audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionAudio(idx, e.target.files[0])} />
+                                                    </label>
+                                                </div>
+                                            ) : (
+                                                <label className="flex items-center gap-1.5 px-2.5 py-1.5 border border-dashed border-slate-200 rounded-lg text-[11px] text-slate-500 cursor-pointer hover:border-teal-400 hover:text-teal-600 transition-all">
+                                                    <Music size={12} /> Add audio
+                                                    <input type="file" accept="audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionAudio(idx, e.target.files[0])} />
+                                                </label>
+                                            )}
+                                        </div>
+                                    )}
+                                    {!q.id && (
+                                        <p className="text-[10px] text-slate-400 italic">Save first to upload image/audio</p>
                                     )}
                                 </div>
                             ))}
@@ -417,10 +551,10 @@ export default function FormBuilder() {
                         </>
                     )}
 
+                    {/* ── SETTINGS TAB ── */}
                     {activeTab === 'settings' && (
                         <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
                             <h2 className="text-sm font-bold text-slate-700">Form Settings</h2>
-
                             {[
                                 { key: 'showScore', label: 'Show score after submission' },
                                 { key: 'randomizeQuestions', label: 'Randomize question order' },
@@ -436,19 +570,17 @@ export default function FormBuilder() {
                                     />
                                 </label>
                             ))}
-
                             <div>
                                 <label className="text-sm text-slate-700 block mb-1">Timer (minutes, 0 = disabled)</label>
                                 <input
                                     type="number"
                                     min="0"
-                                    value={settings.timerDuration ?? ''}
+                                    value={settings.timerDuration}
                                     onChange={e => setSettings(s => ({ ...s, timerDuration: e.target.value }))}
                                     className="border border-slate-200 rounded-lg px-3 py-2 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-teal-400"
                                     placeholder="0"
                                 />
                             </div>
-
                             <button
                                 onClick={handleSaveSettings}
                                 disabled={saving}
@@ -459,6 +591,7 @@ export default function FormBuilder() {
                         </div>
                     )}
 
+                    {/* ── SHARE TAB ── */}
                     {activeTab === 'share' && (
                         <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
                             <h2 className="text-sm font-bold text-slate-700">Share Form</h2>
@@ -478,7 +611,7 @@ export default function FormBuilder() {
                                                 className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-xs bg-slate-50"
                                             />
                                             <button
-                                                onClick={() => navigator.clipboard.writeText(`${window.location.origin}/f/${shareInfo.formLink}`)}
+                                                onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/f/${shareInfo.formLink}`); showToast('Copied!'); }}
                                                 className="px-3 py-2 bg-teal-600 text-white text-xs font-bold rounded-lg hover:bg-teal-700"
                                             >
                                                 Copy

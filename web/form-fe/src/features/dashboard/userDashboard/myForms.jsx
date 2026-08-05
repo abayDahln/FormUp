@@ -158,7 +158,7 @@ const MyForms = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" ref={menuRef}>
                         <div
                             onClick={() => navigate('/create-form')}
-                            className="bg-white border-2 border-dashed border-slate-200 rounded-2xl min-h-[280px] flex flex-col items-center justify-center cursor-pointer hover:border-[#6DBFB3] transition-colors group shadow-sm"
+                            className="bg-white border-2 border-dashed border-slate-200 rounded-2xl min-h-70 flex flex-col items-center justify-center cursor-pointer hover:border-[#6DBFB3] transition-colors group shadow-sm"
                         >
                             <div className="w-12 h-12 bg-teal-50 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                                 <Plus className="w-6 h-6 text-[#00897B]" />
@@ -192,9 +192,9 @@ const MyForms = () => {
                                         key={form.id}
                                         className={`bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col ${isActing ? 'opacity-60 pointer-events-none' : ''}`}
                                     >
-                                        <div className="h-32 bg-gradient-to-br from-teal-50 to-blue-50 relative p-4 flex items-start justify-end border-b border-slate-100 overflow-hidden">
+                                        <div className="h-32 bg-linear-to-br from-teal-50 to-blue-50 relative p-4 flex items-start justify-end border-b border-slate-100 ">
                                             {form.bannerImage ? (
-                                                <img src={assetUrl(form.bannerImage)} alt={form.title} className="absolute inset-0 w-full h-full object-cover" />
+                                                <img src={assetUrl(form.bannerImage)} alt={form.title} className="absolute inset-0 w-full h-full object-cover rounded-t-2xl" />
                                             ) : (
                                                 <div className="absolute inset-x-6 top-6 bottom-0 bg-white shadow-sm rounded-t-xl border border-slate-200 border-b-0 opacity-80 flex flex-col gap-2 p-3">
                                                     <div className="w-1/2 h-2 bg-slate-200 rounded-full" />
