@@ -12,6 +12,7 @@ import FormBuilder from './features/form-builder/FormBuilder';
 import FormResponsesPage from './features/form-responses/FormResponsesPage';
 import FormAnalyticsPage from './features/form-responses/FormAnalyticsPage';
 import FormRunnerPage from './features/form-runner/FormRunnerPage';
+import FormResultPage from './features/form-runner/FormResultPage';
 import ProtectedRoute from './components/ui/ProtectedRoute';
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/verify" element={<Verify />} />
       <Route path="/f/:formLink" element={<FormRunnerPage />} />
+      <Route path="/f/:formLink/result/:responseId" element={<FormResultPage />} />
 
       <Route path="/dashboard" element={<ProtectedRoute><UserHome /></ProtectedRoute>} />
       <Route path="/my-forms" element={<ProtectedRoute><MyForms /></ProtectedRoute>} />

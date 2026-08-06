@@ -156,10 +156,10 @@ export default function History() {
                                                     </td>
                                                     <td className="py-4 px-6 text-right">
                                                         <button
-                                                            onClick={() => navigate(`/forms/${item.formId}/f`)}
+                                                            onClick={() => navigate(`/f/${item.formLink}/result/${item.responseId}`)}
                                                             className="inline-flex items-center gap-1.5 text-xs font-bold text-[#6DBFB3] hover:underline"
                                                         >
-                                                            <Eye size={14} /> View
+                                                            <Eye size={14} /> View Result
                                                         </button>
                                                     </td>
                                                 </tr>
@@ -215,7 +215,7 @@ export default function History() {
                                                                 <Edit3 size={16} />
                                                             </button>
                                                             <button
-                                                                onClick={() => navigate('/responses')}
+                                                                onClick={() => navigate(`/forms/${form.id}/responses`)}
                                                                 className="p-1.5 text-slate-400 hover:text-[#6DBFB3] rounded-lg transition-colors"
                                                                 title="View Responses"
                                                             >

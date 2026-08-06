@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     Save, Plus, Trash2, ChevronUp, ChevronDown,
-    Globe, Lock, ArrowLeft, Upload, FileUp, Image, Music, Download
+    Globe, Lock, ArrowLeft, Upload, FileUp, Image, Music, Download,
+    GripVertical, Code, Calculator, Eye, EyeOff
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import {
@@ -12,34 +13,34 @@ import {
     deleteQuestion, importQuestions, uploadQuestionImage, uploadQuestionAudio,
     templateDownloadUrl
 } from '../../services/apiService';
+import RichContentRenderer from '../../utils/RichContentRenderer';
+import SummernoteEditor from '../../components/ui/SummernoteEditor';
+import MathAndCodeModal from '../../components/ui/MathAndCodeModal';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 const QUESTION_TYPES = [
-    { id: 1, label: 'Multiple Choice' },
-    { id: 2, label: 'Checkboxes' },
-    { id: 3, label: 'Short Answer' },
-    { id: 4, label: 'Paragraph' },
-    { id: 5, label: 'Dropdown' },
-    { id: 6, label: 'Date' },
-    { id: 7, label: 'Time' },
-    { id: 8, label: 'Rating' },
+    { id: 1, label: 'Essay / Short Answer' },
+    { id: 2, label: 'Multiple Choice' },
+    { id: 3, label: 'Checkbox' },
+    { id: 4, label: 'Date Time' },
+    { id: 5, label: 'True / False' },
 ];
 
 const newQuestion = (order) => ({
     _id: `q_new_${Date.now()}_${order}`,
     id: null,
     question: '',
-    typeId: 1,
+    typeId: 2,
     questionOrder: order,
     isRequired: false,
     correctAnswer: '',
-    options: [{ optionText: '', isCorrect: false }],
+    options: [{ optionText: '', isCorrect: false }, { optionText: '', isCorrect: false }],
     questionImage: null,
     questionAudio: null,
 });
 
-const needsOptions = (typeId) => [1, 2, 5].includes(typeId);
+const needsOptions = (typeId) => [2, 3].includes(typeId);
 
 export default function FormBuilder() {
     const { id } = useParams();
@@ -55,12 +56,28 @@ export default function FormBuilder() {
     const [qrBlobUrl, setQrBlobUrl] = useState(null);
     const [toast, setToast] = useState(null);
     const [importLoading, setImportLoading] = useState(false);
+    const [dragIndex, setDragIndex] = useState(null);
 
+    // Modal state for Code & KaTeX Math insertion
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalMode, setModalMode] = useState('math'); // 'math' or 'code'
+    const [activeQuestionIdx, setActiveQuestionIdx] = useState(null);
+
+    // Live preview toggle per question
+    const [previewVisibility, setPreviewVisibility] = useState({});
+
+    // Form settings state
     const [settings, setSettings] = useState({
+        formTypeId: 1,
         showScore: false,
         randomizeQuestions: false,
         oneResponse: false,
+        requiredLogin: false,
+        formToken: '',
         timerDuration: '',
+        openFormTime: '',
+        closeFormTime: '',
+        customFormLink: '',
     });
 
     useEffect(() => {
@@ -70,20 +87,26 @@ export default function FormBuilder() {
             if (formRes.status === 401) { clearSession(); navigate('/login'); return; }
             if (formRes.ok && formRes.data) {
                 setForm(formRes.data);
-                const s = formRes.data.settings;
-                if (s) setSettings({
+                const s = formRes.data.settings || {};
+                setSettings({
+                    formTypeId: s.formTypeId || 1,
                     showScore: s.showScore ?? false,
                     randomizeQuestions: s.randomizeQuestions ?? false,
                     oneResponse: s.oneResponse ?? false,
-                    timerDuration: s.timerDuration ?? '',
+                    requiredLogin: s.requiredLogin ?? false,
+                    formToken: s.formToken || '',
+                    timerDuration: s.timerDuration ? Math.round(s.timerDuration / 60) : '',
+                    openFormTime: s.openFormTime ? s.openFormTime.substring(0, 16) : '',
+                    closeFormTime: s.closeFormTime ? s.closeFormTime.substring(0, 16) : '',
+                    customFormLink: formRes.data.formLink || '',
                 });
             }
             if (qRes.ok && Array.isArray(qRes.data) && qRes.data.length > 0) {
                 setQuestions(qRes.data.map((q, i) => ({
                     _id: `q_${q.id}`,
                     id: q.id,
-                    question: q.question,
-                    typeId: q.typeId,
+                    question: q.question || '',
+                    typeId: q.typeId || 2,
                     questionOrder: q.questionOrder ?? i + 1,
                     isRequired: q.isRequired ?? false,
                     correctAnswer: q.correctAnswer ?? '',
@@ -107,6 +130,7 @@ export default function FormBuilder() {
     const handleSaveQuestions = async () => {
         setSaving(true);
         const payload = questions.map((q, i) => ({
+            id: q.id || undefined,
             question: q.question,
             typeId: q.typeId,
             questionOrder: i + 1,
@@ -123,15 +147,14 @@ export default function FormBuilder() {
         const res = await saveQuestions(id, payload);
         setSaving(false);
         if (res.ok) {
-            showToast('Questions saved!');
-            // Reload to get real IDs
+            showToast('Questions saved successfully!');
             const qRes = await getQuestions(id);
             if (qRes.ok && Array.isArray(qRes.data)) {
                 setQuestions(qRes.data.map((q, i) => ({
                     _id: `q_${q.id}`,
                     id: q.id,
-                    question: q.question,
-                    typeId: q.typeId,
+                    question: q.question || '',
+                    typeId: q.typeId || 2,
                     questionOrder: q.questionOrder ?? i + 1,
                     isRequired: q.isRequired ?? false,
                     correctAnswer: q.correctAnswer ?? '',
@@ -141,20 +164,40 @@ export default function FormBuilder() {
                 })));
             }
         } else {
-            showToast(res.message || 'Failed to save', 'error');
+            showToast(res.message || 'Failed to save questions', 'error');
         }
     };
 
     const handleSaveSettings = async () => {
         setSaving(true);
+        if (settings.customFormLink && settings.customFormLink !== form.formLink) {
+            const formRes = await updateForm(id, {
+                title: form.title,
+                description: form.description,
+                formLink: settings.customFormLink,
+            });
+            if (!formRes.ok) {
+                showToast(formRes.message || 'Failed to update custom form link', 'error');
+                setSaving(false);
+                return;
+            }
+            setForm(prev => ({ ...prev, formLink: settings.customFormLink }));
+        }
+
         const res = await updateFormSettings(id, {
+            formTypeId: parseInt(settings.formTypeId),
             showScore: settings.showScore,
             randomizeQuestions: settings.randomizeQuestions,
             oneResponse: settings.oneResponse,
-            timerDuration: settings.timerDuration ? parseInt(settings.timerDuration) : 0,
+            requiredLogin: settings.requiredLogin,
+            formToken: settings.formToken.trim() || null,
+            timerDuration: settings.timerDuration ? parseInt(settings.timerDuration) * 60 : null,
+            openFormTime: settings.openFormTime ? new Date(settings.openFormTime).toISOString() : null,
+            closeFormTime: settings.closeFormTime ? new Date(settings.closeFormTime).toISOString() : null,
         });
+
         setSaving(false);
-        showToast(res.ok ? 'Settings saved!' : (res.message || 'Failed'), res.ok ? 'success' : 'error');
+        showToast(res.ok ? 'Settings saved!' : (res.message || 'Failed to save settings'), res.ok ? 'success' : 'error');
     };
 
     const handleTogglePublish = async () => {
@@ -163,9 +206,9 @@ export default function FormBuilder() {
         if (res.ok) {
             const updated = await getFormById(id);
             if (updated.ok) setForm(updated.data);
-            showToast(res.message || 'Done!');
+            showToast(res.message || 'Form status updated!');
         } else {
-            showToast(res.message || 'Failed', 'error');
+            showToast(res.message || 'Failed to toggle status', 'error');
         }
         setPublishing(false);
     };
@@ -176,7 +219,7 @@ export default function FormBuilder() {
             setShareInfo(res.data);
             const token = localStorage.getItem('token');
             const qrRes = await fetch(
-                `${API_BASE_URL}/api/Forms/${id}/share/qr?frontendUrl=${encodeURIComponent(window.location.origin)}`,
+                `${API_BASE_URL}/api/forms/${id}/share/qr?frontendUrl=${encodeURIComponent(window.location.origin)}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             if (qrRes.ok) {
@@ -212,8 +255,8 @@ export default function FormBuilder() {
                 setQuestions(qRes.data.map((q, i) => ({
                     _id: `q_${q.id}`,
                     id: q.id,
-                    question: q.question,
-                    typeId: q.typeId,
+                    question: q.question || '',
+                    typeId: q.typeId || 2,
                     questionOrder: q.questionOrder ?? i + 1,
                     isRequired: q.isRequired ?? false,
                     correctAnswer: q.correctAnswer ?? '',
@@ -232,7 +275,7 @@ export default function FormBuilder() {
         const q = questions[idx];
         if (q.id) {
             const res = await deleteQuestion(id, q.id);
-            if (!res.ok) { showToast(res.message || 'Failed to delete', 'error'); return; }
+            if (!res.ok) { showToast(res.message || 'Failed to delete question', 'error'); return; }
         }
         setQuestions(prev => prev.filter((_, i) => i !== idx));
         showToast('Question removed');
@@ -274,8 +317,39 @@ export default function FormBuilder() {
         });
     };
 
+    // Drag and Drop reordering
+    const handleDragStart = (idx) => setDragIndex(idx);
+    const handleDragOver = (e, idx) => {
+        e.preventDefault();
+        if (dragIndex === null || dragIndex === idx) return;
+        setQuestions(prev => {
+            const arr = [...prev];
+            const dragged = arr[dragIndex];
+            arr.splice(dragIndex, 1);
+            arr.splice(idx, 0, dragged);
+            return arr;
+        });
+        setDragIndex(idx);
+    };
+
     const updateQuestion = (idx, field, value) =>
         setQuestions(prev => prev.map((q, i) => i === idx ? { ...q, [field]: value } : q));
+
+    const openInsertModal = (idx, mode) => {
+        setActiveQuestionIdx(idx);
+        setModalMode(mode);
+        setModalOpen(true);
+    };
+
+    const handleInsertFromModal = (snippetHtml) => {
+        if (activeQuestionIdx === null) return;
+        const current = questions[activeQuestionIdx].question || '';
+        updateQuestion(activeQuestionIdx, 'question', current + snippetHtml);
+    };
+
+    const togglePreview = (idx) => {
+        setPreviewVisibility(prev => ({ ...prev, [idx]: !prev[idx] }));
+    };
 
     const addOption = (qIdx) =>
         setQuestions(prev => prev.map((q, i) =>
@@ -296,7 +370,7 @@ export default function FormBuilder() {
 
     if (loading) return (
         <div className="flex items-center justify-center min-h-screen bg-slate-50">
-            <p className="text-slate-400 text-sm">Loading form...</p>
+            <p className="text-slate-400 text-sm font-medium">Loading form builder...</p>
         </div>
     );
 
@@ -305,25 +379,25 @@ export default function FormBuilder() {
             <Sidebar />
 
             <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-                {/* Top bar */}
-                <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between gap-4">
+                {/* Header Navbar */}
+                <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between gap-4 shadow-xs">
                     <div className="flex items-center gap-3 min-w-0">
-                        <button onClick={() => navigate('/my-forms')} className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg">
+                        <button onClick={() => navigate('/my-forms')} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all">
                             <ArrowLeft size={18} />
                         </button>
                         <div className="min-w-0">
-                            <h1 className="text-sm font-bold text-slate-800 truncate">{form?.title || 'Untitled Form'}</h1>
-                            <p className="text-[11px] text-slate-400">Form Builder</p>
+                            <h1 className="text-base font-extrabold text-slate-900 truncate">{form?.title || 'Untitled Form'}</h1>
+                            <p className="text-xs text-slate-400 font-mono">/f/{form?.formLink}</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${isPublished ? 'bg-teal-50 text-teal-600' : 'bg-slate-100 text-slate-500'}`}>
+                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${isPublished ? 'bg-teal-50 text-teal-600 border border-teal-200' : 'bg-slate-100 text-slate-500'}`}>
                             {isPublished ? 'Published' : 'Draft'}
                         </span>
                         <button
                             onClick={handleTogglePublish}
                             disabled={publishing}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-60 ${isPublished ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-teal-600 text-white hover:bg-teal-700'}`}
+                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all disabled:opacity-60 ${isPublished ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200' : 'bg-teal-600 text-white hover:bg-teal-700 shadow-sm'}`}
                         >
                             {isPublished ? <><Lock size={13} /> Unpublish</> : <><Globe size={13} /> Publish</>}
                         </button>
@@ -331,288 +405,423 @@ export default function FormBuilder() {
                             <button
                                 onClick={handleSaveQuestions}
                                 disabled={saving}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold disabled:opacity-60"
+                                className="flex items-center gap-1.5 px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition-all disabled:opacity-60"
                             >
-                                <Save size={13} /> {saving ? 'Saving...' : 'Save'}
+                                <Save size={14} /> {saving ? 'Saving...' : 'Save Changes'}
                             </button>
                         )}
                     </div>
                 </div>
 
-                {/* Toast */}
+                {/* Toast Notification */}
                 {toast && (
-                    <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-semibold text-white transition-all ${toast.type === 'error' ? 'bg-red-500' : 'bg-teal-600'}`}>
+                    <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-xl text-xs font-bold text-white transition-all ${toast.type === 'error' ? 'bg-red-500' : 'bg-teal-600'}`}>
                         {toast.msg}
                     </div>
                 )}
 
-                {/* Tabs */}
+                {/* Navigation Tabs */}
                 <div className="flex border-b border-slate-200 bg-white px-6">
                     {[
                         { key: 'questions', label: '📝 Questions' },
                         { key: 'settings', label: '⚙️ Settings' },
-                        { key: 'share', label: '🔗 Share' },
+                        { key: 'share', label: '🔗 Share & QR' },
                     ].map(tab => (
                         <button
                             key={tab.key}
                             onClick={() => { setActiveTab(tab.key); if (tab.key === 'share' && !shareInfo) handleLoadShare(); }}
-                            className={`py-3 px-4 text-sm font-bold border-b-2 transition-all ${activeTab === tab.key ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                            className={`py-3.5 px-5 text-xs font-extrabold border-b-2 transition-all ${activeTab === tab.key ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-400 hover:text-slate-700'}`}
                         >
                             {tab.label}
                         </button>
                     ))}
                 </div>
 
-                <div className="p-6 max-w-3xl mx-auto w-full space-y-4">
+                <div className="p-6 max-w-3xl mx-auto w-full space-y-5">
 
                     {/* ── QUESTIONS TAB ── */}
                     {activeTab === 'questions' && (
                         <>
-                            {/* Form info */}
-                            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-                                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide">Form Info</h2>
+                            {/* Form Header Info Card */}
+                            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+                                <h2 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Form Meta Info</h2>
                                 <div>
-                                    <label className="text-xs font-semibold text-slate-500 mb-1 block">Title</label>
+                                    <label className="text-xs font-bold text-slate-600 mb-1 block">Title</label>
                                     <input
                                         value={form?.title ?? ''}
                                         onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                                         onBlur={() => form?.title && updateForm(id, { title: form.title, description: form.description })}
-                                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-400"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-semibold text-slate-500 mb-1 block">Description</label>
-                                    <textarea
+                                    <label className="text-xs font-bold text-slate-600 mb-1 block">Description</label>
+                                    <SummernoteEditor
                                         value={form?.description ?? ''}
-                                        onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                                        onBlur={() => updateForm(id, { title: form.title, description: form.description })}
-                                        rows={2}
-                                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
+                                        onChange={val => {
+                                            setForm(f => ({ ...f, description: val }));
+                                            updateForm(id, { title: form.title, description: val });
+                                        }}
+                                        placeholder="Form description or details..."
+                                        className="w-full"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-semibold text-slate-500 mb-1 block">Banner Image</label>
+                                    <label className="text-xs font-bold text-slate-600 mb-1 block">Banner Image</label>
                                     {form?.bannerImage && (
-                                        <img src={assetUrl(form.bannerImage)} alt="banner" className="w-full h-24 object-cover rounded-lg mb-2" />
+                                        <img src={assetUrl(form.bannerImage)} alt="banner" className="w-full h-28 object-cover rounded-xl mb-2 border border-slate-200" />
                                     )}
-                                    <label className="flex items-center gap-2 cursor-pointer px-3 py-2 border border-dashed border-slate-300 rounded-lg text-xs text-slate-500 hover:border-teal-400 hover:text-teal-600 transition-all w-fit">
+                                    <label className="flex items-center gap-2 cursor-pointer px-3.5 py-2 border border-dashed border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:border-teal-400 hover:text-teal-600 transition-all w-fit">
                                         <Upload size={14} /> Upload Banner
                                         <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
                                     </label>
                                 </div>
                             </div>
 
-                            {/* Import toolbar */}
-                            <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center gap-3">
-                                <span className="text-xs font-bold text-slate-500">Import Questions:</span>
-                                <label className={`flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold cursor-pointer hover:border-teal-400 hover:text-teal-600 transition-all ${importLoading ? 'opacity-50 pointer-events-none' : ''}`}>
-                                    <FileUp size={13} /> {importLoading ? 'Importing...' : 'Upload File'}
-                                    <input type="file" accept=".csv,.xlsx,.xls,.pdf,.docx" className="hidden" onChange={handleImportFile} />
-                                </label>
-                                <span className="text-slate-300 text-xs">|</span>
-                                <span className="text-xs text-slate-500">Download template:</span>
-                                {['csv', 'xlsx', 'docx', 'pdf'].map(fmt => (
-                                    <a
-                                        key={fmt}
-                                        href={templateDownloadUrl(fmt)}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-bold rounded-lg transition-all"
+                            {/* Question Import & Template Downloads Toolbar */}
+                            <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs font-bold text-slate-700">Import Questions:</span>
+                                    <label className={`flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 border border-teal-200 text-teal-700 rounded-xl text-xs font-bold cursor-pointer hover:bg-teal-100 transition-all ${importLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+                                        <FileUp size={14} /> {importLoading ? 'Importing...' : 'Upload File (.xlsx, .csv, .docx, .pdf)'}
+                                        <input type="file" accept=".csv,.xlsx,.xls,.pdf,.docx" className="hidden" onChange={handleImportFile} />
+                                    </label>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-slate-400 font-semibold mr-1">Templates:</span>
+                                    {['csv', 'xlsx', 'docx', 'pdf'].map(fmt => (
+                                        <a
+                                            key={fmt}
+                                            href={templateDownloadUrl(fmt)}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-extrabold rounded-lg transition-all"
+                                        >
+                                            <Download size={11} /> {fmt.toUpperCase()}
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Questions Cards with Drag and Drop */}
+                            <div className="space-y-4">
+                                {questions.map((q, idx) => (
+                                    <div
+                                        key={q._id}
+                                        draggable
+                                        onDragStart={() => handleDragStart(idx)}
+                                        onDragOver={(e) => handleDragOver(e, idx)}
+                                        onDragEnd={() => setDragIndex(null)}
+                                        className={`bg-white rounded-2xl border transition-all p-5 shadow-xs space-y-3 relative group ${dragIndex === idx ? 'border-teal-400 ring-2 ring-teal-100 shadow-md bg-teal-50/20' : 'border-slate-200 hover:border-slate-300'}`}
                                     >
-                                        <Download size={11} /> {fmt.toUpperCase()}
-                                    </a>
+                                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                            <div className="flex items-center gap-2">
+                                                <div className="cursor-grab active:cursor-grabbing p-1 text-slate-300 hover:text-slate-600 rounded">
+                                                    <GripVertical size={16} />
+                                                </div>
+                                                <span className="text-xs font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">Q{idx + 1}</span>
+                                                {q.id && <span className="text-[10px] text-slate-400 font-mono">ID: {q.id}</span>}
+                                            </div>
+
+                                            {/* Toolbar for KaTeX & Code Snippets */}
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openInsertModal(idx, 'math')}
+                                                    className="flex items-center gap-1 px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 text-xs font-bold rounded-lg transition-all"
+                                                    title="Insert KaTeX Math Formula"
+                                                >
+                                                    <Calculator size={13} /> KaTeX Math
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openInsertModal(idx, 'code')}
+                                                    className="flex items-center gap-1 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-teal-400 text-xs font-mono font-bold rounded-lg transition-all"
+                                                    title="Insert Code Snippet"
+                                                >
+                                                    <Code size={13} /> Code Block
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => togglePreview(idx)}
+                                                    className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-all border ${previewVisibility[idx] ? 'bg-teal-600 text-white border-teal-600' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}
+                                                    title="Toggle Live Preview"
+                                                >
+                                                    {previewVisibility[idx] ? <EyeOff size={13} /> : <Eye size={13} />}
+                                                    <span>Preview</span>
+                                                </button>
+                                                <div className="w-px h-4 bg-slate-200 mx-1" />
+                                                <button onClick={() => moveQuestion(idx, -1)} className="p-1 text-slate-300 hover:text-slate-600 rounded"><ChevronUp size={15} /></button>
+                                                <button onClick={() => moveQuestion(idx, 1)} className="p-1 text-slate-300 hover:text-slate-600 rounded"><ChevronDown size={15} /></button>
+                                                <button onClick={() => handleDeleteQuestion(idx)} className="p-1 text-red-400 hover:text-red-600 rounded"><Trash2 size={15} /></button>
+                                            </div>
+                                        </div>
+
+                                        {/* Question Summernote Editor */}
+                                        <SummernoteEditor
+                                            value={q.question}
+                                            onChange={val => updateQuestion(idx, 'question', val)}
+                                            placeholder="Type question text..."
+                                            className="w-full"
+                                        />
+
+                                        {/* Single Clean Live Preview Box (Toggled on/off per question) */}
+                                        {previewVisibility[idx] && q.question && (
+                                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1">
+                                                <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                                    <Eye size={11} className="text-teal-600" /> Live Question Preview:
+                                                </p>
+                                                <div className="pt-1">
+                                                    <RichContentRenderer content={q.question} className="text-xs text-slate-800" />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="flex items-center justify-between flex-wrap gap-3 pt-1">
+                                            <div className="flex items-center gap-3">
+                                                <label className="text-xs font-bold text-slate-500">Type:</label>
+                                                <select
+                                                    value={q.typeId}
+                                                    onChange={e => updateQuestion(idx, 'typeId', parseInt(e.target.value))}
+                                                    className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
+                                                >
+                                                    {QUESTION_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                                </select>
+                                            </div>
+                                            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={q.isRequired}
+                                                    onChange={e => updateQuestion(idx, 'isRequired', e.target.checked)}
+                                                    className="w-4 h-4 text-teal-600 rounded"
+                                                />
+                                                Required Question
+                                            </label>
+                                        </div>
+
+                                        {/* Choice Options */}
+                                        {needsOptions(q.typeId) && (
+                                            <div className="space-y-2 pt-2 border-t border-slate-100">
+                                                <label className="text-xs font-bold text-slate-500 block">Options:</label>
+                                                {q.options.map((opt, oIdx) => (
+                                                    <div key={oIdx} className="flex items-center gap-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={opt.isCorrect}
+                                                            onChange={e => updateOption(idx, oIdx, 'isCorrect', e.target.checked)}
+                                                            className="w-4 h-4 text-teal-600 rounded shrink-0 cursor-pointer"
+                                                            title="Mark as correct answer"
+                                                        />
+                                                        <input
+                                                            placeholder={`Option ${oIdx + 1}`}
+                                                            value={opt.optionText}
+                                                            onChange={e => updateOption(idx, oIdx, 'optionText', e.target.value)}
+                                                            className="flex-1 border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400"
+                                                        />
+                                                        <button onClick={() => removeOption(idx, oIdx)} className="text-red-300 hover:text-red-500 p-1 shrink-0">
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                <button onClick={() => addOption(idx)} className="text-xs font-bold text-teal-600 hover:underline mt-1">
+                                                    + Add Option
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Correct answer input for Essay / Text */}
+                                        {q.typeId === 1 && (
+                                            <div className="pt-2 border-t border-slate-100">
+                                                <label className="text-xs font-bold text-slate-500 block mb-1">Expected Correct Answer (for auto-grading):</label>
+                                                <input
+                                                    placeholder="e.g. 4 or Soekarno"
+                                                    value={q.correctAnswer}
+                                                    onChange={e => updateQuestion(idx, 'correctAnswer', e.target.value)}
+                                                    className="w-full border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* Image / Audio Uploads */}
+                                        {q.id ? (
+                                            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+                                                {q.questionImage ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <img src={assetUrl(q.questionImage)} alt="question" className="h-12 w-20 object-cover rounded-lg border border-slate-200" />
+                                                        <label className="text-xs font-bold text-teal-600 cursor-pointer hover:underline">
+                                                            Change image
+                                                            <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionImage(idx, e.target.files[0])} />
+                                                        </label>
+                                                    </div>
+                                                ) : (
+                                                    <label className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-slate-300 rounded-xl text-xs font-bold text-slate-600 cursor-pointer hover:border-teal-400 hover:text-teal-600 transition-all">
+                                                        <Image size={13} /> Add Image
+                                                        <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionImage(idx, e.target.files[0])} />
+                                                    </label>
+                                                )}
+
+                                                {q.questionAudio ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <audio controls src={assetUrl(q.questionAudio)} className="h-8 text-xs" />
+                                                        <label className="text-xs font-bold text-teal-600 cursor-pointer hover:underline">
+                                                            Change audio
+                                                            <input type="file" accept="audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionAudio(idx, e.target.files[0])} />
+                                                        </label>
+                                                    </div>
+                                                ) : (
+                                                    <label className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-slate-300 rounded-xl text-xs font-bold text-slate-600 cursor-pointer hover:border-teal-400 hover:text-teal-600 transition-all">
+                                                        <Music size={13} /> Add Audio
+                                                        <input type="file" accept="audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionAudio(idx, e.target.files[0])} />
+                                                    </label>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <p className="text-[11px] text-slate-400 italic">Save question first to upload image or audio.</p>
+                                        )}
+                                    </div>
                                 ))}
                             </div>
 
-                            {/* Question cards */}
-                            {questions.map((q, idx) => (
-                                <div key={q._id} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs font-bold text-slate-400">Q{idx + 1}</span>
-                                        {q.id && <span className="text-[10px] text-slate-300">#{q.id}</span>}
-                                        <div className="flex items-center gap-1 ml-auto">
-                                            <button onClick={() => moveQuestion(idx, -1)} className="p-1 text-slate-300 hover:text-slate-600 rounded"><ChevronUp size={15} /></button>
-                                            <button onClick={() => moveQuestion(idx, 1)} className="p-1 text-slate-300 hover:text-slate-600 rounded"><ChevronDown size={15} /></button>
-                                            <button onClick={() => handleDeleteQuestion(idx)} className="p-1 text-red-300 hover:text-red-500 rounded"><Trash2 size={15} /></button>
-                                        </div>
-                                    </div>
-
-                                    <input
-                                        placeholder="Question text..."
-                                        value={q.question}
-                                        onChange={e => updateQuestion(idx, 'question', e.target.value)}
-                                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-                                    />
-
-                                    <div className="flex items-center gap-3 flex-wrap">
-                                        <select
-                                            value={q.typeId}
-                                            onChange={e => updateQuestion(idx, 'typeId', parseInt(e.target.value))}
-                                            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400"
-                                        >
-                                            {QUESTION_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                                        </select>
-                                        <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={q.isRequired}
-                                                onChange={e => updateQuestion(idx, 'isRequired', e.target.checked)}
-                                                className="rounded"
-                                            />
-                                            Required
-                                        </label>
-                                    </div>
-
-                                    {/* Options for choice types */}
-                                    {needsOptions(q.typeId) && (
-                                        <div className="space-y-1.5 pl-2 border-l-2 border-slate-100">
-                                            {q.options.map((opt, oIdx) => (
-                                                <div key={oIdx} className="flex items-center gap-2">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={opt.isCorrect}
-                                                        onChange={e => updateOption(idx, oIdx, 'isCorrect', e.target.checked)}
-                                                        className="rounded shrink-0"
-                                                        title="Mark as correct answer"
-                                                    />
-                                                    <input
-                                                        placeholder={`Option ${oIdx + 1}`}
-                                                        value={opt.optionText}
-                                                        onChange={e => updateOption(idx, oIdx, 'optionText', e.target.value)}
-                                                        className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400"
-                                                    />
-                                                    <button onClick={() => removeOption(idx, oIdx)} className="text-red-300 hover:text-red-500 shrink-0">
-                                                        <Trash2 size={13} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                            <button onClick={() => addOption(idx)} className="text-xs text-teal-600 hover:underline mt-1">+ Add option</button>
-                                        </div>
-                                    )}
-
-                                    {/* Correct answer for text types */}
-                                    {[3, 4].includes(q.typeId) && (
-                                        <div>
-                                            <label className="text-[11px] text-slate-400 block mb-1">Correct answer (optional)</label>
-                                            <input
-                                                placeholder="Correct answer..."
-                                                value={q.correctAnswer}
-                                                onChange={e => updateQuestion(idx, 'correctAnswer', e.target.value)}
-                                                className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400"
-                                            />
-                                        </div>
-                                    )}
-
-                                    {/* Media uploads (only if question already saved) */}
-                                    {q.id && (
-                                        <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-100">
-                                            {q.questionImage ? (
-                                                <div className="flex items-center gap-2">
-                                                    <img src={assetUrl(q.questionImage)} alt="question" className="h-12 w-20 object-cover rounded-lg border border-slate-200" />
-                                                    <label className="text-[11px] text-teal-600 cursor-pointer hover:underline">
-                                                        Change image
-                                                        <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionImage(idx, e.target.files[0])} />
-                                                    </label>
-                                                </div>
-                                            ) : (
-                                                <label className="flex items-center gap-1.5 px-2.5 py-1.5 border border-dashed border-slate-200 rounded-lg text-[11px] text-slate-500 cursor-pointer hover:border-teal-400 hover:text-teal-600 transition-all">
-                                                    <Image size={12} /> Add image
-                                                    <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionImage(idx, e.target.files[0])} />
-                                                </label>
-                                            )}
-                                            {q.questionAudio ? (
-                                                <div className="flex items-center gap-2">
-                                                    <audio controls src={assetUrl(q.questionAudio)} className="h-8 text-xs" />
-                                                    <label className="text-[11px] text-teal-600 cursor-pointer hover:underline">
-                                                        Change audio
-                                                        <input type="file" accept="audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionAudio(idx, e.target.files[0])} />
-                                                    </label>
-                                                </div>
-                                            ) : (
-                                                <label className="flex items-center gap-1.5 px-2.5 py-1.5 border border-dashed border-slate-200 rounded-lg text-[11px] text-slate-500 cursor-pointer hover:border-teal-400 hover:text-teal-600 transition-all">
-                                                    <Music size={12} /> Add audio
-                                                    <input type="file" accept="audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionAudio(idx, e.target.files[0])} />
-                                                </label>
-                                            )}
-                                        </div>
-                                    )}
-                                    {!q.id && (
-                                        <p className="text-[10px] text-slate-400 italic">Save first to upload image/audio</p>
-                                    )}
-                                </div>
-                            ))}
-
                             <button
                                 onClick={addQuestion}
-                                className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-sm font-semibold text-slate-400 hover:border-teal-400 hover:text-teal-600 transition-all flex items-center justify-center gap-2"
+                                className="w-full py-3.5 border-2 border-dashed border-slate-300 rounded-2xl text-xs font-extrabold text-slate-500 hover:border-teal-500 hover:text-teal-600 transition-all flex items-center justify-center gap-2 bg-white/50"
                             >
-                                <Plus size={16} /> Add Question
+                                <Plus size={18} /> Add New Question
                             </button>
                         </>
                     )}
 
                     {/* ── SETTINGS TAB ── */}
                     {activeTab === 'settings' && (
-                        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
-                            <h2 className="text-sm font-bold text-slate-700">Form Settings</h2>
-                            {[
-                                { key: 'showScore', label: 'Show score after submission' },
-                                { key: 'randomizeQuestions', label: 'Randomize question order' },
-                                { key: 'oneResponse', label: 'Limit to one response per user' },
-                            ].map(({ key, label }) => (
-                                <label key={key} className="flex items-center justify-between cursor-pointer">
-                                    <span className="text-sm text-slate-700">{label}</span>
+                        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6 shadow-xs">
+                            <h2 className="text-sm font-extrabold text-slate-800 border-b border-slate-100 pb-3">Form Configuration & Rules</h2>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-700 block mb-1">Custom Form Link Slug</label>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-mono text-slate-400 bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">{window.location.origin}/f/</span>
+                                        <input
+                                            value={settings.customFormLink}
+                                            onChange={e => setSettings(s => ({ ...s, customFormLink: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))}
+                                            placeholder="my-custom-link"
+                                            className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-teal-400"
+                                        />
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 mt-1">Only lowercase letters, numbers, and hyphens (3-100 chars).</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 block mb-1">Form Layout Type</label>
+                                        <select
+                                            value={settings.formTypeId}
+                                            onChange={e => setSettings(s => ({ ...s, formTypeId: parseInt(e.target.value) }))}
+                                            className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
+                                        >
+                                            <option value={1}>Single Page Form</option>
+                                            <option value={2}>Multi Page / Step Form</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 block mb-1">Timer Duration (minutes)</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={settings.timerDuration}
+                                            onChange={e => setSettings(s => ({ ...s, timerDuration: e.target.value }))}
+                                            placeholder="0 (no timer)"
+                                            className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-400"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 block mb-1">Open Form Date/Time</label>
+                                        <input
+                                            type="datetime-local"
+                                            value={settings.openFormTime}
+                                            onChange={e => setSettings(s => ({ ...s, openFormTime: e.target.value }))}
+                                            className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-teal-400"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 block mb-1">Close Form Date/Time</label>
+                                        <input
+                                            type="datetime-local"
+                                            value={settings.closeFormTime}
+                                            onChange={e => setSettings(s => ({ ...s, closeFormTime: e.target.value }))}
+                                            className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-teal-400"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-slate-700 block mb-1">Form Password Token (Optional)</label>
                                     <input
-                                        type="checkbox"
-                                        checked={settings[key]}
-                                        onChange={e => setSettings(s => ({ ...s, [key]: e.target.checked }))}
-                                        className="w-4 h-4 rounded"
+                                        type="text"
+                                        value={settings.formToken}
+                                        onChange={e => setSettings(s => ({ ...s, formToken: e.target.value }))}
+                                        placeholder="Secret token required to take form..."
+                                        className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-teal-400"
                                     />
-                                </label>
-                            ))}
-                            <div>
-                                <label className="text-sm text-slate-700 block mb-1">Timer (minutes, 0 = disabled)</label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    value={settings.timerDuration}
-                                    onChange={e => setSettings(s => ({ ...s, timerDuration: e.target.value }))}
-                                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-teal-400"
-                                    placeholder="0"
-                                />
+                                </div>
+
+                                <div className="space-y-3 pt-3 border-t border-slate-100">
+                                    {[
+                                        { key: 'requiredLogin', label: 'Require login to fill out form' },
+                                        { key: 'showScore', label: 'Show score / grade to respondent after submission' },
+                                        { key: 'randomizeQuestions', label: 'Randomize question order for each respondent' },
+                                        { key: 'oneResponse', label: 'Limit to 1 response per respondent' },
+                                    ].map(({ key, label }) => (
+                                        <label key={key} className="flex items-center justify-between cursor-pointer py-1">
+                                            <span className="text-xs font-bold text-slate-700">{label}</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={settings[key]}
+                                                onChange={e => setSettings(s => ({ ...s, [key]: e.target.checked }))}
+                                                className="w-4 h-4 text-teal-600 rounded"
+                                            />
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
+
                             <button
                                 onClick={handleSaveSettings}
                                 disabled={saving}
-                                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold rounded-lg disabled:opacity-60"
+                                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all disabled:opacity-60"
                             >
-                                {saving ? 'Saving...' : 'Save Settings'}
+                                {saving ? 'Saving Settings...' : 'Save Settings'}
                             </button>
                         </div>
                     )}
 
                     {/* ── SHARE TAB ── */}
                     {activeTab === 'share' && (
-                        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-                            <h2 className="text-sm font-bold text-slate-700">Share Form</h2>
+                        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-xs">
+                            <h2 className="text-sm font-extrabold text-slate-800">Share Form</h2>
                             {!isPublished && (
-                                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 font-medium">
-                                    Form is not published yet. Publish it first to share.
+                                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-semibold">
+                                    ⚠ Form is currently Draft. Publish it to allow respondents to submit answers.
                                 </div>
                             )}
                             {shareInfo ? (
-                                <div className="space-y-3">
+                                <div className="space-y-4">
                                     <div>
-                                        <label className="text-xs font-semibold text-slate-500 mb-1 block">Share URL</label>
+                                        <label className="text-xs font-bold text-slate-600 mb-1 block">Share Public Link</label>
                                         <div className="flex gap-2">
                                             <input
                                                 readOnly
                                                 value={`${window.location.origin}/f/${shareInfo.formLink}`}
-                                                className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-xs bg-slate-50"
+                                                className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono bg-slate-50"
                                             />
                                             <button
-                                                onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/f/${shareInfo.formLink}`); showToast('Copied!'); }}
-                                                className="px-3 py-2 bg-teal-600 text-white text-xs font-bold rounded-lg hover:bg-teal-700"
+                                                onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/f/${shareInfo.formLink}`); showToast('Link copied!'); }}
+                                                className="px-4 py-2 bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-teal-700 shadow-xs"
                                             >
                                                 Copy
                                             </button>
@@ -620,27 +829,20 @@ export default function FormBuilder() {
                                     </div>
                                     {qrBlobUrl && (
                                         <div>
-                                            <label className="text-xs font-semibold text-slate-500 mb-1 block">QR Code</label>
-                                            <a href={qrBlobUrl} download={`qr-form-${id}.png`}>
-                                                <img src={qrBlobUrl} alt="QR Code" className="w-32 h-32 border border-slate-200 rounded-lg hover:opacity-80" />
+                                            <label className="text-xs font-bold text-slate-600 mb-1 block">QR Code</label>
+                                            <a href={qrBlobUrl} download={`qr-${shareInfo.formLink}.png`}>
+                                                <img src={qrBlobUrl} alt="QR Code" className="w-36 h-36 border border-slate-200 rounded-xl hover:opacity-90 shadow-xs" />
                                             </a>
-                                            <p className="text-[10px] text-slate-400 mt-1">Click to download</p>
+                                            <p className="text-[11px] text-slate-400 mt-1 font-medium">Click image to download QR PNG.</p>
                                         </div>
-                                    )}
-                                    <div>
-                                        <label className="text-xs font-semibold text-slate-500">Form Link Key</label>
-                                        <p className="text-xs text-slate-600 font-mono mt-1">{shareInfo.formLink}</p>
-                                    </div>
-                                    {shareInfo.requiresToken && (
-                                        <p className="text-xs text-amber-600 font-medium">⚠ This form requires a token to access.</p>
                                     )}
                                 </div>
                             ) : (
                                 <button
                                     onClick={handleLoadShare}
-                                    className="px-4 py-2 bg-teal-600 text-white text-sm font-bold rounded-lg hover:bg-teal-700"
+                                    className="px-4 py-2 bg-teal-600 text-white text-xs font-bold rounded-xl hover:bg-teal-700"
                                 >
-                                    Load Share Info
+                                    Generate Share Details
                                 </button>
                             )}
                         </div>
@@ -648,6 +850,14 @@ export default function FormBuilder() {
 
                 </div>
             </div>
+
+            {/* Modal for safe KaTeX Math & Code Insertion */}
+            <MathAndCodeModal
+                isOpen={modalOpen}
+                mode={modalMode}
+                onClose={() => setModalOpen(false)}
+                onInsert={handleInsertFromModal}
+            />
         </div>
     );
 }
