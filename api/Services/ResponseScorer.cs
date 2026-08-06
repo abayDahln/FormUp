@@ -64,6 +64,7 @@ public static class ResponseScorer
             {
                 QuestionId = q.Id,
                 Question = q.Question1,
+                QuestionFormat = q.QuestionFormat ?? RichTextValidation.FormatOf(q.Question1),
                 TypeId = q.TypeId,
                 AnswerText = GetAnswerText(answer, q),
                 CorrectAnswer = showScore ? GetCorrectAnswerText(q) : null,

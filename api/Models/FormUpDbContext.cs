@@ -68,6 +68,9 @@ public partial class FormUpDbContext : DbContext
                 .HasColumnType("datetime")
                 .HasColumnName("taken_down_at");
             entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.DescriptionFormat)
+                .HasMaxLength(20)
+                .HasColumnName("description_format");
             entity.Property(e => e.FormLink)
                 .HasMaxLength(100)
                 .HasColumnName("form_link");
@@ -222,6 +225,9 @@ public partial class FormUpDbContext : DbContext
                 .HasDefaultValue(false)
                 .HasColumnName("is_required");
             entity.Property(e => e.Question1).HasColumnName("question");
+            entity.Property(e => e.QuestionFormat)
+                .HasMaxLength(20)
+                .HasColumnName("question_format");
             entity.Property(e => e.QuestionAudio)
                 .HasMaxLength(255)
                 .HasColumnName("question_audio");

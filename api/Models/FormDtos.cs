@@ -4,6 +4,7 @@ public class UpdateFormRequest
 {
     public string? Title { get; set; }
     public string? Description { get; set; }
+    public string? DescriptionFormat { get; set; }
     public string? BannerImage { get; set; }
     public string? FormLink { get; set; }
 }
@@ -12,6 +13,7 @@ public class CreateFormRequest
 {
     public string Title { get; set; } = null!;
     public string? Description { get; set; }
+    public string? DescriptionFormat { get; set; }
     public string? BannerImage { get; set; }
 }
 
@@ -20,6 +22,7 @@ public class FormResponse
     public int Id { get; set; }
     public string Title { get; set; } = null!;
     public string? Description { get; set; }
+    public string? DescriptionFormat { get; set; }
     public string? BannerImage { get; set; }
     public string FormLink { get; set; } = null!;
     public string Status { get; set; } = null!;
@@ -33,6 +36,7 @@ public class FormDetailResponse
     public int Id { get; set; }
     public string Title { get; set; } = null!;
     public string? Description { get; set; }
+    public string? DescriptionFormat { get; set; }
     public string? BannerImage { get; set; }
     public string FormLink { get; set; } = null!;
     public string Status { get; set; } = null!;
@@ -73,6 +77,7 @@ public class PublicFormDetails
     public int Id { get; set; }
     public string Title { get; set; } = null!;
     public string? Description { get; set; }
+    public string? DescriptionFormat { get; set; }
     public string? BannerImage { get; set; }
     public bool RequiresToken { get; set; }
     public bool RequiresLogin { get; set; }

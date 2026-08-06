@@ -37,6 +37,7 @@ public class AnswerDetail
 {
     public int QuestionId { get; set; }
     public string Question { get; set; } = null!;
+    public string? QuestionFormat { get; set; }
     public int TypeId { get; set; }
     public int? OptionId { get; set; }
     public string? OptionText { get; set; }
@@ -67,6 +68,7 @@ public class ResultAnswer
 {
     public int QuestionId { get; set; }
     public string Question { get; set; } = null!;
+    public string? QuestionFormat { get; set; }
     public int TypeId { get; set; }
     public string? AnswerText { get; set; }
     public string? CorrectAnswer { get; set; }

@@ -32,6 +32,7 @@ Menyimpan data form yang dibuat user.
 | status_id | int | Ya | Tidak | FK ke FormStatus (1=Draft, 2=Published, 3=Closed) |
 | title | string(255) | Ya | Tidak | Judul form |
 | description | text | Tidak | Tidak | Deskripsi form |
+| description_format | string(20) | Tidak | Tidak | Format konten deskripsi: `delta` (Quill Delta JSON) atau `text`. Null = legacy, dideteksi dari isi saat respons |
 | banner_image | string(255) | Tidak | Tidak | Path banner (contoh: `/banner/xxx.jpg`) |
 | form_link | string(255) | Ya | Ya | Link unik untuk akses form |
 | created_at | datetime | Ya | Tidak | Waktu dibuat |
@@ -72,7 +73,8 @@ Menyimpan pertanyaan dalam form.
 | id | int | Ya | Primary key (auto-increment) |
 | form_id | int | Ya | FK ke Form |
 | type_id | int | Ya | FK ke QuestionType (lihat tabel referensi) |
-| question | text | Ya | Teks pertanyaan |
+| question | text | Ya | Teks pertanyaan. Bisa plain text atau Delta JSON (Quill) bila berformat |
+| question_format | string(20) | Tidak | Format konten pertanyaan: `delta` (Quill Delta JSON) atau `text`. Null = legacy, dideteksi dari isi saat respons |
 | question_order | int | Ya | Urutan pertanyaan (mulai dari 1) |
 | question_image | string(255) | Tidak | URL gambar pertanyaan |
 | question_audio | string(255) | Tidak | URL audio pertanyaan |

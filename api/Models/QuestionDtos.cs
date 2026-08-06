@@ -12,6 +12,7 @@ public class QuestionResponse
     public int FormId { get; set; }
     public int TypeId { get; set; }
     public string Question { get; set; } = null!;
+    public string? QuestionFormat { get; set; }
     public int QuestionOrder { get; set; }
     public string? QuestionImage { get; set; }
     public string? QuestionAudio { get; set; }
@@ -42,6 +43,7 @@ public class QuestionItem
     public int? Id { get; set; }
     public int TypeId { get; set; }
     public string Question { get; set; } = null!;
+    public string? QuestionFormat { get; set; }
     public int? QuestionOrder { get; set; }
     public string? QuestionImage { get; set; }
     public string? QuestionAudio { get; set; }

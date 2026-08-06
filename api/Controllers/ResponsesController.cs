@@ -93,6 +93,9 @@ public class ResponsesController : ControllerBase
             {
                 QuestionId = a.QuestionId,
                 Question = a.Question?.Question1 ?? "",
+                QuestionFormat = a.Question == null
+                    ? null
+                    : a.Question.QuestionFormat ?? RichTextValidation.FormatOf(a.Question.Question1),
                 TypeId = a.Question?.TypeId ?? 0,
                 OptionId = a.OptionId,
                 OptionText = a.Option?.OptionText,

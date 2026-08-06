@@ -83,6 +83,11 @@
 - Semua endpoint sebaiknya mengembalikan struktur dasar yang sama untuk kasus sukses, kasus gagal (error), dan kasus data berhalaman (pagination) — sehingga web dan mobile bisa memakai satu logic pemrosesan respons yang seragam, bukan menulis parsing khusus per endpoint.
 - Penanganan error sebaiknya dipusatkan di satu tempat (bukan ditulis berulang di tiap endpoint), supaya semua error — baik yang terduga (validasi gagal) maupun tidak terduga (bug/exception) — tetap dikembalikan dalam format yang bisa diprediksi oleh klien.
 
+**Konten rich text (Delta JSON):** kolom `question` dan `description` bisa berisi plain text atau **Delta JSON** (format Quill) untuk teks berformat (bold, italic, warna font, ukuran font, alignment, list, dsb).
+- API mendeteksi format dari isi lalu menyimpannya di kolom `question_format` / `description_format` (`delta` atau `text`).
+- Setiap respons yang membawa `question` / `description` juga menyertakan `questionFormat` / `descriptionFormat` agar klien tahu cara merender. Untuk data lama (belum ada kolom format), API mendeteksi dari isi konten.
+- Validasi server: konten yang diawali `[` wajib berupa Delta JSON yang valid, jika tidak API menolak dengan `400` — mencegah data rusak masuk DB.
+
 ---
 
 ## 8. Proteksi CORS

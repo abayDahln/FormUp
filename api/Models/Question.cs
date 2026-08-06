@@ -13,6 +13,9 @@ public partial class Question
 
     public string Question1 { get; set; } = null!;
 
+    /// <summary>Format konten pertanyaan: "delta" (Quill Delta JSON) atau "text".</summary>
+    public string? QuestionFormat { get; set; }
+
     public int QuestionOrder { get; set; }
 
     public string? QuestionImage { get; set; }

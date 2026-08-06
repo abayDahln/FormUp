@@ -38,6 +38,7 @@ public class FormsController : ControllerBase
                 Id = f.Id,
                 Title = f.Title,
                 Description = f.Description,
+                DescriptionFormat = f.DescriptionFormat,
                 BannerImage = f.BannerImage,
                 FormLink = f.FormLink,
                 Status = f.Status!.Status,
@@ -46,6 +47,10 @@ public class FormsController : ControllerBase
                 UpdatedAt = f.UpdatedAt,
             })
             .ToListAsync();
+
+        // ponytail: baris lama (sebelum kolom format ada) → deteksi dari isi
+        foreach (var f in forms)
+            f.DescriptionFormat ??= RichTextValidation.FormatOf(f.Description);
 
         return Ok(new ApiResponse<object>(200, "OK", forms));
     }
@@ -70,6 +75,7 @@ public class FormsController : ControllerBase
             Id = form.Id,
             Title = form.Title,
             Description = form.Description,
+            DescriptionFormat = form.DescriptionFormat ?? RichTextValidation.FormatOf(form.Description),
             BannerImage = form.BannerImage,
             FormLink = form.FormLink,
             Status = form.Status?.Status ?? "unknown",
@@ -132,7 +138,12 @@ public class FormsController : ControllerBase
         }
 
         if (request.Description != null)
+        {
+            if (!RichTextValidation.TryValidate(request.Description, out var descError))
+                return BadRequest(new ApiResponse<object>(400, descError ?? "Deskripsi tidak valid"));
             form.Description = request.Description;
+            form.DescriptionFormat = RichTextValidation.FormatOf(request.Description);
+        }
 
         if (request.BannerImage != null)
             form.BannerImage = request.BannerImage;
@@ -163,6 +174,9 @@ public class FormsController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Title))
             return BadRequest(new ApiResponse<object>(400, "Title is required"));
 
+        if (request.Description != null && !RichTextValidation.TryValidate(request.Description, out var descError))
+            return BadRequest(new ApiResponse<object>(400, descError ?? "Deskripsi tidak valid"));
+
         var user = await GetCurrentUser();
         if (user == null)
             return Unauthorized(new ApiResponse<object>(401, "User not found"));
@@ -177,6 +191,7 @@ public class FormsController : ControllerBase
             StatusId = draftStatus.Id,
             Title = request.Title,
             Description = request.Description,
+            DescriptionFormat = RichTextValidation.FormatOf(request.Description),
             BannerImage = request.BannerImage,
             FormLink = Guid.NewGuid().ToString("N")[..12],
             CreatedAt = JakartaTime.Now,
@@ -416,6 +431,7 @@ public class FormsController : ControllerBase
         Id = form.Id,
         Title = form.Title,
         Description = form.Description,
+        DescriptionFormat = form.DescriptionFormat ?? RichTextValidation.FormatOf(form.Description),
         BannerImage = form.BannerImage,
         FormLink = form.FormLink,
         Status = form.Status?.Status ?? "unknown",

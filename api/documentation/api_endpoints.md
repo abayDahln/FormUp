@@ -431,11 +431,12 @@ Butuh JWT. Dipakai builder form untuk mengisi dropdown tipe/status.
 
 **Headers:** `Authorization: Bearer <token>`
 
-**Request:**
+**Request:** `description` bisa plain text atau Delta JSON (Quill) untuk teks berformat (bold/italic/warna/alignment, dsb). `descriptionFormat` bersifat opsional — API mendeteksi otomatis (`delta`/`text`); bila diisi akan dipakai.
 ```json
 {
   "title": "Survey Kepuasan",
-  "description": "Form survey untuk mengukur kepuasan pelanggan"
+  "description": "Form survey untuk mengukur kepuasan pelanggan",
+  "descriptionFormat": "text"
 }
 ```
 
@@ -448,6 +449,7 @@ Butuh JWT. Dipakai builder form untuk mengisi dropdown tipe/status.
     "id": 1,
     "title": "Survey Kepuasan",
     "description": "Form survey untuk mengukur kepuasan pelanggan",
+    "descriptionFormat": "text",
     "bannerImage": null,
     "formLink": "abc123def",
     "status": "draft",
@@ -457,6 +459,17 @@ Butuh JWT. Dipakai builder form untuk mengisi dropdown tipe/status.
   }
 }
 ```
+
+**Contoh deskripsi berformat (Delta JSON):**
+```json
+{
+  "title": "Survey Kepuasan",
+  "description": "[{\"insert\":\"Form survey \",\"attributes\":{\"bold\":true}},{\"insert\":\"kepuasan pelanggan\",\"attributes\":{\"color\":\"#C0392B\"}},{\"insert\":\"\\n\"}]"
+}
+```
+`descriptionFormat` pada respons akan bernilai `delta`.
+
+> **Validasi rich text:** jika `description` diawali `[` maka harus berupa Delta JSON yang valid, jika tidak API menolak dengan `400`.
 
 ---
 
@@ -492,6 +505,7 @@ Butuh JWT. Dipakai builder form untuk mengisi dropdown tipe/status.
     "id": 1,
     "title": "Survey Kepuasan",
     "description": "...",
+    "descriptionFormat": "text",
     "bannerImage": null,
     "formLink": "abc123def",
     "status": "draft",
@@ -525,9 +539,11 @@ Butuh JWT. Dipakai builder form untuk mengisi dropdown tipe/status.
 {
   "title": "Judul Baru",
   "description": "Deskripsi baru",
+  "descriptionFormat": "text",
   "formLink": "survey-kepuasan-mahasiswa-2024"
 }
 ```
+`descriptionFormat` opsional (dideteksi otomatis dari isi bila tidak dikirim). `description` yang diawali `[` harus berupa Delta JSON valid, jika tidak → `400`.
 
 **Response 200:**
 ```json
@@ -720,6 +736,7 @@ Balas meta + requirement form, **tanpa soal**.
     "id": 1,
     "title": "Survey Kepuasan",
     "description": "...",
+    "descriptionFormat": "text",
     "bannerImage": null,
     "requiresToken": false,
     "requiresLogin": false,
@@ -770,6 +787,7 @@ Kirim JSON `{ token?, name? }`:
         "id": 1,
         "typeId": 2,
         "question": "Apa warna langit?",
+        "questionFormat": "text",
         "questionOrder": 1,
         "isRequired": true,
         "correctAnswer": null,
@@ -847,6 +865,7 @@ Akses:
       {
         "questionId": 1,
         "question": "2+2 berapa?",
+        "questionFormat": "text",
         "typeId": 1,
         "answerText": "4",
         "correctAnswer": "4",
@@ -882,6 +901,7 @@ Akses:
       "formId": 1,
       "typeId": 1,
       "question": "Apa pendapat Anda?",
+      "questionFormat": "text",
       "questionOrder": 1,
       "isRequired": true,
       "options": [
@@ -904,7 +924,7 @@ Akses:
 
 Buat soal + opsi sekaligus dalam 1 request.
 
-**Request:**
+**Request:** `question` bisa plain text atau Delta JSON (Quill) untuk teks berformat. `questionFormat` opsional (dideteksi otomatis dari isi). Soal yang diawali `[` harus Delta JSON valid, jika tidak → `400`.
 ```json
 {
   "questions": [
@@ -927,6 +947,16 @@ Buat soal + opsi sekaligus dalam 1 request.
 }
 ```
 
+**Contoh pertanyaan berformat (Delta JSON):**
+```json
+{
+  "typeId": 1,
+  "question": "[{\"insert\":\"Apa warna \",\"attributes\":{\"italic\":true}},{\"insert\":\"langit\",\"attributes\":{\"bold\":true}},{\"insert\":\"?\\n\"}]",
+  "isRequired": true
+}
+```
+Pada respons, `questionFormat` akan bernilai `delta`.
+
 **Response 201:** Array questions dengan ID masing-masing.
 
 ---
@@ -944,7 +974,7 @@ Update soal **in-place** (bukan replace-all lagi). Setiap item boleh membawa `id
 
 Opsi selalu diganti utuh per soal (hapus lama, buat ulang dari `options`).
 
-**Request:**
+**Request:** `questionFormat` opsional (dideteksi otomatis dari isi); `question` diawali `[` harus Delta JSON valid, jika tidak → `400`.
 ```json
 {
   "questions": [
@@ -952,6 +982,7 @@ Opsi selalu diganti utuh per soal (hapus lama, buat ulang dari `options`).
       "id": 1,
       "typeId": 1,
       "question": "Apa warna langit? (diubah)",
+      "questionFormat": "text",
       "isRequired": true,
       "options": [
         { "optionText": "Biru", "isCorrect": true },
@@ -1209,6 +1240,7 @@ Untuk pilihan ganda: kirim `optionId`. Untuk text: kirim `answerValue`.
       {
         "questionId": 1,
         "question": "Apa warna langit?",
+        "questionFormat": "text",
         "typeId": 1,
         "optionId": 2,
         "optionText": "Biru",
@@ -1217,6 +1249,7 @@ Untuk pilihan ganda: kirim `optionId`. Untuk text: kirim `answerValue`.
       {
         "questionId": 2,
         "question": "Komentar",
+        "questionFormat": "text",
         "typeId": 4,
         "optionId": null,
         "optionText": null,
@@ -1577,6 +1610,7 @@ Menampilkan semua form dari semua user (termasuk yang sudah dihapus).
     "id": 1,
     "title": "Survey Kepuasan",
     "description": "...",
+    "descriptionFormat": "text",
     "bannerImage": null,
     "formLink": "abc123",
     "status": "published",
@@ -1685,6 +1719,7 @@ Menampilkan statistik lengkap form: total responden, skor tiap responden, rata-r
           {
             "questionId": 1,
             "question": "Apa warna langit?",
+            "questionFormat": "text",
             "typeId": 1,
             "answerText": "Biru",
             "correctAnswer": "Biru",
@@ -1693,6 +1728,7 @@ Menampilkan statistik lengkap form: total responden, skor tiap responden, rata-r
           {
             "questionId": 2,
             "question": "2+2 berapa?",
+            "questionFormat": "text",
             "typeId": 3,
             "answerText": "5",
             "correctAnswer": "4",
@@ -1701,6 +1737,7 @@ Menampilkan statistik lengkap form: total responden, skor tiap responden, rata-r
           {
             "questionId": 3,
             "question": "Komentar",
+            "questionFormat": "text",
             "typeId": 4,
             "answerText": "Bagus",
             "correctAnswer": null,

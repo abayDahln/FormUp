@@ -93,12 +93,16 @@ public class QuestionsController : ControllerBase
                 if (string.IsNullOrWhiteSpace(item.Question))
                     continue;
 
+                if (!RichTextValidation.TryValidate(item.Question, out var formatError))
+                    return BadRequest(new ApiResponse<object>(400, formatError ?? "Konten pertanyaan tidak valid"));
+
                 maxOrder++;
                 var question = new Question
                 {
                     FormId = formId,
                     TypeId = item.TypeId,
                     Question1 = item.Question,
+                    QuestionFormat = RichTextValidation.FormatOf(item.Question),
                     QuestionOrder = item.QuestionOrder ?? maxOrder,
                     QuestionImage = item.QuestionImage,
                     QuestionAudio = item.QuestionAudio,
@@ -196,12 +200,16 @@ public class QuestionsController : ControllerBase
                 if (string.IsNullOrWhiteSpace(item.Question))
                     continue;
 
+                if (!RichTextValidation.TryValidate(item.Question, out var formatError))
+                    return BadRequest(new ApiResponse<object>(400, formatError ?? "Konten pertanyaan tidak valid"));
+
                 Question question;
                 if (item.Id.HasValue && existingById.TryGetValue(item.Id.Value, out var existing))
                 {
                     question = existing;
                     question.TypeId = item.TypeId;
                     question.Question1 = item.Question;
+                    question.QuestionFormat = RichTextValidation.FormatOf(item.Question);
                     question.QuestionOrder = item.QuestionOrder ?? question.QuestionOrder;
                     question.QuestionImage = item.QuestionImage;
                     question.QuestionAudio = item.QuestionAudio;
@@ -217,6 +225,7 @@ public class QuestionsController : ControllerBase
                         FormId = formId,
                         TypeId = item.TypeId,
                         Question1 = item.Question,
+                        QuestionFormat = RichTextValidation.FormatOf(item.Question),
                         QuestionOrder = item.QuestionOrder ?? ++nextOrder,
                         QuestionImage = item.QuestionImage,
                         QuestionAudio = item.QuestionAudio,
@@ -421,6 +430,7 @@ public class QuestionsController : ControllerBase
                     FormId = formId,
                     TypeId = row.TypeId,
                     Question1 = row.Question,
+                    QuestionFormat = RichTextValidation.Text,
                     QuestionOrder = row.Order ?? ++maxOrder,
                     IsRequired = row.IsRequired,
                     CorrectAnswer = row.CorrectAnswer,
@@ -607,6 +617,7 @@ public class QuestionsController : ControllerBase
         FormId = q.FormId,
         TypeId = q.TypeId,
         Question = q.Question1,
+        QuestionFormat = q.QuestionFormat ?? RichTextValidation.FormatOf(q.Question1),
         QuestionOrder = q.QuestionOrder,
         QuestionImage = q.QuestionImage,
         QuestionAudio = q.QuestionAudio,
