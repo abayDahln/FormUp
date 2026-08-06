@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'otp_screen.dart';
-import 'widgets/auth_widgets.dart';
-import '../../services/auth_service.dart';
+import 'auth_widgets.dart';
+import '../services/auth_service.dart';
+import '../app_router.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -35,10 +35,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     try {
       await AuthService.forgotPassword(email);
       if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => OtpScreen(email: email)),
-      );
+      AppRouter.of(context).push(AppPage.otp, {'email': email});
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
@@ -65,7 +62,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const AuthTitle(
-                          title: "Forgot Password",
+                          title: "Lupa Kata Sandi",
                           subtitle:
                               "Masukkan email yang terdaftar.\nKami akan mengirimkan kode OTP ke email Anda.",
                         ),
@@ -82,7 +79,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               ),
                               const SizedBox(height: 22),
                               AuthPrimaryButton(
-                                label: "Send OTP",
+                                label: "Kirim OTP",
                                 pill: true,
                                 loading: _loading,
                                 onPressed: _sendOtp,
@@ -92,8 +89,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         ),
                         const SizedBox(height: 24),
                         AuthBottomPill(
-                          link: "Back to Login",
-                          onTap: () => Navigator.pop(context),
+                          link: "Kembali ke Masuk",
+                          onTap: () => AppRouter.of(context).pop(),
                         ),
                       ],
                     ),

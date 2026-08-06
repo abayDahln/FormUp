@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'otp_screen.dart';
-import 'widgets/auth_widgets.dart';
-import '../../services/auth_service.dart';
+import 'auth_widgets.dart';
+import '../services/auth_service.dart';
+import '../app_router.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -42,11 +42,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
     if (password.length < 8) {
-      showAuthToast(context, "Password minimal 8 karakter");
+      showAuthToast(context, "Kata sandi minimal 8 karakter");
       return;
     }
     if (password != confirm) {
-      showAuthToast(context, "Konfirmasi password tidak cocok");
+      showAuthToast(context, "Konfirmasi kata sandi tidak cocok");
       return;
     }
     if (!_accepted) {
@@ -62,12 +62,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: password,
       );
       if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              OtpScreen(email: email, fullname: fullname, password: password),
-        ),
+      AppRouter.of(context).push(
+        AppPage.otp,
+        {'email': email, 'fullname': fullname, 'password': password},
       );
     } catch (e) {
       if (!mounted) return;
@@ -95,7 +92,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const AuthTitle(
-                          title: "Register",
+                          title: "Daftar",
                           subtitle: "Buat akun baru untuk memulai",
                         ),
                         const SizedBox(height: 24),
@@ -105,7 +102,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             children: [
                               AuthTextField(
                                 controller: _fullnameController,
-                                hint: "Fullname",
+                                hint: "Nama Lengkap",
                                 icon: Icons.person_outline,
                               ),
                               const SizedBox(height: 17),
@@ -118,20 +115,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               const SizedBox(height: 17),
                               AuthTextField(
                                 controller: _passwordController,
-                                hint: "Password",
+                                hint: "Kata Sandi",
                                 icon: Icons.lock_outline,
                                 obscure: true,
                               ),
                               const SizedBox(height: 17),
                               AuthTextField(
                                 controller: _confirmController,
-                                hint: "Konfirmasi Password",
+                                hint: "Konfirmasi Kata Sandi",
                                 icon: Icons.lock_outline,
                                 obscure: true,
                               ),
                               const SizedBox(height: 16),
                               AuthPrimaryButton(
-                                label: "Sign up",
+                                label: "Daftar",
                                 loading: _loading,
                                 onPressed: _signUp,
                               ),
@@ -165,7 +162,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   const SizedBox(width: 10),
                                   const Expanded(
                                     child: Text(
-                                      "I agree to the Terms & Conditions",
+                                      "Saya menyetujui Syarat & Ketentuan",
                                       style: TextStyle(
                                         color: Colors.black54,
                                         fontSize: 12,
@@ -179,9 +176,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 24),
                         AuthBottomPill(
-                          question: "Already have an account? ",
-                          link: "Sign in",
-                          onTap: () => Navigator.pop(context),
+                          question: "Sudah punya akun? ",
+                          link: "Masuk",
+                          onTap: () => AppRouter.of(context).pop(),
                         ),
                       ],
                     ),

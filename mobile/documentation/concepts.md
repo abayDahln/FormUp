@@ -1,115 +1,138 @@
-# FormUp — Mobile (Flutter) — Keamanan & Stabilitas
+# FormUp — API (ASP.NET Core) — Keamanan & Stabilitas
 
-> Dokumen ini fokus ke konsep yang harus ada di sisi **mobile app**. Mobile punya karakteristik berbeda dari web: bukan berjalan di browser, tapi punya aksesnya sendiri ke penyimpanan aman milik sistem operasi, dan punya masalah khas seperti koneksi terputus-putus saat berpindah tempat, serta siklus hidup aplikasi (dibuka, di-minimize, ditutup paksa) yang perlu ditangani.
+> Dokumen ini fokus ke konsep yang harus ada di sisi **backend/API**. API adalah satu-satunya pintu masuk ke database, jadi ini lapisan paling kritis — kalau API bocor atau tidak stabil, web dan mobile ikut kena imbasnya.
 
 ---
 
-## 1. Penyimpanan Token & Sesi Login
+## 1. Autentikasi & Otorisasi
 
-**Kenapa penting:** Berbeda dengan browser, mobile app tidak punya mekanisme cookie otomatis. Tapi mobile app punya keuntungan lain: sistem operasi (Android/iOS) menyediakan penyimpanan terenkripsi khusus yang lebih aman dibanding penyimpanan biasa.
+**Kenapa penting:** API melayani dua jenis klien (web browser dan mobile app) yang punya karakteristik berbeda, plus ada dua jenis "pengguna" — form creator yang login, dan respondent publik yang sering kali tidak login sama sekali.
 
 **Konsep yang dibutuhkan:**
-- **Token yang berumur pendek** (dipakai tiap request) cukup disimpan di memory aplikasi (state management), sama seperti prinsip di web — supaya kalau aplikasi di-uninstall atau data aplikasi dihapus, token pendek ini otomatis hilang.
-- **Token yang berumur panjang** (untuk menjaga pengguna tetap login tanpa perlu memasukkan password berulang) harus disimpan lewat mekanisme penyimpanan aman bawaan sistem operasi — ini terenkripsi oleh OS dan terisolasi dari aplikasi lain, jauh lebih aman dibanding penyimpanan biasa yang bisa dibaca aplikasi lain di perangkat yang sama (pada perangkat yang sudah di-root/jailbreak).
-- **Logout harus benar-benar membersihkan** semua data sesi yang tersimpan di penyimpanan aman, tidak cukup hanya menghapus dari memory — supaya kalau perangkat dipakai bergantian, sesi pengguna sebelumnya benar-benar hilang.
+- **Access token berumur pendek** (hitungan menit) dan **refresh token berumur panjang** (hitungan hari/minggu) — supaya kalau access token bocor, dampaknya terbatas waktu.
+- **Cara penyimpanan refresh token harus dibedakan berdasarkan jenis klien**: browser mendukung cookie yang tidak bisa diakses JavaScript (lebih aman dari pencurian via script), sedangkan mobile app tidak punya mekanisme itu sehingga token dikirim di response body dan disimpan di secure storage milik OS.
+- **Refresh token harus bisa dicabut (revoke)** — misalnya saat user logout dari satu device, atau saat terdeteksi aktivitas mencurigakan. Ini butuh refresh token disimpan (dalam bentuk hash) di database, bukan cuma divalidasi lewat signature saja.
+- **Role-based authorization** — pembedaan hak akses form creator vs admin, supaya endpoint sensitif (misal hapus akun user lain) hanya bisa diakses role yang tepat.
+- **Endpoint publik untuk respondent** (mengisi & submit form) sengaja **tidak butuh login** — tapi tetap butuh proteksi lain (dibahas di bagian Perlindungan Form Publik).
 
 ---
 
-## 2. Identitas Klien di Setiap Permintaan
+## 2. Validasi Input (Lapisan Wajib, Tidak Bisa Diskip)
 
-**Kenapa penting:** Karena backend yang sama dipakai oleh web dan mobile, backend perlu tahu permintaan datang dari klien jenis apa untuk memperlakukan token dengan cara yang sesuai (dijelaskan di dokumen API).
+**Kenapa penting:** Validasi di frontend itu untuk kenyamanan pengguna (feedback instan), tapi **tidak bisa dipercaya** sebagai satu-satunya penjaga — siapa pun bisa memanggil API langsung tanpa lewat aplikasi web/mobile (misalnya lewat Postman atau script).
 
 **Konsep yang dibutuhkan:**
-- Setiap permintaan dari mobile app sebaiknya membawa penanda bahwa dia berasal dari mobile, bukan web — supaya backend tahu harus mengirim token lewat body response, bukan lewat cookie (yang memang tidak akan berfungsi untuk mobile).
+- Setiap data yang masuk dari luar (body request, query parameter, file upload) harus divalidasi ulang di backend, terlepas dari apa yang sudah divalidasi di sisi client.
+- Validasi mencakup: panjang teks maksimal, format yang diharapkan, tipe data yang sesuai, dan aturan bisnis (misalnya: pertanyaan tipe pilihan ganda wajib punya minimal dua opsi).
+- Pesan error validasi harus jelas dan terstruktur, supaya frontend bisa menampilkan pesan yang tepat ke pengguna tanpa harus menebak-nebak dari teks error mentah.
 
 ---
 
-## 3. Penanganan Koneksi Tidak Stabil
+## 3. Rate Limiting Bertingkat
 
-**Kenapa penting:** Ini tantangan paling khas di mobile dibanding web — pengguna mobile app sering berpindah tempat (dari WiFi ke data seluler, masuk gedung dengan sinyal lemah, dsb), jadi aplikasi harus tahan terhadap koneksi yang naik-turun.
+**Kenapa penting:** FormUp punya karakteristik unik — form-nya publik, artinya satu form bisa diakses ratusan/ribuan orang sekaligus (misalnya kuis yang dibagikan ke satu kelas). Kalau rate limiting dipukul rata untuk semua endpoint, ini bisa membuat pengguna legitimate ikut terblokir, atau sebaliknya, endpoint sensitif jadi rentan diserang.
 
 **Konsep yang dibutuhkan:**
-- Kegagalan request akibat jaringan sebaiknya dicoba ulang otomatis dengan jeda yang semakin lama tiap percobaan (bukan langsung dicoba ulang beruntun tanpa jeda, yang justru memperparah kondisi jaringan yang memang sedang buruk).
-- Sama seperti di web, percobaan ulang otomatis ini **hanya aman untuk aksi yang sekadar membaca data** — untuk aksi yang mengubah data (submit jawaban form) butuh mekanisme tambahan supaya tidak tersimpan dua kali (lihat konsep idempotency di dokumen API).
-- Aplikasi sebaiknya bisa mendeteksi kalau perangkat benar-benar tidak ada koneksi sama sekali (bukan cuma request gagal), dan menampilkan kondisi ini secara jelas ke pengguna, bukan menampilkan error yang membingungkan.
+- **Endpoint login/register** perlu batasan paling ketat, karena ini target utama serangan brute force.
+- **Endpoint manajemen form** (dipakai form creator yang sudah login) perlu batasan sedang — cukup untuk mencegah penyalahgunaan tanpa mengganggu alur kerja normal.
+- **Endpoint submit form publik** perlu batasan yang lebih longgar dan **berbasis kombinasi identitas** (bukan cuma alamat IP), karena banyak respondent bisa berasal dari jaringan yang sama (sekolah, kantor, WiFi publik). Kalau cuma dibatasi per-IP, orang-orang di jaringan yang sama akan saling memblokir satu sama lain.
 
 ---
 
-## 4. Penyimpanan Data Sementara/Offline
+## 4. Perlindungan Form Publik (Anti-Spam & Anti-Duplikasi)
 
-**Kenapa penting:** Mobile app hidup di lingkungan yang lebih sering online-offline dibanding aplikasi web biasa. Untuk FormUp, ini penting khususnya untuk kasus **mengisi form yang panjang** di lokasi dengan sinyal buruk.
+**Kenapa penting:** Ini konsep yang **unik untuk FormUp** dibanding aplikasi web/mobile pada umumnya, karena sifat form-nya publik dan bisa diisi tanpa login.
 
 **Konsep yang dibutuhkan:**
-- Progres pengisian form yang panjang sebaiknya disimpan di penyimpanan lokal perangkat secara berkala, supaya kalau aplikasi tertutup paksa (baterai habis, di-swipe dari recent apps, dll) atau koneksi terputus lama, jawaban yang sudah diisi tidak hilang begitu saja saat aplikasi dibuka kembali.
-- Data yang sering diakses tapi jarang berubah (misalnya daftar form milik pengguna, template) bisa disimpan sementara di perangkat, supaya aplikasi tetap bisa menampilkan sesuatu yang berguna bahkan saat koneksi sedang buruk, alih-alih menampilkan layar kosong.
-- Perlu strategi yang jelas kapan data lokal ini dianggap kedaluwarsa dan perlu disinkronkan ulang dengan server, supaya pengguna tidak melihat data yang sudah lama tidak update tanpa disadari.
+- **Deteksi submission ganda** — untuk form yang settingnya "satu respons per orang". Saat ini hanya berlaku untuk responden yang **login** (dilacak via `respondent_id`). Deteksi untuk responden anonim via fingerprint device/browser **belum dibuat** (ditunda — lihat `future_features.md`).
+- **Perlindungan dari bot otomatis** — **belum dibuat** (ditunda — lihat `future_features.md`). Ide: field tersembunyi yang hanya terisi oleh bot, atau verifikasi tanpa interaksi eksplisit.
+- **Validasi bahwa form masih aktif** — form yang sudah ditutup (`status: closed`), di-takedown, atau sudah melewati `close_form_time` menolak submission baru dengan pesan generik.
+- **Perlindungan penebakan link form** — kalau seseorang mencoba menebak-nebak link form yang tidak ada atau bersifat privat, pesan error harus generik (tidak boleh membedakan "form tidak ada" dengan "form ada tapi privat"), supaya tidak membantu orang lain menebak-nebak.
 
 ---
 
-## 5. Manajemen Siklus Hidup Aplikasi
+## 5. Mencegah Duplikasi Data akibat Retry Otomatis
 
-**Kenapa penting:** Aplikasi mobile bisa di-minimize, ditutup paksa oleh sistem karena kekurangan memori, atau dibuka kembali setelah lama tidak dipakai — ini beda dengan web yang biasanya "hidup" selama tab browser terbuka.
+**Kenapa penting:** Baik web maupun mobile mungkin melakukan retry otomatis saat request gagal karena koneksi tidak stabil. Kalau submission form ikut di-retry tanpa mekanisme pengaman, satu jawaban bisa tersimpan dua kali di database — padahal request pertama sebenarnya sudah berhasil, cuma responsnya yang tidak sampai ke client karena koneksi putus di tengah jalan.
+
+**Status: ditunda** — mekanisme idempotency-key belum dibuat (lihat `future_features.md`). Untuk MVP, double-submit akibat retry bisa dicegah sebagian lewat rate limiting per form+IP dan `one_response`.
+
+**Konsep yang dibutuhkan (saat implementasi nanti):**
+- Setiap aksi yang **mengubah data** (bukan sekadar membaca) dan berpotensi di-retry harus punya cara untuk mengenali "ini request yang sama yang dicoba lagi" versus "ini request baru yang berbeda". Dengan begitu, kalau ada percobaan kedua dari request yang identik, backend cukup mengembalikan hasil yang sudah ada sebelumnya, bukan memproses ulang dari nol.
+- Ini penting khususnya untuk submit response form, karena datanya tidak bisa dengan mudah "dibersihkan" duplikatnya secara manual setelah masuk database dalam jumlah besar.
+
+---
+
+## 6. Keamanan Unggah File
+
+**Kenapa penting:** FormUp punya beberapa fitur yang melibatkan file — gambar banner form, gambar pada pertanyaan, upload jawaban dari respondent, dan import pertanyaan lewat CSV/Excel. File upload adalah salah satu vektor serangan paling umum kalau tidak ditangani dengan hati-hati.
 
 **Konsep yang dibutuhkan:**
-- Saat aplikasi dibuka kembali setelah sekian lama, perlu ada pengecekan apakah sesi login masih valid, dan kalau token sudah kedaluwarsa, aplikasi harus otomatis mencoba memperbarui token sebelum menampilkan konten, bukan langsung menampilkan error atau memaksa login ulang tanpa alasan jelas.
-- Kalau ada proses yang sedang berjalan (misalnya sedang mengunggah file/gambar) saat aplikasi di-minimize, perlu dipikirkan apakah proses tersebut boleh lanjut di latar belakang atau harus dijeda dan dilanjutkan saat aplikasi dibuka kembali.
+- **Verifikasi jenis file berdasarkan isi file yang sebenarnya**, bukan cuma nama ekstensinya — karena nama file gampang dipalsukan (file berbahaya bisa diberi nama `gambar.jpg` padahal isinya bukan gambar).
+- **Batasan ukuran file** yang wajar sesuai kebutuhan (gambar tidak perlu sebesar file CSV data).
+- **Nama file yang disimpan di server harus di-generate ulang**, bukan memakai nama asli dari pengguna — untuk mencegah percobaan menembus struktur folder server lewat nama file yang aneh.
+- **File yang diunggah publik (lewat form) perlu perlakuan lebih hati-hati** dibanding file yang diunggah form creator yang sudah terverifikasi, karena siapa pun bisa mengunggahnya.
 
 ---
 
-## 6. Izin Akses Perangkat (Permissions)
+## 7. Format Respons yang Konsisten
 
-**Kenapa penting:** FormUp di mobile kemungkinan butuh beberapa akses ke fitur perangkat — misalnya kamera untuk memindai QR code form, atau akses penyimpanan untuk memilih file gambar/CSV saat membuat pertanyaan atau mengimpor soal.
+**Kenapa penting:** API ini dipakai oleh dua aplikasi klien berbeda (web dan mobile) yang dikembangkan terpisah. Kalau format respons tidak konsisten antar endpoint, setiap sisi klien harus menulis logic penanganan yang berbeda-beda untuk tiap endpoint — ini menambah kompleksitas dan potensi bug.
 
 **Konsep yang dibutuhkan:**
-- Setiap permintaan izin akses perangkat sebaiknya diminta **pada saat dibutuhkan** (misalnya izin kamera diminta saat pengguna menekan tombol "scan QR", bukan diminta semua sekaligus saat pertama buka aplikasi) — ini praktik yang lebih ramah pengguna dan sesuai pedoman platform modern.
-- Aplikasi harus menangani dengan baik kondisi saat pengguna **menolak** izin yang diminta — fitur yang butuh izin tersebut sebaiknya menampilkan penjelasan yang jelas kenapa izin dibutuhkan, bukan diam-diam gagal atau crash.
+- Semua endpoint sebaiknya mengembalikan struktur dasar yang sama untuk kasus sukses, kasus gagal (error), dan kasus data berhalaman (pagination) — sehingga web dan mobile bisa memakai satu logic pemrosesan respons yang seragam, bukan menulis parsing khusus per endpoint.
+- Penanganan error sebaiknya dipusatkan di satu tempat (bukan ditulis berulang di tiap endpoint), supaya semua error — baik yang terduga (validasi gagal) maupun tidak terduga (bug/exception) — tetap dikembalikan dalam format yang bisa diprediksi oleh klien.
 
 ---
 
-## 7. Keamanan Saat Aplikasi Berjalan di Perangkat yang Dimodifikasi
+## 8. Proteksi CORS
 
-**Kenapa penting:** Perangkat yang di-root (Android) atau di-jailbreak (iOS) punya risiko keamanan lebih tinggi — aplikasi lain di perangkat tersebut berpotensi bisa mengakses data yang seharusnya terisolasi.
-
-**Konsep yang dibutuhkan (tingkat kepentingannya tergantung sensitivitas data FormUp):**
-- Untuk aplikasi seperti FormUp yang tidak menyimpan data finansial langsung, deteksi root/jailbreak biasanya belum jadi prioritas tinggi di awal — tapi baik untuk mulai dipikirkan terutama kalau nanti ada fitur yang melibatkan data lebih sensitif (misalnya form yang mengumpulkan data pribadi/kesehatan).
-- Yang lebih mendesak: memastikan komunikasi antara aplikasi dan server selalu terenkripsi (lewat koneksi aman), supaya data tidak bisa disadap saat lewat jaringan, terlepas dari kondisi perangkat penggunanya.
-
----
-
-## 8. Pembaruan Aplikasi & Kompatibilitas Versi
-
-**Kenapa penting:** Berbeda dengan web (yang otomatis selalu memakai versi terbaru begitu pengguna membuka halaman), aplikasi mobile yang sudah terpasang di perangkat pengguna **tidak otomatis update** kecuali mereka memperbarui lewat app store. Ini artinya bisa ada banyak versi aplikasi yang berjalan bersamaan di dunia nyata.
+**Kenapa penting:** CORS adalah aturan yang dijalankan browser untuk mencegah situs web sembarangan memanggil API milikmu dari luar domain yang diizinkan. Ini **hanya relevan untuk web**, tidak berlaku untuk mobile app.
 
 **Konsep yang dibutuhkan:**
-- Backend yang berubah strukturnya (misalnya field baru yang wajib, atau field lama yang dihapus) berpotensi membuat aplikasi versi lama gagal berfungsi dengan baik, bahkan crash. Perlu dipastikan setiap perubahan yang berpotensi merusak kompatibilitas mundur dipikirkan dampaknya ke pengguna yang belum update aplikasinya.
-- Untuk perubahan yang benar-benar besar dan tidak bisa dihindari, aplikasi sebaiknya bisa mendeteksi kalau versinya sudah terlalu usang untuk berkomunikasi dengan backend, dan memberi tahu pengguna untuk memperbarui aplikasi, alih-alih menampilkan error yang membingungkan.
+- Daftar domain yang diizinkan harus eksplisit disebutkan satu per satu (domain development dan domain production berbeda), bukan mengizinkan semua domain secara serampangan.
+- Kalau API memakai cookie untuk autentikasi web, aturan CORS harus dikonfigurasi agar cookie ikut terkirim — tapi ini punya konsekuensi: domain yang diizinkan **tidak boleh** memakai aturan "izinkan semua", harus benar-benar spesifik disebut satu-satu.
 
 ---
 
-## 9. Notifikasi & Update Real-Time (Fase Lanjut)
+## 9. Performa & Ketahanan (Resilience)
 
-**Kenapa penting:** Salah satu fitur yang direncanakan FormUp adalah pemberitahuan saat ada respons baru masuk ke form. Ini bisa dirasakan langsung di mobile lewat notifikasi.
+**Kenapa penting:** API yang lambat atau gampang crash saat traffic naik akan membuat pengalaman pengguna buruk, terutama saat form sedang ramai diisi banyak orang bersamaan.
 
-**Konsep yang dibutuhkan (belum prioritas di awal):**
-- Ini butuh infrastruktur tambahan yang cukup kompleks (koneksi yang tetap terjaga antara aplikasi dan server, atau lewat layanan notifikasi push dari platform seperti Firebase). Baik dipikirkan strukturnya dari awal, tapi implementasi penuhnya wajar untuk ditunda sampai fitur inti (pembuatan form, pengisian, pengumpulan respons) sudah stabil terlebih dahulu.
+**Konsep yang dibutuhkan:**
+- **Query yang mahal (butuh waktu lama) sebaiknya bisa dibatalkan** kalau client sudah tidak butuh hasilnya lagi (misalnya pengguna berpindah halaman sebelum data selesai dimuat) — supaya server tidak buang-buang resource memproses sesuatu yang hasilnya tidak akan dipakai.
+- **Cache hanya untuk data yang aman dibagikan ke banyak orang** (misalnya metadata form publik yang jarang berubah) — data yang sifatnya personal atau berubah cepat (misalnya daftar respons) tidak boleh ikut ter-cache, karena bisa menyebabkan satu pengguna melihat data milik pengguna lain.
+- **Proses berat sebaiknya dikerjakan di latar belakang (background job)**, bukan diproses langsung dalam satu request-response — contohnya import ratusan pertanyaan dari CSV. Kalau diproses langsung, request akan timeout kalau datanya banyak, dan pengguna tidak bisa melakukan hal lain sambil menunggu.
+- **Pemanggilan ke layanan eksternal** (kalau ada, misalnya layanan pengiriman email) sebaiknya punya mekanisme percobaan ulang otomatis yang wajar, plus mekanisme untuk "berhenti mencoba sementara" kalau layanan eksternal tersebut memang sedang bermasalah — supaya tidak terus-menerus membebani sistem yang sedang down.
+
+---
+
+## 10. Pencatatan Aktivitas (Audit) — Bertahap
+
+**Kenapa penting:** Untuk investigasi kalau terjadi masalah (data hilang, akun disalahgunakan) dan untuk kepatuhan terhadap ekspektasi privasi pengguna.
+
+**Konsep yang dibutuhkan (bisa ditunda ke fase lanjut):**
+- Aktivitas sensitif seperti login, penghapusan form, atau ekspor data respons sebaiknya tercatat siapa yang melakukan dan kapan — ini beda dengan "logging teknis" biasa (yang mencatat error/debug), ini lebih ke jejak audit untuk keperluan investigasi manual.
+- Logging infrastruktur yang lebih lengkap (pencatatan terstruktur untuk debugging produksi) memang belum krusial di tahap awal pembuatan, tapi audit trail dasar untuk aksi-aksi sensitif tetap baik untuk mulai dipikirkan sejak awal karena lebih sulit ditambahkan belakangan setelah data sudah banyak.
 
 ---
 
 ## Ringkasan Prioritas
 
 ### Wajib ada sebelum fitur inti berjalan
-- Penyimpanan token panjang lewat penyimpanan aman bawaan OS, bukan penyimpanan biasa
-- Penanda jenis klien di setiap permintaan ke backend
-- Penanganan dasar untuk koneksi terputus (deteksi offline, pesan jelas ke pengguna)
-- Permintaan izin akses perangkat yang kontekstual dan sopan
+- Autentikasi dengan access & refresh token yang perlakuannya dibedakan sesuai jenis klien
+- Validasi input di backend untuk semua endpoint
+- Rate limiting minimal untuk endpoint login dan submit form publik
+- Verifikasi file upload berdasarkan isi file, bukan nama
+- Format respons API yang konsisten
 
 ### Penting, menyusul segera setelah fitur inti berjalan
-- Penyimpanan progres form panjang secara lokal (auto-save)
-- Retry otomatis yang aman (dengan jeda bertahap, dan hanya untuk aksi yang aman diulang)
-- Penanganan siklus hidup aplikasi (refresh sesi saat dibuka kembali setelah lama)
-- Strategi deteksi versi aplikasi usang
+- Mekanisme cegah duplikasi data akibat retry
+- Perlindungan form publik dari bot & submission ganda
+- Konfigurasi CORS yang benar dan spesifik
+- Background job untuk proses berat (seperti import CSV)
 
 ### Bisa menyusul di fase lanjut
-- Notifikasi push untuk respons baru
-- Deteksi perangkat yang dimodifikasi (root/jailbreak)
-- Optimasi lanjutan untuk penyimpanan offline yang lebih kompleks
+- Audit trail lengkap untuk semua aksi sensitif
+- Circuit breaker untuk layanan eksternal
+- Cache invalidation yang lebih canggih

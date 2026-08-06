@@ -76,6 +76,11 @@ class AuthService {
   // restart app (JWT berlaku 7 hari).
   static String? token;
 
+  static String? _email;
+
+  /// Email user yang sedang login (dari sesi tersimpan / hasil login).
+  static String? get email => _email;
+
   static const _kToken = 'auth_token';
   static const _kFullname = 'auth_fullname';
   static const _kUsername = 'auth_username';
@@ -83,6 +88,7 @@ class AuthService {
 
   static Future<void> _persistSession(AuthResult result) async {
     token = result.token;
+    _email = result.email;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kToken, result.token);
     await prefs.setString(_kFullname, result.fullname);
@@ -96,6 +102,7 @@ class AuthService {
     final savedToken = prefs.getString(_kToken);
     if (savedToken == null || savedToken.isEmpty) return null;
     token = savedToken;
+    _email = prefs.getString(_kEmail) ?? '';
     return AuthResult(
       token: savedToken,
       fullname: prefs.getString(_kFullname) ?? '',
@@ -125,8 +132,9 @@ class AuthService {
     return json;
   }
 
-  /// POST dengan timeout + retry saat koneksi tidak stabil.
+  /// HTTP dengan timeout + retry saat koneksi tidak stabil.
   static Future<http.Response> _request(
+    String method,
     String path,
     Map<String, dynamic>? body,
     Map<String, String> headers,
@@ -134,13 +142,14 @@ class AuthService {
     var attempt = 0;
     while (true) {
       try {
-        return await http
-            .post(
-              Uri.parse('$apiBaseUrl$path'),
-              headers: headers,
-              body: body == null ? null : jsonEncode(body),
-            )
-            .timeout(_timeout);
+        final request = http.Request(method, Uri.parse('$apiBaseUrl$path'));
+        request.headers.addAll(headers);
+        if (body != null) {
+          request.headers['Content-Type'] = 'application/json; charset=UTF-8';
+          request.body = jsonEncode(body);
+        }
+        final streamed = await request.send().timeout(_timeout);
+        return await http.Response.fromStream(streamed);
       } on TimeoutException {
         if (attempt >= _maxRetries) {
           throw const ApiException(
@@ -159,22 +168,23 @@ class AuthService {
     }
   }
 
-  static Future<Map<String, dynamic>> _post(
+  static Future<Map<String, dynamic>> _send(
+    String method,
     String path,
-    Map<String, dynamic> body, {
+    Map<String, dynamic>? body, {
     bool auth = false,
   }) async {
-    final headers = {'Content-Type': 'application/json; charset=UTF-8'};
+    final headers = <String, String>{};
     if (auth && token != null) headers['Authorization'] = 'Bearer $token';
 
-    var response = await _request(path, body, headers);
+    var response = await _request(method, path, body, headers);
 
     if (auth &&
         response.statusCode == 401 &&
         response.headers['token-expired'] == 'true') {
       if (await _refresh()) {
         headers['Authorization'] = 'Bearer $token';
-        response = await _request(path, body, headers);
+        response = await _request(method, path, body, headers);
       }
     }
     return _decode(response);
@@ -184,7 +194,7 @@ class AuthService {
   static Future<bool> _refresh() async {
     if (token == null) return false;
     try {
-      final response = await _request('/auth/refresh', null, {
+      final response = await _request('POST', '/auth/refresh', null, {
         'Authorization': 'Bearer $token',
       });
       final json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -200,7 +210,7 @@ class AuthService {
 
   static Future<AuthResult> login(String email, String password) async {
     _RateLimiter.check('/auth/login');
-    final json = await _post('/auth/login', {
+    final json = await _send('POST', '/auth/login', {
       'email': email,
       'password': password,
     });
@@ -216,7 +226,7 @@ class AuthService {
     required String password,
   }) async {
     _RateLimiter.check('/auth/register');
-    final json = await _post('/auth/register', {
+    final json = await _send('POST', '/auth/register', {
       'fullname': fullname,
       'username': username,
       'email': email,
@@ -233,7 +243,7 @@ class AuthService {
     required String otp,
   }) async {
     _RateLimiter.check('/auth/verify-registration');
-    final json = await _post('/auth/verify-registration', {
+    final json = await _send('POST', '/auth/verify-registration', {
       'fullname': fullname,
       'username': username,
       'email': email,
@@ -247,7 +257,7 @@ class AuthService {
 
   static Future<String> forgotPassword(String email) async {
     _RateLimiter.check('/auth/forgot-password');
-    final json = await _post('/auth/forgot-password', {'email': email});
+    final json = await _send('POST', '/auth/forgot-password', {'email': email});
     return json['message'] as String? ?? 'OTP telah dikirim';
   }
 
@@ -257,7 +267,7 @@ class AuthService {
     required String newPassword,
   }) async {
     _RateLimiter.check('/auth/reset-password');
-    final json = await _post('/auth/reset-password', {
+    final json = await _send('POST', '/auth/reset-password', {
       'email': email,
       'otp': otp,
       'newPassword': newPassword,
@@ -265,9 +275,28 @@ class AuthService {
     return json['message'] as String? ?? 'Password berhasil direset';
   }
 
+  /// POST /users/change-password — ganti password akun yang sedang login.
+  static Future<String> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    _RateLimiter.check('/users/change-password');
+    final json = await _send(
+      'POST',
+      '/users/change-password',
+      {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      },
+      auth: true,
+    );
+    return json['message'] as String? ?? 'Password berhasil diubah';
+  }
+
   /// Logout di sisi client — bersihkan token (backend tidak punya endpoint logout).
   static Future<void> logout() async {
     token = null;
+    _email = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kToken);
     await prefs.remove(_kFullname);
@@ -280,5 +309,25 @@ class AuthService {
   static Future<Map<String, dynamic>> post(
     String path,
     Map<String, dynamic> body,
-  ) => _post(path, body, auth: true);
+  ) => _send('POST', path, body, auth: true);
+
+  /// GET generik ber-auth (forms, questions, profile, dsb).
+  static Future<Map<String, dynamic>> get(String path) =>
+      _send('GET', path, null, auth: true);
+
+  /// PUT generik ber-auth (update form, questions, dsb).
+  static Future<Map<String, dynamic>> put(
+    String path,
+    Map<String, dynamic> body,
+  ) => _send('PUT', path, body, auth: true);
+
+  /// PATCH generik ber-auth (update settings, dsb).
+  static Future<Map<String, dynamic>> patch(
+    String path,
+    Map<String, dynamic> body,
+  ) => _send('PATCH', path, body, auth: true);
+
+  /// DELETE generik ber-auth.
+  static Future<Map<String, dynamic>> delete(String path) =>
+      _send('DELETE', path, null, auth: true);
 }

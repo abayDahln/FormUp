@@ -1,57 +1,60 @@
 import 'package:flutter/material.dart';
-import 'widgets/auth_widgets.dart';
-import '../../services/auth_service.dart';
+import 'auth_widgets.dart';
+import '../services/auth_service.dart';
+import '../app_router.dart';
 
-class ResetPasswordScreen extends StatefulWidget {
-  final String email;
-  final String otp;
-
-  const ResetPasswordScreen({
-    super.key,
-    required this.email,
-    required this.otp,
-  });
+class ChangePasswordScreen extends StatefulWidget {
+  const ChangePasswordScreen({super.key});
 
   @override
-  State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
+  State<ChangePasswordScreen> createState() => _ChangePasswordScreenState();
 }
 
-class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
-  final TextEditingController _newPasswordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
+class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
+  final TextEditingController _currentController = TextEditingController();
+  final TextEditingController _newController = TextEditingController();
+  final TextEditingController _confirmController = TextEditingController();
   bool _loading = false;
 
   @override
   void dispose() {
-    _newPasswordController.dispose();
-    _confirmPasswordController.dispose();
+    _currentController.dispose();
+    _newController.dispose();
+    _confirmController.dispose();
     super.dispose();
   }
 
-  Future<void> _resetPassword() async {
-    final newPassword = _newPasswordController.text;
-    final confirmPassword = _confirmPasswordController.text;
+  Future<void> _save() async {
+    final current = _currentController.text;
+    final newPassword = _newController.text;
+    final confirm = _confirmController.text;
 
-    if (newPassword.length < 8) {
-      showAuthToast(context, "Password minimal 8 karakter");
+    if (current.isEmpty || newPassword.isEmpty || confirm.isEmpty) {
+      showAuthToast(context, 'Semua field wajib diisi');
       return;
     }
-    if (newPassword != confirmPassword) {
-      showAuthToast(context, "Konfirmasi password tidak cocok");
+    if (newPassword.length < 8) {
+      showAuthToast(context, 'Kata sandi baru minimal 8 karakter');
+      return;
+    }
+    if (newPassword == current) {
+      showAuthToast(context, 'Kata sandi baru tidak boleh sama dengan yang lama');
+      return;
+    }
+    if (newPassword != confirm) {
+      showAuthToast(context, 'Konfirmasi kata sandi tidak cocok');
       return;
     }
 
     setState(() => _loading = true);
     try {
-      await AuthService.resetPassword(
-        email: widget.email,
-        otp: widget.otp,
+      await AuthService.changePassword(
+        currentPassword: current,
         newPassword: newPassword,
       );
       if (!mounted) return;
-      showAuthToast(context, "Password berhasil direset, silakan login");
-      Navigator.popUntil(context, (route) => route.isFirst);
+      showAuthToast(context, 'Kata sandi berhasil diubah');
+      AppRouter.of(context).pop();
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
@@ -78,9 +81,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const AuthTitle(
-                          title: "Reset Password",
-                          subtitle:
-                              "Buat password baru untuk akun Anda.\nMinimal 8 karakter.",
+                          title: "Ubah Kata Sandi",
+                          subtitle: "Masukkan kata sandi saat ini dan kata sandi baru Anda.",
                         ),
                         const SizedBox(height: 40),
                         AuthCard(
@@ -88,15 +90,22 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               AuthTextField(
-                                controller: _newPasswordController,
-                                hint: "Password Baru",
+                                controller: _currentController,
+                                hint: "Kata Sandi Saat Ini",
                                 icon: Icons.lock_outline,
                                 obscure: true,
                               ),
                               const SizedBox(height: 17),
                               AuthTextField(
-                                controller: _confirmPasswordController,
-                                hint: "Konfirmasi Password",
+                                controller: _newController,
+                                hint: "Kata Sandi Baru",
+                                icon: Icons.lock_reset,
+                                obscure: true,
+                              ),
+                              const SizedBox(height: 17),
+                              AuthTextField(
+                                controller: _confirmController,
+                                hint: "Konfirmasi Kata Sandi Baru",
                                 icon: Icons.lock_outline,
                                 obscure: true,
                               ),
@@ -111,7 +120,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                   SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
-                                      "Password minimal 8 karakter, kombinasi huruf dan angka.",
+                                      "Kata sandi baru minimal 8 karakter, kombinasi huruf dan angka.",
                                       style: TextStyle(
                                         color: kAuthHint,
                                         fontSize: 12,
@@ -122,21 +131,18 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                               ),
                               const SizedBox(height: 16),
                               AuthPrimaryButton(
-                                label: "Reset Password",
+                                label: "Simpan",
                                 pill: true,
                                 loading: _loading,
-                                onPressed: _resetPassword,
+                                onPressed: _save,
                               ),
                             ],
                           ),
                         ),
                         const SizedBox(height: 24),
                         AuthBottomPill(
-                          link: "Back to Login",
-                          onTap: () => Navigator.popUntil(
-                            context,
-                            (route) => route.isFirst,
-                          ),
+                          link: "Kembali ke Profil",
+                          onTap: () => AppRouter.of(context).pop(),
                         ),
                       ],
                     ),
@@ -150,3 +156,4 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     );
   }
 }
+

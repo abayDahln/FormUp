@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'app_router.dart';
 import 'services/auth_service.dart';
-import 'views/auth/home_screen.dart';
-import 'views/auth/login_screen.dart';
+import 'views/auth_widgets.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -10,30 +10,42 @@ void main() async {
   await dotenv.load(fileName: '.env', isOptional: true);
   // Restore sesi agar user tidak login ulang tiap buka app (JWT berlaku 7 hari).
   final session = await AuthService.restoreSession();
-  runApp(MyApp(initialUser: session));
+  final isLoggedIn = session != null;
+
+  final delegate = AppRouterDelegate(
+    initial: isLoggedIn ? AppPage.home : AppPage.login,
+  );
+  if (isLoggedIn) {
+    final name = session.fullname.isNotEmpty ? session.fullname : session.username;
+    delegate.setUsername(name);
+  }
+
+  runApp(MyApp(delegate: delegate));
 }
 
 class MyApp extends StatelessWidget {
-  final AuthResult? initialUser;
+  final AppRouterDelegate delegate;
 
-  const MyApp({super.key, this.initialUser});
+  const MyApp({super.key, required this.delegate});
 
   @override
   Widget build(BuildContext context) {
-    final displayName = initialUser != null && initialUser!.fullname.isNotEmpty
-        ? initialUser!.fullname
-        : initialUser?.username;
-    return MaterialApp(
-      title: 'Form Up',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2A9D8F)),
-        useMaterial3: true,
-        fontFamily: 'Inter',
+    // AppRouter (inherited) membungkus MaterialApp agar semua screen bisa
+    // mengakses RouterDelegate via AppRouter.of(context) (Navigation 3).
+    return AppRouter(
+      delegate: delegate,
+      child: MaterialApp.router(
+        title: 'Form Up',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: kPrimary),
+          useMaterial3: true,
+          fontFamily: 'Inter',
+        ),
+        routerDelegate: delegate,
+        routeInformationParser: AppRouteParser(),
       ),
-      home: initialUser == null
-          ? const LoginScreen()
-          : HomeScreen(username: displayName ?? ''),
     );
   }
 }
+

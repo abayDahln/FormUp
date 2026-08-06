@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'home_screen.dart';
-import 'reset_password_screen.dart';
-import 'widgets/auth_widgets.dart';
-import '../../services/auth_service.dart';
+import 'auth_widgets.dart';
+import '../services/auth_service.dart';
+import '../app_router.dart';
 
 class OtpScreen extends StatefulWidget {
   final String email;
@@ -75,25 +74,15 @@ class _OtpScreenState extends State<OtpScreen> {
           otp: otp,
         );
         if (!mounted) return;
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => HomeScreen(
-              username: result.fullname.isEmpty
-                  ? result.username
-                  : result.fullname,
-            ),
-          ),
-          (route) => false,
-        );
+        final displayName = result.fullname.isEmpty
+            ? result.username
+            : result.fullname;
+        AppRouter.of(context).goHome(displayName);
       } else {
         if (!mounted) return;
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                ResetPasswordScreen(email: widget.email, otp: otp),
-          ),
+        AppRouter.of(context).push(
+          AppPage.resetPassword,
+          {'email': widget.email, 'otp': otp},
         );
       }
     } catch (e) {
@@ -146,7 +135,7 @@ class _OtpScreenState extends State<OtpScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const AuthTitle(
-                          title: "Verification",
+                          title: "Verifikasi",
                           subtitle: "Verifikasi email Anda",
                         ),
                         const SizedBox(height: 40),
@@ -186,7 +175,7 @@ class _OtpScreenState extends State<OtpScreen> {
                               ),
                               const SizedBox(height: 28),
                               AuthPrimaryButton(
-                                label: "Verify",
+                                label: "Verifikasi",
                                 pill: true,
                                 loading: _loading,
                                 onPressed: _verify,
@@ -196,11 +185,9 @@ class _OtpScreenState extends State<OtpScreen> {
                         ),
                         const SizedBox(height: 24),
                         AuthBottomPill(
-                          link: "Back to Login",
-                          onTap: () => Navigator.popUntil(
-                            context,
-                            (route) => route.isFirst,
-                          ),
+                          link: "Kembali ke Masuk",
+                          onTap: () =>
+                              AppRouter.of(context).resetToLogin(),
                         ),
                       ],
                     ),

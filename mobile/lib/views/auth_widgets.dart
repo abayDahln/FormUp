@@ -1,14 +1,37 @@
 import 'package:flutter/material.dart';
 
-// Warna dari ui_screen/*.svg
-const kAuthBg = Color(0xFFE1F9F4);
-const kAuthPrimary = Color(0xFF018081);
+// ===== Design system FormUp (satu sumber kebenaran, dipakai semua screen) =====
+const kBg = Color(0xFFE2F3F2); // latar utama app & auth
+const kPrimary = Color(0xFF2A9D8F); // warna aksen (sesuai theme seed)
+const kRadius = 20.0; // radius kartu seragam
+const kBorderColor = Color(0x1FBDC9C8); // border kartu lembut
+const kPrimarySoft = Color(0xFFE2F3F2); // latar ikon / chip aksen
+
+// Alias lama agar screen auth yang sudah ada tetap bekerja dengan nilai baru.
+const kAuthBg = kBg;
+const kAuthPrimary = kPrimary;
 const kAuthText = Color(0xFF6E7979);
 const kAuthFieldFill = Color(0xFFF0F4F4);
 const kAuthHint = Color(0xFF4A6363);
 
 // Font: Inter untuk teks biasa, Plus Jakarta Sans untuk teks tebal.
 const kFontBold = 'PlusJakartaSans';
+
+/// Bayangan kartu seragam — dipakai di kartu auth maupun screen lain agar
+/// look-and-feel shadow konsisten di seluruh aplikasi.
+List<BoxShadow> softShadow({
+  double alpha = 0.05,
+  Offset offset = const Offset(0, 4),
+  double blur = 12,
+}) {
+  return [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: alpha),
+      blurRadius: blur,
+      offset: offset,
+    ),
+  ];
+}
 
 /// Latar belakang: warna hijau mint + ellipse gradient di kiri atas.
 class AuthBackground extends StatelessWidget {
@@ -47,7 +70,7 @@ class AuthBackground extends StatelessWidget {
   }
 }
 
-/// Kartu putih transparan (rx 34) dengan border + bayangan halus.
+/// Kartu putih dengan radius & bayangan seragam di seluruh aplikasi.
 class AuthCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
@@ -64,16 +87,10 @@ class AuthCard extends StatelessWidget {
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.74),
-        borderRadius: BorderRadius.circular(34),
-        border: Border.all(color: const Color(0xCCBDC9C8)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            offset: const Offset(2, 2),
-            blurRadius: 2.5,
-          ),
-        ],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(kRadius),
+        border: Border.all(color: kBorderColor),
+        boxShadow: softShadow(),
       ),
       child: child,
     );
@@ -288,14 +305,8 @@ class AuthBottomPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.74),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xCCBDC9C8)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            offset: const Offset(2, 2),
-            blurRadius: 2.5,
-          ),
-        ],
+        border: Border.all(color: kBorderColor),
+        boxShadow: softShadow(),
       ),
       child: Center(
         child: InkWell(

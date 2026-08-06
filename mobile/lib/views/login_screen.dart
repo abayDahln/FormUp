@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'register_screen.dart';
-import 'home_screen.dart';
-import 'forgot_password_screen.dart';
-import 'widgets/auth_widgets.dart';
-import '../../services/auth_service.dart';
+import 'auth_widgets.dart';
+import '../services/auth_service.dart';
+import '../app_router.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,7 +27,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      showAuthToast(context, "Email dan password wajib diisi");
+      showAuthToast(context, "Email dan kata sandi wajib diisi");
       return;
     }
     if (!AuthService.isValidEmail(email)) {
@@ -41,17 +39,10 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final result = await AuthService.login(email, password);
       if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => HomeScreen(
-            username: result.fullname.isEmpty
-                ? result.username
-                : result.fullname,
-          ),
-        ),
-        (route) => false,
-      );
+      final displayName = result.fullname.isEmpty
+          ? result.username
+          : result.fullname;
+      AppRouter.of(context).goHome(displayName);
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
@@ -78,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const AuthTitle(
-                          title: "Login",
+                          title: "Masuk",
                           subtitle: "Masuk untuk mengelola formulir Anda",
                         ),
                         const SizedBox(height: 40),
@@ -95,13 +86,13 @@ class _LoginScreenState extends State<LoginScreen> {
                               const SizedBox(height: 17),
                               AuthTextField(
                                 controller: _passwordController,
-                                hint: "Password",
+                                hint: "Kata Sandi",
                                 icon: Icons.lock_outline,
                                 obscure: true,
                               ),
                               const SizedBox(height: 16),
                               AuthPrimaryButton(
-                                label: "Login",
+                                label: "Masuk",
                                 loading: _loading,
                                 onPressed: _login,
                               ),
@@ -110,16 +101,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                 alignment: Alignment.center,
                                 child: GestureDetector(
                                   onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            ForgotPasswordScreen(),
-                                      ),
-                                    );
+                                    AppRouter.of(context)
+                                        .push(AppPage.forgotPassword);
                                   },
                                   child: const Text(
-                                    "Forgot Password?",
+                                    "Lupa Kata Sandi?",
                                     style: TextStyle(
                                       color: kAuthPrimary,
                                       fontSize: 14,
@@ -136,15 +122,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 24),
                         AuthBottomPill(
-                          question: "New here? ",
-                          link: "Sign up",
+                          question: "Pengguna baru? ",
+                          link: "Daftar",
                           onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const RegisterScreen(),
-                              ),
-                            );
+                            AppRouter.of(context).push(AppPage.register);
                           },
                         ),
                       ],
