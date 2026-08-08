@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'auth_widgets.dart';
+import 'rich_editor.dart';
 import '../services/form_service.dart';
 import '../services/auth_service.dart';
 import '../app_router.dart';
 
-/// Riwayat form yang sudah dikerjakan user (GET /api/users/me/responses).
+enum _ResponseTab { history, analytics }
+
+/// Tab "Respons": riwayat form yang dikerjakan + analisis form milik sendiri.
 class ResponseScreen extends StatefulWidget {
   const ResponseScreen({super.key});
 
@@ -13,7 +16,9 @@ class ResponseScreen extends StatefulWidget {
 }
 
 class _ResponseScreenState extends State<ResponseScreen> {
+  _ResponseTab _tab = _ResponseTab.history;
   List<MyResponseItem> _history = [];
+  List<FormData> _myForms = [];
   bool _loading = true;
 
   @override
@@ -25,9 +30,15 @@ class _ResponseScreenState extends State<ResponseScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final history = await FormService.getMyResponses();
+      final results = await Future.wait([
+        FormService.getMyResponses(),
+        FormService.getMyForms(),
+      ]);
       if (!mounted) return;
-      setState(() => _history = history);
+      setState(() {
+        _history = results[0] as List<MyResponseItem>;
+        _myForms = results[1] as List<FormData>;
+      });
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
@@ -43,96 +54,160 @@ class _ResponseScreenState extends State<ResponseScreen> {
     });
   }
 
+  void _openAnalytics(FormData form) {
+    AppRouter.of(context).push(AppPage.formAnalytics, {
+      'formId': form.id,
+      'title': form.title,
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: RefreshIndicator(
-        onRefresh: _load,
-        color: kAuthPrimary,
-        child: _loading && _history.isEmpty
-            ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 15,
-                ),
-                child: Column(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 15, 20, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Riwayat',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: kFontBold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Form yang pernah Anda kerjakan',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.black54,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFB8E2DE),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.history,
-                            color: kAuthPrimary,
-                            size: 20,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      'Respons',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: kFontBold,
+                        color: Colors.black87,
+                      ),
                     ),
-                    const SizedBox(height: 20),
-                    if (_history.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(vertical: 40),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Column(
-                          children: const [
-                            Icon(Icons.history, color: Colors.grey, size: 40),
-                            SizedBox(height: 10),
-                            Text(
-                              'Belum ada riwayat pengerjaan',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black54,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      for (final item in _history) ...[
-                        _buildHistoryCard(item),
-                        const SizedBox(height: 14),
-                      ],
-                    const SizedBox(height: 8),
+                    SizedBox(height: 2),
+                    Text(
+                      'Riwayat & analisis respons',
+                      style: TextStyle(fontSize: 13, color: Colors.black54),
+                    ),
                   ],
                 ),
-              ),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFB8E2DE),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.bar_chart,
+                    color: kAuthPrimary,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: SegmentedButton<_ResponseTab>(
+              segments: const [
+                ButtonSegment(
+                  value: _ResponseTab.history,
+                  label: Text('Riwayat'),
+                  icon: Icon(Icons.history, size: 16),
+                ),
+                ButtonSegment(
+                  value: _ResponseTab.analytics,
+                  label: Text('Analisis'),
+                  icon: Icon(Icons.bar_chart, size: 16),
+                ),
+              ],
+              selected: {_tab},
+              showSelectedIcon: false,
+              onSelectionChanged: (s) => setState(() => _tab = s.first),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Expanded(
+            child: _loading && _history.isEmpty && _myForms.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : switch (_tab) {
+                    _ResponseTab.history => _buildHistoryList(),
+                    _ResponseTab.analytics => _buildAnalyticsList(),
+                  },
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildHistoryList() {
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: kAuthPrimary,
+      child: _history.isEmpty
+          ? _emptyState(
+              icon: Icons.history,
+              message: 'Belum ada riwayat pengerjaan',
+            )
+          : ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              itemCount: _history.length,
+              itemBuilder: (context, i) => Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: _buildHistoryCard(_history[i]),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildAnalyticsList() {
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: kAuthPrimary,
+      child: _myForms.isEmpty
+          ? _emptyState(
+              icon: Icons.bar_chart,
+              message: 'Belum ada form untuk dianalisis',
+            )
+          : ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              itemCount: _myForms.length,
+              itemBuilder: (context, i) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildFormAnalyticsCard(_myForms[i]),
+              ),
+            ),
+    );
+  }
+
+  Widget _emptyState({required IconData icon, required String message}) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 40),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: Colors.grey, size: 40),
+              const SizedBox(height: 10),
+              Text(
+                message,
+                style: const TextStyle(fontSize: 14, color: Colors.black54),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -168,8 +243,8 @@ class _ResponseScreenState extends State<ResponseScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          item.formTitle,
+                        RichTextView(
+                          text: item.formTitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -224,6 +299,75 @@ class _ResponseScreenState extends State<ResponseScreen> {
                   ),
                 ],
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormAnalyticsCard(FormData form) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(kRadius),
+      elevation: 0,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(kRadius),
+        onTap: () => _openAnalytics(form),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: kPrimarySoft,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.bar_chart,
+                  color: kAuthPrimary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    RichTextView(
+                      text: form.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: kFontBold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${form.responseCount} respons',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Text(
+                'Analisis',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: kFontBold,
+                  color: kAuthPrimary,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
             ],
           ),
         ),

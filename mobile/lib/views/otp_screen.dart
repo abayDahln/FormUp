@@ -58,6 +58,7 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   Future<void> _verify() async {
+    if (_loading) return;
     final otp = _otpController.text.trim();
     if (otp.isEmpty || otp.length < 6) {
       showAuthToast(context, "Masukkan kode OTP 6 digit");

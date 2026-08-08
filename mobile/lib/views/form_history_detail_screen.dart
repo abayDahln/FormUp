@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'auth_widgets.dart';
+import 'rich_editor.dart';
 import '../services/public_form_service.dart';
 import '../services/auth_service.dart';
 
@@ -97,8 +98,8 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
                   style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  result.formTitle,
+                RichTextView(
+                  text: result.formTitle,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -223,8 +224,9 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  "${index + 1}. ${a.question}",
+                child: RichTextView(
+                  text: a.question,
+                  prefix: '${index + 1}. ',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -259,15 +261,23 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
                   style: TextStyle(fontSize: 11, color: Colors.black45),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  answered ? a.answerText! : "Tidak dijawab",
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: answered ? Colors.black87 : Colors.black45,
-                    fontStyle:
-                        answered ? FontStyle.normal : FontStyle.italic,
+                if (answered)
+                  RichTextView(
+                    text: a.answerText!,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  )
+                else
+                  const Text(
+                    "Tidak dijawab",
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.black45,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -291,8 +301,8 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
                     style: TextStyle(fontSize: 11, color: Color(0xFF2E7D32)),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    a.correctAnswer!,
+                  RichTextView(
+                    text: a.correctAnswer!,
                     style: const TextStyle(
                       fontSize: 14,
                       color: Color(0xFF2E7D32),

@@ -1,426 +1,299 @@
 import 'package:flutter/material.dart';
 import 'auth_widgets.dart';
+import '../services/auth_service.dart';
+import '../services/form_service.dart';
 import '../app_router.dart';
 
-/// Item form yang tampil di layar "My Forms".
-///
-/// Struktur sengaja disamakan dengan response `GET /api/forms` agar mudah
-/// dihubungkan ke backend nanti (id, title, description, status, responseCount).
-class _FormItem {
-  final String title;
-  final String description;
-  final String status; // 'published' | 'draft' | 'closed'
-  final int responses;
-  final String time;
-  final IconData icon;
-  final Color color;
-
-  const _FormItem({
-    required this.title,
-    required this.description,
-    required this.status,
-    required this.responses,
-    required this.time,
-    required this.icon,
-    required this.color,
-  });
-}
-
-// Contoh data (placeholder) — tampilan jadi tetap bagus sebelum backend tersambung.
-const List<_FormItem> _demoForms = [
-  _FormItem(
-    title: 'Survey Kepuasan Pelanggan',
-    description: 'Kumpulkan feedback untuk meningkatkan layanan kami.',
-    status: 'published',
-    responses: 128,
-    time: '2 jam lalu',
-    icon: Icons.poll_outlined,
-    color: Color(0xFF2A9D8F),
-  ),
-  _FormItem(
-    title: 'Pendaftaran Workshop Q4',
-    description: 'Formulir registrasi peserta workshop internal.',
-    status: 'draft',
-    responses: 0,
-    time: 'kemarin',
-    icon: Icons.event_outlined,
-    color: Color(0xFFF2994A),
-  ),
-  _FormItem(
-    title: 'Kuis Pemahaman Materi',
-    description: 'Evaluasi pemahaman peserta setelah pelatihan.',
-    status: 'closed',
-    responses: 45,
-    time: '3 hari lalu',
-    icon: Icons.quiz_outlined,
-    color: Color(0xFF9B51E0),
-  ),
-  _FormItem(
-    title: 'Feedback Event Tahunan',
-    description: 'Masukan dari peserta acara tahunan perusahaan.',
-    status: 'published',
-    responses: 267,
-    time: '1 minggu lalu',
-    icon: Icons.rate_review_outlined,
-    color: Color(0xFFEB5757),
-  ),
-];
-
-class _StatusStyle {
+class _FormStatusStyle {
   final String label;
   final Color fg;
   final Color bg;
-
-  const _StatusStyle(this.label, this.fg, this.bg);
+  const _FormStatusStyle(this.label, this.fg, this.bg);
 }
 
-_StatusStyle _statusStyle(String status) {
+_FormStatusStyle _formStatusStyle(String status) {
   switch (status) {
     case 'published':
-      return const _StatusStyle('Terbit', Color(0xFF2E7D32), Color(0xFFE3F4E8));
+      return const _FormStatusStyle('Terbit', Color(0xFF2E7D32), Color(0xFFE3F4E8));
     case 'draft':
-      return const _StatusStyle('Draf', Color(0xFFB26A00), Color(0xFFFFF3DE));
+      return const _FormStatusStyle('Draf', Color(0xFFB26A00), Color(0xFFFFF3DE));
     default:
-      return const _StatusStyle('Ditutup', Color(0xFFC0392B), Color(0xFFFDE8E6));
+      return const _FormStatusStyle('Ditutup', Color(0xFFC0392B), Color(0xFFFDE8E6));
   }
 }
 
-class FormScreen extends StatelessWidget {
+/// Tab "Form" — input kode untuk mengerjakan + daftar "Form Saya" (pratinjau).
+class FormScreen extends StatefulWidget {
   const FormScreen({super.key});
 
-  void _showFormActions(BuildContext context, _FormItem form) {
-    showModalBottomSheet<void>(
+  @override
+  State<FormScreen> createState() => _FormScreenState();
+}
+
+class _FormScreenState extends State<FormScreen> {
+  final _codeController = TextEditingController();
+  List<FormData> _myForms = [];
+  bool _loadingForms = true;
+  int? _publishingId;
+  DateTime _lastRefresh = DateTime.fromMillisecondsSinceEpoch(0);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMyForms();
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadMyForms() async {
+    // ponytail: debounce — swipe refresh tidak boleh terlalu sering (2 detik).
+    final now = DateTime.now();
+    if (now.difference(_lastRefresh) < const Duration(seconds: 2)) return;
+    _lastRefresh = now;
+    await _refreshMyForms();
+  }
+
+  /// Muat ulang tanpa debounce — dipakai setelah aksi (mis. publish).
+  Future<void> _refreshMyForms() async {
+    setState(() => _loadingForms = true);
+    try {
+      final forms = await FormService.getMyForms();
+      if (!mounted) return;
+      setState(() => _myForms = forms);
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _loadingForms = false);
+    }
+  }
+
+  void _start() {
+    final code = _codeController.text.trim();
+    if (code.isEmpty) {
+      showAuthToast(context, "Masukkan kode form terlebih dahulu", isError: true);
+      return;
+    }
+    AppRouter.of(context).push(AppPage.formRunner, {'code': code});
+  }
+
+  void _openPreview(FormData form) {
+    AppRouter.of(context).push(AppPage.formPreview, {'formId': form.id});
+  }
+
+  Future<void> _togglePublish(FormData form) async {
+    final publish = form.status != 'published';
+    final confirmed = await showDialog<bool>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      builder: (context) => AlertDialog(
+        title: Text(
+          publish ? 'Terbitkan Form' : 'Tarik Form',
+          style: const TextStyle(fontFamily: kFontBold),
         ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFBDC9C8),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: form.color.withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(form.icon, color: form.color, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        form.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: kFontBold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${form.responses} respons',
-                        style: const TextStyle(fontSize: 12, color: Colors.black54),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            const Divider(height: 1, color: Colors.black12),
-            const SizedBox(height: 6),
-            _SheetAction(
-              icon: Icons.edit_outlined,
-              label: 'Edit Form',
-              onTap: () {
-                Navigator.pop(sheetContext);
-                AppRouter.of(context).push(AppPage.formMaker);
-              },
-            ),
-            _SheetAction(
-              icon: Icons.people_outline,
-              label: 'Lihat Respons',
-              onTap: () {
-                Navigator.pop(sheetContext);
-                showAuthToast(context, 'Respons form akan segera hadir');
-              },
-            ),
-            _SheetAction(
-              icon: Icons.dashboard_customize_outlined,
-              label: 'Analitik',
-              onTap: () {
-                Navigator.pop(sheetContext);
-                showAuthToast(context, 'Analitik akan segera hadir');
-              },
-            ),
-            _SheetAction(
-              icon: Icons.ios_share,
-              label: 'Bagikan Form',
-              isCopy: true,
-              onTap: () {
-                Navigator.pop(sheetContext);
-                showAuthToast(context, 'Link form disalin');
-              },
-            ),
-          ],
+        content: Text(
+          publish
+              ? 'Form akan tersedia untuk dikerjakan responden.'
+              : 'Form akan berhenti menerima respons baru dan kembali menjadi draf.',
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              publish ? 'Terbit' : 'Tarik',
+              style: const TextStyle(color: kAuthPrimary),
+            ),
+          ),
+        ],
       ),
     );
+    if (confirmed != true || !mounted) return;
+    setState(() => _publishingId = form.id);
+    try {
+      await FormService.publish(form.id);
+      if (!mounted) return;
+      showAuthToast(
+        context,
+        publish ? 'Form berhasil diterbitkan' : 'Form berhasil ditarik',
+      );
+      await _refreshMyForms();
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _publishingId = null);
+    }
   }
-
-  Widget _buildStatsRow(List<_FormItem> forms) {
-    final published = forms.where((f) => f.status == 'published').length;
-    final drafts = forms.where((f) => f.status == 'draft').length;
-    final closed = forms.where((f) => f.status == 'closed').length;
-
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            label: 'Terbit',
-            value: '$published',
-            color: const Color(0xFF2A9D8F),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _StatCard(
-            label: 'Draf',
-            value: '$drafts',
-            color: const Color(0xFFF2994A),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _StatCard(
-            label: 'Ditutup',
-            value: '$closed',
-            color: const Color(0xFFC0392B),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFormCard(BuildContext context, _FormItem form) {
-    final style = _statusStyle(form.status);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(kRadius),
-        elevation: 0,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(kRadius),
-          onTap: () => _showFormActions(context, form),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(11),
-                      decoration: BoxDecoration(
-                        color: form.color.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(form.icon, color: form.color, size: 22),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            form.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: kFontBold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            form.description,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12, color: Colors.black54),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.more_vert, color: Colors.grey, size: 20),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: style.bg,
-                        borderRadius: BorderRadius.circular(7),
-                      ),
-                      child: Text(
-                        style.label,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: kFontBold,
-                          color: style.fg,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Icon(Icons.people_outline, color: Colors.grey, size: 15),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${form.responses}',
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.schedule, color: Colors.grey, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      form.time,
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
+    return RefreshIndicator(
+      onRefresh: _loadMyForms,
+      color: kAuthPrimary,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 15, 20, 24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Form Saya',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: kFontBold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Kelola dan pantau semua form Anda',
-                      style: TextStyle(fontSize: 13, color: Colors.black54),
-                    ),
-                  ],
-                ),
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFB8E2DE),
-                    shape: BoxShape.circle,
+                Text(
+                  'Form',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: kFontBold,
+                    color: Colors.black87,
                   ),
-                  child: const Icon(Icons.description_outlined, color: kAuthPrimary, size: 20),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Kerjakan via kode atau pratinjau form Anda',
+                  style: TextStyle(fontSize: 13, color: Colors.black54),
                 ),
               ],
             ),
             const SizedBox(height: 20),
-            _buildStatsRow(_demoForms),
-            const SizedBox(height: 22),
+
+            // Kerjakan dengan kode
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(30),
+                borderRadius: BorderRadius.circular(kRadius),
                 boxShadow: softShadow(),
               ),
-              child: const TextField(
-                decoration: InputDecoration(
-                  icon: Icon(Icons.search, color: Colors.grey),
-                  hintText: 'Cari form...',
-                  hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                  border: InputBorder.none,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    "Kerjakan Form",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: kFontBold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    "Masukkan kode form untuk mulai mengerjakan.",
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _codeController,
+                    style: const TextStyle(color: Colors.black87),
+                    cursorColor: kAuthPrimary,
+                    decoration: InputDecoration(
+                      hintText: "Kode form",
+                      hintStyle: const TextStyle(color: kAuthText),
+                      prefixIcon: const Icon(Icons.link, color: kAuthText),
+                      filled: true,
+                      fillColor: const Color(0xFFF0F4F4),
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                        horizontal: 16,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: kAuthText),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: kAuthText),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(
+                          color: kAuthPrimary,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                    onSubmitted: (_) => _start(),
+                  ),
+                  const SizedBox(height: 12),
+                  AuthPrimaryButton(
+                    label: "Mulai",
+                    showArrow: false,
+                    onPressed: _start,
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 22),
-            const Text(
-              'Form Anda',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                fontFamily: kFontBold,
-                color: Colors.black87,
-              ),
+            const SizedBox(height: 24),
+
+            // Form Saya
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Form Saya',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: kFontBold,
+                    color: Colors.black87,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Ketuk untuk pratinjau sebagai responden',
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
-            for (final form in _demoForms) _buildFormCard(context, form),
-            const SizedBox(height: 8),
+
+            if (_loadingForms && _myForms.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 30),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_myForms.isEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(kRadius),
+                ),
+                child: Column(
+                  children: const [
+                    Icon(Icons.description_outlined, color: Colors.grey, size: 36),
+                    SizedBox(height: 10),
+                    Text(
+                      'Belum ada form. Buat form pertama Anda!',
+                      style: TextStyle(fontSize: 13, color: Colors.black54),
+                    ),
+                  ],
+                ),
+              )
+            else
+              for (final form in _myForms) ...[
+                _buildFormCard(form),
+                const SizedBox(height: 12),
+              ],
           ],
         ),
       ),
     );
   }
 
-}
-
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildFormCard(FormData form) {
+    final style = _formStatusStyle(form.status);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(kRadius),
@@ -429,62 +302,180 @@ class _StatCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Icon(Icons.circle, color: color, size: 10),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: kPrimarySoft,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.description_outlined,
+                  color: kAuthPrimary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      form.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: kFontBold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    if (form.description != null &&
+                        form.description!.trim().isNotEmpty)
+                      Text(
+                        form.description!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: style.bg,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            style.label,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: kFontBold,
+                              color: style.fg,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Icon(
+                          Icons.people_outline,
+                          color: Colors.grey,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          '${form.responseCount} respons',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              fontFamily: kFontBold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 11, color: Colors.black54),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _publishingId == form.id
+                      ? null
+                      : () => _togglePublish(form),
+                  icon: _publishingId == form.id
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: kAuthPrimary,
+                          ),
+                        )
+                      : Icon(
+                          form.status == 'published'
+                              ? Icons.visibility_off_outlined
+                              : Icons.publish_outlined,
+                          size: 16,
+                          color: kAuthPrimary,
+                        ),
+                  label: Text(
+                    form.status == 'published' ? 'Tarik' : 'Terbit',
+                    style: const TextStyle(fontSize: 13, color: kAuthPrimary),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: kAuthPrimary),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _openPreview(form),
+                  icon: const Icon(
+                    Icons.visibility_outlined,
+                    size: 16,
+                    color: kAuthPrimary,
+                  ),
+                  label: const Text(
+                    "Pratinjau",
+                    style: TextStyle(fontSize: 13, color: kAuthPrimary),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: kAuthPrimary),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => AppRouter.of(context).push(
+                    AppPage.formResponses,
+                    {'formId': form.id, 'title': form.title},
+                  ),
+                  icon: const Icon(
+                    Icons.people_outline,
+                    size: 16,
+                    color: kAuthPrimary,
+                  ),
+                  label: const Text(
+                    "Respons",
+                    style: TextStyle(fontSize: 13, color: kAuthPrimary),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: kAuthPrimary),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 }
-
-class _SheetAction extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool isCopy;
-
-  const _SheetAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.isCopy = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      leading: Icon(icon, color: isCopy ? kAuthPrimary : Colors.black54, size: 22),
-      title: Text(
-        label,
-        style: const TextStyle(fontSize: 15, color: Colors.black87),
-      ),
-      onTap: onTap,
-    );
-  }
-}
-

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'app_router.dart';
 import 'services/auth_service.dart';
 import 'views/auth_widgets.dart';
@@ -19,6 +20,9 @@ void main() async {
     final name = session.fullname.isNotEmpty ? session.fullname : session.username;
     delegate.setUsername(name);
   }
+
+  // Sesi berakhir (token kedaluwarsa) → kembali ke layar login.
+  AuthService.onSessionExpired = () => delegate.resetToLogin();
 
   runApp(MyApp(delegate: delegate));
 }
@@ -44,6 +48,7 @@ class MyApp extends StatelessWidget {
         ),
         routerDelegate: delegate,
         routeInformationParser: AppRouteParser(),
+        localizationsDelegates: FlutterQuillLocalizations.localizationsDelegates,
       ),
     );
   }

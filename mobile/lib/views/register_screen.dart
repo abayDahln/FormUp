@@ -28,6 +28,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _signUp() async {
+    if (_loading) return;
     final fullname = _fullnameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;

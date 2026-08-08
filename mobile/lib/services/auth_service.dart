@@ -22,6 +22,14 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// Ubah path relatif gambar (mis. `/profile/xxx.png`) jadi URL lengkap
+/// berdasarkan host API yang sama.
+String profileImageUrl(String? path) {
+  if (path == null || path.isEmpty) return '';
+  final origin = apiBaseUrl.replaceFirst(RegExp(r'/api/?$'), '');
+  return path.startsWith('http') ? path : '$origin$path';
+}
+
 /// Rate limit sederhana di sisi client per endpoint.
 /// ponytail: penegakan sebenarnya ada di server; ini hanya mencegah spam dari app.
 class _RateLimiter {
@@ -69,8 +77,13 @@ class AuthResult {
 }
 
 class AuthService {
-  static const Duration _timeout = Duration(seconds: 10);
-  static const int _maxRetries = 2;
+  // ponytail: 6s x 2 percobaan = max ~12s sebelum error, cukup untuk LAN
+  // (sebelumnya 10s x 3 = 30s, terasa seperti hang saat host tidak terjangkau).
+  static const Duration _timeout = Duration(seconds: 6);
+  static const int _maxRetries = 1;
+
+  /// Timeout HTTP dipakai juga oleh service lain (mis. upload multipart).
+  static Duration get timeout => _timeout;
 
   // ponytail: token disimpan di shared_preferences agar tetap login antar
   // restart app (JWT berlaku 7 hari).
@@ -80,6 +93,10 @@ class AuthService {
 
   /// Email user yang sedang login (dari sesi tersimpan / hasil login).
   static String? get email => _email;
+
+  /// Dipanggil saat sesi berakhir (token kadaluarsa & refresh gagal) agar
+  /// app kembali ke halaman login. Didaftarkan di main().
+  static void Function()? onSessionExpired;
 
   static const _kToken = 'auth_token';
   static const _kFullname = 'auth_fullname';
@@ -97,8 +114,7 @@ class AuthService {
   }
 
   /// Ambil sesi tersimpan dari disk (dipanggil saat app start).
-  static Future<AuthResult?> restoreSession() async {
-    final prefs = await SharedPreferences.getInstance();
+  static Future<AuthResult?> restoreSession() async {    final prefs = await SharedPreferences.getInstance();
     final savedToken = prefs.getString(_kToken);
     if (savedToken == null || savedToken.isEmpty) return null;
     token = savedToken;
@@ -127,7 +143,12 @@ class AuthService {
       throw const ApiException('Respons server tidak valid.');
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(json['message'] as String? ?? 'Terjadi kesalahan.');
+      // ponytail: terima `message` & `Message` — body 401 JWT diserialisasi PascalCase.
+      throw ApiException(
+        (json['message'] as String?) ??
+            (json['Message'] as String?) ??
+            'Terjadi kesalahan.',
+      );
     }
     return json;
   }
@@ -179,15 +200,32 @@ class AuthService {
 
     var response = await _request(method, path, body, headers);
 
-    if (auth &&
-        response.statusCode == 401 &&
-        response.headers['token-expired'] == 'true') {
+    if (auth && response.statusCode == 401 && _isAuthRejected(response)) {
       if (await _refresh()) {
         headers['Authorization'] = 'Bearer $token';
         response = await _request(method, path, body, headers);
+      } else {
+        // Token tidak valid/kedaluwarsa dan refresh gagal → sesi berakhir.
+        await logout();
+        onSessionExpired?.call();
+        throw const ApiException(
+          'Sesi Anda telah berakhir. Silakan login kembali.',
+        );
       }
     }
     return _decode(response);
+  }
+
+  /// Deteksi 401 dari lapisan JWT (bukan 401 konten, mis. token form salah).
+  static bool _isAuthRejected(http.Response response) {
+    if (response.headers['token-expired']?.toLowerCase() == 'true') return true;
+    try {
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final message = (json['message'] ?? json['Message'] ?? '') as String;
+      return message.toLowerCase() == 'unauthorized';
+    } catch (_) {
+      return false;
+    }
   }
 
   /// POST /auth/refresh — ambil token baru memakai token lama, tanpa body.
@@ -207,6 +245,9 @@ class AuthService {
       return false;
     }
   }
+
+  /// Refresh token (publik) — dipakai service lain saat upload 401.
+  static Future<bool> refreshToken() => _refresh();
 
   static Future<AuthResult> login(String email, String password) async {
     _RateLimiter.check('/auth/login');
@@ -291,6 +332,20 @@ class AuthService {
       auth: true,
     );
     return json['message'] as String? ?? 'Password berhasil diubah';
+  }
+
+  /// Perbarui nama/username tersimpan di sesi (dipanggil setelah edit profil).
+  static Future<void> updateSession({
+    String? fullname,
+    String? username,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (fullname != null && fullname.isNotEmpty) {
+      await prefs.setString(_kFullname, fullname);
+    }
+    if (username != null && username.isNotEmpty) {
+      await prefs.setString(_kUsername, username);
+    }
   }
 
   /// Logout di sisi client — bersihkan token (backend tidak punya endpoint logout).

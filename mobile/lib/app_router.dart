@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'views/login_screen.dart';
@@ -10,6 +11,10 @@ import 'views/form_maker_screen.dart';
 import 'views/form_runner_screen.dart';
 import 'views/form_history_detail_screen.dart';
 import 'views/change_password_screen.dart';
+import 'views/edit_profile_screen.dart';
+import 'views/form_preview_screen.dart';
+import 'views/analytics_screen.dart';
+import 'views/form_responses_screen.dart';
 
 /// Route halaman yang dikelola secara deklaratif (Navigator 2.0 / Navigation 3).
 enum AppPage {
@@ -23,6 +28,10 @@ enum AppPage {
   formRunner,
   formHistoryDetail,
   changePassword,
+  editProfile,
+  formPreview,
+  formAnalytics,
+  formResponses,
 }
 
 /// Satu entri stack: halaman + argumen.
@@ -57,6 +66,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   final List<AppRoute> _stack = <AppRoute>[];
+  final Map<AppPage, Completer<void>> _popCompleters = {};
   String _username = '';
 
   AppRouterDelegate({AppPage initial = AppPage.login}) {
@@ -66,6 +76,12 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   /// Nama tampilan user untuk halaman Home.
   String get username => _username;
   void setUsername(String value) => _username = value;
+
+  /// Perbarui nama user + notify rebuild (dipakai setelah edit profil).
+  void updateUsername(String value) {
+    _username = value;
+    notifyListeners();
+  }
 
   List<AppRoute> get stack => List.unmodifiable(_stack);
 
@@ -77,8 +93,11 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
     return Navigator(
       key: navigatorKey,
       pages: _pages,
-      onDidRemovePage: (_) {
+      onDidRemovePage: (page) {
         if (_stack.length > 1) _stack.removeLast();
+        if (page is AppPageBuilder) {
+          _popCompleters.remove(page.route.page)?.complete();
+        }
         notifyListeners();
       },
     );
@@ -87,7 +106,8 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   @override
   Future<bool> popRoute() async {
     if (_stack.length > 1) {
-      _stack.removeLast();
+      final removed = _stack.removeLast();
+      _popCompleters.remove(removed.page)?.complete();
       notifyListeners();
       return true;
     }
@@ -98,6 +118,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
 
   @override
   Future<void> setNewRoutePath(AppRoute configuration) async {
+    _completeAllPending();
     _stack
       ..clear()
       ..add(configuration);
@@ -107,28 +128,44 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   /// Masuk ke halaman Home (clear seluruh stack) + simpan nama user.
   void goHome(String displayName) {
     _username = displayName;
+    _completeAllPending();
     _stack
       ..clear()
       ..add(const AppRoute(AppPage.home));
     notifyListeners();
   }
 
-  void push(AppPage page, [Map<String, dynamic> args = const {}]) {
+  /// Push halaman; Future selesai saat halaman itu di-pop (untuk refresh ulang).
+  Future<void> push(AppPage page, [Map<String, dynamic> args = const {}]) {
+    final completer = Completer<void>();
+    _popCompleters[page] = completer;
     _stack.add(AppRoute(page, args));
     notifyListeners();
+    return completer.future;
   }
 
   void pop([Object? result]) {
-    if (_stack.length > 1) _stack.removeLast();
-    notifyListeners();
+    if (_stack.length > 1) {
+      final removed = _stack.removeLast();
+      _popCompleters.remove(removed.page)?.complete();
+      notifyListeners();
+    }
   }
 
   /// Kembali ke Login (logout / back-to-login) — reset seluruh stack.
   void resetToLogin() {
+    _completeAllPending();
     _stack
       ..clear()
       ..add(const AppRoute(AppPage.login));
     notifyListeners();
+  }
+
+  void _completeAllPending() {
+    for (final c in _popCompleters.values) {
+      if (!c.isCompleted) c.complete();
+    }
+    _popCompleters.clear();
   }
 
 
@@ -164,6 +201,22 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
         );
       case AppPage.changePassword:
         return const ChangePasswordScreen();
+      case AppPage.editProfile:
+        return const EditProfileScreen();
+      case AppPage.formPreview:
+        return FormPreviewScreen(
+          formId: route.args['formId'] as int? ?? 0,
+        );
+      case AppPage.formAnalytics:
+        return AnalyticsScreen(
+          formId: route.args['formId'] as int? ?? 0,
+          title: route.args['title'] as String? ?? '',
+        );
+      case AppPage.formResponses:
+        return FormResponsesScreen(
+          formId: route.args['formId'] as int? ?? 0,
+          title: route.args['title'] as String? ?? '',
+        );
     }
   }
 }
@@ -188,6 +241,10 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       'form-runner' => const AppRoute(AppPage.formRunner),
       'form-history' => const AppRoute(AppPage.formHistoryDetail),
       'change-password' => const AppRoute(AppPage.changePassword),
+      'edit-profile' => const AppRoute(AppPage.editProfile),
+      'form-preview' => const AppRoute(AppPage.formPreview),
+      'form-analytics' => const AppRoute(AppPage.formAnalytics),
+      'form-responses' => const AppRoute(AppPage.formResponses),
       _ => const AppRoute(AppPage.login),
     };
   }
@@ -205,6 +262,10 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       AppPage.formRunner => 'form-runner',
       AppPage.formHistoryDetail => 'form-history',
       AppPage.changePassword => 'change-password',
+      AppPage.editProfile => 'edit-profile',
+      AppPage.formPreview => 'form-preview',
+      AppPage.formAnalytics => 'form-analytics',
+      AppPage.formResponses => 'form-responses',
     };
     return RouteInformation(uri: Uri.parse('/$name'));
   }

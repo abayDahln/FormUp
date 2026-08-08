@@ -1,5 +1,3 @@
-import 'dart:math';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_service.dart';
 
 /// Info form publik (hasil `GET /api/public/forms/{formLink}`).
@@ -10,6 +8,9 @@ class PublicFormInfo {
   final String? bannerImage;
   final bool requiresToken;
   final bool requiresLogin;
+  final bool oneResponse;
+  final bool isOwner;
+  final int? formTypeId;
   final bool? showScore;
   final int? timerDuration;
   final bool? randomizeQuestions;
@@ -23,6 +24,9 @@ class PublicFormInfo {
     this.bannerImage,
     this.requiresToken = false,
     this.requiresLogin = false,
+    this.oneResponse = false,
+    this.isOwner = false,
+    this.formTypeId = 1,
     this.showScore,
     this.timerDuration,
     this.randomizeQuestions,
@@ -38,6 +42,9 @@ class PublicFormInfo {
         bannerImage: json['bannerImage'] as String?,
         requiresToken: json['requiresToken'] as bool? ?? false,
         requiresLogin: json['requiresLogin'] as bool? ?? false,
+        oneResponse: json['oneResponse'] as bool? ?? false,
+        isOwner: json['isOwner'] as bool? ?? false,
+        formTypeId: json['formTypeId'] as int? ?? 1,
         showScore: json['showScore'] as bool?,
         timerDuration: json['timerDuration'] as int?,
         randomizeQuestions: json['randomizeQuestions'] as bool?,
@@ -182,27 +189,6 @@ class PublicFormResult {
 
 /// Klien untuk endpoint publik responden (tanpa login).
 class PublicFormService {
-  /// Kunci SharedPreferences untuk guest token persisten.
-  static const _kGuestToken = 'guest_token';
-
-  /// guestToken unik per perangkat — dipakai untuk one-response guest &
-  /// mengambil hasil lewat endpoint publik.
-  static Future<String> getGuestToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    var token = prefs.getString(_kGuestToken);
-    if (token == null || token.isEmpty) {
-      token = _generateToken();
-      await prefs.setString(_kGuestToken, token);
-    }
-    return token;
-  }
-
-  static String _generateToken() {
-    final rand = Random.secure();
-    final bytes = List.generate(16, (_) => rand.nextInt(256));
-    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-  }
-
   /// GET /api/public/forms/{formLink} — meta + requirement form.
   static Future<PublicFormInfo> getFormInfo(String formLink) async {
     final json = await AuthService.get('/public/forms/$formLink');
@@ -229,14 +215,12 @@ class PublicFormService {
     String formLink, {
     String? token,
     String? respondentName,
-    required String guestToken,
     required List<Map<String, dynamic>> answers,
   }) async {
     final json = await AuthService.post('/public/forms/$formLink/responses', {
       if (token != null && token.isNotEmpty) 'token': token,
       if (respondentName != null && respondentName.trim().isNotEmpty)
         'respondentName': respondentName.trim(),
-      'guestToken': guestToken,
       'answers': answers,
     });
     return json['data'] as Map<String, dynamic>;
@@ -244,17 +228,13 @@ class PublicFormService {
 
   /// GET /api/public/forms/{formLink}/responses/{responseId} — ambil hasil.
   ///
-  /// Untuk user login, endpoint memakai JWT (pemilik respons) sehingga
-  /// `guestToken` bisa dikosongkan. Guest wajib kirim guestToken.
+  /// Hanya pemilik respons (user login lewat JWT) yang bisa melihat hasil.
   static Future<PublicFormResult> getResult(
     String formLink,
-    int responseId, {
-    String? guestToken,
-  }) async {
-    final path = guestToken == null || guestToken.isEmpty
-        ? '/public/forms/$formLink/responses/$responseId'
-        : '/public/forms/$formLink/responses/$responseId?token=$guestToken';
-    final json = await AuthService.get(path);
+    int responseId,
+  ) async {
+    final json =
+        await AuthService.get('/public/forms/$formLink/responses/$responseId');
     return PublicFormResult.fromJson(json['data'] as Map<String, dynamic>);
   }
 }

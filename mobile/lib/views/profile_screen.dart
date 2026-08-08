@@ -1,12 +1,45 @@
 import 'package:flutter/material.dart';
 import 'auth_widgets.dart';
 import '../services/auth_service.dart';
+import '../services/user_service.dart';
 import '../app_router.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final String username;
 
   const ProfileScreen({super.key, required this.username});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  UserProfile? _profile;
+  UserStats? _stats;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final results = await Future.wait([UserService.getProfile(), UserService.getStats()]);
+      if (!mounted) return;
+      setState(() {
+        _profile = results[0] as UserProfile;
+        _stats = results[1] as UserStats;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   Future<void> _confirmLogout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
@@ -36,15 +69,27 @@ class ProfileScreen extends StatelessWidget {
     showAuthToast(context, '$feature akan segera hadir.');
   }
 
+  Future<void> _openEditProfile() async {
+    await AppRouter.of(context).push(AppPage.editProfile);
+    if (mounted) _load();
+  }
+
   String get _initial {
-    final name = username.trim();
+    final name = _profile?.fullname.trim() ?? widget.username.trim();
     if (name.isEmpty) return 'U';
     return name[0].toUpperCase();
   }
+
+  String get _displayName {
+    final name = _profile?.fullname.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return widget.username.trim().isNotEmpty ? widget.username : 'Pengguna';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final displayName = username.trim().isNotEmpty ? username : 'Pengguna';
-    final email = AuthService.email ?? '';
+    final email = _profile?.email ?? AuthService.email ?? '';
+    final stats = _stats ?? const UserStats();
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -77,148 +122,185 @@ class ProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(kRadius),
-                boxShadow: softShadow(),
-              ),
-              child: Column(
-                children: [
-                  Stack(
-                    children: [
-                      Container(
-                        width: 90,
-                        height: 90,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFB8E2DE),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            _initial,
-                            style: const TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: kFontBold,
-                              color: kAuthPrimary,
-                            ),
-                          ),
-                        ),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 60),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else ...[
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(kRadius),
+                  boxShadow: softShadow(),
+                ),
+                child: Column(
+                  children: [
+                    _buildAvatar(),
+                    const SizedBox(height: 16),
+                    Text(
+                      _displayName,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: kFontBold,
+                        color: Colors.black87,
                       ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF2A9D8F),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.edit, color: Colors.white, size: 14),
-                        ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      email.isEmpty ? 'Member FormUp' : email,
+                      style: const TextStyle(fontSize: 13, color: Colors.black54),
+                    ),
+                    if (_profile?.username.isNotEmpty == true) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '@${_profile!.username}',
+                        style: const TextStyle(fontSize: 13, color: kAuthPrimary),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    displayName,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: kFontBold,
-                      color: Colors.black87,
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              Row(
+                children: [
+                  Expanded(child: _MiniStat(label: 'Form', value: '${stats.totalForms}')),
+                  const SizedBox(width: 10),
+                  Expanded(child: _MiniStat(label: 'Respons', value: '${stats.totalResponses}')),
+                  const SizedBox(width: 10),
+                  Expanded(child: _MiniStat(label: 'Umpan Balik', value: '${stats.totalFeedbackGiven}')),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(kRadius),
+                ),
+                child: Column(
+                  children: [
+                    _MenuTile(
+                      icon: Icons.person_outline,
+                      label: 'Edit Profil',
+                      onTap: _openEditProfile,
+                    ),
+                    const Divider(height: 1, indent: 52, color: Colors.black12),
+                    _MenuTile(
+                      icon: Icons.lock_outline,
+                      label: 'Ubah Kata Sandi',
+                      onTap: () =>
+                          AppRouter.of(context).push(AppPage.changePassword),
+                    ),
+                    const Divider(height: 1, indent: 52, color: Colors.black12),
+                    _MenuTile(
+                      icon: Icons.help_outline,
+                      label: 'Bantuan & Dukungan',
+                      onTap: () => _showComingSoon(context, 'Bantuan'),
+                    ),
+                    const Divider(height: 1, indent: 52, color: Colors.black12),
+                    _MenuTile(
+                      icon: Icons.info_outline,
+                      label: 'Tentang FormUp',
+                      onTap: () => _showComingSoon(context, 'Tentang'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              SizedBox(
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: () => _confirmLogout(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFC0392B),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    email.isEmpty ? 'Member FormUp' : email,
-                    style: const TextStyle(fontSize: 13, color: Colors.black54),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            Row(
-              children: [
-                Expanded(child: _MiniStat(label: 'Form', value: '5')),
-                const SizedBox(width: 10),
-                Expanded(child: _MiniStat(label: 'Respons', value: '12')),
-                const SizedBox(width: 10),
-                Expanded(child: _MiniStat(label: 'Umpan Balik', value: '2')),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(kRadius),
-              ),
-              child: Column(
-                children: [
-                  _MenuTile(
-                    icon: Icons.person_outline,
-                    label: 'Edit Profil',
-                    onTap: () => _showComingSoon(context, 'Edit profil'),
-                  ),
-                  const Divider(height: 1, indent: 52, color: Colors.black12),
-                  _MenuTile(
-                    icon: Icons.lock_outline,
-                    label: 'Ubah Kata Sandi',
-                    onTap: () =>
-                        AppRouter.of(context).push(AppPage.changePassword),
-                  ),
-                  const Divider(height: 1, indent: 52, color: Colors.black12),
-                  _MenuTile(
-                    icon: Icons.help_outline,
-                    label: 'Bantuan & Dukungan',
-                    onTap: () => _showComingSoon(context, 'Bantuan'),
-                  ),
-                  const Divider(height: 1, indent: 52, color: Colors.black12),
-                  _MenuTile(
-                    icon: Icons.info_outline,
-                    label: 'Tentang FormUp',
-                    onTap: () => _showComingSoon(context, 'Tentang'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            SizedBox(
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: () => _confirmLogout(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFC0392B),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                icon: const Icon(Icons.logout),
-                label: const Text(
-                  'Keluar',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: kFontBold,
+                  icon: const Icon(Icons.logout),
+                  label: const Text(
+                    'Keluar',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: kFontBold,
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
     );
   }
-}
 
+  Widget _buildAvatar() {
+    return Stack(
+      children: [
+        Container(
+          width: 90,
+          height: 90,
+          decoration: const BoxDecoration(
+            color: Color(0xFFB8E2DE),
+            shape: BoxShape.circle,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: _avatarContent(),
+        ),
+        const Positioned(
+          right: 0,
+          bottom: 0,
+          child: CircleAvatar(
+            radius: 14,
+            backgroundColor: Color(0xFF2A9D8F),
+            child: Icon(Icons.edit, color: Colors.white, size: 14),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _avatarContent() {
+    final path = _profile?.profileImage;
+    if (path == null || path.isEmpty) {
+      return Center(
+        child: Text(
+          _initial,
+          style: const TextStyle(
+            fontSize: 36,
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: kAuthPrimary,
+          ),
+        ),
+      );
+    }
+    return Image.network(
+      profileImageUrl(path),
+      fit: BoxFit.cover,
+      cacheWidth: 300,
+      errorBuilder: (_, _, _) => Center(
+        child: Text(
+          _initial,
+          style: const TextStyle(
+            fontSize: 36,
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: kAuthPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _MiniStat extends StatelessWidget {
   final String label;
@@ -277,4 +359,3 @@ class _MenuTile extends StatelessWidget {
     );
   }
 }
-

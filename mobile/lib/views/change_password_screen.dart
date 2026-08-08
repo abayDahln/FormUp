@@ -25,6 +25,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   }
 
   Future<void> _save() async {
+    if (_loading) return;
     final current = _currentController.text;
     final newPassword = _newController.text;
     final confirm = _confirmController.text;

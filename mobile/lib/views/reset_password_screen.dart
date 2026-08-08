@@ -31,6 +31,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   }
 
   Future<void> _resetPassword() async {
+    if (_loading) return;
     final newPassword = _newPasswordController.text;
     final confirmPassword = _confirmPasswordController.text;
 

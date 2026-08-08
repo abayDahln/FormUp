@@ -21,6 +21,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Future<void> _sendOtp() async {
+    if (_loading) return;
     final email = _emailController.text.trim();
     if (email.isEmpty) {
       showAuthToast(context, "Masukkan email terlebih dahulu");
