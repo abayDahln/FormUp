@@ -28,6 +28,10 @@ public class PublicFormsController : ControllerBase
             return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
 
         // ponytail: tanpa soal di sini — soal hanya lewat /questions setelah requirement terpenuhi
+        var isOwner = User.Identity?.IsAuthenticated == true
+            && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid)
+            && form.UserId == uid;
+
         return Ok(new ApiResponse<object>(200, "OK", new PublicFormDetails
         {
             Id = form.Id,
@@ -37,6 +41,9 @@ public class PublicFormsController : ControllerBase
             BannerImage = form.BannerImage,
             RequiresToken = !string.IsNullOrEmpty(form.FormSetting?.FormToken),
             RequiresLogin = form.FormSetting?.RequiredLogin == true,
+            OneResponse = form.FormSetting?.OneResponse == true,
+            IsOwner = isOwner,
+            FormTypeId = form.FormSetting?.FormTypeId,
             ShowScore = form.FormSetting?.ShowScore,
             TimerDuration = form.FormSetting?.TimerDuration,
             RandomizeQuestions = form.FormSetting?.RandomizeQuestions,
@@ -122,6 +129,12 @@ public class PublicFormsController : ControllerBase
 
     private ActionResult? CheckAccess(Form form, string? token)
     {
+        // Pemilik form tidak boleh mengisi form sendiri.
+        if (User.Identity?.IsAuthenticated == true
+            && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid)
+            && form.UserId == uid)
+            return BadRequest(new ApiResponse<object>(400, "Anda tidak dapat mengisi form yang Anda buat sendiri"));
+
         if (form.FormSetting?.RequiredLogin == true && User.Identity?.IsAuthenticated != true)
             return Unauthorized(new ApiResponse<object>(401, "Login required to access this form"));
 

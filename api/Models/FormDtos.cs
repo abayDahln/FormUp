@@ -81,6 +81,9 @@ public class PublicFormDetails
     public string? BannerImage { get; set; }
     public bool RequiresToken { get; set; }
     public bool RequiresLogin { get; set; }
+    public bool OneResponse { get; set; }
+    public bool IsOwner { get; set; }
+    public int? FormTypeId { get; set; }
     public bool? ShowScore { get; set; }
     public int? TimerDuration { get; set; }
     public bool? RandomizeQuestions { get; set; }

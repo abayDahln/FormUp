@@ -66,6 +66,11 @@ public static class ResponseSubmission
                 return new UnauthorizedObjectResult(new ApiResponse<object>(401, "Invalid or missing form token"));
         }
 
+        // Pemilik form tidak boleh mengisi form sendiri.
+        var ownerClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(ownerClaim) && int.TryParse(ownerClaim, out var ownerUid) && form.UserId == ownerUid)
+            return new BadRequestObjectResult(new ApiResponse<object>(400, "Anda tidak dapat mengisi form yang Anda buat sendiri"));
+
         if (form.FormSetting?.OneResponse == true)
         {
             var alreadySubmitted = false;

@@ -32,7 +32,7 @@ dotnet run --launch-profile http
    ```bash
    export JWT_KEY="your-production-secret-key"
    export DB_CONNECTION="Server=prod-db;Database=FormUpDB;User Id=app;Password=***;TrustServerCertificate=true"
-   ```
+   ```   
 
 2. **Publish application**:
    ```bash

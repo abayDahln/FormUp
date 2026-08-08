@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
+using System.Security.Claims;
 using FormUpAPI.Models;
 using FormUpAPI.Services;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -143,13 +143,20 @@ public class AuthController : ControllerBase
         }));
     }
 
-    // ponytail: refresh stateless (tanpa tabel), cukup perpanjang dari access token valid.
+    // ponytail: refresh stateless — terima access token yang sudah kedaluwarsa,
+    // validasi signature saja (ignore lifetime) lalu terbitkan token baru.
     [HttpPost("refresh")]
-    [Authorize]
     public async Task<ActionResult<ApiResponse<object>>> Refresh()
     {
-        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+        var authHeader = Request.Headers.Authorization.ToString();
+        if (string.IsNullOrEmpty(authHeader) ||
+            !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            return Unauthorized(new ApiResponse<object>(401, "Token is required"));
+
+        var rawToken = authHeader["Bearer ".Length..].Trim();
+        var principal = _jwt.ValidateToken(rawToken);
+        var userIdClaim = principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (principal == null || string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
             return Unauthorized(new ApiResponse<object>(401, "Invalid token"));
 
         var user = await _db.Users.FindAsync(userId);
