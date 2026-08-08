@@ -391,9 +391,11 @@ public class QuestionsController : ControllerBase
                 _ => ParseExcel(stream),
             };
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return BadRequest(new ApiResponse<object>(400, $"Failed to parse file: {ex.Message}"));
+            // ponytail: jangan bocorkan detail exception mentah ke user — cukup
+            // pesan generik; detail tetap direkam oleh ErrorHandlingMiddleware.
+            return BadRequest(new ApiResponse<object>(400, "File tidak dapat dibaca. Pastikan format file sesuai template."));
         }
 
         if (rows.Count == 0)

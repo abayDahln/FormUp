@@ -20,6 +20,13 @@ public class JwtService
         _issuer = jwtSettings["Issuer"] ?? "FormUpAPI";
         _audience = jwtSettings["Audience"] ?? "FormUpClient";
         _accessTokenMinutes = int.TryParse(jwtSettings["AccessTokenMinutes"], out var exp) ? exp : 60;
+
+        // ponytail: tolak nilai default yang dikenal publik — kalau terpakai,
+        // siapa pun bisa memalsukan token lewat endpoint refresh.
+        if (_key.Trim() is "" or "your-super-secret-key-at-least-32-characters" ||
+            _key.Trim().Length < 32)
+            throw new InvalidOperationException(
+                "JWT_KEY memakai nilai default yang tidak aman. Ganti dengan nilai acak yang panjang.");
     }
 
     public (string token, DateTime expiresAt) GenerateToken(User user)
@@ -62,8 +69,11 @@ public class JwtService
                 ValidIssuer = _issuer,
                 ValidateAudience = true,
                 ValidAudience = _audience,
-                ValidateLifetime = false,
-                ClockSkew = TimeSpan.Zero
+                // ponytail: client refresh tepat saat token kedaluwarsa (401 token-expired),
+                // jadi refresh tetap diizinkan dalam jendela toleransi pendek. Token yang
+                // kedaluwarsa lebih lama (mis. dicuri & dipakai berbulan-bulan) ditolak.
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromMinutes(30)
             }, out _);
         }
         catch

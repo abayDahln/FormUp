@@ -22,7 +22,7 @@ public class AnalyticsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<object>>> GetAnalytics(int formId, CancellationToken ct)
+    public async Task<ActionResult<ApiResponse<object>>> GetAnalytics(int formId, [FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken ct)
     {
         var user = await GetCurrentUser();
         if (user == null)
@@ -43,18 +43,57 @@ public class AnalyticsController : ControllerBase
         var totalQuestions = questions.Count;
         var scorableQuestions = ResponseScorer.CountScorable(questions);
 
-        var responses = await _db.Responses
+        var responsesQuery = _db.Responses
             .Include(r => r.Respondent)
             .Include(r => r.RespondentAnswers)
                 .ThenInclude(a => a.Option)
             .Where(r => r.FormId == formId)
-            .OrderByDescending(r => r.SubmittedAt)
-            .ToListAsync(ct);
+            .OrderByDescending(r => r.SubmittedAt);
+
+        var allResponses = await responsesQuery.ToListAsync(ct);
+        var totalResponses = allResponses.Count;
+
+        // ponytail: tanpa page/pageSize → kirim semua responden (perilaku lama
+        // untuk web). Dengan param → rata-rata skor tetap dihitung dari seluruh
+        // respons, tapi hanya responden pada halaman yang dikirim ke klien.
+        var currentPage = page.GetValueOrDefault(1);
+        var currentPageSize = pageSize.GetValueOrDefault(0);
+        var paged = currentPageSize > 0;
+        var pageResponses = paged
+            ? allResponses.Skip((currentPage - 1) * currentPageSize).Take(currentPageSize).ToList()
+            : allResponses;
 
         var respondents = new List<RespondentAnalytics>();
         var allScores = new List<double>();
 
-        foreach (var response in responses)
+        foreach (var response in allResponses)
+        {
+            var answeredCount = 0;
+            var correctCount = 0;
+
+            foreach (var q in questions)
+            {
+                var answer = response.RespondentAnswers
+                    .FirstOrDefault(a => a.QuestionId == q.Id);
+
+                if (answer != null)
+                    answeredCount++;
+
+                var isCorrect = ResponseScorer.IsAnswerCorrect(answer, q);
+                if (isCorrect == true)
+                    correctCount++;
+            }
+
+            double? score = scorableQuestions > 0
+                ? Math.Round((double)correctCount / scorableQuestions * 100, 1)
+                : null;
+
+            if (score.HasValue)
+                allScores.Add(score.Value);
+        }
+
+        // Bangun hanya responden yang tampil pada halaman (ringan untuk mobile).
+        foreach (var response in pageResponses)
         {
             var answers = new List<AnswerAnalytics>();
             var answeredCount = 0;
@@ -91,9 +130,6 @@ public class AnalyticsController : ControllerBase
                 ? Math.Round((double)correctCount / scorableQuestions * 100, 1)
                 : null;
 
-            if (score.HasValue)
-                allScores.Add(score.Value);
-
             respondents.Add(new RespondentAnalytics
             {
                 ResponseId = response.Id,
@@ -108,13 +144,27 @@ public class AnalyticsController : ControllerBase
             });
         }
 
-        var averageScore = allScores.Count > 0
+        double? averageScore = allScores.Count > 0
             ? Math.Round(allScores.Average(), 1)
             : (double?)null;
 
+        if (paged)
+        {
+            return Ok(new ApiResponse<object>(200, "OK", new
+            {
+                TotalResponses = totalResponses,
+                TotalQuestions = totalQuestions,
+                ScorableQuestions = scorableQuestions,
+                AverageScore = averageScore,
+                Respondents = respondents,
+                Page = currentPage,
+                PageSize = currentPageSize,
+            }));
+        }
+
         return Ok(new ApiResponse<object>(200, "OK", new FormAnalyticsResponse
         {
-            TotalResponses = responses.Count,
+            TotalResponses = totalResponses,
             TotalQuestions = totalQuestions,
             ScorableQuestions = scorableQuestions,
             AverageScore = averageScore,

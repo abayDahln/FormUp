@@ -28,7 +28,7 @@ public class ResponsesController : ControllerBase
     }
 
     [HttpGet("api/forms/{formId}/responses")]
-    public async Task<ActionResult<ApiResponse<object>>> GetAll(int formId)
+    public async Task<ActionResult<ApiResponse<object>>> GetAll(int formId, [FromQuery] int? page, [FromQuery] int? pageSize)
     {
         var user = await GetCurrentUser();
         if (user == null)
@@ -40,7 +40,7 @@ public class ResponsesController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        var responses = await _db.Responses
+        var query = _db.Responses
             .Include(r => r.Status)
             .Include(r => r.Respondent)
             .Where(r => r.FormId == formId)
@@ -51,10 +51,29 @@ public class ResponsesController : ControllerBase
                 RespondentName = r.Respondent != null ? r.Respondent.Fullname : r.RespondentName,
                 Status = r.Status!.Status,
                 SubmittedAt = r.SubmittedAt ?? r.CreatedAt ?? JakartaTime.Now,
-            })
-            .ToListAsync();
+            });
 
-        return Ok(new ApiResponse<object>(200, "OK", responses));
+        // ponytail: tanpa page/pageSize → perilaku lama (semua sekaligus),
+        // agar klien lama (web) tidak berubah. Dengan param → respons berpaginasi.
+        if (page.HasValue && pageSize.HasValue && pageSize > 0)
+        {
+            var total = await query.CountAsync();
+            var items = await query
+                .Skip((page.Value - 1) * pageSize.Value)
+                .Take(pageSize.Value)
+                .ToListAsync();
+
+            return Ok(new ApiResponse<object>(200, "OK", new
+            {
+                items,
+                total,
+                page = page.Value,
+                pageSize = pageSize.Value,
+            }));
+        }
+
+        var all = await query.ToListAsync();
+        return Ok(new ApiResponse<object>(200, "OK", all));
     }
 
     [HttpGet("api/forms/{formId}/responses/{id}")]

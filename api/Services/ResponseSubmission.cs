@@ -73,6 +73,9 @@ public static class ResponseSubmission
 
         if (form.FormSetting?.OneResponse == true)
         {
+            // ponytail: satu respons per orang hanya bisa dijamin untuk user login
+            // (RespondentId). Tamu tanpa akun tidak bisa diidentifikasi secara
+            // andal, jadi batasan ini tidak dipaksakan untuk guest.
             var alreadySubmitted = false;
 
             if (isAuthenticated)
@@ -82,11 +85,6 @@ public static class ResponseSubmission
                     alreadySubmitted = await db.Responses
                         .AnyAsync(r => r.FormId == formId && r.RespondentId == userId);
             }
-            else if (!string.IsNullOrEmpty(body.GuestToken))
-            {
-                alreadySubmitted = await db.Responses
-                    .AnyAsync(r => r.FormId == formId && r.GuestToken == body.GuestToken);
-            }
 
             if (alreadySubmitted)
                 return new BadRequestObjectResult(new ApiResponse<object>(400, "You have already submitted a response"));
@@ -94,13 +92,71 @@ public static class ResponseSubmission
 
         var questionIds = body.Answers.Select(a => a.QuestionId).ToList();
         var validQuestions = await db.Questions
+            .Include(q => q.OptionQuestions)
             .Where(q => q.FormId == formId && q.DeletedAt == null)
-            .Select(q => q.Id)
             .ToListAsync();
 
-        var invalidIds = questionIds.Except(validQuestions).ToList();
+        var invalidIds = questionIds.Except(validQuestions.Select(q => q.Id)).ToList();
         if (invalidIds.Count > 0)
             return new BadRequestObjectResult(new ApiResponse<object>(400, $"Invalid question IDs: {string.Join(", ", invalidIds)}"));
+
+        var answersByQuestion = body.Answers
+            .Where(a => validQuestions.Any(q => q.Id == a.QuestionId))
+            .GroupBy(a => a.QuestionId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        // ponytail: soal wajib (isRequired) harus benar-benar dijawab — jangan
+        // percaya validasi di client saja, responden bisa kirim payload kosong.
+        foreach (var q in validQuestions.Where(q => q.IsRequired == true))
+        {
+            if (!answersByQuestion.TryGetValue(q.Id, out var answerList))
+                return new BadRequestObjectResult(new ApiResponse<object>(400, $"Pertanyaan \"{q.Question1}\" wajib dijawab"));
+
+            var answered = q.TypeId switch
+            {
+                2 or 3 => answerList.Any(a => a.OptionId.HasValue),
+                _ => answerList.Any(a => a.AnswerValue is { Length: > 0 } && !string.IsNullOrWhiteSpace(a.AnswerValue)),
+            };
+            if (!answered)
+                return new BadRequestObjectResult(new ApiResponse<object>(400, $"Pertanyaan \"{q.Question1}\" wajib dijawab"));
+        }
+
+        // ponytail: validasi isi jawaban per tipe soal — optionId harus milik
+        // soal itu, dan tipe jawaban tidak boleh ditukar (mis. essay diisi option).
+        foreach (var (questionId, ansList) in answersByQuestion)
+        {
+            var q = validQuestions.First(x => x.Id == questionId);
+
+            switch (q.TypeId)
+            {
+                case 2: // Pilihan Ganda: tepat satu optionId milik soal, tanpa answerValue.
+                    if (ansList.Count != 1 ||
+                        ansList[0].OptionId is not int optId2 ||
+                        ansList[0].AnswerValue != null ||
+                        !q.OptionQuestions.Any(o => o.Id == optId2))
+                        return new BadRequestObjectResult(new ApiResponse<object>(400, "Jawaban pilihan ganda tidak valid"));
+                    break;
+
+                case 3: // Checkbox: semua optionId milik soal, tanpa answerValue.
+                    if (ansList.Any(a => a.AnswerValue != null || a.OptionId is not int oid ||
+                        !q.OptionQuestions.Any(o => o.Id == oid)))
+                        return new BadRequestObjectResult(new ApiResponse<object>(400, "Jawaban checkbox tidak valid"));
+                    break;
+
+                case 5: // Benar/Salah: tepat satu answerValue "Benar" atau "Salah".
+                    if (ansList.Count != 1 ||
+                        ansList[0].OptionId.HasValue ||
+                        ansList[0].AnswerValue is not ("Benar" or "Salah"))
+                        return new BadRequestObjectResult(new ApiResponse<object>(400, "Jawaban benar/salah tidak valid"));
+                    break;
+
+                case 1: // Essay.
+                case 4: // Tanggal & Waktu.
+                    if (ansList.Count > 1 || ansList.Any(a => a.OptionId.HasValue))
+                        return new BadRequestObjectResult(new ApiResponse<object>(400, "Jawaban tidak valid untuk tipe soal ini"));
+                    break;
+            }
+        }
 
         int? respondentId = null;
         var userIdClaim2 = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -110,11 +166,6 @@ public static class ResponseSubmission
         // ponytail: nama tamu hanya untuk responden tanpa login; user login diidentifikasi lewat RespondentId
         var respondentName = respondentId == null ? body.RespondentName : null;
 
-        // ponytail: guest token dipakai untuk one-response guest & untuk mengambil hasil lewat endpoint publik
-        var guestToken = respondentId == null
-            ? (string.IsNullOrWhiteSpace(body.GuestToken) ? Guid.NewGuid().ToString("N") : body.GuestToken)
-            : null;
-
         var newStatus = await db.ResponseStatuses.FirstAsync(s => s.Status == "new");
 
         var response = new Response
@@ -122,7 +173,6 @@ public static class ResponseSubmission
             FormId = formId,
             RespondentId = respondentId,
             RespondentName = respondentName,
-            GuestToken = guestToken,
             StatusId = newStatus.Id,
             SubmittedAt = JakartaTime.Now,
             CreatedAt = JakartaTime.Now,
@@ -143,6 +193,6 @@ public static class ResponseSubmission
         db.RespondentAnswers.AddRange(answers);
         await db.SaveChangesAsync();
 
-        return new OkObjectResult(new ApiResponse<object>(201, "Response submitted", new { responseId = response.Id, guestToken }));
+        return new OkObjectResult(new ApiResponse<object>(201, "Response submitted", new { responseId = response.Id }));
     }
 }

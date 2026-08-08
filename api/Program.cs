@@ -97,6 +97,13 @@ namespace FormUpAPI
                 ?? jwtSettings["Key"];
             if (string.IsNullOrEmpty(keyString))
                 throw new InvalidOperationException("JWT Key is not configured. Set JWT_KEY environment variable or Jwt:Key in appsettings.json.");
+
+            // ponytail: tolak nilai default/placeholder yang dikenal publik —
+            // kalau terpakai, siapa pun bisa memalsukan token & mengambil alih akun.
+            if (IsKnownDefaultJwtKey(keyString))
+                throw new InvalidOperationException(
+                    "JWT_KEY masih memakai nilai default yang tidak aman. Ganti dengan nilai acak yang panjang.");
+
             var key = Encoding.ASCII.GetBytes(keyString);
 
             var expiryMinutes = int.TryParse(jwtSettings["AccessTokenMinutes"], out var exp) ? exp : 60;
@@ -221,7 +228,6 @@ namespace FormUpAPI
 
             var app = builder.Build();
 
-
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
@@ -247,5 +253,15 @@ namespace FormUpAPI
 
             app.Run();
         }
+
+        // ponytail: nilai-nilai yang dikenal publik / muncul di repo & README.
+        // Jangan izinkan server berjalan dengan salah satunya.
+        private static bool IsKnownDefaultJwtKey(string key) =>
+            key.Trim() switch
+            {
+                "" => true,
+                "your-super-secret-key-at-least-32-characters" => true,
+                _ => key.Trim().Length < 32,
+            };
     }
 }

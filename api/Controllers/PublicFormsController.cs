@@ -21,6 +21,7 @@ public class PublicFormsController : ControllerBase
 
     [HttpGet("forms/{formLink}")]
     [AllowAnonymous]
+    [EnableRateLimiting("submit")]
     public async Task<ActionResult<ApiResponse<object>>> GetForm(string formLink)
     {
         var form = await ResolveFormAsync(formLink);
@@ -68,13 +69,22 @@ public class PublicFormsController : ControllerBase
         var questions = await _db.Questions
             .Include(q => q.OptionQuestions.OrderBy(o => o.OptionOrder))
             .Where(q => q.FormId == form.Id && q.DeletedAt == null)
-            .OrderBy(q => q.QuestionOrder)
             .ToListAsync();
+
+        // ponytail: acak urutan soal hanya untuk responden — pembuat form tetap
+        // melihat urutan asli lewat endpoint owner. Nomor soal (1,2,3,..) dibuat
+        // client dari index, jadi otomatis tetap berurutan.
+        if (form.FormSetting?.RandomizeQuestions == true)
+            Shuffle(questions);
+        else
+            questions = questions.OrderBy(q => q.QuestionOrder).ToList();
 
         return Ok(new ApiResponse<object>(200, "OK", new PublicQuestionsResponse
         {
             FormId = form.Id,
-            Questions = questions.Select(MapPublicQuestion).ToList(),
+            Questions = questions
+                .Select(q => MapPublicQuestion(q, randomizeOptions: q.RandomizeOptions == true))
+                .ToList(),
         }));
     }
 
@@ -90,10 +100,12 @@ public class PublicFormsController : ControllerBase
         return await ResponseSubmission.SaveAsync(_db, User, form.Id, request);
     }
 
-    // Hasil untuk responden: guest wajib bawa guestToken, user login wajib jadi pemilik respons.
+    // Hasil untuk responden: hanya pemilik respons (user login lewat JWT) yang
+    // bisa melihat hasilnya. Tanpa login, hasil tidak tersedia.
     [HttpGet("forms/{formLink}/responses/{responseId}")]
     [AllowAnonymous]
-    public async Task<ActionResult<ApiResponse<object>>> GetResult(string formLink, int responseId, [FromQuery] string? token)
+    [EnableRateLimiting("submit")]
+    public async Task<ActionResult<ApiResponse<object>>> GetResult(string formLink, int responseId)
     {
         var form = await _db.Forms
             .Include(f => f.FormSetting)
@@ -114,10 +126,8 @@ public class PublicFormsController : ControllerBase
             && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid)
             && response.RespondentId == uid;
 
-        var isGuest = response.GuestToken != null && response.GuestToken == token;
-
-        if (!isOwner && !isGuest)
-            return Unauthorized(new ApiResponse<object>(401, "Token tidak valid untuk melihat hasil ini"));
+        if (!isOwner)
+            return Unauthorized(new ApiResponse<object>(401, "Anda tidak berhak melihat hasil ini"));
 
         var questions = await _db.Questions
             .Include(q => q.OptionQuestions)
@@ -170,26 +180,44 @@ public class PublicFormsController : ControllerBase
     }
 
     // ponytail: mapper publik, jangan bocorkan kunci
-    private static QuestionResponse MapPublicQuestion(Question q) => new()
+    private static QuestionResponse MapPublicQuestion(Question q, bool randomizeOptions = false)
     {
-        Id = q.Id,
-        FormId = q.FormId,
-        TypeId = q.TypeId,
-        Question = q.Question1,
-        QuestionFormat = q.QuestionFormat ?? RichTextValidation.FormatOf(q.Question1),
-        QuestionOrder = q.QuestionOrder,
-        QuestionImage = q.QuestionImage,
-        QuestionAudio = q.QuestionAudio,
-        IsRequired = q.IsRequired,
-        CorrectAnswer = null,
-        RandomizeOptions = q.RandomizeOptions,
-        Options = (q.OptionQuestions ?? []).OrderBy(o => o.OptionOrder).Select(o => new OptionResponse
+        var options = (q.OptionQuestions ?? []).OrderBy(o => o.OptionOrder).ToList();
+        if (randomizeOptions)
+            Shuffle(options);
+
+        return new QuestionResponse
         {
-            Id = o.Id,
-            OptionText = o.OptionText ?? "",
-            OptionImage = o.OptionImage,
-            IsCorrect = null,
-            OptionOrder = o.OptionOrder,
-        }).ToList(),
-    };
+            Id = q.Id,
+            FormId = q.FormId,
+            TypeId = q.TypeId,
+            Question = q.Question1,
+            QuestionFormat = q.QuestionFormat ?? RichTextValidation.FormatOf(q.Question1),
+            QuestionOrder = q.QuestionOrder,
+            QuestionImage = q.QuestionImage,
+            QuestionAudio = q.QuestionAudio,
+            IsRequired = q.IsRequired,
+            CorrectAnswer = null,
+            RandomizeOptions = q.RandomizeOptions,
+            Options = options.Select(o => new OptionResponse
+            {
+                Id = o.Id,
+                OptionText = o.OptionText ?? "",
+                OptionImage = o.OptionImage,
+                IsCorrect = null,
+                OptionOrder = o.OptionOrder,
+            }).ToList(),
+        };
+    }
+
+    /// <summary>Fisher-Yates shuffle in-place — dipakai untuk mengacak urutan
+    /// soal/opsi per responden. Urutan ID tidak berubah, hanya posisinya.</summary>
+    private static void Shuffle<T>(IList<T> list)
+    {
+        for (var i = list.Count - 1; i > 0; i--)
+        {
+            var j = Random.Shared.Next(i + 1);
+            (list[i], list[j]) = (list[j], list[i]);
+        }
+    }
 }
