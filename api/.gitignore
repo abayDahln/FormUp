@@ -15,3 +15,4 @@ wwwroot/questions/
 .vs/
 graphify-out/
 opencode.json
+cloudflared.exe
