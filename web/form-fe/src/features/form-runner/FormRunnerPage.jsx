@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Clock, Lock, AlertCircle, ArrowLeft, Send, CheckCircle2, User, Key } from 'lucide-react';
+import { Clock, AlertCircle, Send, User, Key, CheckCircle } from 'lucide-react';
 import {
     getPublicFormByLink,
     getPublicFormQuestions,
@@ -11,6 +11,43 @@ import {
 } from '../../services/apiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
 
+// ── Isolated Timer Component (Prevents parent FormRunnerPage re-render every 1 second) ──
+const FormTimer = memo(function FormTimer({ initialSeconds, onExpire }) {
+    const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
+    const timerRef = useRef(null);
+
+    useEffect(() => {
+        if (initialSeconds === null || initialSeconds <= 0) return;
+        setSecondsLeft(initialSeconds);
+
+        timerRef.current = setInterval(() => {
+            setSecondsLeft(prev => {
+                if (prev <= 1) {
+                    clearInterval(timerRef.current);
+                    if (onExpire) onExpire();
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timerRef.current);
+    }, [initialSeconds, onExpire]);
+
+    if (secondsLeft === null || secondsLeft <= 0) return null;
+
+    const mins = Math.floor(secondsLeft / 60);
+    const secs = secondsLeft % 60;
+    const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+    return (
+        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-xs font-extrabold border shrink-0 ${secondsLeft < 60 ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-slate-900 text-teal-400 border-slate-800'}`}>
+            <Clock size={14} />
+            <span>{formatted}</span>
+        </div>
+    );
+});
+
 export default function FormRunnerPage() {
     const { formLink } = useParams();
     const navigate = useNavigate();
@@ -19,6 +56,7 @@ export default function FormRunnerPage() {
     const [metaLoading, setMetaLoading] = useState(true);
     const [formMeta, setFormMeta] = useState(null);
     const [gateError, setGateError] = useState(null);
+    const [alreadySubmittedId, setAlreadySubmittedId] = useState(null);
 
     // Inputs for requirements
     const [tokenInput, setTokenInput] = useState('');
@@ -35,49 +73,12 @@ export default function FormRunnerPage() {
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState(null);
 
-    // Timer state
-    const [timeLeft, setTimeLeft] = useState(null);
-    const timerRef = useRef(null);
+    // Timer duration (in seconds)
+    const [timerDuration, setTimerDuration] = useState(null);
 
-    // ── Step 1: Load Form Metadata ──────────────────────────────────────────────
-    useEffect(() => {
-        const loadMeta = async () => {
-            setMetaLoading(true);
-            setGateError(null);
-            const res = await getPublicFormByLink(formLink);
+    // ── Function Declarations ──
 
-            if (res.ok && res.data) {
-                setFormMeta(res.data);
-
-                // Check Gates
-                if (res.data.requiresLogin && !isAuthenticated()) {
-                    setNeedsLogin(true);
-                    setMetaLoading(false);
-                    return;
-                }
-
-                if (res.data.requiresToken) {
-                    setNeedsToken(true);
-                    setMetaLoading(false);
-                    return;
-                }
-
-                // If no token/login gate, load questions immediately
-                fetchQuestions(res.data);
-            } else {
-                setGateError({
-                    status: res.status,
-                    message: res.message || 'Form tidak ditemukan atau tidak tersedia.',
-                });
-                setMetaLoading(false);
-            }
-        };
-
-        loadMeta();
-    }, [formLink]);
-
-    // ── Step 2: Fetch Questions ────────────────────────────────────────────────
-    const fetchQuestions = async (meta, token = tokenInput, name = guestName) => {
+    const fetchQuestions = useCallback(async (meta, token = tokenInput, name = guestName) => {
         setQuestionsLoading(true);
         setSubmitError(null);
 
@@ -90,9 +91,8 @@ export default function FormRunnerPage() {
             setNeedsToken(false);
             setNeedsLogin(false);
 
-            // Initialize Timer if configured
             if (meta?.timerDuration && meta.timerDuration > 0) {
-                setTimeLeft(meta.timerDuration); // timerDuration in seconds
+                setTimerDuration(meta.timerDuration);
             }
         } else if (res.status === 401) {
             if (res.message?.toLowerCase().includes('token')) setNeedsToken(true);
@@ -101,73 +101,9 @@ export default function FormRunnerPage() {
         } else {
             setGateError({ status: res.status, message: res.message || 'Failed to fetch form questions.' });
         }
-    };
+    }, [formLink, tokenInput, guestName]);
 
-    // ── Countdown Timer Effect ─────────────────────────────────────────────────
-    useEffect(() => {
-        if (timeLeft === null || timeLeft <= 0) return;
-
-        timerRef.current = setInterval(() => {
-            setTimeLeft(prev => {
-                if (prev <= 1) {
-                    clearInterval(timerRef.current);
-                    // Auto submit on timer expiration
-                    handleAutoSubmit();
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-
-        return () => clearInterval(timerRef.current);
-    }, [timeLeft]);
-
-    const formatTimer = (seconds) => {
-        if (seconds === null || seconds < 0) return '00:00';
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    };
-
-    // ── Answer Handler Helpers ─────────────────────────────────────────────────
-    const setAnswerValue = (questionId, val) => {
-        setAnswers(prev => ({ ...prev, [questionId]: val }));
-    };
-
-    const toggleCheckboxAnswer = (questionId, optionId) => {
-        setAnswers(prev => {
-            const current = prev[questionId] || [];
-            return {
-                ...prev,
-                [questionId]: current.includes(optionId)
-                    ? current.filter(id => id !== optionId)
-                    : [...current, optionId],
-            };
-        });
-    };
-
-    // ── Progress Calculator ────────────────────────────────────────────────────
-    const answeredCount = Object.keys(answers).filter(qId => {
-        const val = answers[qId];
-        if (val === undefined || val === null || val === '') return false;
-        if (Array.isArray(val) && val.length === 0) return false;
-        return true;
-    }).length;
-
-    const totalQuestions = questions.length;
-    const progressPercent = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
-
-    // ── Submit Handlers ────────────────────────────────────────────────────────
-    const handleSubmit = async (e) => {
-        if (e) e.preventDefault();
-        await executeSubmission();
-    };
-
-    const handleAutoSubmit = async () => {
-        await executeSubmission();
-    };
-
-    const executeSubmission = async () => {
+    const executeSubmission = useCallback(async () => {
         if (submitting) return;
         setSubmitting(true);
         setSubmitError(null);
@@ -190,22 +126,17 @@ export default function FormRunnerPage() {
             if (ans === undefined || ans === null) continue;
 
             if (q.typeId === 3) {
-                // Checkbox (Multi-select)
                 (ans || []).forEach(optId => {
                     payloadAnswers.push({ questionId: q.id, optionId: optId, answerValue: null });
                 });
             } else if (q.typeId === 2 || q.typeId === 5) {
-                // Multiple Choice / True-False
                 payloadAnswers.push({ questionId: q.id, optionId: ans, answerValue: null });
             } else {
-                // Essay, Date-Time, Short Answer
                 payloadAnswers.push({ questionId: q.id, optionId: null, answerValue: String(ans) });
             }
         }
 
-        // Read stored guest token if available
         const existingGuestToken = localStorage.getItem(`guestToken_${formLink}`);
-
         const payload = {
             token: tokenInput || null,
             respondentName: guestName.trim() || 'Guest',
@@ -223,13 +154,92 @@ export default function FormRunnerPage() {
             if (newGuestToken) {
                 localStorage.setItem(`guestToken_${formLink}`, newGuestToken);
             }
-
-            // Navigate to Result Page
-            navigate(`/f/${formLink}/result/${responseId}`);
+            if (responseId) {
+                localStorage.setItem(`lastResponse_${formLink}`, String(responseId));
+                navigate(`/f/${formLink}/result/${responseId}`);
+            }
+        } else if (res.status === 400 && res.message?.toLowerCase().includes('already submitted')) {
+            const lastRespId = localStorage.getItem(`lastResponse_${formLink}`);
+            if (lastRespId) setAlreadySubmittedId(lastRespId);
+            setSubmitError(res.message);
         } else {
             setSubmitError(res.message || 'Gagal menyimpan jawaban. Silakan coba lagi.');
         }
+    }, [formLink, tokenInput, guestName, questions, answers, submitting, navigate]);
+
+    const handleAutoSubmit = useCallback(async () => {
+        await executeSubmission();
+    }, [executeSubmission]);
+
+    const handleSubmit = async (e) => {
+        if (e) e.preventDefault();
+        await executeSubmission();
     };
+
+    // ── Step 1: Load Form Metadata Effect ───────────────────────────────────────
+    useEffect(() => {
+        const loadMeta = async () => {
+            setMetaLoading(true);
+            setGateError(null);
+
+            const savedRespId = localStorage.getItem(`lastResponse_${formLink}`);
+            if (savedRespId) setAlreadySubmittedId(savedRespId);
+
+            const res = await getPublicFormByLink(formLink);
+
+            if (res.ok && res.data) {
+                setFormMeta(res.data);
+
+                if (res.data.requiresLogin && !isAuthenticated()) {
+                    setNeedsLogin(true);
+                    setMetaLoading(false);
+                    return;
+                }
+
+                if (res.data.requiresToken) {
+                    setNeedsToken(true);
+                    setMetaLoading(false);
+                    return;
+                }
+
+                fetchQuestions(res.data);
+            } else {
+                setGateError({
+                    status: res.status,
+                    message: res.message || 'Form tidak ditemukan atau tidak tersedia.',
+                });
+                setMetaLoading(false);
+            }
+        };
+
+        loadMeta();
+    }, [formLink, fetchQuestions]);
+
+    const setAnswerValue = (questionId, val) => {
+        setAnswers(prev => ({ ...prev, [questionId]: val }));
+    };
+
+    const toggleCheckboxAnswer = (questionId, optionId) => {
+        setAnswers(prev => {
+            const current = prev[questionId] || [];
+            return {
+                ...prev,
+                [questionId]: current.includes(optionId)
+                    ? current.filter(id => id !== optionId)
+                    : [...current, optionId],
+            };
+        });
+    };
+
+    const answeredCount = Object.keys(answers).filter(qId => {
+        const val = answers[qId];
+        if (val === undefined || val === null || val === '') return false;
+        if (Array.isArray(val) && val.length === 0) return false;
+        return true;
+    }).length;
+
+    const totalQuestions = questions.length;
+    const progressPercent = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
 
     // ── Render States ──────────────────────────────────────────────────────────
 
@@ -239,8 +249,28 @@ export default function FormRunnerPage() {
         </div>
     );
 
+    if (alreadySubmittedId) return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
+            <div className="bg-white rounded-2xl border border-slate-200 p-8 max-w-md w-full text-center space-y-4 shadow-xs">
+                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                    <CheckCircle size={24} />
+                </div>
+                <div>
+                    <h2 className="text-lg font-bold text-slate-900">Anda Sudah Mengisi Form Ini</h2>
+                    <p className="text-xs text-slate-500 mt-1">Satu akun / perangkat hanya diperbolehkan mengirimkan 1 respons.</p>
+                </div>
+                <button
+                    onClick={() => navigate(`/f/${formLink}/result/${alreadySubmittedId}`)}
+                    className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-sm"
+                >
+                    Lihat Hasil Jawaban Anda
+                </button>
+            </div>
+        </div>
+    );
+
     if (gateError) return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
             <div className="bg-white rounded-2xl border border-slate-200 p-8 max-w-md w-full text-center space-y-3 shadow-xs">
                 <div className="text-3xl">🔒</div>
                 <h2 className="text-lg font-bold text-slate-900">{gateError.message}</h2>
@@ -253,7 +283,7 @@ export default function FormRunnerPage() {
     );
 
     if (needsLogin) return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
             <div className="bg-white rounded-2xl border border-slate-200 p-8 max-w-md w-full text-center space-y-4 shadow-xs">
                 <div className="w-12 h-12 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto">
                     <User size={24} />
@@ -273,7 +303,7 @@ export default function FormRunnerPage() {
     );
 
     if (needsToken && questions.length === 0) return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
             <div className="bg-white rounded-2xl border border-slate-200 p-8 max-w-md w-full space-y-4 shadow-xs">
                 <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto">
                     <Key size={24} />
@@ -317,7 +347,7 @@ export default function FormRunnerPage() {
     return (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-16">
             
-            {/* Sticky Header with Progress Bar & Timer */}
+            {/* Sticky Header with Progress Bar & Isolated Timer */}
             <div className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 shadow-xs">
                 <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
                     <div className="flex-1 min-w-0">
@@ -325,7 +355,6 @@ export default function FormRunnerPage() {
                             <span className="truncate">{formMeta?.title}</span>
                             <span className="shrink-0 text-teal-600">{answeredCount} / {totalQuestions} Terjawab ({progressPercent}%)</span>
                         </div>
-                        {/* Progress Bar */}
                         <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                             <div
                                 className="h-full bg-teal-600 transition-all duration-300 rounded-full"
@@ -334,12 +363,9 @@ export default function FormRunnerPage() {
                         </div>
                     </div>
 
-                    {/* Timer Badge */}
-                    {timeLeft !== null && (
-                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-xs font-extrabold border shrink-0 ${timeLeft < 60 ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-slate-900 text-teal-400 border-slate-800'}`}>
-                            <Clock size={14} />
-                            <span>{formatTimer(timeLeft)}</span>
-                        </div>
+                    {/* Isolated Timer Component */}
+                    {timerDuration !== null && (
+                        <FormTimer initialSeconds={timerDuration} onExpire={handleAutoSubmit} />
                     )}
                 </div>
             </div>
@@ -359,7 +385,6 @@ export default function FormRunnerPage() {
                     </div>
                 </div>
 
-                {/* Guest Name input if not logged in */}
                 {!isAuthenticated() && (
                     <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
                         <label className="text-xs font-bold text-slate-700 block mb-1">Nama Responden (Opsional):</label>
@@ -378,7 +403,6 @@ export default function FormRunnerPage() {
                     {questions.map((q, idx) => (
                         <div key={q.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
                             
-                            {/* Question Title & Media */}
                             <div className="space-y-2">
                                 <div className="text-sm font-bold text-slate-900 flex items-start gap-2">
                                     <span className="text-slate-400 shrink-0">{idx + 1}.</span>
@@ -397,8 +421,6 @@ export default function FormRunnerPage() {
                                 )}
                             </div>
 
-                            {/* Option Inputs based on Type ID */}
-                            
                             {/* Type 1: Essay / Short Answer */}
                             {q.typeId === 1 && (
                                 <textarea

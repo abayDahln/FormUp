@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -12,7 +12,8 @@ import {
     XCircle,
     MinusCircle,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Loader2
 } from 'lucide-react';
 
 import Sidebar from '../../components/layout/Sidebar';
@@ -22,13 +23,20 @@ import {
     clearSession
 } from '../../services/apiService';
 
+const PAGE_SIZE = 20;
+
 export default function FormAnalyticsPage() {
     const { id } = useParams();
     const navigate = useNavigate();
 
     const [form, setForm] = useState(null);
     const [analytics, setAnalytics] = useState(null);
+    const [respondents, setRespondents] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [totalCount, setTotalCount] = useState(0);
 
     // Responden yang sedang direview
     const [selectedRespondent, setSelectedRespondent] = useState(null);
@@ -40,7 +48,7 @@ export default function FormAnalyticsPage() {
             try {
                 const [formRes, analyticsRes] = await Promise.all([
                     getFormById(id),
-                    getFormAnalytics(id)
+                    getFormAnalytics(id, 1, PAGE_SIZE)
                 ]);
 
                 if (formRes.status === 401) {
@@ -53,8 +61,13 @@ export default function FormAnalyticsPage() {
                     setForm(formRes.data);
                 }
 
-                if (analyticsRes.ok) {
+                if (analyticsRes.ok && analyticsRes.data) {
                     setAnalytics(analyticsRes.data);
+                    const list = analyticsRes.data.respondents || [];
+                    const total = analyticsRes.data.totalResponses ?? list.length;
+                    setRespondents(list);
+                    setTotalCount(total);
+                    setHasMore(list.length >= PAGE_SIZE);
                 }
             } catch (error) {
                 console.error('Failed to load analytics:', error);
@@ -66,6 +79,26 @@ export default function FormAnalyticsPage() {
         load();
     }, [id, navigate]);
 
+    const handleLoadMore = useCallback(async () => {
+        if (loadingMore || !hasMore) return;
+        setLoadingMore(true);
+
+        const nextPage = page + 1;
+        const res = await getFormAnalytics(id, nextPage, PAGE_SIZE);
+        setLoadingMore(false);
+
+        if (res.ok && res.data) {
+            const newList = res.data.respondents || [];
+            if (newList.length > 0) {
+                setRespondents(prev => [...prev, ...newList]);
+                setPage(nextPage);
+                setHasMore(newList.length >= PAGE_SIZE);
+            } else {
+                setHasMore(false);
+            }
+        }
+    }, [id, page, loadingMore, hasMore]);
+
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-slate-50">
@@ -73,8 +106,6 @@ export default function FormAnalyticsPage() {
             </div>
         );
     }
-
-    const respondents = analytics?.respondents || [];
 
     const currentIndex = selectedRespondent
         ? respondents.findIndex(
@@ -151,7 +182,7 @@ export default function FormAnalyticsPage() {
                         </h1>
 
                         <p className="text-[11px] text-slate-400">
-                            Response performance overview
+                            Response performance overview ({respondents.length} / {totalCount || respondents.length} respondents loaded)
                         </p>
                     </div>
                 </div>
@@ -212,116 +243,134 @@ export default function FormAnalyticsPage() {
 
                     {/* RESPONDENTS */}
                     {respondents.length > 0 ? (
-                        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                        <div className="space-y-4">
+                            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                                <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                                    <div>
+                                        <h2 className="text-sm font-bold text-slate-700">
+                                            Respondent Breakdown
+                                        </h2>
 
-                            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                                <div>
-                                    <h2 className="text-sm font-bold text-slate-700">
-                                        Respondent Breakdown
-                                    </h2>
+                                        <p className="text-xs text-slate-400 mt-1">
+                                            Klik Review Answers untuk melihat jawaban lengkap.
+                                        </p>
+                                    </div>
+                                </div>
 
-                                    <p className="text-xs text-slate-400 mt-1">
-                                        Klik Review Answers untuk melihat jawaban lengkap.
-                                    </p>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-left">
+
+                                        <thead>
+                                            <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                                                <th className="py-3 px-4">#</th>
+                                                <th className="py-3 px-4">Respondent</th>
+                                                <th className="py-3 px-4">Answered</th>
+                                                <th className="py-3 px-4">Correct</th>
+                                                <th className="py-3 px-4">Score</th>
+                                                <th className="py-3 px-4">Submitted</th>
+                                                <th className="py-3 px-4 text-right">
+                                                    Action
+                                                </th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody className="divide-y divide-slate-100">
+
+                                            {respondents.map((r, i) => (
+                                                <tr
+                                                    key={r.responseId}
+                                                    className="hover:bg-slate-50"
+                                                >
+                                                    <td className="py-3 px-4 text-slate-400">
+                                                        {i + 1}
+                                                    </td>
+
+                                                    <td className="py-3 px-4">
+                                                        <div className="font-semibold text-slate-800">
+                                                            {r.respondentName || 'Anonymous'}
+                                                        </div>
+
+                                                        <div className="text-[10px] text-slate-400">
+                                                            Response #{r.responseId}
+                                                        </div>
+                                                    </td>
+
+                                                    <td className="py-3 px-4 text-slate-600">
+                                                        {r.answeredCount}/{r.totalQuestions}
+                                                    </td>
+
+                                                    <td className="py-3 px-4 text-slate-600">
+                                                        {r.correctCount}/{r.scorableQuestions}
+                                                    </td>
+
+                                                    <td className="py-3 px-4">
+                                                        {r.score != null ? (
+                                                            <span
+                                                                className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                                                    r.score >= 70
+                                                                        ? 'bg-emerald-50 text-emerald-600'
+                                                                        : 'bg-red-50 text-red-600'
+                                                                }`}
+                                                            >
+                                                                {r.score}%
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-400 text-xs">
+                                                                N/A
+                                                            </span>
+                                                        )}
+                                                    </td>
+
+                                                    <td className="py-3 px-4 text-slate-500 text-xs">
+                                                        {r.submittedAt
+                                                            ? new Date(
+                                                                  r.submittedAt
+                                                              ).toLocaleDateString(
+                                                                  'id-ID',
+                                                                  {
+                                                                      day: '2-digit',
+                                                                      month: 'short',
+                                                                      year: 'numeric'
+                                                                  }
+                                                              )
+                                                            : '-'}
+                                                    </td>
+
+                                                    <td className="py-3 px-4 text-right">
+                                                        <button
+                                                            onClick={() =>
+                                                                setSelectedRespondent(r)
+                                                            }
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-white text-xs font-semibold hover:bg-slate-900 transition-colors"
+                                                        >
+                                                            <Eye size={13} />
+                                                            Review Answers
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
 
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-
-                                    <thead>
-                                        <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                                            <th className="py-3 px-4">#</th>
-                                            <th className="py-3 px-4">Respondent</th>
-                                            <th className="py-3 px-4">Answered</th>
-                                            <th className="py-3 px-4">Correct</th>
-                                            <th className="py-3 px-4">Score</th>
-                                            <th className="py-3 px-4">Submitted</th>
-                                            <th className="py-3 px-4 text-right">
-                                                Action
-                                            </th>
-                                        </tr>
-                                    </thead>
-
-                                    <tbody className="divide-y divide-slate-100">
-
-                                        {respondents.map((r, i) => (
-                                            <tr
-                                                key={r.responseId}
-                                                className="hover:bg-slate-50"
-                                            >
-                                                <td className="py-3 px-4 text-slate-400">
-                                                    {i + 1}
-                                                </td>
-
-                                                <td className="py-3 px-4">
-                                                    <div className="font-semibold text-slate-800">
-                                                        {r.respondentName || 'Anonymous'}
-                                                    </div>
-
-                                                    <div className="text-[10px] text-slate-400">
-                                                        Response #{r.responseId}
-                                                    </div>
-                                                </td>
-
-                                                <td className="py-3 px-4 text-slate-600">
-                                                    {r.answeredCount}/{r.totalQuestions}
-                                                </td>
-
-                                                <td className="py-3 px-4 text-slate-600">
-                                                    {r.correctCount}/{r.scorableQuestions}
-                                                </td>
-
-                                                <td className="py-3 px-4">
-                                                    {r.score != null ? (
-                                                        <span
-                                                            className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                                                                r.score >= 70
-                                                                    ? 'bg-emerald-50 text-emerald-600'
-                                                                    : 'bg-red-50 text-red-600'
-                                                            }`}
-                                                        >
-                                                            {r.score}%
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-slate-400 text-xs">
-                                                            N/A
-                                                        </span>
-                                                    )}
-                                                </td>
-
-                                                <td className="py-3 px-4 text-slate-500 text-xs">
-                                                    {r.submittedAt
-                                                        ? new Date(
-                                                              r.submittedAt
-                                                          ).toLocaleDateString(
-                                                              'id-ID',
-                                                              {
-                                                                  day: '2-digit',
-                                                                  month: 'short',
-                                                                  year: 'numeric'
-                                                              }
-                                                          )
-                                                        : '-'}
-                                                </td>
-
-                                                <td className="py-3 px-4 text-right">
-                                                    <button
-                                                        onClick={() =>
-                                                            setSelectedRespondent(r)
-                                                        }
-                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-white text-xs font-semibold hover:bg-slate-900 transition-colors"
-                                                    >
-                                                        <Eye size={13} />
-                                                        Review Answers
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-
-                                    </tbody>
-                                </table>
-                            </div>
+                            {/* Infinite Scroll / Load More Button */}
+                            {hasMore && (
+                                <div className="text-center pt-2">
+                                    <button
+                                        onClick={handleLoadMore}
+                                        disabled={loadingMore}
+                                        className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 mx-auto disabled:opacity-60"
+                                    >
+                                        {loadingMore ? (
+                                            <><Loader2 size={14} className="animate-spin text-teal-600" /> Memuat responden...</>
+                                        ) : (
+                                            `Muat Lebih Banyak (${respondents.length} dari ${totalCount || 'banyak'})`
+                                        )}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="text-center py-16 text-slate-400 text-sm">
