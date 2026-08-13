@@ -96,7 +96,7 @@ export const changePassword = async (currentPassword, newPassword) => {
     return parseResponse(res);
 };
 
-export const uploadProfileImage = (file) => {
+export const uploadProfileImage = async (file) => {
     const form = new FormData();
     form.append('file', file);
     const token = getToken();
@@ -160,7 +160,7 @@ export const updateFormSettings = async (id, settings) => {
 
 export const getFormShare = async (id) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${id}/share`, { headers: authHeaders() }));
 
-export const uploadFormBanner = (formId, file) => {
+export const uploadFormBanner = async (formId, file) => {
     const form = new FormData();
     form.append('file', file);
     const token = getToken();
@@ -201,7 +201,7 @@ export const deleteQuestion = async (formId, questionId) => {
     return parseResponse(res);
 };
 
-export const importQuestions = (formId, file) => {
+export const importQuestions = async (formId, file) => {
     const form = new FormData();
     form.append('file', file);
     const token = getToken();
@@ -213,7 +213,7 @@ export const importQuestions = (formId, file) => {
     return parseResponse(res);
 };
 
-export const uploadQuestionImage = (formId, questionId, file) => {
+export const uploadQuestionImage = async (formId, questionId, file) => {
     const form = new FormData();
     form.append('file', file);
     const token = getToken();
@@ -225,7 +225,7 @@ export const uploadQuestionImage = (formId, questionId, file) => {
     return parseResponse(res);
 };
 
-export const uploadQuestionAudio = (formId, questionId, file) => {
+export const uploadQuestionAudio = async (formId, questionId, file) => {
     const form = new FormData();
     form.append('file', file);
     const token = getToken();
@@ -302,11 +302,53 @@ export const submitPublicFormResponse = async (formLink, payload) => {
 };
 
 // Step 4: Get public response result (for respondent view)
-export const getPublicResponseResult = (formLink, responseId, guestToken) => {
+export const getPublicResponseResult = async (formLink, responseId, guestToken) => {
     const url = guestToken
         ? `${API_BASE_URL}/api/public/forms/${formLink}/responses/${responseId}?token=${encodeURIComponent(guestToken)}`
         : `${API_BASE_URL}/api/public/forms/${formLink}/responses/${responseId}`;
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, { headers: authHeaders() });
+    return parseResponse(res);
+};
+
+// ── Admin Endpoints ───────────────────────────────────────────────────────────
+export const adminGetUsers = async () => parseResponse(await fetch(`${API_BASE_URL}/api/admin/users`, { headers: authHeaders() }));
+export const adminGetForms = async () => parseResponse(await fetch(`${API_BASE_URL}/api/admin/forms`, { headers: authHeaders() }));
+export const adminGetFeedback = async () => parseResponse(await fetch(`${API_BASE_URL}/api/admin/feedback`, { headers: authHeaders() }));
+
+export const adminBanUser = async (id) => {
+    const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}/ban`, { method: 'PUT', headers: authHeaders() });
+    return parseResponse(res);
+};
+export const adminActivateUser = async (id) => {
+    const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}/activate`, { method: 'PUT', headers: authHeaders() });
+    return parseResponse(res);
+};
+export const adminDeleteUser = async (id) => {
+    const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, { method: 'DELETE', headers: authHeaders() });
+    return parseResponse(res);
+};
+export const adminTakedownForm = async (id) => {
+    const res = await fetch(`${API_BASE_URL}/api/admin/forms/${id}/takedown`, { method: 'POST', headers: authHeaders() });
+    return parseResponse(res);
+};
+export const adminRestoreForm = async (id) => {
+    const res = await fetch(`${API_BASE_URL}/api/admin/forms/${id}/restore`, { method: 'POST', headers: authHeaders() });
+    return parseResponse(res);
+};
+export const adminDeleteForm = async (id) => {
+    const res = await fetch(`${API_BASE_URL}/api/admin/forms/${id}`, { method: 'DELETE', headers: authHeaders() });
+    return parseResponse(res);
+};
+export const adminDeleteFeedback = async (id) => {
+    const res = await fetch(`${API_BASE_URL}/api/admin/feedback/${id}`, { method: 'DELETE', headers: authHeaders() });
+    return parseResponse(res);
+};
+export const adminTakedownFormFromFeedback = async (id) => {
+    const res = await fetch(`${API_BASE_URL}/api/admin/feedback/${id}/takedown`, { method: 'POST', headers: authHeaders() });
+    return parseResponse(res);
+};
+export const adminRestoreFormFromFeedback = async (id) => {
+    const res = await fetch(`${API_BASE_URL}/api/admin/feedback/${id}/restore`, { method: 'POST', headers: authHeaders() });
     return parseResponse(res);
 };
 
