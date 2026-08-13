@@ -69,6 +69,11 @@ public static class ResponseScorer
                 AnswerText = GetAnswerText(answer, q),
                 CorrectAnswer = showScore ? GetCorrectAnswerText(q) : null,
                 IsCorrect = isCorrect,
+                Options = q.OptionQuestions
+                    .OrderBy(o => o.OptionOrder)
+                    .Where(o => !string.IsNullOrEmpty(o.OptionText))
+                    .Select(o => o.OptionText!)
+                    .ToList(),
             });
         }
 
