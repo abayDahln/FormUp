@@ -36,7 +36,7 @@ class FormData {
       description: json['description'] as String?,
       bannerImage: json['bannerImage'] as String?,
       formLink: json['formLink'] as String? ?? '',
-      status: json['status'] as String? ?? 'draft',
+      status: (json['status'] as String? ?? 'draft').toLowerCase(),
       responseCount: json['responseCount'] as int? ?? 0,
       createdAt: rawCreated == null || rawCreated.isEmpty
           ? null
