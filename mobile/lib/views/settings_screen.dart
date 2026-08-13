@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'auth_widgets.dart';
 import '../app_router.dart';
 import '../services/auth_service.dart';
@@ -37,11 +36,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     AppRouter.of(context).resetToLogin();
   }
 
-  void _copyBaseUrl() {
-    Clipboard.setData(ClipboardData(text: apiBaseUrl));
-    showAuthToast(context, 'URL server disalin');
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -77,28 +71,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ]),
 
                 const SizedBox(height: 24),
-                _sectionLabel('Server'),
-                const SizedBox(height: 10),
-                _settingsCard(children: [
-                  _SettingsTile(
-                    icon: Icons.dns_outlined,
-                    label: 'URL Server',
-                    trailing: Flexible(
-                      child: Text(
-                        apiBaseUrl,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ),
-                    onTap: _copyBaseUrl,
-                  ),
-                ]),
-
-                const SizedBox(height: 24),
                 _sectionLabel('Tentang'),
                 const SizedBox(height: 10),
                 _settingsCard(children: [
@@ -121,13 +93,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onPressed: () => _confirmLogout(context),
                 ),
                 const SizedBox(height: 12),
-                Center(
-                  child: Text(
-                    'Koneksi ke server dikonfigurasi melalui file .env (API_BASE_URL).',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12, color: Colors.black45),
-                  ),
-                ),
               ],
             ),
           ),

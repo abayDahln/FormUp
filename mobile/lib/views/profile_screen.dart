@@ -41,30 +41,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _confirmLogout(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Keluar', style: TextStyle(fontFamily: kFontBold)),
-        content: const Text('Anda yakin ingin keluar dari akun ini?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Keluar', style: TextStyle(color: Color(0xFFC0392B))),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-    await AuthService.logout();
-    if (!context.mounted) return;
-    AppRouter.of(context).resetToLogin();
-  }
-
   void _showComingSoon(BuildContext context, String feature) {
     showAuthToast(context, '$feature akan segera hadir.');
   }
@@ -109,14 +85,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: Colors.black87,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xCCBDC9C8)),
+                InkWell(
+                  onTap: () => AppRouter.of(context).push(AppPage.settings),
+                  customBorder: const CircleBorder(),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xCCBDC9C8)),
+                    ),
+                    child: const Icon(Icons.settings_outlined, color: kAuthPrimary, size: 20),
                   ),
-                  child: const Icon(Icons.settings_outlined, color: kAuthPrimary, size: 20),
                 ),
               ],
             ),
@@ -169,11 +149,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               Row(
                 children: [
-                  Expanded(child: _MiniStat(label: 'Form', value: '${stats.totalForms}')),
+                  Expanded(child: _MiniStat(label: 'Form Saya', value: '${stats.totalForms}')),
                   const SizedBox(width: 10),
-                  Expanded(child: _MiniStat(label: 'Respons', value: '${stats.totalResponses}')),
-                  const SizedBox(width: 10),
-                  Expanded(child: _MiniStat(label: 'Umpan Balik', value: '${stats.totalFeedbackGiven}')),
+                  Expanded(child: _MiniStat(label: 'Form Dikerjakan', value: '${stats.totalResponses}')),
                 ],
               ),
               const SizedBox(height: 24),
@@ -210,31 +188,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onTap: () => _showComingSoon(context, 'Tentang'),
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              SizedBox(
-                height: 52,
-                child: ElevatedButton.icon(
-                  onPressed: () => _confirmLogout(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC0392B),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  icon: const Icon(Icons.logout),
-                  label: const Text(
-                    'Keluar',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: kFontBold,
-                    ),
-                  ),
                 ),
               ),
             ],
