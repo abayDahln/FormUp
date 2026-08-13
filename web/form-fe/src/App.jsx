@@ -13,6 +13,7 @@ import FormResponsesPage from './features/form-responses/FormResponsesPage';
 import FormAnalyticsPage from './features/form-responses/FormAnalyticsPage';
 import FormRunnerPage from './features/form-runner/FormRunnerPage';
 import FormResultPage from './features/form-runner/FormResultPage';
+import AdminDashboardPage from './features/admin/AdminDashboardPage';
 import ProtectedRoute from './components/ui/ProtectedRoute';
 
 function App() {
@@ -36,6 +37,8 @@ function App() {
       <Route path="/forms/:id/edit" element={<ProtectedRoute><FormBuilder /></ProtectedRoute>} />
       <Route path="/forms/:id/responses" element={<ProtectedRoute><FormResponsesPage /></ProtectedRoute>} />
       <Route path="/forms/:id/analytics" element={<ProtectedRoute><FormAnalyticsPage /></ProtectedRoute>} />
+
+      <Route path="/admin" element={<ProtectedRoute><AdminDashboardPage /></ProtectedRoute>} />
     </Routes>
   );
 }

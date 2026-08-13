@@ -6,12 +6,15 @@ import {
     LayoutTemplate, 
     History,
     LogOut,
+    Shield,
 } from 'lucide-react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { getLocalUser } from '../../services/apiService';
 
 export default function Sidebar() {
     const navigate = useNavigate();
-    const location = useLocation(); // Hook untuk mendapatkan URL (path) saat ini
+    const location = useLocation();
+    const user = getLocalUser();
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -19,14 +22,17 @@ export default function Sidebar() {
         navigate('/login');
     };
 
-    // Daftar menu disimpan dalam array
     const menuItems = [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { path: '/my-forms', icon: Folder, label: 'My Forms' },
         { path: '/responses', icon: MessageSquare, label: 'Responses' },
         { path: '/templates', icon: LayoutTemplate, label: 'Templates' },
-        { path: '/history', icon: History, label: 'History' }, 
+        { path: '/history', icon: History, label: 'History' },
     ];
+
+    if (user?.role === 'ADMIN') {
+        menuItems.push({ path: '/admin', icon: Shield, label: 'Admin Control' });
+    }
 
     return (
         <aside className="w-64 bg-[#6DBFB3] text-white flex flex-col justify-between p-6 shadow-lg hidden md:flex shrink-0 min-h-screen">
@@ -44,7 +50,6 @@ export default function Sidebar() {
                 <nav className="space-y-1">
                     {menuItems.map((item) => {
                         const Icon = item.icon;
-                        // Cek apakah URL saat ini cocok dengan path menu
                         const isActive = location.pathname.startsWith(item.path);
 
                         return (

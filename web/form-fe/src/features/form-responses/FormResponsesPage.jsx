@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Download, Eye, X, BarChart2 } from 'lucide-react';
+import { ArrowLeft, Download, Eye, X, BarChart2, Loader2 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import {
     getFormById, getFormResponses, getResponseDetail,
@@ -14,12 +14,19 @@ const STATUS_OPTIONS = [
     { id: 4, label: 'Rejected' },
 ];
 
+const PAGE_SIZE = 20;
+
 export default function FormResponsesPage() {
     const { id } = useParams();
     const navigate = useNavigate();
     const [form, setForm] = useState(null);
     const [responses, setResponses] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [totalCount, setTotalCount] = useState(0);
+
     const [detail, setDetail] = useState(null);
     const [detailLoading, setDetailLoading] = useState(false);
     const [statusUpdating, setStatusUpdating] = useState(null);
@@ -28,14 +35,50 @@ export default function FormResponsesPage() {
     useEffect(() => {
         const load = async () => {
             setLoading(true);
-            const [formRes, respRes] = await Promise.all([getFormById(id), getFormResponses(id)]);
+            const [formRes, respRes] = await Promise.all([
+                getFormById(id),
+                getFormResponses(id, 1, PAGE_SIZE)
+            ]);
             if (formRes.status === 401) { clearSession(); navigate('/login'); return; }
             if (formRes.ok) setForm(formRes.data);
-            if (respRes.ok && Array.isArray(respRes.data)) setResponses(respRes.data);
+
+            if (respRes.ok) {
+                const list = Array.isArray(respRes.data)
+                    ? respRes.data
+                    : respRes.data?.responses || respRes.data?.items || [];
+                const total = respRes.data?.totalCount ?? list.length;
+
+                setResponses(list);
+                setTotalCount(total);
+                setHasMore(list.length >= PAGE_SIZE);
+            }
             setLoading(false);
         };
         load();
     }, [id, navigate]);
+
+    const handleLoadMore = useCallback(async () => {
+        if (loadingMore || !hasMore) return;
+        setLoadingMore(true);
+
+        const nextPage = page + 1;
+        const res = await getFormResponses(id, nextPage, PAGE_SIZE);
+        setLoadingMore(false);
+
+        if (res.ok) {
+            const newList = Array.isArray(res.data)
+                ? res.data
+                : res.data?.responses || res.data?.items || [];
+
+            if (newList.length > 0) {
+                setResponses(prev => [...prev, ...newList]);
+                setPage(nextPage);
+                setHasMore(newList.length >= PAGE_SIZE);
+            } else {
+                setHasMore(false);
+            }
+        }
+    }, [id, page, loadingMore, hasMore]);
 
     const showToast = (msg, type = 'success') => {
         setToast({ msg, type });
@@ -87,7 +130,7 @@ export default function FormResponsesPage() {
 
     if (loading) return (
         <div className="flex items-center justify-center min-h-screen bg-slate-50">
-            <p className="text-slate-400 text-sm">Loading...</p>
+            <p className="text-slate-400 text-sm">Loading responses...</p>
         </div>
     );
 
@@ -103,7 +146,7 @@ export default function FormResponsesPage() {
                         </button>
                         <div className="min-w-0">
                             <h1 className="text-sm font-bold text-slate-800 truncate">{form?.title || 'Form'}</h1>
-                            <p className="text-[11px] text-slate-400">{responses.length} responses</p>
+                            <p className="text-[11px] text-slate-400">{responses.length} / {totalCount || responses.length} responses loaded</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -130,52 +173,71 @@ export default function FormResponsesPage() {
                     </div>
                 )}
 
-                <div className="p-6 max-w-5xl mx-auto w-full">
+                <div className="p-6 max-w-5xl mx-auto w-full space-y-4">
                     {responses.length === 0 ? (
                         <div className="text-center py-16 text-slate-400 text-sm">No responses yet.</div>
                     ) : (
-                        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                            <table className="w-full text-sm text-left">
-                                <thead>
-                                    <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                                        <th className="py-3 px-4">#</th>
-                                        <th className="py-3 px-4">Respondent</th>
-                                        <th className="py-3 px-4">Status</th>
-                                        <th className="py-3 px-4">Submitted At</th>
-                                        <th className="py-3 px-4 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {responses.map((r, i) => (
-                                        <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                                            <td className="py-3 px-4 text-slate-400 font-medium">{i + 1}</td>
-                                            <td className="py-3 px-4 font-semibold text-slate-800">{r.respondentName || 'Anonymous'}</td>
-                                            <td className="py-3 px-4">
-                                                <select
-                                                    value={STATUS_OPTIONS.find(s => s.label.toLowerCase() === r.status?.toLowerCase())?.id ?? ''}
-                                                    onChange={e => handleStatusChange(r.id, parseInt(e.target.value))}
-                                                    disabled={statusUpdating === r.id}
-                                                    className={`text-[11px] font-bold px-2 py-0.5 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-400 disabled:opacity-60 ${statusColor(r.status)}`}
-                                                >
-                                                    {STATUS_OPTIONS.map(s => (
-                                                        <option key={s.id} value={s.id}>{s.label}</option>
-                                                    ))}
-                                                </select>
-                                            </td>
-                                            <td className="py-3 px-4 text-slate-500 text-xs">{formatDate(r.submittedAt)}</td>
-                                            <td className="py-3 px-4 text-right">
-                                                <button
-                                                    onClick={() => viewDetail(r.id)}
-                                                    className="inline-flex items-center gap-1 text-xs font-bold text-teal-600 hover:underline"
-                                                >
-                                                    <Eye size={13} /> View
-                                                </button>
-                                            </td>
+                        <>
+                            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                                <table className="w-full text-sm text-left">
+                                    <thead>
+                                        <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                                            <th className="py-3 px-4">#</th>
+                                            <th className="py-3 px-4">Respondent</th>
+                                            <th className="py-3 px-4">Status</th>
+                                            <th className="py-3 px-4">Submitted At</th>
+                                            <th className="py-3 px-4 text-right">Actions</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {responses.map((r, i) => (
+                                            <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                                                <td className="py-3 px-4 text-slate-400 font-medium">{i + 1}</td>
+                                                <td className="py-3 px-4 font-semibold text-slate-800">{r.respondentName || 'Anonymous'}</td>
+                                                <td className="py-3 px-4">
+                                                    <select
+                                                        value={STATUS_OPTIONS.find(s => s.label.toLowerCase() === r.status?.toLowerCase())?.id ?? ''}
+                                                        onChange={e => handleStatusChange(r.id, parseInt(e.target.value))}
+                                                        disabled={statusUpdating === r.id}
+                                                        className={`text-[11px] font-bold px-2 py-0.5 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-400 disabled:opacity-60 ${statusColor(r.status)}`}
+                                                    >
+                                                        {STATUS_OPTIONS.map(s => (
+                                                            <option key={s.id} value={s.id}>{s.label}</option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td className="py-3 px-4 text-slate-500 text-xs">{formatDate(r.submittedAt)}</td>
+                                                <td className="py-3 px-4 text-right">
+                                                    <button
+                                                        onClick={() => viewDetail(r.id)}
+                                                        className="inline-flex items-center gap-1 text-xs font-bold text-teal-600 hover:underline"
+                                                    >
+                                                        <Eye size={13} /> View
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Infinite Scroll / Load More Button */}
+                            {hasMore && (
+                                <div className="text-center pt-2">
+                                    <button
+                                        onClick={handleLoadMore}
+                                        disabled={loadingMore}
+                                        className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 mx-auto disabled:opacity-60"
+                                    >
+                                        {loadingMore ? (
+                                            <><Loader2 size={14} className="animate-spin text-teal-600" /> Memuat respons...</>
+                                        ) : (
+                                            `Muat Lebih Banyak (${responses.length} dari ${totalCount || 'banyak'})`
+                                        )}
+                                    </button>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>

@@ -602,16 +602,22 @@ export default function FormBuilder() {
                                         {/* Choice Options */}
                                         {needsOptions(q.typeId) && (
                                             <div className="space-y-2 pt-2 border-t border-slate-100">
-                                                <label className="text-xs font-bold text-slate-500 block">Options:</label>
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-xs font-bold text-slate-500 block">Options:</label>
+                                                    <span className="text-[11px] text-slate-400">Centang kotak untuk menandai jawaban benar</span>
+                                                </div>
                                                 {q.options.map((opt, oIdx) => (
                                                     <div key={oIdx} className="flex items-center gap-2">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={opt.isCorrect}
-                                                            onChange={e => updateOption(idx, oIdx, 'isCorrect', e.target.checked)}
-                                                            className="w-4 h-4 text-teal-600 rounded shrink-0 cursor-pointer"
-                                                            title="Mark as correct answer"
-                                                        />
+                                                        <label className="flex items-center gap-1 cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={opt.isCorrect}
+                                                                onChange={e => updateOption(idx, oIdx, 'isCorrect', e.target.checked)}
+                                                                className="w-4 h-4 text-teal-600 rounded shrink-0 cursor-pointer"
+                                                                title="Tandai sebagai jawaban benar"
+                                                            />
+                                                            {opt.isCorrect && <span className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">✓ Benar</span>}
+                                                        </label>
                                                         <input
                                                             placeholder={`Option ${oIdx + 1}`}
                                                             value={opt.optionText}
@@ -629,16 +635,27 @@ export default function FormBuilder() {
                                             </div>
                                         )}
 
-                                        {/* Correct answer input for Essay / Text */}
-                                        {q.typeId === 1 && (
+                                        {/* Expected correct answer input for Essay (1), Date Time (4), True / False (5) */}
+                                        {[1, 4, 5].includes(q.typeId) && (
                                             <div className="pt-2 border-t border-slate-100">
-                                                <label className="text-xs font-bold text-slate-500 block mb-1">Expected Correct Answer (for auto-grading):</label>
-                                                <input
-                                                    placeholder="e.g. 4 or Soekarno"
-                                                    value={q.correctAnswer}
-                                                    onChange={e => updateQuestion(idx, 'correctAnswer', e.target.value)}
-                                                    className="w-full border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400"
-                                                />
+                                                <label className="text-xs font-bold text-slate-500 block mb-1">Expected Correct Answer (for auto-grading & score):</label>
+                                                {q.typeId === 5 ? (
+                                                    <select
+                                                        value={q.correctAnswer || 'True'}
+                                                        onChange={e => updateQuestion(idx, 'correctAnswer', e.target.value)}
+                                                        className="w-full border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
+                                                    >
+                                                        <option value="True">True</option>
+                                                        <option value="False">False</option>
+                                                    </select>
+                                                ) : (
+                                                    <input
+                                                        placeholder="e.g. 4 or Soekarno"
+                                                        value={q.correctAnswer}
+                                                        onChange={e => updateQuestion(idx, 'correctAnswer', e.target.value)}
+                                                        className="w-full border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400"
+                                                    />
+                                                )}
                                             </div>
                                         )}
 
