@@ -23,8 +23,8 @@ public class ErrorHandlingMiddleware
         }
         catch (SqlException ex)
         {
-            // DB tidak aktif (mis. service SQL Server belum jalan) — kode khusus agar
-            // client (web & mobile) bisa menampilkan pesan yang jelas, bukan "Internal server error".
+            // DB tidak aktif (mis. service SQL Server belum jalan) — pesan generik
+            // agar user (bukan admin server) tidak diberi detail infrastruktur.
             _logger.LogError(ex, "Database unavailable on {Method} {Path}", context.Request.Method, context.Request.Path);
 
             if (context.Response.HasStarted)
@@ -33,7 +33,7 @@ public class ErrorHandlingMiddleware
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             context.Response.ContentType = "application/json";
 
-            var apiResponse = new ApiResponse<object>(503, "Server database tidak aktif. Pastikan layanan SQL Server sudah berjalan.");
+            var apiResponse = new ApiResponse<object>(503, "Server sedang offline. Silakan coba lagi nanti.");
             await context.Response.WriteAsync(JsonSerializer.Serialize(apiResponse));
         }
         catch (Exception ex)
