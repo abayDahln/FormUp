@@ -16,11 +16,16 @@ namespace FormUpAPI.Controllers;
 public class FormsController : ControllerBase
 {
     private readonly FormUpDbContext _db;
+    private readonly IConfiguration _config;
 
-    public FormsController(FormUpDbContext db)
+    public FormsController(FormUpDbContext db, IConfiguration config)
     {
         _db = db;
+        _config = config;
     }
+
+    // ponytail: base URL publik (formup.my.id) > alamat API itu sendiri.
+    private string PublicBaseUrl => _config["PublicUrl"] ?? $"{Request.Scheme}://{Request.Host}";
 
     [HttpGet]
     public async Task<ActionResult<ApiResponse<object>>> GetAll()
@@ -380,7 +385,7 @@ public class FormsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var baseUrl = PublicBaseUrl;
         var qrUrl = $"{baseUrl}/api/forms/{formId}/share/qr";
 
         return Ok(new ApiResponse<object>(200, "OK", new ShareInfoResponse
@@ -406,7 +411,7 @@ public class FormsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var baseUrl = PublicBaseUrl;
         var shareUrl = $"{baseUrl}/f/{form.FormLink}";
 
         using var gen = new QRCodeGenerator();
