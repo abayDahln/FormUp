@@ -12,10 +12,11 @@ const authHeaders = () => {
 const parseResponse = async (res) => {
     let body;
     try { body = await res.json(); } catch { body = {}; }
+    const serverDown = res.status === 502 || res.status === 503 || res.status === 504;
     return {
         ok: res.ok,
         status: body.status ?? res.status,
-        message: body.message ?? (res.ok ? 'OK' : 'Error'),
+        message: body.message ?? (res.ok ? 'OK' : (serverDown ? 'Server sedang tidak aktif. Silakan coba lagi beberapa saat kemudian.' : 'Error')),
         data: body.data ?? null,
     };
 };
