@@ -1059,6 +1059,10 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
                       : Colors.grey,
                 ),
                 tooltip: "Pratinjau soal",
+                padding: EdgeInsets.zero,
+                constraints:
+                    const BoxConstraints(minWidth: 32, minHeight: 32),
+                visualDensity: VisualDensity.compact,
                 onPressed: () => setState(() {
                   _previewQuestion =
                       _previewQuestion == index ? null : index;
@@ -1071,6 +1075,10 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
                     size: 18,
                     color: Colors.grey,
                   ),
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 32, minHeight: 32),
+                  visualDensity: VisualDensity.compact,
                   onPressed: () => _moveQuestion(index, -1),
                 ),
               if (index < _questions.length - 1)
@@ -1080,6 +1088,10 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
                     size: 18,
                     color: Colors.grey,
                   ),
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 32, minHeight: 32),
+                  visualDensity: VisualDensity.compact,
                   onPressed: () => _moveQuestion(index, 1),
                 ),
               IconButton(
@@ -1088,6 +1100,10 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
                   size: 20,
                   color: Color(0xFFC0392B),
                 ),
+                padding: EdgeInsets.zero,
+                constraints:
+                    const BoxConstraints(minWidth: 32, minHeight: 32),
+                visualDensity: VisualDensity.compact,
                 onPressed: () => setState(() {
                   q.dispose();
                   _questions.removeAt(index);

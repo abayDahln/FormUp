@@ -147,7 +147,6 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
                         ],
                       ),
                     ),
-                    _buildPreviewBanner(),
                   ],
                 ),
               ),
@@ -263,44 +262,6 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
             onMultiChanged: (v) => setState(() => _multiAnswers[q.id] = v),
             onTfChanged: (v) => setState(() => _tfAnswers[q.id] = v),
             onPickDateTime: () => _pickDateTime(q.id),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPreviewBanner() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
-      child: Row(
-        children: [
-          const Icon(Icons.visibility_outlined, color: kAuthPrimary, size: 20),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Text(
-              "Mode pratinjau — jawaban tidak akan dikirim",
-              style: TextStyle(fontSize: 13, color: Colors.black87),
-            ),
-          ),
-          const SizedBox(width: 8),
-          OutlinedButton(
-            onPressed: () => showAuthToast(
-              context,
-              "Pratinjau: respons tidak dapat dikirim.",
-              isError: true,
-            ),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: kAuthPrimary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-            ),
-            child: const Text(
-              "Simpan Respons",
-              style: TextStyle(color: kAuthPrimary, fontSize: 13),
-            ),
           ),
         ],
       ),

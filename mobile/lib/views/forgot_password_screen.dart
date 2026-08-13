@@ -24,11 +24,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (_loading) return;
     final email = _emailController.text.trim();
     if (email.isEmpty) {
-      showAuthToast(context, "Masukkan email terlebih dahulu");
+      showAuthToast(context, "Masukkan email terlebih dahulu", isError: true);
       return;
     }
     if (!AuthService.isValidEmail(email)) {
-      showAuthToast(context, "Format email tidak valid");
+      showAuthToast(context, "Format email tidak valid", isError: true);
       return;
     }
 

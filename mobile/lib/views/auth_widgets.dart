@@ -33,6 +33,25 @@ List<BoxShadow> softShadow({
   ];
 }
 
+/// Gaya lencana status form (Terbit/Draf/Ditutup) — dipakai kartu & detail.
+class FormStatusStyle {
+  final String label;
+  final Color fg;
+  final Color bg;
+  const FormStatusStyle(this.label, this.fg, this.bg);
+}
+
+FormStatusStyle formStatusStyle(String status) {
+  switch (status) {
+    case 'published':
+      return const FormStatusStyle('Terbit', Color(0xFF2E7D32), Color(0xFFE3F4E8));
+    case 'draft':
+      return const FormStatusStyle('Draf', Color(0xFFB26A00), Color(0xFFFFF3DE));
+    default:
+      return const FormStatusStyle('Ditutup', Color(0xFFC0392B), Color(0xFFFDE8E6));
+  }
+}
+
 /// Latar belakang: warna hijau mint + ellipse gradient di kiri atas.
 class AuthBackground extends StatelessWidget {
   final Widget child;
@@ -314,13 +333,15 @@ class AuthBottomPill extends StatelessWidget {
           borderRadius: BorderRadius.circular(28),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 if (question != null)
                   Text(
                     question!,
-                    style: const TextStyle(color: Colors.black54, fontSize: 14),
+                    style: const TextStyle(
+                        color: Colors.black54, fontSize: 14),
                   ),
                 Text(
                   link,
@@ -444,7 +465,9 @@ void showAuthToast(
     builder: (context) => Positioned(
       left: 22,
       right: 22,
-      bottom: MediaQuery.of(context).viewPadding.bottom + 16,
+      bottom: MediaQuery.of(context).viewInsets.bottom +
+          MediaQuery.of(context).viewPadding.bottom +
+          16,
       child: IgnorePointer(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),

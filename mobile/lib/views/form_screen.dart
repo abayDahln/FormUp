@@ -1,28 +1,11 @@
 import 'package:flutter/material.dart';
 import 'auth_widgets.dart';
+import 'form_card.dart';
 import '../services/auth_service.dart';
 import '../services/form_service.dart';
 import '../app_router.dart';
 
-class _FormStatusStyle {
-  final String label;
-  final Color fg;
-  final Color bg;
-  const _FormStatusStyle(this.label, this.fg, this.bg);
-}
-
-_FormStatusStyle _formStatusStyle(String status) {
-  switch (status) {
-    case 'published':
-      return const _FormStatusStyle('Terbit', Color(0xFF2E7D32), Color(0xFFE3F4E8));
-    case 'draft':
-      return const _FormStatusStyle('Draf', Color(0xFFB26A00), Color(0xFFFFF3DE));
-    default:
-      return const _FormStatusStyle('Ditutup', Color(0xFFC0392B), Color(0xFFFDE8E6));
-  }
-}
-
-/// Tab "Form" — input kode untuk mengerjakan + daftar "Form Saya" (pratinjau).
+/// Tab "Form" — input kode untuk mengerjakan + daftar "Form Saya" (kelola).
 class FormScreen extends StatefulWidget {
   const FormScreen({super.key});
 
@@ -34,7 +17,6 @@ class _FormScreenState extends State<FormScreen> {
   final _codeController = TextEditingController();
   List<FormData> _myForms = [];
   bool _loadingForms = true;
-  int? _publishingId;
   DateTime _lastRefresh = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
@@ -81,55 +63,19 @@ class _FormScreenState extends State<FormScreen> {
     AppRouter.of(context).push(AppPage.formRunner, {'code': code});
   }
 
-  void _openPreview(FormData form) {
-    AppRouter.of(context).push(AppPage.formPreview, {'formId': form.id});
-  }
-
-  Future<void> _togglePublish(FormData form) async {
-    final publish = form.status != 'published';
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          publish ? 'Terbitkan Form' : 'Tarik Form',
-          style: const TextStyle(fontFamily: kFontBold),
-        ),
-        content: Text(
-          publish
-              ? 'Form akan tersedia untuk dikerjakan responden.'
-              : 'Form akan berhenti menerima respons baru dan kembali menjadi draf.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              publish ? 'Terbit' : 'Tarik',
-              style: const TextStyle(color: kAuthPrimary),
-            ),
-          ),
-        ],
+  Widget _buildFormCard(FormData form) {
+    return FormCard(
+      form: form,
+      onTap: () => AppRouter.of(context).push(AppPage.formDetail, {
+        'formId': form.id,
+        'form': form,
+      }),
+      onQuickActions: () => showFormQuickActions(
+        context,
+        form,
+        onChanged: _refreshMyForms,
       ),
     );
-    if (confirmed != true || !mounted) return;
-    setState(() => _publishingId = form.id);
-    try {
-      await FormService.publish(form.id);
-      if (!mounted) return;
-      showAuthToast(
-        context,
-        publish ? 'Form berhasil diterbitkan' : 'Form berhasil ditarik',
-      );
-      await _refreshMyForms();
-    } catch (e) {
-      if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
-    } finally {
-      if (mounted) setState(() => _publishingId = null);
-    }
   }
 
   @override
@@ -157,7 +103,7 @@ class _FormScreenState extends State<FormScreen> {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  'Kerjakan via kode atau pratinjau form Anda',
+                  'Kerjakan via kode atau kelola form Anda',
                   style: TextStyle(fontSize: 13, color: Colors.black54),
                 ),
               ],
@@ -170,7 +116,6 @@ class _FormScreenState extends State<FormScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(kRadius),
-                boxShadow: softShadow(),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -248,7 +193,7 @@ class _FormScreenState extends State<FormScreen> {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  'Ketuk untuk pratinjau sebagai responden',
+                  'Lihat dan Kelola Form Anda',
                   style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),
               ],
@@ -286,195 +231,6 @@ class _FormScreenState extends State<FormScreen> {
               ],
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildFormCard(FormData form) {
-    final style = _formStatusStyle(form.status);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(kRadius),
-        boxShadow: softShadow(),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(11),
-                decoration: BoxDecoration(
-                  color: kPrimarySoft,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.description_outlined,
-                  color: kAuthPrimary,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      form.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: kFontBold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    if (form.description != null &&
-                        form.description!.trim().isNotEmpty)
-                      Text(
-                        form.description!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: style.bg,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            style.label,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: kFontBold,
-                              color: style.fg,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        const Icon(
-                          Icons.people_outline,
-                          color: Colors.grey,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          '${form.responseCount} respons',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _publishingId == form.id
-                      ? null
-                      : () => _togglePublish(form),
-                  icon: _publishingId == form.id
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: kAuthPrimary,
-                          ),
-                        )
-                      : Icon(
-                          form.status == 'published'
-                              ? Icons.visibility_off_outlined
-                              : Icons.publish_outlined,
-                          size: 16,
-                          color: kAuthPrimary,
-                        ),
-                  label: Text(
-                    form.status == 'published' ? 'Tarik' : 'Terbit',
-                    style: const TextStyle(fontSize: 13, color: kAuthPrimary),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: kAuthPrimary),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _openPreview(form),
-                  icon: const Icon(
-                    Icons.visibility_outlined,
-                    size: 16,
-                    color: kAuthPrimary,
-                  ),
-                  label: const Text(
-                    "Pratinjau",
-                    style: TextStyle(fontSize: 13, color: kAuthPrimary),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: kAuthPrimary),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => AppRouter.of(context).push(
-                    AppPage.formResponses,
-                    {'formId': form.id, 'title': form.title},
-                  ),
-                  icon: const Icon(
-                    Icons.people_outline,
-                    size: 16,
-                    color: kAuthPrimary,
-                  ),
-                  label: const Text(
-                    "Respons",
-                    style: TextStyle(fontSize: 13, color: kAuthPrimary),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: kAuthPrimary),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }

@@ -110,22 +110,65 @@ class _ResponseScreenState extends State<ResponseScreen> {
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: SegmentedButton<_ResponseTab>(
-              segments: const [
-                ButtonSegment(
-                  value: _ResponseTab.history,
-                  label: Text('Riwayat'),
-                  icon: Icon(Icons.history, size: 16),
-                ),
-                ButtonSegment(
-                  value: _ResponseTab.analytics,
-                  label: Text('Analisis'),
-                  icon: Icon(Icons.bar_chart, size: 16),
-                ),
-              ],
-              selected: {_tab},
-              showSelectedIcon: false,
-              onSelectionChanged: (s) => setState(() => _tab = s.first),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: softShadow(),
+              ),
+              child: Row(
+                children: [
+                  for (final tab in _ResponseTab.values) ...[
+                    if (tab != _ResponseTab.values.first)
+                      const SizedBox(width: 4),
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () => setState(() => _tab = tab),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          decoration: BoxDecoration(
+                            color: _tab == tab
+                                ? kAuthPrimary
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                tab == _ResponseTab.history
+                                    ? Icons.history
+                                    : Icons.bar_chart,
+                                size: 16,
+                                color: _tab == tab
+                                    ? Colors.white
+                                    : Colors.black54,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                tab == _ResponseTab.history
+                                    ? 'Riwayat'
+                                    : 'Analisis',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: kFontBold,
+                                  color: _tab == tab
+                                      ? Colors.white
+                                      : Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 14),

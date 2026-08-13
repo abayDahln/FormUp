@@ -135,11 +135,18 @@ class AuthService {
   static bool isValidEmail(String email) =>
       RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(email);
 
+  static const _serverDownMessage =
+      'Server sedang tidak aktif. Silakan coba lagi beberapa saat kemudian.';
+
   static Map<String, dynamic> _decode(http.Response response) {
     final Map<String, dynamic> json;
     try {
       json = jsonDecode(response.body) as Map<String, dynamic>;
     } catch (_) {
+      // 502/503/504 = server/proxy mati → body bukan JSON (HTML), beri pesan jelas.
+      if (response.statusCode >= 502 && response.statusCode <= 504) {
+        throw const ApiException(_serverDownMessage);
+      }
       throw const ApiException('Respons server tidak valid.');
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -147,7 +154,9 @@ class AuthService {
       throw ApiException(
         (json['message'] as String?) ??
             (json['Message'] as String?) ??
-            'Terjadi kesalahan.',
+            (response.statusCode >= 502 && response.statusCode <= 504
+                ? _serverDownMessage
+                : 'Terjadi kesalahan.'),
       );
     }
     return json;
@@ -180,7 +189,7 @@ class AuthService {
       } on http.ClientException {
         if (attempt >= _maxRetries) {
           throw const ApiException(
-            'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.',
+            'Tidak dapat terhubung ke server. Pastikan server API sudah dijalankan, lalu periksa koneksi internet Anda.',
           );
         }
       }

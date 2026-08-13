@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'auth_widgets.dart';
+import 'answer_fields.dart';
 import 'rich_editor.dart';
 import '../services/public_form_service.dart';
 import '../services/auth_service.dart';
@@ -246,6 +247,12 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
             ],
           ),
           const SizedBox(height: 10),
+          ResultOptionsList(
+            options: a.options,
+            answerText: a.answerText,
+            correctAnswer: a.correctAnswer,
+            showScore: showScore,
+          ),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),

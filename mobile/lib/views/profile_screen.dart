@@ -151,6 +151,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 4),
                     Text(
                       email.isEmpty ? 'Member FormUp' : email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 13, color: Colors.black54),
                     ),
                     if (_profile?.username.isNotEmpty == true) ...[

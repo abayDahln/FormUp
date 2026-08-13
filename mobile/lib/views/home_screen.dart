@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'form_card.dart';
 import 'form_screen.dart';
 import 'response_screen.dart';
 import 'profile_screen.dart';
@@ -8,24 +9,6 @@ import '../app_router.dart';
 import '../services/auth_service.dart';
 import '../services/form_service.dart';
 import '../services/user_service.dart';
-
-class _StatusStyle {
-  final String label;
-  final Color fg;
-  final Color bg;
-  const _StatusStyle(this.label, this.fg, this.bg);
-}
-
-_StatusStyle _statusStyle(String status) {
-  switch (status) {
-    case 'published':
-      return const _StatusStyle('Terbit', Color(0xFF2E7D32), Color(0xFFE3F4E8));
-    case 'draft':
-      return const _StatusStyle('Draf', Color(0xFFB26A00), Color(0xFFFFF3DE));
-    default:
-      return const _StatusStyle('Ditutup', Color(0xFFC0392B), Color(0xFFFDE8E6));
-  }
-}
 
 class HomeScreen extends StatefulWidget {
   final String username; // Menerima data nama dari inputan login/register
@@ -48,14 +31,17 @@ class _HomeScreenState extends State<HomeScreen> {
   List<FormData> _myForms = [];
   List<MyResponseItem> _myResponses = [];
   bool _loading = true;
+  String? _loadError;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _load(silent: true);
   }
 
-  Future<void> _load() async {
+  /// [silent] untuk auto-load saat app dibuka: error tak muncul sebagai toast
+  /// (dimunculkan inline di layar), karena user belum melakukan aksi apa pun.
+  Future<void> _load({bool silent = false}) async {
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
@@ -68,10 +54,16 @@ class _HomeScreenState extends State<HomeScreen> {
         _stats = results[0] as UserStats;
         _myForms = results[1] as List<FormData>;
         _myResponses = results[2] as List<MyResponseItem>;
+        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      final message = AuthService.errorMessage(e);
+      if (silent) {
+        setState(() => _loadError = message);
+      } else {
+        showAuthToast(context, message, isError: true);
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -82,10 +74,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (forms.isEmpty) return '0%';
     final published = forms.where((f) => f.status == 'published').length;
     return '${(published / forms.length * 100).round()}%';
-  }
-
-  void _openPreview(FormData form) {
-    AppRouter.of(context).push(AppPage.formPreview, {'formId': form.id});
   }
 
   void _openResponse(MyResponseItem item) {
@@ -108,6 +96,37 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             _buildHeader(),
             const SizedBox(height: 20),
+
+            if (_loadError != null) ...[
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFE5E5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFC0392B)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline,
+                        color: Color(0xFFC0392B), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _loadError!,
+                        style: const TextStyle(
+                          color: Color(0xFFC0392B),
+                          fontSize: 13,
+                          fontFamily: 'Inter',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
 
             _buildSearchBar(),
             const SizedBox(height: 20),
@@ -187,13 +206,16 @@ class _HomeScreenState extends State<HomeScreen> {
           unselectedItemColor: Colors.grey,
           selectedFontSize: 12,
           unselectedFontSize: 12,
+          iconSize: 22,
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.home_filled),
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
               label: 'Beranda',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.description_outlined),
+              activeIcon: Icon(Icons.description),
               label: 'Form',
             ),
             BottomNavigationBarItem(
@@ -201,11 +223,13 @@ class _HomeScreenState extends State<HomeScreen> {
               label: '',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart),
+              icon: Icon(Icons.bar_chart_outlined),
+              activeIcon: Icon(Icons.bar_chart),
               label: 'Respons',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
               label: 'Profil',
             ),
           ],
@@ -216,7 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
           AppRouter.of(context).push(AppPage.formMaker);
         },
         backgroundColor: kPrimary,
-        elevation: 2,
+        elevation: 1,
         shape: const CircleBorder(),
         child: const Icon(Icons.add, color: Colors.white, size: 28),
       ),
@@ -226,39 +250,48 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeader() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Halo, ${widget.username.isNotEmpty ? widget.username : 'Pengguna'}",
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                fontFamily: kFontBold,
-                color: Colors.black87,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Halo, ${widget.username.isNotEmpty ? widget.username : 'Pengguna'}",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: kFontBold,
+                  color: Colors.black87,
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            const Text(
-              "Inilah performa form Anda hari ini.",
-              style: TextStyle(fontSize: 13, color: Colors.black54),
-            ),
-          ],
+              const SizedBox(height: 2),
+              const Text(
+                "Inilah performa form Anda hari ini.",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, color: Colors.black54),
+              ),
+            ],
+          ),
         ),
         Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.6),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.settings_outlined,
-                color: Color(0xFF2A9D8F),
-                size: 20,
+            InkWell(
+              onTap: () => AppRouter.of(context).push(AppPage.settings),
+              customBorder: const CircleBorder(),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.6),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.settings_outlined,
+                  color: Color(0xFF2A9D8F),
+                  size: 20,
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -395,94 +428,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildFormCard(FormData form) {
-    final style = _statusStyle(form.status);
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(kRadius),
-      elevation: 0,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(kRadius),
-        onTap: () => _openPreview(form),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE2F3F2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.description_outlined,
-                      color: Color(0xFF2A9D8F),
-                      size: 20,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: style.bg,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          style.label,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            fontFamily: kFontBold,
-                            color: style.fg,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.more_vert, size: 18, color: Colors.grey),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              RichTextView(
-                text: form.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: kFontBold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.people_outline, size: 14, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${form.responseCount} respons',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  const SizedBox(width: 15),
-                  const Icon(Icons.access_time, size: 14, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text(
-                    _formatTime(form.updatedAt),
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+    return FormCard(
+      form: form,
+      onTap: () => AppRouter.of(context).push(AppPage.formDetail, {
+        'formId': form.id,
+        'form': form,
+      }),
+      onQuickActions: () => showFormQuickActions(
+        context,
+        form,
+        onChanged: () => _load(silent: true),
       ),
     );
   }

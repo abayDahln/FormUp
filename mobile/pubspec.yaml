@@ -41,6 +41,7 @@ dependencies:
   image_picker: ^1.2.3
   flutter_math_fork: ^0.7.4
   file_picker: 11.0.3
+  share_plus: ^12.0.2
 
 dev_dependencies:
   flutter_test:
@@ -104,6 +105,10 @@ flutter:
         - asset: public/fonts/PlusJakartaSans/PlusJakartaSans-ExtraBold.ttf
           weight: 800
 
+
+  # Konfigurasi runtime (API_BASE_URL) — wajib dibundle agar terbaca di APK.
+  assets:
+    - .env
 
   # To add assets to your application, add an assets section, like this:
   # assets:

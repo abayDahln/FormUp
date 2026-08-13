@@ -119,6 +119,7 @@ class PublicResultAnswer {
   final String? answerText;
   final String? correctAnswer;
   final bool? isCorrect;
+  final List<String> options;
 
   const PublicResultAnswer({
     required this.questionId,
@@ -127,6 +128,7 @@ class PublicResultAnswer {
     this.answerText,
     this.correctAnswer,
     this.isCorrect,
+    this.options = const [],
   });
 
   factory PublicResultAnswer.fromJson(Map<String, dynamic> json) =>
@@ -137,6 +139,10 @@ class PublicResultAnswer {
         answerText: json['answerText'] as String?,
         correctAnswer: json['correctAnswer'] as String?,
         isCorrect: json['isCorrect'] as bool?,
+        options: [
+          for (final o in json['options'] as List<dynamic>? ?? [])
+            o as String? ?? '',
+        ],
       );
 }
 

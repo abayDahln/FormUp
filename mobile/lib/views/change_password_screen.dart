@@ -31,19 +31,19 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     final confirm = _confirmController.text;
 
     if (current.isEmpty || newPassword.isEmpty || confirm.isEmpty) {
-      showAuthToast(context, 'Semua field wajib diisi');
+      showAuthToast(context, 'Semua field wajib diisi', isError: true);
       return;
     }
     if (newPassword.length < 8) {
-      showAuthToast(context, 'Kata sandi baru minimal 8 karakter');
+      showAuthToast(context, 'Kata sandi baru minimal 8 karakter', isError: true);
       return;
     }
     if (newPassword == current) {
-      showAuthToast(context, 'Kata sandi baru tidak boleh sama dengan yang lama');
+      showAuthToast(context, 'Kata sandi baru tidak boleh sama dengan yang lama', isError: true);
       return;
     }
     if (newPassword != confirm) {
-      showAuthToast(context, 'Konfirmasi kata sandi tidak cocok');
+      showAuthToast(context, 'Konfirmasi kata sandi tidak cocok', isError: true);
       return;
     }
 

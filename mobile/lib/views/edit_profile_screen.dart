@@ -201,6 +201,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             const SizedBox(height: 16),
                             Text(
                               _email.isEmpty ? 'Member FormUp' : _email,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 13,
                                 color: Colors.black54,

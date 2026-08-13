@@ -206,3 +206,101 @@ class AnswerFields extends StatelessWidget {
     );
   }
 }
+
+/// Daftar opsi pada tampilan hasil — menyorot jawaban user dan jawaban benar.
+class ResultOptionsList extends StatelessWidget {
+  final List<String> options;
+  final String? answerText;
+  final String? correctAnswer;
+  final bool showScore;
+
+  const ResultOptionsList({
+    super.key,
+    required this.options,
+    this.answerText,
+    this.correctAnswer,
+    this.showScore = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (options.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 10),
+        for (var i = 0; i < options.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: _OptionResultRow(
+              letter: String.fromCharCode(65 + i),
+              option: options[i],
+              isCorrect: showScore &&
+                  correctAnswer != null &&
+                  options[i] == correctAnswer,
+              isUserAnswer: answerText != null && options[i] == answerText,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _OptionResultRow extends StatelessWidget {
+  final String letter;
+  final String option;
+  final bool isCorrect;
+  final bool isUserAnswer;
+
+  const _OptionResultRow({
+    required this.letter,
+    required this.option,
+    required this.isCorrect,
+    required this.isUserAnswer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isCorrect
+        ? const Color(0xFFE3F4E8)
+        : isUserAnswer
+            ? const Color(0xFFE0F2F1)
+            : const Color(0xFFF0F4F4);
+    final fg = isCorrect
+        ? const Color(0xFF2E7D32)
+        : isUserAnswer
+            ? kAuthPrimary
+            : Colors.black87;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Text(
+            letter,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              fontFamily: kFontBold,
+              color: fg,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: RichTextView(
+              text: option,
+              style: TextStyle(fontSize: 13, color: fg),
+            ),
+          ),
+          if (isCorrect)
+            const Icon(Icons.check_circle, size: 16, color: Color(0xFF2E7D32))
+          else if (isUserAnswer)
+            Icon(Icons.radio_button_checked, size: 16, color: kAuthPrimary),
+        ],
+      ),
+    );
+  }
+}

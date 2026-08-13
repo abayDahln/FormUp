@@ -542,15 +542,18 @@ class _FormRunnerViewState extends State<FormRunnerView> {
                 '$answered / $total Terjawab ($pct%)',
                 style: const TextStyle(fontSize: 12, color: kAuthPrimary),
               ),
-              if ((_info?.timerDuration ?? 0) > 0) ...[
-                const SizedBox(width: 8),
-                _CountdownBadge(
-                  minutes: _info!.timerDuration!,
-                  onExpired: _autoSubmit,
-                ),
-              ],
             ],
           ),
+          if ((_info?.timerDuration ?? 0) > 0) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: _CountdownBadge(
+                minutes: _info!.timerDuration!,
+                onExpired: _autoSubmit,
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
@@ -1075,6 +1078,12 @@ class _FormRunnerViewState extends State<FormRunnerView> {
             ],
           ),
           const SizedBox(height: 10),
+          ResultOptionsList(
+            options: a.options,
+            answerText: a.answerText,
+            correctAnswer: a.correctAnswer,
+            showScore: showScore,
+          ),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),

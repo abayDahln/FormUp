@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'views/login_screen.dart';
+import 'services/auth_service.dart';
 import 'views/register_screen.dart';
 import 'views/forgot_password_screen.dart';
 import 'views/otp_screen.dart';
@@ -15,6 +16,9 @@ import 'views/edit_profile_screen.dart';
 import 'views/form_preview_screen.dart';
 import 'views/analytics_screen.dart';
 import 'views/form_responses_screen.dart';
+import 'views/settings_screen.dart';
+import 'views/form_detail_screen.dart';
+import 'services/form_service.dart';
 
 /// Route halaman yang dikelola secara deklaratif (Navigator 2.0 / Navigation 3).
 enum AppPage {
@@ -26,12 +30,14 @@ enum AppPage {
   home,
   formMaker,
   formRunner,
+  formDetail,
   formHistoryDetail,
   changePassword,
   editProfile,
   formPreview,
   formAnalytics,
   formResponses,
+  settings,
 }
 
 /// Satu entri stack: halaman + argumen.
@@ -68,6 +74,9 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   final List<AppRoute> _stack = <AppRoute>[];
   final Map<AppPage, Completer<void>> _popCompleters = {};
   String _username = '';
+
+  /// Kode form dari deep link `/f/{code}` yang menunggu user login dulu.
+  String? _pendingFormCode;
 
   AppRouterDelegate({AppPage initial = AppPage.login}) {
     _stack.add(AppRoute(initial));
@@ -119,6 +128,17 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   @override
   Future<void> setNewRoutePath(AppRoute configuration) async {
     _completeAllPending();
+    // Deep link form butuh login: simpan kode, arahkan ke login dulu.
+    if (configuration.page == AppPage.formRunner &&
+        configuration.args['code'] is String &&
+        AuthService.token == null) {
+      _pendingFormCode = configuration.args['code'] as String;
+      _stack
+        ..clear()
+        ..add(const AppRoute(AppPage.login));
+      notifyListeners();
+      return;
+    }
     _stack
       ..clear()
       ..add(configuration);
@@ -133,6 +153,12 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
       ..clear()
       ..add(const AppRoute(AppPage.home));
     notifyListeners();
+    // Redirect ke form yang tadinya dibuka lewat deep link (menunggu login).
+    final pending = _pendingFormCode;
+    if (pending != null && pending.isNotEmpty) {
+      _pendingFormCode = null;
+      push(AppPage.formRunner, {'code': pending});
+    }
   }
 
   /// Push halaman; Future selesai saat halaman itu di-pop (untuk refresh ulang).
@@ -194,6 +220,11 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
         return FormMakerScreen(formId: route.args['formId'] as int?);
       case AppPage.formRunner:
         return FormRunnerScreen(initialCode: route.args['code'] as String?);
+      case AppPage.formDetail:
+        return FormDetailScreen(
+          formId: route.args['formId'] as int? ?? 0,
+          initial: route.args['form'] as FormData?,
+        );
       case AppPage.formHistoryDetail:
         return FormHistoryDetailScreen(
           formLink: route.args['formLink'] as String? ?? '',
@@ -217,6 +248,8 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
           formId: route.args['formId'] as int? ?? 0,
           title: route.args['title'] as String? ?? '',
         );
+      case AppPage.settings:
+        return const SettingsScreen();
     }
   }
 }
@@ -231,6 +264,10 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
   ) async {
     final segments = routeInformation.uri.pathSegments;
     final first = segments.isEmpty ? '' : segments.first;
+    // Deep link form publik: /f/{code} (format shareUrl backend) atau /q/{code}.
+    if ((first == 'f' || first == 'q') && segments.length >= 2) {
+      return AppRoute(AppPage.formRunner, {'code': segments[1]});
+    }
     return switch (first) {
       'home' => const AppRoute(AppPage.home),
       'register' => const AppRoute(AppPage.register),
@@ -239,12 +276,14 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       'reset-password' => const AppRoute(AppPage.resetPassword),
       'form-maker' => const AppRoute(AppPage.formMaker),
       'form-runner' => const AppRoute(AppPage.formRunner),
+      'form-detail' => const AppRoute(AppPage.formDetail),
       'form-history' => const AppRoute(AppPage.formHistoryDetail),
       'change-password' => const AppRoute(AppPage.changePassword),
       'edit-profile' => const AppRoute(AppPage.editProfile),
       'form-preview' => const AppRoute(AppPage.formPreview),
       'form-analytics' => const AppRoute(AppPage.formAnalytics),
       'form-responses' => const AppRoute(AppPage.formResponses),
+      'settings' => const AppRoute(AppPage.settings),
       _ => const AppRoute(AppPage.login),
     };
   }
@@ -260,12 +299,14 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       AppPage.home => 'home',
       AppPage.formMaker => 'form-maker',
       AppPage.formRunner => 'form-runner',
+      AppPage.formDetail => 'form-detail',
       AppPage.formHistoryDetail => 'form-history',
       AppPage.changePassword => 'change-password',
       AppPage.editProfile => 'edit-profile',
       AppPage.formPreview => 'form-preview',
       AppPage.formAnalytics => 'form-analytics',
       AppPage.formResponses => 'form-responses',
+      AppPage.settings => 'settings',
     };
     return RouteInformation(uri: Uri.parse('/$name'));
   }

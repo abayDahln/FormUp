@@ -28,11 +28,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      showAuthToast(context, "Email dan kata sandi wajib diisi");
+      showAuthToast(context, "Email dan kata sandi wajib diisi", isError: true);
       return;
     }
     if (!AuthService.isValidEmail(email)) {
-      showAuthToast(context, "Format email tidak valid");
+      showAuthToast(context, "Format email tidak valid", isError: true);
       return;
     }
 

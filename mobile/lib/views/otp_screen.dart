@@ -61,7 +61,7 @@ class _OtpScreenState extends State<OtpScreen> {
     if (_loading) return;
     final otp = _otpController.text.trim();
     if (otp.isEmpty || otp.length < 6) {
-      showAuthToast(context, "Masukkan kode OTP 6 digit");
+      showAuthToast(context, "Masukkan kode OTP 6 digit", isError: true);
       return;
     }
 
@@ -96,7 +96,7 @@ class _OtpScreenState extends State<OtpScreen> {
 
   Future<void> _resend() async {
     if (_cooldown > 0) {
-      showAuthToast(context, "Tunggu $_cooldown detik untuk mengirim ulang");
+      showAuthToast(context, "Tunggu $_cooldown detik untuk mengirim ulang", isError: true);
       return;
     }
     try {
@@ -147,6 +147,8 @@ class _OtpScreenState extends State<OtpScreen> {
                               Text(
                                 "Kode OTP telah dikirim ke\n${widget.email}",
                                 textAlign: TextAlign.center,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: Colors.black54,
                                   fontSize: 14,

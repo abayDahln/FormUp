@@ -36,11 +36,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final confirmPassword = _confirmPasswordController.text;
 
     if (newPassword.length < 8) {
-      showAuthToast(context, "Kata sandi minimal 8 karakter");
+      showAuthToast(context, "Kata sandi minimal 8 karakter", isError: true);
       return;
     }
     if (newPassword != confirmPassword) {
-      showAuthToast(context, "Konfirmasi kata sandi tidak cocok");
+      showAuthToast(context, "Konfirmasi kata sandi tidak cocok", isError: true);
       return;
     }
 

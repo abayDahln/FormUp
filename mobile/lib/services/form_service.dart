@@ -12,6 +12,7 @@ class FormData {
   final String formLink;
   final String status;
   final int responseCount;
+  final DateTime? createdAt;
   final DateTime? updatedAt;
 
   const FormData({
@@ -22,11 +23,13 @@ class FormData {
     this.description,
     this.bannerImage,
     this.responseCount = 0,
+    this.createdAt,
     this.updatedAt,
   });
 
   factory FormData.fromJson(Map<String, dynamic> json) {
     final raw = json['updatedAt'] as String?;
+    final rawCreated = json['createdAt'] as String?;
     return FormData(
       id: json['id'] as int,
       title: json['title'] as String? ?? '',
@@ -35,6 +38,9 @@ class FormData {
       formLink: json['formLink'] as String? ?? '',
       status: json['status'] as String? ?? 'draft',
       responseCount: json['responseCount'] as int? ?? 0,
+      createdAt: rawCreated == null || rawCreated.isEmpty
+          ? null
+          : DateTime.tryParse(rawCreated),
       updatedAt: raw == null || raw.isEmpty ? null : DateTime.tryParse(raw),
     );
   }

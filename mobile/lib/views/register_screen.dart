@@ -35,23 +35,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final confirm = _confirmController.text;
 
     if (fullname.isEmpty || email.isEmpty || password.isEmpty) {
-      showAuthToast(context, "Semua field wajib diisi");
+      showAuthToast(context, "Semua field wajib diisi", isError: true);
       return;
     }
     if (!AuthService.isValidEmail(email)) {
-      showAuthToast(context, "Format email tidak valid");
+      showAuthToast(context, "Format email tidak valid", isError: true);
       return;
     }
     if (password.length < 8) {
-      showAuthToast(context, "Kata sandi minimal 8 karakter");
+      showAuthToast(context, "Kata sandi minimal 8 karakter", isError: true);
       return;
     }
     if (password != confirm) {
-      showAuthToast(context, "Konfirmasi kata sandi tidak cocok");
+      showAuthToast(context, "Konfirmasi kata sandi tidak cocok", isError: true);
       return;
     }
     if (!_accepted) {
-      showAuthToast(context, "Harap setujui Syarat & Ketentuan");
+      showAuthToast(context, "Harap setujui Syarat & Ketentuan", isError: true);
       return;
     }
 

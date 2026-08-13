@@ -23,6 +23,24 @@ Document richDocument(String? text) {
   }
 }
 
+/// Ekstrak teks polos yang bersih dari konten (Delta JSON, HTML web, atau
+/// plain text) untuk judul/sub-teks di kartu — hindari tampilan JSON mentah.
+String richToPlainText(String? text) {
+  final plain = text?.trim() ?? '';
+  if (plain.isEmpty) return '';
+  if (plain.startsWith('[')) {
+    try {
+      return Document.fromJson(jsonDecode(plain) as List)
+          .toPlainText()
+          .trim();
+    } catch (_) {
+      // ponytail: JSON valid tapi bukan Delta → jangan bocorkan JSON mentah.
+      return '';
+    }
+  }
+  return _stripHtml(plain).replaceAll('\n', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
 /// Controller Quill untuk editor / render read-only.
 QuillController richTextController(String? text) => QuillController(
       document: richDocument(text),
@@ -81,8 +99,36 @@ QuillSimpleToolbarConfig richToolbarConfig({
       ),
       fontFamily: QuillToolbarFontFamilyButtonOptions(
         items: const {
+          'Arial': 'Arial',
+          'Helvetica': 'Helvetica',
+          'Times New Roman': 'Times New Roman',
+          'Georgia': 'Georgia',
+          'Courier New': 'Courier New',
+          'Verdana': 'Verdana',
+          'Tahoma': 'Tahoma',
+          'Trebuchet MS': 'Trebuchet MS',
+          'Impact': 'Impact',
+          'Comic Sans MS': 'Comic Sans MS',
+          'Garamond': 'Garamond',
+          'Palatino Linotype': 'Palatino Linotype',
           'Inter': 'Inter',
-          'PlusJakartaSans': 'PlusJakartaSans',
+          'Roboto': 'Roboto',
+          'Open Sans': 'Open Sans',
+          'Lato': 'Lato',
+          'Montserrat': 'Montserrat',
+          'Segoe UI': 'Segoe UI',
+          'Merriweather': 'Merriweather',
+          'Consolas': 'Consolas',
+          'JetBrains Mono': 'JetBrains Mono',
+          'Plus Jakarta Sans': 'PlusJakartaSans',
+          'SF Pro Display': 'SF Pro Display',
+          'SF Pro Text': 'SF Pro Text',
+          'Fira Code': 'Fira Code',
+          'Source Code Pro': 'Source Code Pro',
+          'Poppins': 'Poppins',
+          'Noto Sans': 'Noto Sans',
+          'Ubuntu': 'Ubuntu',
+          'DM Sans': 'DM Sans',
           'Clear': 'Clear',
         },
       ),
@@ -773,7 +819,8 @@ class RichTextView extends StatelessWidget {
       if (math != null) {
         widgets.add(Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Center(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             child: _mathWidget(math.group(1)!.trim(), display: true, style: style),
           ),
         ));
@@ -946,9 +993,15 @@ List<_RichBlock>? _deltaBlocks(String raw) {
   }
 
   for (final op in ops) {
+    // ponytail: JSON valid tapi bukan Delta (mis. ["a","b"] / [123]) jangan
+    // sampai crash — skip op yang bukan Map.
+    if (op is! Map) continue;
     final insert = op['insert'];
     if (insert is! String) continue;
-    final attr = (op['attributes'] as Map?)?.cast<String, dynamic>() ?? {};
+    final rawAttr = op['attributes'];
+    final attr = rawAttr is Map
+        ? rawAttr.cast<String, dynamic>()
+        : const <String, dynamic>{};
     final style = _styleFrom(attr);
     final parts = insert.split('\n');
     for (var i = 0; i < parts.length; i++) {
