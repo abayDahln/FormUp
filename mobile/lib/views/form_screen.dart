@@ -28,8 +28,6 @@ extension on _FormSort {
 }
 
 class _FormScreenState extends State<FormScreen> {
-  static const _pageSize = 10;
-
   List<FormData> _myForms = [];
   bool _loadingForms = true;
   DateTime _lastRefresh = DateTime.fromMillisecondsSinceEpoch(0);
@@ -39,7 +37,7 @@ class _FormScreenState extends State<FormScreen> {
   String _searchQuery = '';
   DateTime? _filterDate;
   _FormSort _sort = _FormSort.newest;
-  int _page = 0;
+  bool _filterOpen = false;
 
   @override
   void initState() {
@@ -84,7 +82,6 @@ class _FormScreenState extends State<FormScreen> {
       if (!mounted) return;
       setState(() {
         _searchQuery = value;
-        _page = 0;
       });
     });
   }
@@ -130,6 +127,8 @@ class _FormScreenState extends State<FormScreen> {
   }
 
   Future<void> _openFilterSheet() async {
+    if (_filterOpen) return;
+    _filterOpen = true;
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.white,
@@ -185,7 +184,6 @@ class _FormScreenState extends State<FormScreen> {
                         Navigator.pop(sheetContext);
                         setState(() {
                           _filterDate = null;
-                          _page = 0;
                         });
                       },
                     )
@@ -201,7 +199,6 @@ class _FormScreenState extends State<FormScreen> {
                 Navigator.pop(sheetContext);
                 setState(() {
                   _filterDate = picked;
-                  _page = 0;
                 });
               },
             ),
@@ -225,7 +222,6 @@ class _FormScreenState extends State<FormScreen> {
                 Navigator.pop(sheetContext);
                 setState(() {
                   _sort = _FormSort.values[v];
-                  _page = 0;
                 });
               },
               child: Column(
@@ -251,7 +247,6 @@ class _FormScreenState extends State<FormScreen> {
                     setState(() {
                       _filterDate = null;
                       _sort = _FormSort.newest;
-                      _page = 0;
                     });
                   },
                   style: OutlinedButton.styleFrom(
@@ -271,7 +266,7 @@ class _FormScreenState extends State<FormScreen> {
           ],
         ),
       ),
-    );
+    ).whenComplete(() => _filterOpen = false);
   }
 
   Widget _buildFormCard(FormData form) {
@@ -292,11 +287,6 @@ class _FormScreenState extends State<FormScreen> {
   @override
   Widget build(BuildContext context) {
     final all = _filtered;
-    final totalPages = all.isEmpty ? 1 : (all.length / _pageSize).ceil();
-    final page = _page.clamp(0, totalPages - 1);
-    final start = page * _pageSize;
-    final end = start + _pageSize < all.length ? start + _pageSize : all.length;
-    final visible = all.sublist(start, end);
     final hasFilter = _searchQuery.isNotEmpty || _filterDate != null || _sort != _FormSort.newest;
 
     return RefreshIndicator(
@@ -417,34 +407,9 @@ class _FormScreenState extends State<FormScreen> {
                 ),
               )
             else ...[
-              for (final form in visible) ...[
+              for (final form in all) ...[
                 _buildFormCard(form),
                 const SizedBox(height: 12),
-              ],
-              if (all.length > _pageSize) ...[
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.chevron_left),
-                      color: kAuthPrimary,
-                      onPressed:
-                          page == 0 ? null : () => setState(() => _page = page - 1),
-                    ),
-                    Text(
-                      '${page + 1} dari $totalPages',
-                      style: const TextStyle(fontSize: 13, color: Colors.black54),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.chevron_right),
-                      color: kAuthPrimary,
-                      onPressed: page >= totalPages - 1
-                          ? null
-                          : () => setState(() => _page = page + 1),
-                    ),
-                  ],
-                ),
               ],
             ],
           ],

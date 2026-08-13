@@ -12,6 +12,10 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  void _showComingSoon(BuildContext context, String feature) {
+    showAuthToast(context, '$feature akan segera hadir.');
+  }
+
   Future<void> _confirmLogout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -47,33 +51,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const AuthTitle(
-                  title: "Pengaturan",
-                  subtitle: "Kelola akun dan pengaturan aplikasi Anda.",
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
+                      onPressed: () => AppRouter.of(context).pop(),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Pengaturan',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: kFontBold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 4),
+                const Text(
+                  'Pengaturan aplikasi Anda.',
+                  style: TextStyle(fontSize: 13, color: Colors.black54),
+                ),
+                const SizedBox(height: 24),
 
-                _sectionLabel('Akun'),
+                _sectionLabel('Dukungan'),
                 const SizedBox(height: 10),
                 _settingsCard(children: [
                   _SettingsTile(
-                    icon: Icons.person_outline,
-                    label: 'Edit Profil',
-                    onTap: () => AppRouter.of(context).push(AppPage.editProfile),
+                    icon: Icons.help_outline,
+                    label: 'Bantuan & Dukungan',
+                    onTap: () => _showComingSoon(context, 'Bantuan'),
                   ),
                   const _SettingsDivider(),
                   _SettingsTile(
-                    icon: Icons.lock_outline,
-                    label: 'Ganti Kata Sandi',
-                    onTap: () =>
-                        AppRouter.of(context).push(AppPage.changePassword),
+                    icon: Icons.info_outline,
+                    label: 'Tentang FormUp',
+                    onTap: () => _showComingSoon(context, 'Tentang'),
                   ),
-                ]),
-
-                const SizedBox(height: 24),
-                _sectionLabel('Tentang'),
-                const SizedBox(height: 10),
-                _settingsCard(children: [
+                  const _SettingsDivider(),
                   const _SettingsTile(
                     icon: Icons.info_outline,
                     label: 'Versi Aplikasi',

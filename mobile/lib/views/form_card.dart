@@ -136,11 +136,15 @@ class FormCard extends StatelessWidget {
 
 /// Panel quick-action — muncul dari tombol titik tiga di kartu form.
 /// [onChanged] dipanggil setelah aksi yang mengubah data (mis. publish).
+bool _quickActionsOpen = false;
+
 Future<void> showFormQuickActions(
   BuildContext context,
   FormData form, {
   required Future<void> Function() onChanged,
 }) async {
+  if (_quickActionsOpen) return;
+  _quickActionsOpen = true;
   final style = formStatusStyle(form.status);
   await showModalBottomSheet<void>(
     context: context,
@@ -287,6 +291,7 @@ Future<void> showFormQuickActions(
             icon: Icons.share_outlined,
             label: 'Bagikan Form',
             onTap: () {
+              if (shareSheetBusy) return;
               Navigator.pop(sheetContext);
               showFormShareSheet(context, form);
             },
@@ -318,7 +323,7 @@ Future<void> showFormQuickActions(
         ],
       ),
     ),
-  );
+  ).whenComplete(() => _quickActionsOpen = false);
 }
 
 Widget _sheetAction({

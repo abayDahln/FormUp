@@ -77,10 +77,11 @@ class AuthResult {
 }
 
 class AuthService {
-  // ponytail: 6s x 2 percobaan = max ~12s sebelum error, cukup untuk LAN
-  // (sebelumnya 10s x 3 = 30s, terasa seperti hang saat host tidak terjangkau).
+  // ponytail: 6s sekali percobaan, tanpa retry — host mati/slow sudah memberi
+  // feedback cepat di klik pertama, user cukup klik lagi (retry internal malah
+  // membuat app terasa hang ~12s).
   static const Duration _timeout = Duration(seconds: 6);
-  static const int _maxRetries = 1;
+  static const int _maxRetries = 0;
 
   /// Timeout HTTP dipakai juga oleh service lain (mis. upload multipart).
   static Duration get timeout => _timeout;
@@ -136,7 +137,7 @@ class AuthService {
       RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(email);
 
   static const _serverDownMessage =
-      'Server sedang tidak aktif. Silakan coba lagi beberapa saat kemudian.';
+      'Server sedang offline. Silakan coba lagi nanti.';
 
   static Map<String, dynamic> _decode(http.Response response) {
     final Map<String, dynamic> json;
@@ -150,13 +151,14 @@ class AuthService {
       throw const ApiException('Respons server tidak valid.');
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      // ponytail: terima `message` & `Message` — body 401 JWT diserialisasi PascalCase.
+      // ponytail: 5xx = masalah server — jangan bocorkan detail internal
+      // (mis. pesan DB dari middleware), tampilkan pesan generik saja.
+      final serverMsg =
+          (json['message'] as String?) ?? (json['Message'] as String?);
       throw ApiException(
-        (json['message'] as String?) ??
-            (json['Message'] as String?) ??
-            (response.statusCode >= 502 && response.statusCode <= 504
-                ? _serverDownMessage
-                : 'Terjadi kesalahan.'),
+        response.statusCode >= 500
+            ? _serverDownMessage
+            : (serverMsg ?? 'Terjadi kesalahan.'),
       );
     }
     return json;
@@ -183,13 +185,13 @@ class AuthService {
       } on TimeoutException {
         if (attempt >= _maxRetries) {
           throw const ApiException(
-            'Koneksi tidak stabil. Periksa koneksi internet Anda.',
+            'Server sedang offline. Silakan coba lagi nanti.',
           );
         }
       } on http.ClientException {
         if (attempt >= _maxRetries) {
           throw const ApiException(
-            'Tidak dapat terhubung ke server. Pastikan server API sudah dijalankan, lalu periksa koneksi internet Anda.',
+            'Server sedang offline. Silakan coba lagi nanti.',
           );
         }
       }

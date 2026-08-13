@@ -12,14 +12,24 @@ import '../services/form_service.dart';
 /// Panel "Bagikan Form" — 3 opsi: salin link, bagikan QR, bagikan via aplikasi
 /// terpasang (WhatsApp, Instagram, TikTok, dll). Dipakai dari menu kartu form
 /// dan halaman detail.
+bool _shareSheetOpen = false;
+
+/// Indikator sheet berbagi sedang dibuka — dipakai caller untuk menolak
+/// double-tap (mis. tile "Bagikan Form" di quick-action yang ikut pop sheet).
+bool get shareSheetBusy => _shareSheetOpen;
+
 Future<void> showFormShareSheet(BuildContext context, FormData form) async {
+  if (_shareSheetOpen) return;
+  _shareSheetOpen = true;
   final origin = apiBaseUrl.replaceFirst(RegExp(r'/api/?$'), '');
   var link = '$origin/f/${form.formLink}';
 
   Uint8List? qr;
   try {
     final info = await FormService.getShareInfo(form.id);
-    link = info['shareUrl'] as String? ?? link;
+    final shareUrl = info['shareUrl'] as String? ?? '';
+    // ponytail: hanya pakai shareUrl backend jika URL lengkap (bukan "/f/x").
+    if (shareUrl.startsWith('http')) link = shareUrl;
   } catch (_) {
     // ponytail: gagal ambil shareUrl backend — fallback ke URL dari API.
   }
@@ -29,7 +39,10 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
     qr = null; // ponytail: QR gagal dimuat bukan halangan — link tetap bisa dibagikan.
   }
   final qrBytes = qr;
-  if (!context.mounted) return;
+  if (!context.mounted) {
+    _shareSheetOpen = false;
+    return;
+  }
 
   await showModalBottomSheet<void>(
     context: context,
@@ -155,15 +168,23 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
         ),
       ),
     ),
-  );
+  ).whenComplete(() => _shareSheetOpen = false);
 }
 
+bool _shareInvoking = false;
+
 Future<void> _shareText(BuildContext context, FormData form, String link) async {
-  final title = richToPlainText(form.title);
-  await SharePlus.instance.share(ShareParams(
-    text: 'Kerjakan form "$title" di FormUp:\n$link',
-    subject: title,
-  ));
+  if (_shareInvoking) return;
+  _shareInvoking = true;
+  try {
+    final title = richToPlainText(form.title);
+    await SharePlus.instance.share(ShareParams(
+      text: 'Kerjakan form "$title" di FormUp:\n$link',
+      subject: title,
+    ));
+  } finally {
+    _shareInvoking = false;
+  }
 }
 
 Future<void> _shareQrFile(
@@ -172,11 +193,17 @@ Future<void> _shareQrFile(
   Uint8List qr,
   String link,
 ) async {
-  final file = File('${Directory.systemTemp.path}/form_${form.formLink}.png');
-  await file.writeAsBytes(qr);
-  final title = richToPlainText(form.title);
-  await SharePlus.instance.share(ShareParams(
-    files: [XFile(file.path)],
-    text: 'Kerjakan form "$title" di FormUp:\n$link',
-  ));
+  if (_shareInvoking) return;
+  _shareInvoking = true;
+  try {
+    final file = File('${Directory.systemTemp.path}/form_${form.formLink}.png');
+    await file.writeAsBytes(qr);
+    final title = richToPlainText(form.title);
+    await SharePlus.instance.share(ShareParams(
+      files: [XFile(file.path)],
+      text: 'Kerjakan form "$title" di FormUp:\n$link',
+    ));
+  } finally {
+    _shareInvoking = false;
+  }
 }

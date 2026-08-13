@@ -41,10 +41,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  void _showComingSoon(BuildContext context, String feature) {
-    showAuthToast(context, '$feature akan segera hadir.');
-  }
-
   Future<void> _openEditProfile() async {
     await AppRouter.of(context).push(AppPage.editProfile);
     if (mounted) _load();
@@ -174,18 +170,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       label: 'Ubah Kata Sandi',
                       onTap: () =>
                           AppRouter.of(context).push(AppPage.changePassword),
-                    ),
-                    const Divider(height: 1, indent: 52, color: Colors.black12),
-                    _MenuTile(
-                      icon: Icons.help_outline,
-                      label: 'Bantuan & Dukungan',
-                      onTap: () => _showComingSoon(context, 'Bantuan'),
-                    ),
-                    const Divider(height: 1, indent: 52, color: Colors.black12),
-                    _MenuTile(
-                      icon: Icons.info_outline,
-                      label: 'Tentang FormUp',
-                      onTap: () => _showComingSoon(context, 'Tentang'),
                     ),
                   ],
                 ),

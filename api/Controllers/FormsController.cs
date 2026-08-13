@@ -25,7 +25,21 @@ public class FormsController : ControllerBase
     }
 
     // ponytail: base URL publik (formup.my.id) > alamat API itu sendiri.
-    private string PublicBaseUrl => _config["PublicUrl"] ?? $"{Request.Scheme}://{Request.Host}";
+    // Baca langsung dari env var (pola sama seperti DB_CONNECTION/JWT_KEY di
+    // Program.cs) karena _config["PublicUrl"] terbukti tidak selalu menangkap
+    // env var. Kosong/whitespace → fallback ke host request.
+    private string PublicBaseUrl
+    {
+        get
+        {
+            var url = Environment.GetEnvironmentVariable("PUBLIC_URL");
+            if (string.IsNullOrWhiteSpace(url))
+                url = _config["PublicUrl"];
+            return string.IsNullOrWhiteSpace(url)
+                ? $"{Request.Scheme}://{Request.Host}"
+                : url;
+        }
+    }
 
     [HttpGet]
     public async Task<ActionResult<ApiResponse<object>>> GetAll()
