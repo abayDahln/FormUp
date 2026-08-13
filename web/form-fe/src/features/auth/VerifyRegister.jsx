@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { verifyRegistration } from '../../services/apiService';
 
 const VerifyRegister = () => {
     const [otp, setOtp] = useState('');
@@ -24,31 +25,21 @@ const VerifyRegister = () => {
         setError('');
         setLoading(true);
 
-        try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/Auth/verify-registration`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                // Menggabungkan data dari Register dengan OTP
-                body: JSON.stringify({
-                    ...userData,
-                    otp
-                }),
-            });
+        const result = await verifyRegistration(
+            userData.fullname,
+            userData.username,
+            userData.email,
+            userData.password,
+            userData.birthdate,
+            otp
+        );
+        setLoading(false);
 
-            const data = await response.json();
-
-            // Cek sukses verifikasi
-            if (response.ok) {
-                navigate('/login');
-            } else {
-                setError(data.message || 'Verifikasi OTP gagal. Coba lagi.');
-            }
-        } catch {
-            setError('Terjadi kesalahan jaringan. Coba lagi.');
-        } finally {
-            setLoading(false);
+        // Cek sukses verifikasi
+        if (result.ok && result.data?.token) {
+            navigate('/login');
+        } else {
+            setError(result.message || 'Verifikasi OTP gagal. Coba lagi.');
         }
     };
 

@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.example.form_up",
+      "sha256_cert_fingerprints": ["93:9B:92:70:D8:DA:9D:F2:81:CF:F2:D5:16:12:F8:63:A9:9D:F4:24:52:B5:C7:DA:57:5A:1B:31:A0:CC:83:4B"]
+    }
+  }
+]

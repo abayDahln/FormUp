@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { register } from '../../services/apiService';
 
 const Register = () => {
     const [email, setEmail] = useState('');
@@ -41,34 +42,15 @@ const Register = () => {
         }
 
         setLoading(true);
-        try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/Auth/register`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    fullname,
-                    username,
-                    email,
-                    password,
-                    birthdate,
-                }),
+        const result = await register(fullname, username, email, password, birthdate);
+        setLoading(false);
+
+        if (result.ok && result.status === 200) {
+            navigate('/verify', {
+                state: { fullname, username, email, password, birthdate }
             });
-
-            const data = await response.json();
-
-            if (response.ok && data.status === 200) {
-                navigate('/verify', {
-                    state: { fullname, username, email, password, birthdate }
-                });
-            } else {
-                setError(data.message || 'Registrasi gagal. Coba lagi.');
-            }
-        } catch {
-            setError('Terjadi kesalahan jaringan. Coba lagi.');
-        } finally {
-            setLoading(false);
+        } else {
+            setError(result.message || 'Registrasi gagal. Coba lagi.');
         }
     };
 

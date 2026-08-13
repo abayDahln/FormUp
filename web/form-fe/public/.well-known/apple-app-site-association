@@ -1,0 +1,10 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["TEAM_ID.com.example.formUp"],
+        "paths": ["/f/*", "/q/*"]
+      }
+    ]
+  }
+}
