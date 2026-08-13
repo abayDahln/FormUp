@@ -278,7 +278,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Widget _avatarContent() {
     if (_newImage != null) {
-      return Image.memory(_newImage!, fit: BoxFit.cover);
+      return Image.memory(
+        _newImage!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _avatarFallback(),
+      );
     }
     final path = _currentImagePath;
     if (path != null && path.isNotEmpty) {

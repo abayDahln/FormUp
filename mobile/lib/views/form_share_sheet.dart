@@ -118,6 +118,16 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
                     width: 160,
                     height: 160,
                     gaplessPlayback: true,
+                    errorBuilder: (_, _, _) => Container(
+                      width: 160,
+                      height: 160,
+                      color: const Color(0xFFF0F4F4),
+                      child: const Icon(
+                        Icons.qr_code_2,
+                        color: Colors.grey,
+                        size: 48,
+                      ),
+                    ),
                   ),
                 ),
               ),

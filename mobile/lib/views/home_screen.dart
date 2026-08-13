@@ -8,7 +8,6 @@ import 'rich_editor.dart';
 import '../app_router.dart';
 import '../services/auth_service.dart';
 import '../services/form_service.dart';
-import '../services/user_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final String username; // Menerima data nama dari inputan login/register
@@ -27,16 +26,22 @@ class _HomeScreenState extends State<HomeScreen> {
   // jadi pindah tab tidak memicu fetch ulang dari nol.
   final Set<int> _visitedTabs = {0};
 
-  UserStats? _stats;
   List<FormData> _myForms = [];
   List<MyResponseItem> _myResponses = [];
   bool _loading = true;
   String? _loadError;
+  final _codeController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _load(silent: true);
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
   }
 
   /// [silent] untuk auto-load saat app dibuka: error tak muncul sebagai toast
@@ -45,15 +50,13 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
-        UserService.getStats(),
         FormService.getMyForms(),
         FormService.getMyResponses(),
       ]);
       if (!mounted) return;
       setState(() {
-        _stats = results[0] as UserStats;
-        _myForms = results[1] as List<FormData>;
-        _myResponses = results[2] as List<MyResponseItem>;
+        _myForms = results[0] as List<FormData>;
+        _myResponses = results[1] as List<MyResponseItem>;
         _loadError = null;
       });
     } catch (e) {
@@ -69,11 +72,13 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  String get _publishedPercent {
-    final forms = _myForms;
-    if (forms.isEmpty) return '0%';
-    final published = forms.where((f) => f.status == 'published').length;
-    return '${(published / forms.length * 100).round()}%';
+  void _start() {
+    final code = _codeController.text.trim();
+    if (code.isEmpty) {
+      showAuthToast(context, "Masukkan kode form terlebih dahulu", isError: true);
+      return;
+    }
+    AppRouter.of(context).push(AppPage.formRunner, {'code': code});
   }
 
   void _openResponse(MyResponseItem item) {
@@ -90,10 +95,11 @@ class _HomeScreenState extends State<HomeScreen> {
       color: kAuthPrimary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 15.0),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 20),
             _buildHeader(),
             const SizedBox(height: 20),
 
@@ -128,10 +134,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 20),
             ],
 
-            _buildSearchBar(),
-            const SizedBox(height: 20),
-
-            _buildStatsRow(),
+            _buildKerjakanCard(),
             const SizedBox(height: 25),
 
             _buildRecentFormsHeader(),
@@ -249,141 +252,96 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHeader() {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Halo, ${widget.username.isNotEmpty ? widget.username : 'Pengguna'}",
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: kFontBold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 2),
-              const Text(
-                "Inilah performa form Anda hari ini.",
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, color: Colors.black54),
-              ),
-            ],
+        Text(
+          "Halo, ${widget.username.isNotEmpty ? widget.username : 'Pengguna'}",
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: Colors.black87,
           ),
         ),
-        Row(
-          children: [
-            InkWell(
-              onTap: () => AppRouter.of(context).push(AppPage.settings),
-              customBorder: const CircleBorder(),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.6),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.settings_outlined,
-                  color: Color(0xFF2A9D8F),
-                  size: 20,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(
-                color: Color(0xFFB8E2DE),
-                shape: BoxShape.circle,
-              ),
-              child: InkWell(
-                onTap: () {
-                  setState(() {
-                    _visitedTabs.add(4);
-                    _currentIndex = 4;
-                  });
-                },
-                customBorder: const CircleBorder(),
-                child: Center(
-                  child: Text(
-                    widget.username.isNotEmpty
-                        ? widget.username[0].toUpperCase()
-                        : 'U',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontFamily: kFontBold,
-                      color: Color(0xFF2A9D8F),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
+        const SizedBox(height: 2),
+        const Text(
+          "Apa yang ingin Anda lakukan hari ini?",
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 13, color: Colors.black54),
         ),
       ],
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildKerjakanCard() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: softShadow(),
+        borderRadius: BorderRadius.circular(kRadius),
       ),
-      child: TextField(
-        readOnly: true,
-        onTap: () {
-          AppRouter.of(context).push(AppPage.formRunner);
-        },
-        decoration: const InputDecoration(
-          icon: Icon(Icons.search, color: Colors.grey),
-          hintText: "Masukkan kode form untuk mengerjakan...",
-          hintStyle: TextStyle(
-            color: Colors.grey,
-            fontSize: 14,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            "Kerjakan Form",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              fontFamily: kFontBold,
+              color: Colors.black87,
+            ),
           ),
-          border: InputBorder.none,
-        ),
+          const SizedBox(height: 2),
+          const Text(
+            "Masukkan kode form untuk mulai mengerjakan.",
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _codeController,
+            style: const TextStyle(color: Colors.black87),
+            cursorColor: kAuthPrimary,
+            decoration: InputDecoration(
+              hintText: "Kode form",
+              hintStyle: const TextStyle(color: kAuthText),
+              prefixIcon: const Icon(Icons.link, color: kAuthText),
+              filled: true,
+              fillColor: const Color(0xFFF0F4F4),
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 14,
+                horizontal: 16,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: kAuthText),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: kAuthText),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(
+                  color: kAuthPrimary,
+                  width: 1.5,
+                ),
+              ),
+            ),
+            onSubmitted: (_) => _start(),
+          ),
+          const SizedBox(height: 12),
+          AuthPrimaryButton(
+            label: "Mulai",
+            showArrow: false,
+            onPressed: _start,
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildStatsRow() {
-    final stats = _stats;
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            "Total Form",
-            stats == null ? '…' : '${stats.totalForms}',
-            Icons.description_outlined,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildStatCard(
-            "Total Respons",
-            stats == null ? '…' : '${stats.totalResponses}',
-            Icons.people_outline,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildStatCard(
-            "Terbit",
-            stats == null ? '…' : _publishedPercent,
-            Icons.star_border,
-          ),
-        ),
-      ],
     );
   }
 
@@ -556,38 +514,6 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(
             message,
             style: const TextStyle(fontSize: 13, color: Colors.black54),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard(String title, String value, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(kRadius),
-        boxShadow: softShadow(),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: const Color(0xFF2A9D8F), size: 20),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 11, color: Colors.black54),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              fontFamily: kFontBold,
-              color: Colors.black87,
-            ),
           ),
         ],
       ),

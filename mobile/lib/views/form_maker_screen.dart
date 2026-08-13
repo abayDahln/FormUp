@@ -555,7 +555,14 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
           ),
           child: hasImage
               ? (_newBanner != null
-                    ? Image.memory(_newBanner!, fit: BoxFit.cover)
+                    ? Image.memory(
+                        _newBanner!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const Center(
+                          child: Icon(Icons.broken_image_outlined,
+                              size: 32, color: Colors.grey),
+                        ),
+                      )
                     : Image.network(
                         profileImageUrl(_bannerImage),
                         fit: BoxFit.cover,
@@ -1609,7 +1616,21 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: const Color(0xFFBDC9C8)),
                   ),
-                  child: Image.memory(_shareQr!, width: 160, height: 160),
+                  child: Image.memory(
+                    _shareQr!,
+                    width: 160,
+                    height: 160,
+                    errorBuilder: (_, _, _) => Container(
+                      width: 160,
+                      height: 160,
+                      color: const Color(0xFFF0F4F4),
+                      child: const Icon(
+                        Icons.qr_code_2,
+                        color: Colors.grey,
+                        size: 48,
+                      ),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 6),

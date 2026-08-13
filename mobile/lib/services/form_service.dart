@@ -575,9 +575,20 @@ class FormService {
   }
 
   /// GET /forms/{id}/share/qr — PNG QR code (raw bytes).
-  static Future<Uint8List> getShareQr(int formId) async {
-    final response = await _authGetBytes('/forms/$formId/share/qr');
-    return response;
+  /// null jika respons bukan PNG (mis. backend down/error), agar UI tidak
+  /// mencoba decode data invalid yang melempar exception ke user.
+  static Future<Uint8List?> getShareQr(int formId) async {
+    final bytes = await _authGetBytes('/forms/$formId/share/qr');
+    return _isPng(bytes) ? bytes : null;
+  }
+
+  static bool _isPng(Uint8List bytes) {
+    if (bytes.length < 8) return false;
+    const magic = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    for (var i = 0; i < 8; i++) {
+      if (bytes[i] != magic[i]) return false;
+    }
+    return true;
   }
 
   static Future<Uint8List> _authGetBytes(String path) async {
