@@ -160,6 +160,15 @@ const Login = () => {
                                 >
                                     {loading ? 'Signing in...' : 'Login'}
                                 </button>
+
+                                <div className="text-right">
+                                    <Link
+                                        to="/forgot-password"
+                                        className="text-[12px] font-bold text-gray-600 hover:text-[#14a098] transition-colors"
+                                    >
+                                        Lupa password?
+                                    </Link>
+                                </div>
                             </form>
 
                             <div className="mt-5 text-center flex flex-col items-center gap-0.5">

@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Download, Eye, X, BarChart2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, Eye, X, BarChart2, Loader2, MessageSquare, AlertTriangle } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import {
     getFormById, getFormResponses, getResponseDetail,
-    updateResponseStatus, clearSession, exportUrl
+    updateResponseStatus, clearSession, exportUrl, getMyFeedback
 } from '../../services/apiService';
 
 const STATUS_OPTIONS = [
@@ -19,6 +19,9 @@ const PAGE_SIZE = 20;
 export default function FormResponsesPage() {
     const { id } = useParams();
     const navigate = useNavigate();
+
+    const [activeTab, setActiveTab] = useState('responses');
+
     const [form, setForm] = useState(null);
     const [responses, setResponses] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -26,6 +29,10 @@ export default function FormResponsesPage() {
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [totalCount, setTotalCount] = useState(0);
+
+    // Feedback from respondents about this form
+    const [feedbacks, setFeedbacks] = useState([]);
+    const [feedbackLoading, setFeedbackLoading] = useState(false);
 
     const [detail, setDetail] = useState(null);
     const [detailLoading, setDetailLoading] = useState(false);
@@ -56,6 +63,24 @@ export default function FormResponsesPage() {
         };
         load();
     }, [id, navigate]);
+
+    // Load feedback tab when switched
+    useEffect(() => {
+        if (activeTab !== 'feedback') return;
+        const loadFeedback = async () => {
+            setFeedbackLoading(true);
+            const res = await getMyFeedback(id);
+            setFeedbackLoading(false);
+            if (res.ok) {
+                // API may return single object or array depending on context
+                const data = res.data;
+                if (Array.isArray(data)) setFeedbacks(data);
+                else if (data && typeof data === 'object') setFeedbacks([data]);
+                else setFeedbacks([]);
+            }
+        };
+        loadFeedback();
+    }, [activeTab, id]);
 
     const handleLoadMore = useCallback(async () => {
         if (loadingMore || !hasMore) return;
@@ -139,6 +164,7 @@ export default function FormResponsesPage() {
             <Sidebar />
 
             <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+                {/* Header */}
                 <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 min-w-0">
                         <button onClick={() => navigate('/my-forms')} className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg">
@@ -167,6 +193,22 @@ export default function FormResponsesPage() {
                     </div>
                 </div>
 
+                {/* Sub-tabs: Responses / Feedback */}
+                <div className="flex border-b border-slate-200 bg-white px-6">
+                    <button
+                        onClick={() => setActiveTab('responses')}
+                        className={`flex items-center gap-1.5 py-3 px-5 text-xs font-extrabold border-b-2 transition-all ${activeTab === 'responses' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-400 hover:text-slate-700'}`}
+                    >
+                        <Eye size={13} /> Responses
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('feedback')}
+                        className={`flex items-center gap-1.5 py-3 px-5 text-xs font-extrabold border-b-2 transition-all ${activeTab === 'feedback' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-400 hover:text-slate-700'}`}
+                    >
+                        <AlertTriangle size={13} /> Feedback Laporan
+                    </button>
+                </div>
+
                 {toast && (
                     <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-semibold text-white ${toast.type === 'error' ? 'bg-red-500' : 'bg-teal-600'}`}>
                         {toast.msg}
@@ -174,67 +216,120 @@ export default function FormResponsesPage() {
                 )}
 
                 <div className="p-6 max-w-5xl mx-auto w-full space-y-4">
-                    {responses.length === 0 ? (
-                        <div className="text-center py-16 text-slate-400 text-sm">No responses yet.</div>
-                    ) : (
-                        <>
-                            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-                                <table className="w-full text-sm text-left">
-                                    <thead>
-                                        <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                                            <th className="py-3 px-4">#</th>
-                                            <th className="py-3 px-4">Respondent</th>
-                                            <th className="py-3 px-4">Status</th>
-                                            <th className="py-3 px-4">Submitted At</th>
-                                            <th className="py-3 px-4 text-right">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {responses.map((r, i) => (
-                                            <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="py-3 px-4 text-slate-400 font-medium">{i + 1}</td>
-                                                <td className="py-3 px-4 font-semibold text-slate-800">{r.respondentName || 'Anonymous'}</td>
-                                                <td className="py-3 px-4">
-                                                    <select
-                                                        value={STATUS_OPTIONS.find(s => s.label.toLowerCase() === r.status?.toLowerCase())?.id ?? ''}
-                                                        onChange={e => handleStatusChange(r.id, parseInt(e.target.value))}
-                                                        disabled={statusUpdating === r.id}
-                                                        className={`text-[11px] font-bold px-2 py-0.5 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-400 disabled:opacity-60 ${statusColor(r.status)}`}
-                                                    >
-                                                        {STATUS_OPTIONS.map(s => (
-                                                            <option key={s.id} value={s.id}>{s.label}</option>
-                                                        ))}
-                                                    </select>
-                                                </td>
-                                                <td className="py-3 px-4 text-slate-500 text-xs">{formatDate(r.submittedAt)}</td>
-                                                <td className="py-3 px-4 text-right">
-                                                    <button
-                                                        onClick={() => viewDetail(r.id)}
-                                                        className="inline-flex items-center gap-1 text-xs font-bold text-teal-600 hover:underline"
-                                                    >
-                                                        <Eye size={13} /> View
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
 
-                            {/* Infinite Scroll / Load More Button */}
-                            {hasMore && (
-                                <div className="text-center pt-2">
-                                    <button
-                                        onClick={handleLoadMore}
-                                        disabled={loadingMore}
-                                        className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 mx-auto disabled:opacity-60"
-                                    >
-                                        {loadingMore ? (
-                                            <><Loader2 size={14} className="animate-spin text-teal-600" /> Memuat respons...</>
-                                        ) : (
-                                            `Muat Lebih Banyak (${responses.length} dari ${totalCount || 'banyak'})`
-                                        )}
-                                    </button>
+                    {/* ── RESPONSES TAB ── */}
+                    {activeTab === 'responses' && (
+                        <>
+                            {responses.length === 0 ? (
+                                <div className="text-center py-16 text-slate-400 text-sm">No responses yet.</div>
+                            ) : (
+                                <>
+                                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                                        <table className="w-full text-sm text-left">
+                                            <thead>
+                                                <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                                                    <th className="py-3 px-4">#</th>
+                                                    <th className="py-3 px-4">Respondent</th>
+                                                    <th className="py-3 px-4">Status</th>
+                                                    <th className="py-3 px-4">Submitted At</th>
+                                                    <th className="py-3 px-4 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {responses.map((r, i) => (
+                                                    <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                                                        <td className="py-3 px-4 text-slate-400 font-medium">{i + 1}</td>
+                                                        <td className="py-3 px-4 font-semibold text-slate-800">{r.respondentName || 'Anonymous'}</td>
+                                                        <td className="py-3 px-4">
+                                                            <select
+                                                                value={STATUS_OPTIONS.find(s => s.label.toLowerCase() === r.status?.toLowerCase())?.id ?? ''}
+                                                                onChange={e => handleStatusChange(r.id, parseInt(e.target.value))}
+                                                                disabled={statusUpdating === r.id}
+                                                                className={`text-[11px] font-bold px-2 py-0.5 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-400 disabled:opacity-60 ${statusColor(r.status)}`}
+                                                            >
+                                                                {STATUS_OPTIONS.map(s => (
+                                                                    <option key={s.id} value={s.id}>{s.label}</option>
+                                                                ))}
+                                                            </select>
+                                                        </td>
+                                                        <td className="py-3 px-4 text-slate-500 text-xs">{formatDate(r.submittedAt)}</td>
+                                                        <td className="py-3 px-4 text-right">
+                                                            <button
+                                                                onClick={() => viewDetail(r.id)}
+                                                                className="inline-flex items-center gap-1 text-xs font-bold text-teal-600 hover:underline"
+                                                            >
+                                                                <Eye size={13} /> View
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {hasMore && (
+                                        <div className="text-center pt-2">
+                                            <button
+                                                onClick={handleLoadMore}
+                                                disabled={loadingMore}
+                                                className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 mx-auto disabled:opacity-60"
+                                            >
+                                                {loadingMore ? (
+                                                    <><Loader2 size={14} className="animate-spin text-teal-600" /> Memuat respons...</>
+                                                ) : (
+                                                    `Muat Lebih Banyak (${responses.length} dari ${totalCount || 'banyak'})`
+                                                )}
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </>
+                    )}
+
+                    {/* ── FEEDBACK TAB ── */}
+                    {activeTab === 'feedback' && (
+                        <>
+                            {feedbackLoading ? (
+                                <div className="text-center py-16 text-slate-400 text-sm">Memuat laporan feedback...</div>
+                            ) : feedbacks.length === 0 ? (
+                                <div className="text-center py-16 space-y-2">
+                                    <MessageSquare size={32} className="text-slate-200 mx-auto" />
+                                    <p className="text-slate-400 text-sm font-medium">Belum ada laporan feedback untuk form ini.</p>
+                                    <p className="text-xs text-slate-300">Feedback dikirim responden setelah mengisi form.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {feedbacks.map((fb, i) => (
+                                        <div key={fb.id ?? i} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                                                        ⚠️ {fb.reason}
+                                                    </span>
+                                                </div>
+                                                <span className="text-[11px] text-slate-400 font-medium shrink-0">{formatDate(fb.createdAt)}</span>
+                                            </div>
+
+                                            {fb.description && (
+                                                <p className="text-sm text-slate-700 leading-relaxed border-l-2 border-amber-200 pl-3">
+                                                    {fb.description}
+                                                </p>
+                                            )}
+
+                                            <div className="flex items-center gap-3 pt-1 border-t border-slate-100">
+                                                <div className="w-6 h-6 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center text-[10px] font-black shrink-0">
+                                                    {(fb.userName || 'U').charAt(0).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs font-bold text-slate-800">{fb.userName || 'Anonymous'}</span>
+                                                    {fb.userId && (
+                                                        <span className="text-[11px] text-slate-400 ml-1.5">#{fb.userId}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </>
@@ -242,7 +337,7 @@ export default function FormResponsesPage() {
                 </div>
             </div>
 
-            {/* Detail modal */}
+            {/* Response Detail Modal */}
             {(detail || detailLoading) && (
                 <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">

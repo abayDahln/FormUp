@@ -4,18 +4,17 @@ import {
     Moon
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getLocalUser, assetUrl } from '../../services/apiService';
 
 export default function Topbar() {
-
+    const navigate = useNavigate();
     const [user, setUser] = useState(() => getLocalUser());
 
-    // State tema (true jika Dark Mode ON, false jika Light Mode/OFF)
     const [isDark, setIsDark] = useState(() => {
         return localStorage.getItem('theme') === 'dark';
     });
 
-    // Effect untuk mengatur class dark di tag html
     useEffect(() => {
         if (isDark) {
             document.documentElement.classList.add('dark');
@@ -39,11 +38,11 @@ export default function Topbar() {
             </div>
 
             <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
-                
-                {/* TOMBOL SWITCH TOGGLE ON / OFF */}
+
+                {/* TOGGLE DARK MODE */}
                 <div className="flex items-center gap-2">
                     <Sun size={16} className={isDark ? 'text-slate-400' : 'text-amber-500'} />
-                    
+
                     <button
                         type="button"
                         onClick={() => setIsDark(!isDark)}
@@ -61,21 +60,25 @@ export default function Topbar() {
                     <Moon size={16} className={isDark ? 'text-slate-700' : 'text-slate-400'} />
                 </div>
 
-                {/* USER PROFILE */}
-                <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
+                {/* USER PROFILE — klik navigasi ke /profile */}
+                <button
+                    onClick={() => navigate('/profile')}
+                    className="flex items-center gap-3 pl-3 border-l border-slate-200 hover:opacity-80 transition-opacity cursor-pointer"
+                    title="Pengaturan Akun"
+                >
                     <div className="text-right hidden sm:block">
                         <h4 className="text-xs font-bold text-slate-800">{user?.fullname || 'John Doe'}</h4>
                         <p className="text-[10px] text-slate-400 font-semibold uppercase">PRO PLAN</p>
                     </div>
                     <img
                         src={assetUrl(
-                                user?.profileImage,
-                                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
-                            )}
+                            user?.profileImage,
+                            `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.fullname || 'U')}&background=6DBFB3&color=fff&size=64`
+                        )}
                         alt="Profile"
                         className="w-9 h-9 rounded-full object-cover border border-slate-300 shadow-sm"
                     />
-                </div>
+                </button>
             </div>
         </header>
     );

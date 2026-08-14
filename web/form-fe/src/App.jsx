@@ -14,6 +14,8 @@ import FormAnalyticsPage from './features/form-responses/FormAnalyticsPage';
 import FormRunnerPage from './features/form-runner/FormRunnerPage';
 import FormResultPage from './features/form-runner/FormResultPage';
 import AdminDashboardPage from './features/admin/AdminDashboardPage';
+import ProfilePage from './features/profile/ProfilePage';
+import ForgotPasswordPage from './features/auth/ForgotPasswordPage';
 import ProtectedRoute from './components/ui/ProtectedRoute';
 
 function App() {
@@ -24,6 +26,7 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/verify" element={<Verify />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/f/:formLink" element={<FormRunnerPage />} />
       <Route path="/f/:formLink/result/:responseId" element={<FormResultPage />} />
 
@@ -39,6 +42,7 @@ function App() {
       <Route path="/forms/:id/analytics" element={<ProtectedRoute><FormAnalyticsPage /></ProtectedRoute>} />
 
       <Route path="/admin" element={<ProtectedRoute><AdminDashboardPage /></ProtectedRoute>} />
+      <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
     </Routes>
   );
 }

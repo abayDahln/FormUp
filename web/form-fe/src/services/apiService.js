@@ -312,7 +312,9 @@ export const getPublicResponseResult = async (formLink, responseId, guestToken) 
 
 // ── Admin Endpoints ───────────────────────────────────────────────────────────
 export const adminGetUsers = async () => parseResponse(await fetch(`${API_BASE_URL}/api/admin/users`, { headers: authHeaders() }));
+export const adminGetUserDetail = async (id) => parseResponse(await fetch(`${API_BASE_URL}/api/admin/users/${id}`, { headers: authHeaders() }));
 export const adminGetForms = async () => parseResponse(await fetch(`${API_BASE_URL}/api/admin/forms`, { headers: authHeaders() }));
+export const adminGetFormDetail = async (id) => parseResponse(await fetch(`${API_BASE_URL}/api/admin/forms/${id}`, { headers: authHeaders() }));
 export const adminGetFeedback = async () => parseResponse(await fetch(`${API_BASE_URL}/api/admin/feedback`, { headers: authHeaders() }));
 
 export const adminBanUser = async (id) => {
