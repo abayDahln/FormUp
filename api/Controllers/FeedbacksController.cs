@@ -98,7 +98,13 @@ public class FeedbacksController : ControllerBase
 
     [HttpGet("admin/feedback")]
     [Authorize]
-    public async Task<ActionResult<ApiResponse<object>>> GetAllFeedback()
+    public async Task<ActionResult<ApiResponse<object>>> GetAllFeedback(
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        [FromQuery] string? search,
+        [FromQuery] int? formId,
+        [FromQuery] DateTime? createdFrom,
+        [FromQuery] DateTime? createdTo)
     {
         var user = await GetCurrentUser();
         if (user == null)
@@ -107,9 +113,26 @@ public class FeedbacksController : ControllerBase
         if (user.Role != "ADMIN")
             return Forbid();
 
-        var feedbacks = await _db.Feedbacks
-            .Include(f => f.Form)
-            .Include(f => f.User)
+        var query = _db.Feedbacks.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(f =>
+                (f.User != null && f.User.Fullname != null && f.User.Fullname.Contains(s)) ||
+                (f.User != null && f.User.Email != null && f.User.Email.Contains(s)) ||
+                (f.Description != null && f.Description.Contains(s)));
+        }
+
+        if (formId.HasValue)
+            query = query.Where(f => f.FormId == formId.Value);
+
+        if (createdFrom.HasValue)
+            query = query.Where(f => f.CreatedAt >= createdFrom.Value);
+        if (createdTo.HasValue)
+            query = query.Where(f => f.CreatedAt <= createdTo.Value);
+
+        var projected = query
             .OrderByDescending(f => f.CreatedAt)
             .Select(f => new AdminFeedbackListItem
             {
@@ -123,10 +146,29 @@ public class FeedbacksController : ControllerBase
                 Reason = f.Reason,
                 Description = f.Description,
                 CreatedAt = f.CreatedAt ?? DateTime.MinValue,
-            })
-            .ToListAsync();
+            });
 
-        return Ok(new ApiResponse<object>(200, "OK", feedbacks));
+        // ponytail: tanpa page/pageSize → perilaku lama (semua sekaligus),
+        // agar klien lama (web) tidak berubah. Dengan param → respons berpaginasi.
+        if (page.HasValue && pageSize.HasValue && pageSize > 0)
+        {
+            var total = await projected.CountAsync();
+            var items = await projected
+                .Skip((page.Value - 1) * pageSize.Value)
+                .Take(pageSize.Value)
+                .ToListAsync();
+
+            return Ok(new ApiResponse<object>(200, "OK", new
+            {
+                items,
+                total,
+                page = page.Value,
+                pageSize = pageSize.Value,
+            }));
+        }
+
+        var all = await projected.ToListAsync();
+        return Ok(new ApiResponse<object>(200, "OK", all));
     }
 
     [HttpDelete("admin/feedback/{id}")]

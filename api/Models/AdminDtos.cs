@@ -9,6 +9,7 @@ public class AdminUserListItem
     public string Role { get; set; } = null!;
     public bool? IsActive { get; set; }
     public int FormCount { get; set; }
+    public int ResponseCount { get; set; }
     public DateTime? CreatedAt { get; set; }
     public DateTime? DeletedAt { get; set; }
 }

@@ -21,29 +21,88 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("users")]
-    public async Task<ActionResult<ApiResponse<object>>> GetAllUsers()
+    public async Task<ActionResult<ApiResponse<object>>> GetAllUsers(
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        [FromQuery] string? search,
+        [FromQuery] DateTime? createdFrom,
+        [FromQuery] DateTime? createdTo,
+        [FromQuery] string? status,
+        [FromQuery] string? sortBy)
     {
         var admin = await GetCurrentUser();
         if (admin == null || admin.Role != "ADMIN")
             return Forbid();
 
-        var users = await _db.Users
-            .OrderByDescending(u => u.CreatedAt)
-            .Select(u => new AdminUserListItem
-            {
-                Id = u.Id,
-                Fullname = u.Fullname,
-                Username = u.Username,
-                Email = u.Email,
-                Role = u.Role ?? "USER",
-                IsActive = u.IsActive,
-                FormCount = u.Forms.Count(f => f.DeletedAt == null),
-                CreatedAt = u.CreatedAt,
-                DeletedAt = u.DeletedAt,
-            })
-            .ToListAsync();
+        var query = _db.Users.AsQueryable();
 
-        return Ok(new ApiResponse<object>(200, "OK", users));
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(u =>
+                (u.Fullname != null && u.Fullname.Contains(s)) ||
+                (u.Email != null && u.Email.Contains(s)) ||
+                (u.Username != null && u.Username.Contains(s)));
+        }
+
+        if (createdFrom.HasValue)
+            query = query.Where(u => u.CreatedAt >= createdFrom.Value);
+        if (createdTo.HasValue)
+            query = query.Where(u => u.CreatedAt <= createdTo.Value);
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            if (status.Equals("banned", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(u => u.IsActive == false);
+            else if (status.Equals("active", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(u => u.IsActive == true);
+        }
+
+        var projected = query.Select(u => new AdminUserListItem
+        {
+            Id = u.Id,
+            Fullname = u.Fullname,
+            Username = u.Username,
+            Email = u.Email,
+            Role = u.Role ?? "USER",
+            IsActive = u.IsActive,
+            FormCount = u.Forms.Count(f => f.DeletedAt == null),
+            ResponseCount = u.Responses.Count,
+            CreatedAt = u.CreatedAt,
+            DeletedAt = u.DeletedAt,
+        });
+
+        projected = sortBy switch
+        {
+            "form_asc" => projected.OrderBy(u => u.FormCount),
+            "form_desc" => projected.OrderByDescending(u => u.FormCount),
+            "response_asc" => projected.OrderBy(u => u.ResponseCount),
+            "response_desc" => projected.OrderByDescending(u => u.ResponseCount),
+            "created_asc" => projected.OrderBy(u => u.CreatedAt),
+            _ => projected.OrderByDescending(u => u.CreatedAt),
+        };
+
+        // ponytail: tanpa page/pageSize → perilaku lama (semua sekaligus),
+        // agar klien lama (web) tidak berubah. Dengan param → respons berpaginasi.
+        if (page.HasValue && pageSize.HasValue && pageSize > 0)
+        {
+            var total = await projected.CountAsync();
+            var items = await projected
+                .Skip((page.Value - 1) * pageSize.Value)
+                .Take(pageSize.Value)
+                .ToListAsync();
+
+            return Ok(new ApiResponse<object>(200, "OK", new
+            {
+                items,
+                total,
+                page = page.Value,
+                pageSize = pageSize.Value,
+            }));
+        }
+
+        var all = await projected.ToListAsync();
+        return Ok(new ApiResponse<object>(200, "OK", all));
     }
 
     [HttpGet("users/{id}")]
@@ -139,34 +198,93 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("forms")]
-    public async Task<ActionResult<ApiResponse<object>>> GetAllForms()
+    public async Task<ActionResult<ApiResponse<object>>> GetAllForms(
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        [FromQuery] string? search,
+        [FromQuery] DateTime? createdFrom,
+        [FromQuery] DateTime? createdTo,
+        [FromQuery] string? status,
+        [FromQuery] int? minResponses,
+        [FromQuery] int? maxResponses,
+        [FromQuery] string? sortBy)
     {
         var admin = await GetCurrentUser();
         if (admin == null || admin.Role != "ADMIN")
             return Forbid();
 
-        var forms = await _db.Forms
-            .Include(f => f.Status)
-            .Include(f => f.User)
-            .OrderByDescending(f => f.CreatedAt)
-            .Select(f => new AdminFormListItem
-            {
-                Id = f.Id,
-                Title = f.Title,
-                Description = f.Description,
-                FormLink = f.FormLink,
-                Status = f.Status != null ? f.Status.Status : "unknown",
-                OwnerName = f.User != null ? f.User.Fullname : "",
-                OwnerEmail = f.User != null ? f.User.Email : "",
-                ResponseCount = f.Responses.Count,
-                TakenDownAt = f.TakenDownAt,
-                CreatedAt = f.CreatedAt,
-                UpdatedAt = f.UpdatedAt,
-                DeletedAt = f.DeletedAt,
-            })
-            .ToListAsync();
+        var query = _db.Forms.AsQueryable();
 
-        return Ok(new ApiResponse<object>(200, "OK", forms));
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(f =>
+                (f.Title != null && f.Title.Contains(s)) ||
+                (f.FormLink != null && f.FormLink.Contains(s)) ||
+                (f.User != null && f.User.Fullname != null && f.User.Fullname.Contains(s)));
+        }
+
+        if (createdFrom.HasValue)
+            query = query.Where(f => f.CreatedAt >= createdFrom.Value);
+        if (createdTo.HasValue)
+            query = query.Where(f => f.CreatedAt <= createdTo.Value);
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            var statusValue = status.Trim();
+            query = query.Where(f => f.Status != null && f.Status.Status == statusValue);
+        }
+
+        var projected = query.Select(f => new AdminFormListItem
+        {
+            Id = f.Id,
+            Title = f.Title,
+            Description = f.Description,
+            FormLink = f.FormLink,
+            Status = f.Status != null ? f.Status.Status : "unknown",
+            OwnerName = f.User != null ? f.User.Fullname : "",
+            OwnerEmail = f.User != null ? f.User.Email : "",
+            ResponseCount = f.Responses.Count,
+            TakenDownAt = f.TakenDownAt,
+            CreatedAt = f.CreatedAt,
+            UpdatedAt = f.UpdatedAt,
+            DeletedAt = f.DeletedAt,
+        });
+
+        if (minResponses.HasValue)
+            projected = projected.Where(f => f.ResponseCount >= minResponses.Value);
+        if (maxResponses.HasValue)
+            projected = projected.Where(f => f.ResponseCount <= maxResponses.Value);
+
+        projected = sortBy switch
+        {
+            "created_asc" => projected.OrderBy(f => f.CreatedAt),
+            "response_desc" => projected.OrderByDescending(f => f.ResponseCount),
+            "response_asc" => projected.OrderBy(f => f.ResponseCount),
+            _ => projected.OrderByDescending(f => f.CreatedAt),
+        };
+
+        // ponytail: tanpa page/pageSize → perilaku lama (semua sekaligus),
+        // agar klien lama (web) tidak berubah. Dengan param → respons berpaginasi.
+        if (page.HasValue && pageSize.HasValue && pageSize > 0)
+        {
+            var total = await projected.CountAsync();
+            var items = await projected
+                .Skip((page.Value - 1) * pageSize.Value)
+                .Take(pageSize.Value)
+                .ToListAsync();
+
+            return Ok(new ApiResponse<object>(200, "OK", new
+            {
+                items,
+                total,
+                page = page.Value,
+                pageSize = pageSize.Value,
+            }));
+        }
+
+        var all = await projected.ToListAsync();
+        return Ok(new ApiResponse<object>(200, "OK", all));
     }
 
     [HttpGet("forms/{id}")]
