@@ -11,11 +11,13 @@ import '../app_router.dart';
 /// Alur: kode → token → jawaban → hasil
 class FormRunnerView extends StatefulWidget {
   final String? initialCode;
+  final String? initialToken;
   final bool showTitle;
 
   const FormRunnerView({
     super.key,
     this.initialCode,
+    this.initialToken,
     this.showTitle = true,
   });
 
@@ -26,8 +28,9 @@ class FormRunnerView extends StatefulWidget {
 /// Halaman mengerjakan form
 class FormRunnerScreen extends StatefulWidget {
   final String? initialCode;
+  final String? initialToken;
 
-  const FormRunnerScreen({super.key, this.initialCode});
+  const FormRunnerScreen({super.key, this.initialCode, this.initialToken});
 
   @override
   State<FormRunnerScreen> createState() => _FormRunnerScreenState();
@@ -46,7 +49,8 @@ class _FormRunnerScreenState extends State<FormRunnerScreen> {
         scrolledUnderElevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
-          onPressed: () => AppRouter.of(context).pop(),
+          // Lewat popRoute agar back guard (dialog keluar form) tetap jalan.
+          onPressed: () => AppRouter.of(context).popRoute(),
         ),
         title: const Text(
           "Kerjakan Form",
@@ -55,7 +59,10 @@ class _FormRunnerScreenState extends State<FormRunnerScreen> {
       ),
       body: AuthBackground(
         child: SafeArea(
-          child: FormRunnerView(initialCode: widget.initialCode),
+          child: FormRunnerView(
+            initialCode: widget.initialCode,
+            initialToken: widget.initialToken,
+          ),
         ),
       ),
     );
@@ -63,6 +70,8 @@ class _FormRunnerScreenState extends State<FormRunnerScreen> {
 }
 
 class _FormRunnerViewState extends State<FormRunnerView> {
+  AppRouterDelegate? _router;
+
   final _codeController = TextEditingController();
   final _tokenController = TextEditingController();
   final _nameController = TextEditingController();
@@ -92,6 +101,9 @@ class _FormRunnerViewState extends State<FormRunnerView> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialToken != null && widget.initialToken!.isNotEmpty) {
+      _tokenController.text = widget.initialToken!;
+    }
     if (widget.initialCode != null && widget.initialCode!.isNotEmpty) {
       _codeController.text = widget.initialCode!;
       _submitCode();
@@ -99,7 +111,15 @@ class _FormRunnerViewState extends State<FormRunnerView> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _router ??= AppRouter.of(context);
+    _router!.pushBackGuard(_confirmExit);
+  }
+
+  @override
   void dispose() {
+    _router?.popBackGuard();
     _codeController.dispose();
     _tokenController.dispose();
     _nameController.dispose();
@@ -107,6 +127,56 @@ class _FormRunnerViewState extends State<FormRunnerView> {
       c.dispose();
     }
     super.dispose();
+  }
+
+  /// Konfirmasi keluar dari form.
+  /// Mengembalikan true bila boleh keluar (sudah kirim & keluar), false bila batal.
+  Future<bool> _confirmExit() async {
+    // Hanya intercept saat sedang mengerjakan (fill step)
+    if (_step != _RunnerStep.fill) return true;
+    if (!mounted) return true;
+
+    final exit = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          "Keluar dari Form?",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: Colors.black87,
+          ),
+        ),
+        content: const Text(
+          "Apakah Anda yakin ingin keluar? Jawaban Anda akan dikumpulkan.",
+          style: TextStyle(fontSize: 14, color: Colors.black54),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Batalkan",
+                style: TextStyle(color: Colors.black54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kAuthPrimary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () async {
+              final ok = await _submit();
+              if (ctx.mounted) Navigator.pop(ctx, ok);
+            },
+            child: const Text("Kirim dan Keluar"),
+          ),
+        ],
+      ),
+    );
+    return exit ?? false;
   }
 
   Future<void> _submitCode() async {
@@ -138,7 +208,12 @@ class _FormRunnerViewState extends State<FormRunnerView> {
         _info = info;
       });
       if (info.requiresToken) {
-        setState(() => _step = _RunnerStep.code);
+        // Token sudah diberikan dari screen sebelumnya → langsung isi form
+        if (widget.initialToken != null && widget.initialToken!.isNotEmpty) {
+          await _loadQuestions();
+        } else {
+          setState(() => _step = _RunnerStep.code);
+        }
       } else {
         await _loadQuestions();
       }
@@ -209,8 +284,9 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     await _submit();
   }
 
-  Future<void> _submit() async {
-    if (_submitting) return;
+  /// Submit jawaban. Mengembalikan true bila berhasil, false bila gagal/validasi.
+  Future<bool> _submit() async {
+    if (_submitting) return false;
     final answers = <Map<String, dynamic>>[];
     for (final q in _questions) {
       switch (q.typeId) {
@@ -218,7 +294,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
           final text = _textAnswers[q.id]?.text.trim() ?? '';
           if (q.isRequired == true && text.isEmpty) {
             showAuthToast(context, "Pertanyaan wajib belum dijawab", isError: true);
-            return;
+            return false;
           }
           if (text.isNotEmpty) {
             answers.add({'questionId': q.id, 'answerValue': text});
@@ -228,7 +304,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
           final optionId = _singleAnswers[q.id];
           if (q.isRequired == true && optionId == null) {
             showAuthToast(context, "Pertanyaan wajib belum dijawab", isError: true);
-            return;
+            return false;
           }
           if (optionId != null) {
             answers.add({'questionId': q.id, 'optionId': optionId});
@@ -238,7 +314,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
           final selected = _multiAnswers[q.id] ?? {};
           if (q.isRequired == true && selected.isEmpty) {
             showAuthToast(context, "Pertanyaan wajib belum dijawab", isError: true);
-            return;
+            return false;
           }
           for (final oid in selected) {
             answers.add({'questionId': q.id, 'optionId': oid});
@@ -248,7 +324,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
           final dt = _datetimeAnswers[q.id];
           if (q.isRequired == true && dt == null) {
             showAuthToast(context, "Pertanyaan wajib belum dijawab", isError: true);
-            return;
+            return false;
           }
           if (dt != null) {
             answers.add({
@@ -261,7 +337,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
           final tf = _tfAnswers[q.id];
           if (q.isRequired == true && tf == null) {
             showAuthToast(context, "Pertanyaan wajib belum dijawab", isError: true);
-            return;
+            return false;
           }
           if (tf != null) {
             answers.add({'questionId': q.id, 'answerValue': tf});
@@ -282,24 +358,26 @@ class _FormRunnerViewState extends State<FormRunnerView> {
       );
       final responseId = data['responseId'] as int;
 
-      if (!mounted) return;
+      if (!mounted) return false;
 
       // Hasil hanya untuk user login
       if (!_isLoggedIn) {
         showAuthToast(context, "Jawaban berhasil dikirim");
         await _reset();
-        return;
+        return true;
       }
 
       final result = await PublicFormService.getResult(_formLink!, responseId);
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _result = result;
         _step = _RunnerStep.result;
       });
+      return true;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return false;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      return false;
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -705,6 +783,29 @@ class _FormRunnerViewState extends State<FormRunnerView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Banner form (jika diisi)
+          if (info.bannerImage != null && info.bannerImage!.trim().isNotEmpty) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: AspectRatio(
+                aspectRatio: 16 / 7,
+                child: Image.network(
+                  profileImageUrl(info.bannerImage),
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  errorBuilder: (_, _, _) => Container(
+                    color: kPrimarySoft,
+                    child: const Icon(
+                      Icons.image_outlined,
+                      size: 36,
+                      color: kAuthPrimary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           RichTextView(
             text: info.title,
             style: const TextStyle(
@@ -714,6 +815,18 @@ class _FormRunnerViewState extends State<FormRunnerView> {
               color: Colors.black87,
             ),
           ),
+          // Deskripsi form (jika diisi)
+          if (info.description != null && info.description!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            RichTextView(
+              text: info.description!,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.black54,
+                height: 1.4,
+              ),
+            ),
+          ],
           if (info.timerDuration != null && info.timerDuration! > 0) ...[
             const SizedBox(height: 6),
             Text(

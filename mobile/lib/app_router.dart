@@ -20,6 +20,8 @@ import 'views/settings_screen.dart';
 import 'views/form_detail_screen.dart';
 import 'views/form_questions_screen.dart';
 import 'views/form_question_edit_screen.dart';
+import 'views/form_start_screen.dart';
+import 'views/barcode_scanner_screen.dart';
 import 'views/question_draft.dart';
 import 'services/form_service.dart';
 
@@ -35,6 +37,8 @@ enum AppPage {
   formQuestions,
   formQuestionEdit,
   formRunner,
+  formStart,
+  barcodeScanner,
   formDetail,
   formHistoryDetail,
   changePassword,
@@ -249,7 +253,14 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
           draft: route.args['draft'] as QuestionDraft,
         );
       case AppPage.formRunner:
-        return FormRunnerScreen(initialCode: route.args['code'] as String?);
+        return FormRunnerScreen(
+          initialCode: route.args['code'] as String?,
+          initialToken: route.args['token'] as String?,
+        );
+      case AppPage.formStart:
+        return FormStartScreen(formLink: route.args['formLink'] as String? ?? '');
+      case AppPage.barcodeScanner:
+        return const BarcodeScannerScreen();
       case AppPage.formDetail:
         return FormDetailScreen(
           formId: route.args['formId'] as int? ?? 0,
@@ -308,6 +319,8 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       'form-questions' => const AppRoute(AppPage.formQuestions),
       'form-question-edit' => const AppRoute(AppPage.formQuestionEdit),
       'form-runner' => const AppRoute(AppPage.formRunner),
+      'form-start' => AppRoute(AppPage.formStart, {'formLink': segments.length >= 3 ? segments[2] : ''}),
+      'scan-barcode' => const AppRoute(AppPage.barcodeScanner),
       'form-detail' => const AppRoute(AppPage.formDetail),
       'form-history' => const AppRoute(AppPage.formHistoryDetail),
       'change-password' => const AppRoute(AppPage.changePassword),
@@ -333,6 +346,8 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       AppPage.formQuestions => 'form-questions',
       AppPage.formQuestionEdit => 'form-question-edit',
       AppPage.formRunner => 'form-runner',
+      AppPage.formStart => 'form-start',
+      AppPage.barcodeScanner => 'scan-barcode',
       AppPage.formDetail => 'form-detail',
       AppPage.formHistoryDetail => 'form-history',
       AppPage.changePassword => 'change-password',

@@ -63,7 +63,6 @@ local.properties
 **/*.keystore
 **/*.jks
 
-# iOS-specific
 *.pbxuser
 *.mode1v3
 *.mode2v3
@@ -80,11 +79,9 @@ ios/Flutter/App.framework
 ios/Flutter/Flutter.framework
 ios/Flutter/Flutter.podspec
 
-# Ignore non-mobile platform directories completely to keep git light
 /linux/
 /macos/
 /web/
 /windows/
 
-# Ponytail / OpenCode config
 opencode.json

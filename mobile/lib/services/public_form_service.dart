@@ -10,6 +10,7 @@ class PublicFormInfo {
   final bool requiresLogin;
   final bool oneResponse;
   final bool isOwner;
+  final int questionCount;
   final int? formTypeId;
   final bool? showScore;
   final int? timerDuration;
@@ -26,6 +27,7 @@ class PublicFormInfo {
     this.requiresLogin = false,
     this.oneResponse = false,
     this.isOwner = false,
+    this.questionCount = 0,
     this.formTypeId = 1,
     this.showScore,
     this.timerDuration,
@@ -44,6 +46,7 @@ class PublicFormInfo {
         requiresLogin: json['requiresLogin'] as bool? ?? false,
         oneResponse: json['oneResponse'] as bool? ?? false,
         isOwner: json['isOwner'] as bool? ?? false,
+        questionCount: json['questionCount'] as int? ?? 0,
         formTypeId: json['formTypeId'] as int? ?? 1,
         showScore: json['showScore'] as bool?,
         timerDuration: json['timerDuration'] as int?,

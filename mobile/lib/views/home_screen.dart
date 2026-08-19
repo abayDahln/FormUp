@@ -79,7 +79,11 @@ class _HomeScreenState extends State<HomeScreen> {
       showAuthToast(context, "Masukkan kode form terlebih dahulu", isError: true);
       return;
     }
-    AppRouter.of(context).push(AppPage.formRunner, {'code': code});
+    AppRouter.of(context).push(AppPage.formStart, {'formLink': code});
+  }
+
+  void _openScanner() {
+    AppRouter.of(context).push(AppPage.barcodeScanner);
   }
 
   void _openResponse(MyResponseItem item) {
@@ -288,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            "Kerjakan Form",
+            "Masuk Form",
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -298,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 2),
           const Text(
-            "Masukkan kode form untuk mulai mengerjakan.",
+            "Masukkan kode form untuk masuk ke halaman awal form.",
             style: TextStyle(fontSize: 12, color: Colors.black54),
           ),
           const SizedBox(height: 12),
@@ -310,6 +314,11 @@ class _HomeScreenState extends State<HomeScreen> {
               hintText: "Kode form",
               hintStyle: const TextStyle(color: kAuthText),
               prefixIcon: const Icon(Icons.link, color: kAuthText),
+              suffixIcon: IconButton(
+                onPressed: _openScanner,
+                tooltip: 'Scan barcode',
+                icon: const Icon(Icons.qr_code_scanner, color: kAuthPrimary),
+              ),
               filled: true,
               fillColor: const Color(0xFFF0F4F4),
               contentPadding: const EdgeInsets.symmetric(
@@ -336,7 +345,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
           AuthPrimaryButton(
-            label: "Mulai",
+            label: "Masuk Form",
             showArrow: false,
             onPressed: _start,
           ),

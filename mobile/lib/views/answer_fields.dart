@@ -50,14 +50,47 @@ class AnswerFields extends StatelessWidget {
           decoration: _decoration("Tulis jawaban Anda..."),
         );
       case 2: // Multiple Choice
-        return RadioGroup<int>(
-          groupValue: singleValue,
-          onChanged: onSingleChanged ?? (_) {},
+        return Material(
+          type: MaterialType.transparency,
+          child: RadioGroup<int>(
+            groupValue: singleValue,
+            onChanged: onSingleChanged ?? (_) {},
+            child: Column(
+              children: [
+                for (final o in options)
+                  RadioListTile<int>(
+                    value: o.id,
+                    title: RichTextView(
+                      text: o.text,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    dense: true,
+                    activeColor: kAuthPrimary,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+              ],
+            ),
+          ),
+        );
+      case 3: // Checkbox
+        return Material(
+          type: MaterialType.transparency,
           child: Column(
             children: [
               for (final o in options)
-                RadioListTile<int>(
-                  value: o.id,
+                CheckboxListTile(
+                  value: multiValue.contains(o.id),
+                  onChanged: onMultiChanged == null
+                      ? null
+                      : (v) {
+                          final selected = Set<int>.of(multiValue);
+                          if (v == true) {
+                            selected.add(o.id);
+                          } else {
+                            selected.remove(o.id);
+                          }
+                          onMultiChanged!(selected);
+                        },
                   title: RichTextView(
                     text: o.text,
                     style: const TextStyle(fontSize: 14),
@@ -65,37 +98,10 @@ class AnswerFields extends StatelessWidget {
                   dense: true,
                   activeColor: kAuthPrimary,
                   contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
                 ),
             ],
           ),
-        );
-      case 3: // Checkbox
-        return Column(
-          children: [
-            for (final o in options)
-              CheckboxListTile(
-                value: multiValue.contains(o.id),
-                onChanged: onMultiChanged == null
-                    ? null
-                    : (v) {
-                        final selected = Set<int>.of(multiValue);
-                        if (v == true) {
-                          selected.add(o.id);
-                        } else {
-                          selected.remove(o.id);
-                        }
-                        onMultiChanged!(selected);
-                      },
-                title: RichTextView(
-                  text: o.text,
-                  style: const TextStyle(fontSize: 14),
-                ),
-                dense: true,
-                activeColor: kAuthPrimary,
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-              ),
-          ],
         );
       case 4: // Date Time
         return InkWell(
