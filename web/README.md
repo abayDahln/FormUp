@@ -54,22 +54,6 @@ FormUp dilengkapi berbagai fitur seperti **timer, shuffle soal & jawaban, Word t
 
 ---
 
-## 📸 Preview
-
-Tambahkan screenshot aplikasi di folder `screenshots/`.
-
-```text
-screenshots/
-├── form-builder.png
-├── dashboard.png
-└── form-preview.png
-```
-
-Contoh:
-
-![Form Builder](./screenshots/form-builder.png)
-
----
 
 ## 🚀 Getting Started
 
@@ -124,9 +108,6 @@ FormUp dapat digunakan untuk:
 ---
 
 ## ⭐ Support
-
-Jika **FormUp** bermanfaat, jangan lupa ⭐ **Star repository ini!**
-
 <div align="center">
 
 ### 🚀 FormUp
