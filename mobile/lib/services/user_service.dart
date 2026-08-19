@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'auth_service.dart';
 
-/// Data profil user hasil `GET/PUT /users/me` (UserDto dari backend).
+/// Profil user
 class UserProfile {
   final int id;
   final String fullname;
@@ -12,7 +12,7 @@ class UserProfile {
   final String email;
   final String? role;
   final String? profileImage;
-  final String? birthdate; // format yyyy-MM-dd atau null
+  final String? birthdate; // format yyyy-MM-dd
   final bool? isActive;
 
   const UserProfile({
@@ -38,7 +38,6 @@ class UserProfile {
       );
 }
 
-/// Statistik profil hasil `GET /users/me/stats`.
 class UserStats {
   final int totalForms;
   final int totalResponses;
@@ -57,21 +56,20 @@ class UserStats {
       );
 }
 
-/// Klien endpoint profil & foto profil (`/users/me`, `/users/me/profile-image`).
 class UserService {
-  /// GET /users/me — ambil profil user yang sedang login.
+  /// GET /users/me
   static Future<UserProfile> getProfile() async {
     final json = await AuthService.get('/users/me');
     return UserProfile.fromJson(json['data'] as Map<String, dynamic>);
   }
 
-  /// GET /users/me/stats — ringkasan form/respons/feedback milik user.
+  /// GET /users/me/stats
   static Future<UserStats> getStats() async {
     final json = await AuthService.get('/users/me/stats');
     return UserStats.fromJson(json['data'] as Map<String, dynamic>);
   }
 
-  /// PUT /users/me — update fullname/username/birthdate.
+  /// PUT /users/me
   static Future<UserProfile> updateProfile({
     required String fullname,
     required String username,
@@ -85,8 +83,7 @@ class UserService {
     return UserProfile.fromJson(json['data'] as Map<String, dynamic>);
   }
 
-  /// POST /users/me/profile-image — upload foto profil (multipart, field `file`).
-  /// Mengembalikan path relatif gambar (mis. `/profile/xxx.png`).
+  /// POST /users/me/profile-image
   static Future<String> uploadProfileImage(
     Uint8List bytes,
     String filename,

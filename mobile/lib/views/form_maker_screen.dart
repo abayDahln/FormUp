@@ -1,71 +1,17 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:file_picker/file_picker.dart';
 import 'auth_widgets.dart';
 import 'rich_editor.dart';
 import '../services/auth_service.dart';
 import '../services/form_service.dart';
 import '../app_router.dart';
 
-class _OptionDraft {
-  int? id;
-  final QuillController text;
-  bool isCorrect;
-
-  _OptionDraft({this.id, String text = '', this.isCorrect = false})
-      : text = richTextController(text);
-}
-
-class _QuestionDraft {
-  int? id;
-  int typeId;
-  final QuillController question;
-  final TextEditingController correctAnswer;
-  bool isRequired;
-  bool randomizeOptions;
-  final List<_OptionDraft> options;
-  String? questionImage;
-  String? questionAudio;
-
-  _QuestionDraft(
-    this.typeId, {
-    this.id,
-    String question = '',
-    String correctAnswer = '',
-    this.isRequired = true,
-    this.randomizeOptions = false,
-    this.questionImage,
-    this.questionAudio,
-  })  : question = richTextController(question),
-        correctAnswer = TextEditingController(text: correctAnswer),
-        options = [];
-
-  /// Multiple Choice & Checkbox punya opsi (dengan isCorrect).
-  bool get hasOptions => typeId == 2 || typeId == 3;
-
-  void dispose() {
-    question.dispose();
-    correctAnswer.dispose();
-    for (final o in options) {
-      o.text.dispose();
-    }
-  }
-}
-
-/// Tipe pertanyaan (ID dari tabel referensi QuestionType).
-/// 1=Essay, 2=Multiple Choice, 3=Checkbox, 4=Date Time, 5=True False.
-const _types = {
-  1: ('Essay', Icons.short_text),
-  2: ('Pilihan Ganda', Icons.radio_button_checked),
-  3: ('Checkbox', Icons.check_box_outlined),
-  4: ('Tanggal & Waktu', Icons.calendar_today_outlined),
-  5: ('Benar/Salah', Icons.check_circle_outline),
-};
-
+/// Edit informasi & pengaturan form (judul, deskripsi, banner, setting).
 class FormMakerScreen extends StatefulWidget {
-  /// ID form saat mode edit. `null` = buat form baru.
   final int? formId;
 
   const FormMakerScreen({super.key, this.formId});
@@ -74,17 +20,50 @@ class FormMakerScreen extends StatefulWidget {
   State<FormMakerScreen> createState() => _FormMakerScreenState();
 }
 
+/// Snapshot nilai form untuk deteksi perubahan (dipakai konfirmasi keluar).
+class _FormSnapshot {
+  final String title;
+  final String desc;
+  final int formTypeId;
+  final bool showScore;
+  final bool randomizeQuestions;
+  final bool oneResponse;
+  final bool requiredLogin;
+  final DateTime? openFormTime;
+  final DateTime? closeFormTime;
+  final String timer;
+  final String token;
+  final String customLink;
+  final String? bannerImage;
+
+  const _FormSnapshot({
+    required this.title,
+    required this.desc,
+    required this.formTypeId,
+    required this.showScore,
+    required this.randomizeQuestions,
+    required this.oneResponse,
+    required this.requiredLogin,
+    required this.openFormTime,
+    required this.closeFormTime,
+    required this.timer,
+    required this.token,
+    required this.customLink,
+    required this.bannerImage,
+  });
+}
+
 class _FormMakerScreenState extends State<FormMakerScreen> {
   final QuillController _titleController = richTextController(null);
   final QuillController _descController = richTextController(null);
   final _timerController = TextEditingController();
   final _tokenController = TextEditingController();
   final _customLinkController = TextEditingController();
-  final List<_QuestionDraft> _questions = [];
+  AppRouterDelegate? _router;
   bool _loading = false;
   bool _saving = false;
+  double? _progress;
 
-  // Pengaturan form (FormSetting).
   int _formTypeId = 1;
   bool _showScore = false;
   bool _randomizeQuestions = false;
@@ -93,44 +72,83 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
   DateTime? _openFormTime;
   DateTime? _closeFormTime;
 
-  // Banner form (bannerImage dari server / bytes gambar baru).
   String? _bannerImage;
   Uint8List? _newBanner;
   bool _bannerCleared = false;
 
-  // Index soal yang sedang upload gambar/audio (untuk indikator loading).
-  int? _uploadingQuestion;
-
-  // Indeks soal yang sedang dalam mode pratinjau (live preview).
-  int? _previewQuestion;
-
-  // Info berbagi form (URL publik + QR) — diisi saat kartu Share dibuka.
-  Map<String, dynamic>? _shareInfo;
-  Uint8List? _shareQr;
-  bool _shareLoading = false;
-
-  /// open_form_time hanya bisa di-set sekali; kalau sudah ada di server,
-  /// jangan kirim ulang saat save (backend menolak dengan 400).
   bool _openTimeAlreadySet = false;
 
+  _FormSnapshot? _baseline;
+
   bool get _isEdit => widget.formId != null;
+
+  String _delta(QuillController c) =>
+      jsonEncode(c.document.toDelta().toJson());
+
+  _FormSnapshot _snapshot() => _FormSnapshot(
+        title: _delta(_titleController),
+        desc: _delta(_descController),
+        formTypeId: _formTypeId,
+        showScore: _showScore,
+        randomizeQuestions: _randomizeQuestions,
+        oneResponse: _oneResponse,
+        requiredLogin: _requiredLogin,
+        openFormTime: _openFormTime,
+        closeFormTime: _closeFormTime,
+        timer: _timerController.text,
+        token: _tokenController.text,
+        customLink: _customLinkController.text,
+        bannerImage: _newBanner != null
+            ? 'new:${_newBanner.hashCode}'
+            : _bannerCleared
+                ? ''
+                : _bannerImage,
+      );
+
+  bool get _hasChanges {
+    final base = _baseline;
+    if (base == null) return false;
+    final cur = _snapshot();
+    return base.title != cur.title ||
+        base.desc != cur.desc ||
+        base.formTypeId != cur.formTypeId ||
+        base.showScore != cur.showScore ||
+        base.randomizeQuestions != cur.randomizeQuestions ||
+        base.oneResponse != cur.oneResponse ||
+        base.requiredLogin != cur.requiredLogin ||
+        base.openFormTime != cur.openFormTime ||
+        base.closeFormTime != cur.closeFormTime ||
+        base.timer != cur.timer ||
+        base.token != cur.token ||
+        base.customLink != cur.customLink ||
+        base.bannerImage != cur.bannerImage;
+  }
 
   @override
   void initState() {
     super.initState();
-    if (_isEdit) _loadForm();
+    if (_isEdit) {
+      _loadForm();
+    } else {
+      _baseline = _snapshot();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _router ??= AppRouter.of(context);
+    _router!.pushBackGuard(_confirmExit);
   }
 
   @override
   void dispose() {
+    _router?.popBackGuard();
     _titleController.dispose();
     _descController.dispose();
     _timerController.dispose();
     _tokenController.dispose();
     _customLinkController.dispose();
-    for (final q in _questions) {
-      q.dispose();
-    }
     super.dispose();
   }
 
@@ -138,7 +156,6 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
     setState(() => _loading = true);
     try {
       final form = await FormService.getForm(widget.formId!);
-      final questions = await FormService.getQuestions(widget.formId!);
       if (!mounted) return;
 
       final settings = form['settings'] as Map<String, dynamic>?;
@@ -161,32 +178,10 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
             rawClose != null ? DateTime.tryParse(rawClose)?.toLocal() : null;
         _openTimeAlreadySet = _openFormTime != null;
         if (settings?['timerDuration'] is int) {
-          _timerController.text =
-              '${settings!['timerDuration']}';
+          _timerController.text = '${settings!['timerDuration']}';
         }
         _customLinkController.text = form['formLink'] as String? ?? '';
-
-        _questions.clear();
-        for (final q in questions) {
-          final draft = _QuestionDraft(
-            q.typeId,
-            id: q.id,
-            question: q.question,
-            correctAnswer: q.correctAnswer ?? '',
-            isRequired: q.isRequired ?? true,
-            randomizeOptions: q.randomizeOptions ?? false,
-            questionImage: q.questionImage,
-            questionAudio: q.questionAudio,
-          );
-          for (final o in q.options) {
-            draft.options.add(_OptionDraft(
-              id: o.id,
-              text: o.optionText,
-              isCorrect: o.isCorrect ?? false,
-            ));
-          }
-          _questions.add(draft);
-        }
+        _baseline = _snapshot();
       });
     } catch (e) {
       if (!mounted) return;
@@ -196,81 +191,48 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
     }
   }
 
-  Future<void> _addQuestion(int typeId) async {
-    setState(() => _questions.add(_QuestionDraft(typeId)));
-  }
-
-  Future<void> _pickQuestionType() async {
-    final typeId = await showModalBottomSheet<int>(
+  /// Konfirmasi keluar: simpan / buang draf / batal (hanya jika ada perubahan).
+  Future<bool> _confirmExit() async {
+    if (!_hasChanges) return true;
+    final choice = await showDialog<String>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'Simpan Perubahan?',
+          style: TextStyle(fontFamily: kFontBold),
         ),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFBDC9C8),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              "Pilih Tipe Pertanyaan",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                fontFamily: kFontBold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 12),
-            for (final entry in _types.entries) ...[
-              GestureDetector(
-                onTap: () => Navigator.pop(context, entry.key),
-                child: Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: kPrimarySoft,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFBDC9C8)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(entry.value.$2, color: kAuthPrimary, size: 20),
-                      const SizedBox(width: 10),
-                      Text(
-                        entry.value.$1,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ],
+        content: const Text(
+          'Perubahan form belum disimpan. Simpan atau buang draf?',
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'cancel'),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'discard'),
+            child: const Text(
+              'Buang Draf',
+              style: TextStyle(color: Color(0xFFC0392B)),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'save'),
+            child: const Text(
+              'Simpan',
+              style: TextStyle(color: kAuthPrimary),
+            ),
+          ),
+        ],
       ),
     );
-    if (typeId != null) await _addQuestion(typeId);
+    if (!mounted) return false;
+    if (choice == 'discard') return true;
+    if (choice == 'save') {
+      await _save();
+      return false; // _save yang menutup screen.
+    }
+    return false;
   }
 
   Future<void> _save() async {
@@ -280,61 +242,10 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
       showAuthToast(context, "Judul form wajib diisi", isError: true);
       return;
     }
-    if (_questions.isEmpty) {
-      showAuthToast(context, "Tambahkan minimal 1 pertanyaan", isError: true);
+    if (_newBanner != null && exceedsUploadLimit(_newBanner!)) {
+      showAuthToast(context, "Banner maksimal 10 MB", isError: true);
       return;
     }
-    for (final q in _questions) {
-      if (q.question.document.toPlainText().trim().isEmpty) {
-        showAuthToast(
-          context,
-          "Teks pertanyaan tidak boleh kosong",
-          isError: true,
-        );
-        return;
-      }
-      if (q.hasOptions) {
-        if (q.options.isEmpty) {
-          showAuthToast(
-            context,
-            "Tambahkan opsi pada pertanyaan pilihan",
-            isError: true,
-          );
-          return;
-        }
-        for (final o in q.options) {
-          if (o.text.document.toPlainText().trim().isEmpty) {
-            showAuthToast(
-              context,
-              "Teks opsi tidak boleh kosong",
-              isError: true,
-            );
-            return;
-          }
-        }
-      }
-    }
-
-    final questionsPayload = [
-      for (final q in _questions)
-        {
-          if (q.id != null) 'id': q.id,
-          'typeId': q.typeId,
-          'question': encodeRichText(q.question),
-          'isRequired': q.isRequired,
-          'randomizeOptions': q.randomizeOptions,
-          if (q.correctAnswer.text.trim().isNotEmpty)
-            'correctAnswer': q.correctAnswer.text.trim(),
-          if (q.hasOptions)
-            'options': [
-              for (final o in q.options)
-                {
-                  'optionText': encodeRichText(o.text),
-                  'isCorrect': o.isCorrect,
-                },
-            ],
-        },
-    ];
 
     final settingsPayload = <String, dynamic>{
       'formTypeId': _formTypeId,
@@ -353,6 +264,10 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
     };
 
     setState(() => _saving = true);
+    void setProgress(double p) {
+      if (mounted) setState(() => _progress = p);
+    }
+
     try {
       final customLink = _sanitizeLink(_customLinkController.text);
       final int formId;
@@ -360,50 +275,58 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
         formId = widget.formId!;
         await FormService.updateForm(
           formId,
-          title: encodeRichText(_titleController),
+          title: _titleController.document.toPlainText().trim(),
           description: encodeRichText(_descController),
           formLink: customLink.isEmpty ? null : customLink,
         );
-        await FormService.updateQuestions(formId, questionsPayload);
       } else {
         formId = await FormService.createForm(
-          title: encodeRichText(_titleController),
+          title: _titleController.document.toPlainText().trim(),
           description: encodeRichText(_descController),
         );
         if (customLink.isNotEmpty) {
           await FormService.updateForm(formId, formLink: customLink);
         }
-        await FormService.saveQuestions(formId, questionsPayload);
       }
+      setProgress(0.4);
       await FormService.updateSettings(formId, settingsPayload);
+      setProgress(0.7);
 
       if (_newBanner != null) {
         await FormService.uploadBanner(formId, _newBanner!, 'banner.jpg');
       } else if (_bannerCleared && _isEdit) {
         await FormService.updateForm(formId, bannerImage: '');
       }
+      setProgress(1.0);
 
       if (!mounted) return;
-      AppRouter.of(context).pop(formId);
-      showAuthToast(
-        context,
-        _isEdit ? "Form berhasil diperbarui" : "Form berhasil dibuat",
-      );
+      // Beri tahu layar daftar form/beranda agar auto-refresh.
+      formsVersion.value++;
+      if (_isEdit) {
+        AppRouter.of(context).pop(formId);
+        showAuthToast(
+          context,
+          "Form berhasil diperbarui",
+        );
+      } else {
+        // Form baru: lanjut kelola soal.
+        await AppRouter.of(context).push(AppPage.formQuestions, {
+          'formId': formId,
+          'isNew': true,
+        });
+        if (!mounted) return;
+        AppRouter.of(context).pop(formId);
+        showAuthToast(context, "Form berhasil dibuat");
+      }
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) setState(() {
+        _saving = false;
+        _progress = null;
+      });
     }
-  }
-
-  void _moveQuestion(int index, int delta) {
-    final newIndex = index + delta;
-    if (newIndex < 0 || newIndex >= _questions.length) return;
-    setState(() {
-      final q = _questions.removeAt(index);
-      _questions.insert(newIndex, q);
-    });
   }
 
   @override
@@ -423,7 +346,12 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
-          onPressed: () => AppRouter.of(context).pop(),
+          onPressed: () async {
+            final allow = await _confirmExit();
+            if (!allow) return;
+            if (!mounted) return;
+            _router!.pop();
+          },
         ),
       ),
       body: _loading
@@ -435,15 +363,13 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
                     child: ValueListenableBuilder<ActiveRichEditor?>(
                       valueListenable: activeRichEditor,
                       builder: (context, active, _) {
-                        // Toolbar muncul selama ada editor rich yang fokus,
-                        // tidak bergantung pada keyboard yang terbuka.
                         final toolbarVisible = active != null;
                         return SingleChildScrollView(
                           padding: EdgeInsets.fromLTRB(
                             22,
                             4,
                             22,
-                            toolbarVisible ? 80 : 24,
+                            toolbarVisible ? 110 : 24,
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -451,20 +377,13 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
                               _buildFormHeader(),
                               const SizedBox(height: 16),
                               _buildSettingsCard(),
-                              const SizedBox(height: 16),
-                              for (var i = 0; i < _questions.length; i++) ...[
-                                _buildQuestionCard(i),
-                                const SizedBox(height: 12),
-                              ],
-                              _buildAddQuestionButton(),
-                              if (_isEdit) ...[
-                                const SizedBox(height: 16),
-                                _buildShareCard(),
-                              ],
                               const SizedBox(height: 24),
                               AuthPrimaryButton(
-                                label: _saving ? "Menyimpan..." : "Simpan Form",
+                                label: _saving
+                                    ? "Menyimpan..."
+                                    : (_isEdit ? "Simpan Form" : "Simpan & Kelola Soal"),
                                 loading: _saving,
+                                progress: _progress,
                                 onPressed: _save,
                               ),
                             ],
@@ -655,6 +574,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
             ],
           ),
           const SizedBox(height: 14),
+          _settingsLabel("Tipe Form"),
           DropdownButtonHideUnderline(
             child: DropdownButton<int>(
               value: _formTypeId,
@@ -669,10 +589,11 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
             ),
           ),
           const SizedBox(height: 8),
+          _settingsLabel("Link Kustom"),
           TextField(
             controller: _customLinkController,
             decoration: _fieldDecoration(
-              "Link kustom (mis. survey-kepuasan, opsional)",
+              "mis. survey-kepuasan (opsional)",
             ),
             onChanged: (v) => _customLinkController.value =
                 _customLinkController.value.copyWith(
@@ -682,19 +603,21 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
+          _settingsLabel("Batas Waktu"),
           TextField(
             controller: _timerController,
             keyboardType: TextInputType.number,
             decoration: _fieldDecoration(
-              "Batas waktu pengerjaan (menit, opsional)",
+              "menit (opsional)",
             ),
           ),
           const SizedBox(height: 8),
+          _settingsLabel("Token Akses"),
           TextField(
             controller: _tokenController,
             decoration: _fieldDecoration(
-              "Token akses form (opsional)",
+              "opsional",
             ),
           ),
           const SizedBox(height: 8),
@@ -747,25 +670,44 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
     );
   }
 
+  Widget _settingsLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          fontFamily: kFontBold,
+          color: kAuthPrimary,
+        ),
+      ),
+    );
+  }
+
   Widget _buildSwitch(
     String title,
     String subtitle,
     bool value,
     ValueChanged<bool> onChanged,
   ) {
-    return SwitchListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(
-        title,
-        style: const TextStyle(fontSize: 13, color: Colors.black87),
+    // Material transparan agar ink splash ListTile tidak tertutup DecoratedBox.
+    return Material(
+      type: MaterialType.transparency,
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 13, color: Colors.black87),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: const TextStyle(fontSize: 11, color: Colors.black54),
+        ),
+        value: value,
+        activeTrackColor: kAuthPrimary,
+        onChanged: onChanged,
       ),
-      subtitle: Text(
-        subtitle,
-        style: const TextStyle(fontSize: 11, color: Colors.black54),
-      ),
-      value: value,
-      activeTrackColor: kAuthPrimary,
-      onChanged: onChanged,
     );
   }
 
@@ -914,6 +856,10 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
       if (picked == null) return;
       final bytes = await picked.readAsBytes();
       if (!mounted) return;
+      if (exceedsUploadLimit(bytes)) {
+        showAuthToast(context, "Banner maksimal 10 MB", isError: true);
+        return;
+      }
       setState(() => _newBanner = bytes);
     } catch (e) {
       if (!mounted) return;
@@ -983,809 +929,6 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
         borderSide: const BorderSide(color: kAuthPrimary, width: 1.5),
-      ),
-    );
-  }
-
-  Widget _buildQuestionCard(int index) {
-    final q = _questions[index];
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xCCBDC9C8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: const BoxDecoration(
-                  color: kPrimarySoft,
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text(
-                    "${index + 1}",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontFamily: kFontBold,
-                      color: kAuthPrimary,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: q.typeId,
-                    isExpanded: true,
-                    items: [
-                      for (final e in _types.entries)
-                        DropdownMenuItem(
-                          value: e.key,
-                          child: Text(
-                            e.value.$1,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                    ],
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setState(() {
-                        q.typeId = v;
-                        if (!q.hasOptions) {
-                          for (final o in q.options) {
-                            o.text.dispose();
-                          }
-                          q.options.clear();
-                        }
-                      });
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: Icon(
-                  _previewQuestion == index
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  size: 18,
-                  color: _previewQuestion == index
-                      ? kAuthPrimary
-                      : Colors.grey,
-                ),
-                tooltip: "Pratinjau soal",
-                padding: EdgeInsets.zero,
-                constraints:
-                    const BoxConstraints(minWidth: 32, minHeight: 32),
-                visualDensity: VisualDensity.compact,
-                onPressed: () => setState(() {
-                  _previewQuestion =
-                      _previewQuestion == index ? null : index;
-                }),
-              ),
-              if (index > 0)
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_upward,
-                    size: 18,
-                    color: Colors.grey,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 32, minHeight: 32),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => _moveQuestion(index, -1),
-                ),
-              if (index < _questions.length - 1)
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_downward,
-                    size: 18,
-                    color: Colors.grey,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 32, minHeight: 32),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => _moveQuestion(index, 1),
-                ),
-              IconButton(
-                icon: const Icon(
-                  Icons.delete_outline,
-                  size: 20,
-                  color: Color(0xFFC0392B),
-                ),
-                padding: EdgeInsets.zero,
-                constraints:
-                    const BoxConstraints(minWidth: 32, minHeight: 32),
-                visualDensity: VisualDensity.compact,
-                onPressed: () => setState(() {
-                  q.dispose();
-                  _questions.removeAt(index);
-                }),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          RichTextEditor(
-            controller: q.question,
-            hint: "Tulis pertanyaan...",
-            minHeight: 70,
-          ),
-          if (_previewQuestion == index) ...[
-            const SizedBox(height: 12),
-            _buildQuestionPreview(q),
-          ],
-          if (q.typeId == 5) ...[
-            const SizedBox(height: 12),
-            _buildTrueFalseAnswer(q),
-          ],
-          if (q.typeId == 1) ...[
-            const SizedBox(height: 12),
-            TextField(
-              controller: q.correctAnswer,
-              maxLines: null,
-              decoration: _fieldDecoration(
-                "Kunci jawaban (opsional, untuk kuis)",
-              ),
-            ),
-          ],
-          if (q.hasOptions) ...[
-            const SizedBox(height: 12),
-            for (var oi = 0; oi < q.options.length; oi++)
-              _buildOptionRow(q, oi),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => setState(() => q.options.add(_OptionDraft())),
-                icon: const Icon(
-                  Icons.add_circle_outline,
-                  size: 18,
-                  color: kAuthPrimary,
-                ),
-                label: const Text(
-                  "Tambahkan opsi",
-                  style: TextStyle(color: kAuthPrimary),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 10),
-          _buildQuestionMedia(q, index),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              const Text(
-                "Wajib dijawab",
-                style: TextStyle(fontSize: 13, color: Colors.black87),
-              ),
-              const Spacer(),
-              Switch(
-                value: q.isRequired,
-                activeTrackColor: kAuthPrimary,
-                onChanged: (v) => setState(() => q.isRequired = v),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Media soal (gambar + audio): upload hanya bisa setelah soal tersimpan
-  /// (butuh question id di server).
-  Widget _buildQuestionMedia(_QuestionDraft q, int index) {
-    final needsSave = q.id == null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (q.questionImage != null) ...[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: Image.network(
-              profileImageUrl(q.questionImage),
-              height: 120,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              cacheWidth: 800,
-              errorBuilder: (_, _, _) => Container(
-                height: 120,
-                alignment: Alignment.center,
-                color: const Color(0xFFF0F4F4),
-                child: const Icon(Icons.broken_image_outlined,
-                    size: 32, color: Colors.grey),
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-        ],
-        if (q.questionAudio != null) ...[
-          Row(
-            children: [
-              const Icon(Icons.audio_file, size: 18, color: kAuthPrimary),
-              const SizedBox(width: 6),
-              const Expanded(
-                child: Text(
-                  'Audio terlampir',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close, size: 16, color: Colors.grey),
-                onPressed: () => setState(() => q.questionAudio = null),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-        ],
-        if (needsSave)
-          const Text(
-            'Simpan form dulu untuk upload gambar/audio soal.',
-            style: TextStyle(fontSize: 11, color: Colors.black45, fontStyle: FontStyle.italic),
-          )
-        else if (_uploadingQuestion == index)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Center(
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          )
-        else
-          Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            children: [
-              if (q.questionImage != null)
-                TextButton.icon(
-                  onPressed: () => setState(() => q.questionImage = null),
-                  icon: const Icon(Icons.close, size: 16, color: Color(0xFFC0392B)),
-                  label: const Text(
-                    'Hapus Gambar',
-                    style: TextStyle(fontSize: 12, color: Color(0xFFC0392B)),
-                  ),
-                ),
-              if (q.questionAudio != null)
-                TextButton.icon(
-                  onPressed: () => setState(() => q.questionAudio = null),
-                  icon: const Icon(Icons.close, size: 16, color: Color(0xFFC0392B)),
-                  label: const Text(
-                    'Hapus Audio',
-                    style: TextStyle(fontSize: 12, color: Color(0xFFC0392B)),
-                  ),
-                ),
-              OutlinedButton.icon(
-                onPressed: () => _pickQuestionImage(q, index),
-                icon: const Icon(Icons.image_outlined, size: 16, color: kAuthPrimary),
-                label: Text(
-                  q.questionImage != null ? 'Ganti Gambar' : 'Tambah Gambar',
-                  style: const TextStyle(fontSize: 12, color: kAuthPrimary),
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => _pickQuestionAudio(q, index),
-                icon: const Icon(Icons.audio_file_outlined, size: 16, color: kAuthPrimary),
-                label: Text(
-                  q.questionAudio != null ? 'Ganti Audio' : 'Tambah Audio',
-                  style: const TextStyle(fontSize: 12, color: kAuthPrimary),
-                ),
-              ),
-            ],
-          ),
-      ],
-    );
-  }
-
-  Future<void> _pickQuestionImage(_QuestionDraft q, int index) async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: const Color(0xFFBDC9C8),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            _imageSourceTile(
-              icon: Icons.photo_library_outlined,
-              label: 'Pilih dari Galeri',
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-            _imageSourceTile(
-              icon: Icons.photo_camera_outlined,
-              label: 'Ambil Foto',
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (source == null || !mounted) return;
-    try {
-      final picked = await ImagePicker().pickImage(
-        source: source,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 85,
-      );
-      if (picked == null) return;
-      final bytes = await picked.readAsBytes();
-      if (!mounted) return;
-      setState(() => _uploadingQuestion = index);
-      try {
-        final path = await FormService.uploadQuestionImage(
-          widget.formId!,
-          q.id!,
-          bytes,
-          'question.jpg',
-        );
-        if (!mounted) return;
-        setState(() => q.questionImage = path);
-      } finally {
-        if (mounted) setState(() => _uploadingQuestion = null);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
-    }
-  }
-
-  Future<void> _pickQuestionAudio(_QuestionDraft q, int index) async {
-    try {
-      final result = await FilePicker.pickFiles(
-        type: FileType.audio,
-        allowMultiple: false,
-        withData: true,
-      );
-      final file = result?.files.single;
-      if (file == null || file.bytes == null) return;
-      if (!mounted) return;
-      setState(() => _uploadingQuestion = index);
-      try {
-        final path = await FormService.uploadQuestionAudio(
-          widget.formId!,
-          q.id!,
-          file.bytes!,
-          file.name,
-        );
-        if (!mounted) return;
-        setState(() => q.questionAudio = path);
-      } finally {
-        if (mounted) setState(() => _uploadingQuestion = null);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
-    }
-  }
-
-  /// Panel pratinjau satu soal: tampilkan pertanyaan + tipe jawaban seolah
-  /// dilihat responden.
-  Widget _buildQuestionPreview(_QuestionDraft q) {
-    final previewText = q.question.document.toPlainText().trim();
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7FBFB),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFBDC9C8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.visibility_outlined, size: 14, color: kAuthPrimary),
-              const SizedBox(width: 4),
-              const Text(
-                "Pratinjau Soal",
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: kAuthPrimary,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                _types[q.typeId]?.$1 ?? '',
-                style: const TextStyle(fontSize: 11, color: Colors.black54),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (previewText.isEmpty)
-            const Text(
-              'Belum ada teks pertanyaan.',
-              style: TextStyle(fontSize: 12, color: Colors.black45, fontStyle: FontStyle.italic),
-            )
-          else
-            RichTextView(
-              text: encodeRichText(q.question),
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
-            ),
-          const SizedBox(height: 8),
-          if (q.typeId == 2)
-            for (final o in q.options)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(
-                  children: [
-                    const Icon(Icons.radio_button_unchecked, size: 16, color: Colors.grey),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: RichTextView(
-                        text: encodeRichText(o.text),
-                        style: const TextStyle(fontSize: 13, color: Colors.black87),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-          else if (q.typeId == 3)
-            for (final o in q.options)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(
-                  children: [
-                    const Icon(Icons.check_box_outline_blank, size: 16, color: Colors.grey),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: RichTextView(
-                        text: encodeRichText(o.text),
-                        style: const TextStyle(fontSize: 13, color: Colors.black87),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-          else if (q.typeId == 5)
-            Row(
-              children: [
-                _previewChip('Benar'),
-                const SizedBox(width: 8),
-                _previewChip('Salah'),
-              ],
-            )
-          else if (q.typeId == 4)
-            const Row(
-              children: [
-                Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey),
-                SizedBox(width: 8),
-                Text(
-                  'Pilih tanggal & waktu',
-                  style: TextStyle(fontSize: 13, color: Colors.black45),
-                ),
-              ],
-            )
-          else
-            Text(
-              q.typeId == 1 ? 'Jawaban esai (teks panjang)' : '',
-              style: const TextStyle(fontSize: 13, color: Colors.black45),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _previewChip(String label) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF0F4F4),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF6E7979)),
-        ),
-        child: Text(label, style: const TextStyle(fontSize: 13, color: Colors.black54)),
-      ),
-    );
-  }
-
-  /// Kartu berbagi: URL publik + QR code. Memuat on-demand saat build.
-  Widget _buildShareCard() {
-    if (_shareInfo == null && !_shareLoading && _shareQr == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadShareInfo());
-    }
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xCCBDC9C8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.share_outlined, size: 18, color: kAuthPrimary),
-              const SizedBox(width: 8),
-              const Text(
-                "Bagikan Form",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: kFontBold,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (_shareLoading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
-              child: Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          else if (_shareInfo == null && _shareQr == null)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
-              child: Center(
-                child: Text(
-                  'Gagal memuat info berbagi.',
-                  style: TextStyle(fontSize: 12, color: Colors.black45),
-                ),
-              ),
-            )
-          else ...[
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0F4F4),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      _shareInfo?['shareUrl'] as String? ?? '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: Colors.black87),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.copy, size: 18, color: kAuthPrimary),
-                  tooltip: "Salin link",
-                  onPressed: () {
-                    final url = _shareInfo?['shareUrl'] as String? ?? '';
-                    Clipboard.setData(ClipboardData(text: url));
-                    showAuthToast(context, 'Link disalin');
-                  },
-                ),
-              ],
-            ),
-            if (_shareInfo?['requiresToken'] == true) ...[
-              const SizedBox(height: 6),
-              const Row(
-                children: [
-                  Icon(Icons.lock_outline, size: 14, color: Color(0xFFB26A00)),
-                  SizedBox(width: 6),
-                  Text(
-                    'Form ini dilindungi token akses.',
-                    style: TextStyle(fontSize: 11, color: Color(0xFFB26A00)),
-                  ),
-                ],
-              ),
-            ],
-            if (_shareQr != null) ...[
-              const SizedBox(height: 12),
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFBDC9C8)),
-                  ),
-                  child: Image.memory(
-                    _shareQr!,
-                    width: 160,
-                    height: 160,
-                    errorBuilder: (_, _, _) => Container(
-                      width: 160,
-                      height: 160,
-                      color: const Color(0xFFF0F4F4),
-                      child: const Icon(
-                        Icons.qr_code_2,
-                        color: Colors.grey,
-                        size: 48,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Center(
-                child: Text(
-                  'Scan QR untuk membuka form',
-                  style: TextStyle(fontSize: 11, color: Colors.black45),
-                ),
-              ),
-            ],
-          ],
-        ],
-      ),
-    );
-  }
-
-  Future<void> _loadShareInfo() async {
-    if (_shareLoading) return;
-    setState(() => _shareLoading = true);
-    try {
-      final info = await FormService.getShareInfo(widget.formId!);
-      Uint8List? qr;
-      try {
-        qr = await FormService.getShareQr(widget.formId!);
-      } catch (_) {
-        qr = null; // QR gagal dimuat — tetap tampilkan link.
-      }
-      if (!mounted) return;
-      setState(() {
-        _shareInfo = info;
-        _shareQr = qr;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
-    } finally {
-      if (mounted) setState(() => _shareLoading = false);
-    }
-  }
-
-  Widget _buildTrueFalseAnswer(_QuestionDraft q) {
-    return Row(
-      children: [
-        Expanded(
-          child: _answerChip(
-            "Benar",
-            q.correctAnswer.text == 'Benar',
-            () => setState(() => q.correctAnswer.text = 'Benar'),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _answerChip(
-            "Salah",
-            q.correctAnswer.text == 'Salah',
-            () => setState(() => q.correctAnswer.text = 'Salah'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _answerChip(String label, bool selected, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? kPrimarySoft : const Color(0xFFF0F4F4),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: selected ? kAuthPrimary : const Color(0xFF6E7979),
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            fontFamily: kFontBold,
-            color: selected ? kAuthPrimary : Colors.black54,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOptionRow(_QuestionDraft q, int oi) {
-    final o = q.options[oi];
-    final singleSelect = q.typeId == 2;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          InkWell(
-            onTap: () {
-              setState(() {
-                if (singleSelect) {
-                  for (final opt in q.options) {
-                    opt.isCorrect = false;
-                  }
-                  o.isCorrect = true;
-                } else {
-                  o.isCorrect = !o.isCorrect;
-                }
-              });
-            },
-            child: Icon(
-              singleSelect
-                  ? (o.isCorrect
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked)
-                  : (o.isCorrect
-                        ? Icons.check_box
-                        : Icons.check_box_outline_blank),
-              color: o.isCorrect ? kAuthPrimary : const Color(0xFF6E7979),
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: RichTextEditor(
-              controller: o.text,
-              hint: "Opsi ${oi + 1}",
-              minHeight: 40,
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 18, color: Colors.grey),
-            onPressed: () {
-              setState(() {
-                o.text.dispose();
-                q.options.removeAt(oi);
-              });
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAddQuestionButton() {
-    return OutlinedButton.icon(
-      onPressed: _pickQuestionType,
-      icon: const Icon(Icons.add, color: kAuthPrimary),
-      label: const Text(
-        "Tambah Pertanyaan",
-        style: TextStyle(color: kAuthPrimary),
-      ),
-      style: OutlinedButton.styleFrom(
-        side: const BorderSide(color: kAuthPrimary),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        padding: const EdgeInsets.symmetric(vertical: 14),
       ),
     );
   }

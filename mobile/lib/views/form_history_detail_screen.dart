@@ -5,7 +5,7 @@ import 'rich_editor.dart';
 import '../services/public_form_service.dart';
 import '../services/auth_service.dart';
 
-/// Detail riwayat: hasil pengerjaan satu form yang sudah dikerjakan user.
+/// Detail hasil pengerjaan form
 class FormHistoryDetailScreen extends StatefulWidget {
   final String formLink;
   final int responseId;

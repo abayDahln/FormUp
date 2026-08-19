@@ -2,16 +2,13 @@ import 'package:flutter/material.dart';
 import 'auth_widgets.dart';
 import 'rich_editor.dart';
 
-/// Opsi jawaban sederhana (id + teks) untuk [AnswerFields].
 class AnswerOption {
   final int id;
   final String text;
   const AnswerOption(this.id, this.text);
 }
 
-/// Render input jawaban satu pertanyaan (Essay, Pilihan Ganda, Checkbox,
-/// Tanggal & Waktu, Benar/Salah). Dipakai bersama oleh alur mengerjakan form
-/// dan mode pratinjau form.
+/// Input jawaban per tipe soal
 class AnswerFields extends StatelessWidget {
   final int typeId;
   final List<AnswerOption> options;
@@ -207,7 +204,6 @@ class AnswerFields extends StatelessWidget {
   }
 }
 
-/// Daftar opsi pada tampilan hasil — menyorot jawaban user dan jawaban benar.
 class ResultOptionsList extends StatelessWidget {
   final List<String> options;
   final String? answerText;

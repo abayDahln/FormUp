@@ -7,9 +7,9 @@ import 'views/auth_widgets.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // ponytail: isOptional agar app tetap jalan saat .env tidak ada (fresh clone)
+  // ponytail: isOptional, jalan tanpa .env
   await dotenv.load(fileName: '.env', isOptional: true);
-  // Restore sesi agar user tidak login ulang tiap buka app (JWT berlaku 7 hari).
+  // Restore sesi login
   final session = await AuthService.restoreSession();
   final isLoggedIn = session != null;
 
@@ -21,7 +21,6 @@ void main() async {
     delegate.setUsername(name);
   }
 
-  // Sesi berakhir (token kedaluwarsa) → kembali ke layar login.
   AuthService.onSessionExpired = () => delegate.resetToLogin();
 
   runApp(MyApp(delegate: delegate));
@@ -34,8 +33,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // AppRouter (inherited) membungkus MaterialApp agar semua screen bisa
-    // mengakses RouterDelegate via AppRouter.of(context) (Navigation 3).
     return AppRouter(
       delegate: delegate,
       child: MaterialApp.router(

@@ -5,7 +5,7 @@ import '../services/auth_service.dart';
 import '../services/form_service.dart';
 import '../app_router.dart';
 
-/// Analisis respons form milik sendiri (GET /api/forms/{id}/analytics).
+/// Analisis respons form
 class AnalyticsScreen extends StatefulWidget {
   final int formId;
   final String title;
@@ -91,7 +91,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         _hasMore = analytics.respondents.length < analytics.totalResponses;
       });
     } catch (e) {
-      // ponytail: gagal load-more tidak perlu toast keras; user bisa scroll lagi.
+      // ponytail: load-more gagal, scroll lagi
     } finally {
       if (mounted) setState(() => _loadingMore = false);
     }

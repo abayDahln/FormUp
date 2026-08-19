@@ -8,8 +8,7 @@ import '../services/form_service.dart';
 import '../services/public_form_service.dart';
 import '../app_router.dart';
 
-/// Alur: masukkan kode → (token jika wajib) → isi jawaban → lihat hasil.
-/// Mesin alur ini dipakai di tab "Form" maupun halaman kerjakan yang di-push.
+/// Alur: kode → token → jawaban → hasil
 class FormRunnerView extends StatefulWidget {
   final String? initialCode;
   final bool showTitle;
@@ -24,7 +23,7 @@ class FormRunnerView extends StatefulWidget {
   State<FormRunnerView> createState() => _FormRunnerViewState();
 }
 
-/// Halaman mengerjakan form (dari search bar home) — AppBar + tombol kembali.
+/// Halaman mengerjakan form
 class FormRunnerScreen extends StatefulWidget {
   final String? initialCode;
 
@@ -72,7 +71,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
   bool _loading = false;
   bool _submitting = false;
 
-  // 1 = Single Page (scroll semua soal), 2 = Multi Page (next/prev per soal).
+  // 1 Single, 2 Multi
   int _formTypeId = 1;
   int _currentQuestion = 0;
 
@@ -81,11 +80,10 @@ class _FormRunnerViewState extends State<FormRunnerView> {
   List<PublicQuestion> _questions = [];
   PublicFormResult? _result;
 
-  // State jawaban per pertanyaan.
   final Map<int, TextEditingController> _textAnswers = {};
-  final Map<int, int?> _singleAnswers = {}; // MC: optionId
-  final Map<int, Set<int>> _multiAnswers = {}; // Checkbox: set optionId
-  final Map<int, String?> _tfAnswers = {}; // Benar / Salah
+  final Map<int, int?> _singleAnswers = {};
+  final Map<int, Set<int>> _multiAnswers = {};
+  final Map<int, String?> _tfAnswers = {};
   final Map<int, DateTime?> _datetimeAnswers = {};
 
   bool get _requiresToken => _info?.requiresToken ?? false;
@@ -122,7 +120,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     try {
       final info = await PublicFormService.getFormInfo(code);
       if (!mounted) return;
-      // Pemilik tidak boleh mengisi form sendiri — jangan lanjut ke token/soal.
+      // Pemilik tidak boleh mengisi form sendiri.
       if (info.isOwner) {
         setState(() {
           _formLink = null;
@@ -140,7 +138,6 @@ class _FormRunnerViewState extends State<FormRunnerView> {
         _info = info;
       });
       if (info.requiresToken) {
-        // Tetap di fase code, area token ditampilkan setelah info dimuat.
         setState(() => _step = _RunnerStep.code);
       } else {
         await _loadQuestions();
@@ -205,7 +202,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     }
   }
 
-  /// Waktu habis — kirim jawaban apa adanya (dipaksa otomatis).
+  /// Auto submit saat waktu habis
   Future<void> _autoSubmit() async {
     if (_submitting) return;
     showAuthToast(context, "Waktu pengerjaan telah habis, jawaban dikirim", isError: true);
@@ -287,8 +284,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
 
       if (!mounted) return;
 
-      // Hasil hanya bisa diambil user login (pemilik respons). Guest tanpa
-      // akun hanya mendapat konfirmasi bahwa jawaban terkirim.
+      // Hasil hanya untuk user login
       if (!_isLoggedIn) {
         showAuthToast(context, "Jawaban berhasil dikirim");
         await _reset();
@@ -322,7 +318,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     });
   }
 
-  /// Kerjakan ulang form yang sama (hanya saat oneResponse = false).
+  /// Kerjakan ulang form
   void _retry() {
     for (final c in _textAnswers.values) {
       c.dispose();
@@ -345,7 +341,6 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     };
   }
 
-  // ===== STEP 1: Input kode + token =====
   Widget _buildCodeStep() {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
@@ -479,7 +474,6 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     );
   }
 
-  // ===== STEP 2: Isi jawaban =====
   Widget _buildFillStep() {
     if (_formTypeId == 2 && _questions.length > 1) {
       return _buildMultiPageFill();
@@ -487,7 +481,6 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     return _buildSinglePageFill();
   }
 
-  /// Jumlah soal yang sudah dijawab (untuk progress bar).
   int _answeredCount() {
     var n = 0;
     for (final q in _questions) {
@@ -512,7 +505,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     return n;
   }
 
-  /// Header sticky: judul form + progress bar (X / Y terjawab, persen).
+  /// Header sticky + progress
   Widget _buildProgressHeader() {
     final total = _questions.length;
     final answered = _answeredCount();
@@ -569,7 +562,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     );
   }
 
-  /// Single Page: semua soal tampil dalam satu scroll vertikal.
+  /// Mode Single Page
   Widget _buildSinglePageFill() {
     final info = _info!;
     return Column(
@@ -604,7 +597,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     );
   }
 
-  /// Multi Page: satu soal per halaman, navigasi "Sebelumnya" / "Berikutnya".
+  /// Mode Multi Page
   Widget _buildMultiPageFill() {
     final info = _info!;
     final isLast = _currentQuestion == _questions.length - 1;
@@ -700,7 +693,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     );
   }
 
-  /// Kartu header form (judul, timer, jumlah soal) di tahap isi jawaban.
+  /// Kartu header form
   Widget _buildFormHeaderCard(PublicFormInfo info) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -738,7 +731,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     );
   }
 
-  /// Lanjut ke soal berikutnya (validasi soal wajib saat ini).
+  /// Lanjut soal berikutnya
   void _next() {
     final q = _questions[_currentQuestion];
     if (q.isRequired == true && !_isAnswered(q)) {
@@ -864,7 +857,6 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     });
   }
 
-  // ===== STEP 3: Hasil =====
   Widget _buildResultStep() {
     final result = _result!;
     return SingleChildScrollView(
@@ -1174,8 +1166,7 @@ const _feedbackReasons = <String>[
   'Bug / Technical Issue',
 ];
 
-/// Badge countdown mandiri: timer & setState-nya lokal, jadi tidak me-rebuild
-/// seluruh layar runner setiap detik. Panggil [onExpired] sekali saat habis.
+/// Countdown mandiri
 class _CountdownBadge extends StatefulWidget {
   final int minutes;
   final VoidCallback onExpired;
@@ -1253,7 +1244,7 @@ class _CountdownBadgeState extends State<_CountdownBadge> {
   }
 }
 
-/// Bottom sheet kirim feedback setelah mengerjakan form (user login).
+/// Bottom sheet feedback
 class _FeedbackSheet extends StatefulWidget {
   final int formId;
 

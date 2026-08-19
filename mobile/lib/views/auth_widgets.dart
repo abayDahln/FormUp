@@ -1,24 +1,21 @@
 import 'package:flutter/material.dart';
 
-// ===== Design system FormUp (satu sumber kebenaran, dipakai semua screen) =====
-const kBg = Color(0xFFE2F3F2); // latar utama app & auth
-const kPrimary = Color(0xFF2A9D8F); // warna aksen (sesuai theme seed)
-const kRadius = 20.0; // radius kartu seragam
-const kBorderColor = Color(0x1FBDC9C8); // border kartu lembut
-const kPrimarySoft = Color(0xFFE2F3F2); // latar ikon / chip aksen
+// ===== Design system =====
+const kBg = Color(0xFFE2F3F2);
+const kPrimary = Color(0xFF2A9D8F);
+const kRadius = 20.0;
+const kBorderColor = Color(0x1FBDC9C8);
+const kPrimarySoft = Color(0xFFE2F3F2);
 
-// Alias lama agar screen auth yang sudah ada tetap bekerja dengan nilai baru.
 const kAuthBg = kBg;
 const kAuthPrimary = kPrimary;
 const kAuthText = Color(0xFF6E7979);
 const kAuthFieldFill = Color(0xFFF0F4F4);
 const kAuthHint = Color(0xFF4A6363);
 
-// Font: Inter untuk teks biasa, Plus Jakarta Sans untuk teks tebal.
 const kFontBold = 'PlusJakartaSans';
 
-/// Bayangan kartu seragam — dipakai di kartu auth maupun screen lain agar
-/// look-and-feel shadow konsisten di seluruh aplikasi.
+/// Bayangan kartu seragam
 List<BoxShadow> softShadow({
   double alpha = 0.05,
   Offset offset = const Offset(0, 4),
@@ -33,7 +30,7 @@ List<BoxShadow> softShadow({
   ];
 }
 
-/// Gaya lencana status form (Terbit/Draf/Ditutup) — dipakai kartu & detail.
+/// Gaya lencana status form
 class FormStatusStyle {
   final String label;
   final Color fg;
@@ -52,7 +49,7 @@ FormStatusStyle formStatusStyle(String status) {
   }
 }
 
-/// Latar belakang: warna hijau mint + ellipse gradient di kiri atas.
+/// Background mint + gradient
 class AuthBackground extends StatelessWidget {
   final Widget child;
 
@@ -89,7 +86,7 @@ class AuthBackground extends StatelessWidget {
   }
 }
 
-/// Kartu putih dengan radius & bayangan seragam di seluruh aplikasi.
+/// Kartu putih seragam
 class AuthCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
@@ -116,7 +113,7 @@ class AuthCard extends StatelessWidget {
   }
 }
 
-/// Judul besar di atas kartu.
+/// Judul kartu
 class AuthTitle extends StatelessWidget {
   final String title;
   final String? subtitle;
@@ -149,7 +146,7 @@ class AuthTitle extends StatelessWidget {
   }
 }
 
-/// Input field bergaris (rx 7.5) dengan ikon; ada toggle mata jika password.
+/// Input field + toggle password
 class AuthTextField extends StatefulWidget {
   final TextEditingController controller;
   final String hint;
@@ -226,12 +223,13 @@ class _AuthTextFieldState extends State<AuthTextField> {
   }
 }
 
-/// Tombol teal: rx 8 (login/register) atau rx 26 pill (forgot/verify/reset).
+/// Tombol teal (pill atau rx 8)
 class AuthPrimaryButton extends StatelessWidget {
   final String label;
   final bool loading;
   final bool pill;
   final bool showArrow;
+  final double? progress;
   final VoidCallback? onPressed;
 
   const AuthPrimaryButton({
@@ -241,6 +239,7 @@ class AuthPrimaryButton extends StatelessWidget {
     this.loading = false,
     this.pill = false,
     this.showArrow = true,
+    this.progress,
   });
 
   @override
@@ -272,13 +271,29 @@ class AuthPrimaryButton extends StatelessWidget {
             ),
           ),
           child: loading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (progress != null) ...[
+                      const SizedBox(width: 10),
+                      Text(
+                        "${(progress!.clamp(0.0, 1.0) * 100).round()}%",
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: kFontBold,
+                        ),
+                      ),
+                    ],
+                  ],
                 )
               : Row(
                   mainAxisSize: MainAxisSize.min,
@@ -303,7 +318,7 @@ class AuthPrimaryButton extends StatelessWidget {
   }
 }
 
-/// Pill bawah transparan untuk navigasi antar screen auth.
+/// Pill navigasi antar screen
 class AuthBottomPill extends StatelessWidget {
   final String? question;
   final String link;
@@ -363,7 +378,7 @@ class AuthBottomPill extends StatelessWidget {
   }
 }
 
-/// 6 kotak OTP 43x47; input lewat TextField transparan.
+/// Input OTP 6 digit
 class OtpField extends StatefulWidget {
   final TextEditingController controller;
 
@@ -453,7 +468,7 @@ class _OtpFieldState extends State<OtpField> {
   }
 }
 
-/// Toast custom (bukan SnackBar bawaan Flutter): pill putih float di bawah, font Inter.
+/// Toast pill putih
 void showAuthToast(
   BuildContext context,
   String message, {

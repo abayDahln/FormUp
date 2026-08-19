@@ -3,7 +3,7 @@ import 'auth_widgets.dart';
 import '../app_router.dart';
 import '../services/auth_service.dart';
 
-/// Pengaturan aplikasi: akun, server, dan informasi aplikasi.
+/// Pengaturan aplikasi
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 

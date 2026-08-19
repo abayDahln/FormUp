@@ -6,7 +6,7 @@ import '../app_router.dart';
 import '../services/auth_service.dart';
 import '../services/form_service.dart';
 
-/// Kartu form seragam (layout tab Form) — dipakai di beranda & tab Form.
+/// Kartu form seragam
 class FormCard extends StatelessWidget {
   final FormData form;
   final VoidCallback onTap;
@@ -49,8 +49,8 @@ class FormCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      richToPlainText(form.title),
+                    RichTextView(
+                      text: form.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -134,8 +134,7 @@ class FormCard extends StatelessWidget {
   }
 }
 
-/// Panel quick-action — muncul dari tombol titik tiga di kartu form.
-/// [onChanged] dipanggil setelah aksi yang mengubah data (mis. publish).
+/// Panel aksi cepat (titik tiga)
 bool _quickActionsOpen = false;
 
 Future<void> showFormQuickActions(
@@ -189,8 +188,8 @@ Future<void> showFormQuickActions(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        richToPlainText(form.title),
+                      RichTextView(
+                        text: form.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -249,11 +248,11 @@ Future<void> showFormQuickActions(
           const SizedBox(height: 4),
           _sheetAction(
             icon: Icons.edit_outlined,
-            label: 'Update/Edit Soal',
+            label: 'Edit Soal & Jawaban',
             onTap: () => _closeAndPush(
               sheetContext,
               context,
-              AppPage.formMaker,
+              AppPage.formQuestions,
               {'formId': form.id},
             ),
           ),
@@ -297,8 +296,7 @@ Future<void> showFormQuickActions(
             },
           ),
           const Divider(height: 1, color: Colors.black12),
-          // ponytail: scene menganggap publikasi "otomatis", tapi backend masih
-          // eksplisit — toggle kecil ini mencegah form tidak pernah terbit.
+          // ponytail: publikasi eksplisit via toggle
           ListTile(
             leading: Icon(
               form.status == 'published'
@@ -352,7 +350,7 @@ void _closeAndPush(
   AppRouter.of(context).push(page, args);
 }
 
-/// Terbit/tarik form dengan konfirmasi; panggil [onChanged] setelah sukses.
+/// Terbit/tarik form
 Future<void> toggleFormPublish(
   BuildContext context,
   FormData form, {

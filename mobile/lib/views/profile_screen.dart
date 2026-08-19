@@ -287,14 +287,17 @@ class _MenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon, color: kAuthPrimary, size: 22),
-      title: Text(
-        label,
-        style: const TextStyle(fontSize: 15, color: Colors.black87),
+    return Material(
+      type: MaterialType.transparency,
+      child: ListTile(
+        leading: Icon(icon, color: kAuthPrimary, size: 22),
+        title: Text(
+          label,
+          style: const TextStyle(fontSize: 15, color: Colors.black87),
+        ),
+        trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+        onTap: onTap,
       ),
-      trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-      onTap: onTap,
     );
   }
 }

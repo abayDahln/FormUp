@@ -10,7 +10,7 @@ import '../services/auth_service.dart';
 import '../services/form_service.dart';
 
 class HomeScreen extends StatefulWidget {
-  final String username; // Menerima data nama dari inputan login/register
+  final String username;
 
   const HomeScreen({super.key, required this.username});
 
@@ -19,11 +19,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentIndex = 0; // Untuk navigasi bawah
+  int _currentIndex = 0;
 
-  // ponytail: tab yang pernah dibuka. IndexedStack lazy — Form/Respons/Profil
-  // hanya di-build saat pertama dikunjungi lalu state-nya dipertahankan,
-  // jadi pindah tab tidak memicu fetch ulang dari nol.
+  // ponytail: IndexedStack lazy, state terjaga
   final Set<int> _visitedTabs = {0};
 
   List<FormData> _myForms = [];
@@ -35,17 +33,20 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    formsVersion.addListener(_onFormsChanged);
     _load(silent: true);
   }
 
   @override
   void dispose() {
+    formsVersion.removeListener(_onFormsChanged);
     _codeController.dispose();
     super.dispose();
   }
 
-  /// [silent] untuk auto-load saat app dibuka: error tak muncul sebagai toast
-  /// (dimunculkan inline di layar), karena user belum melakukan aksi apa pun.
+  void _onFormsChanged() => _load(silent: true);
+
+  /// Load silent (tanpa toast)
   Future<void> _load({bool silent = false}) async {
     setState(() => _loading = true);
     try {
@@ -88,7 +89,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  /// Tab Beranda: statistik + form terbaru + aktivitas respons.
   Widget _buildHomeTab() {
     return RefreshIndicator(
       onRefresh: _load,

@@ -5,7 +5,7 @@ import '../services/auth_service.dart';
 import '../services/form_service.dart';
 import '../app_router.dart';
 
-/// Status respons yang bisa diubah pemilik form (ID referensi ResponseStatus).
+/// Opsi status respons
 const _statusOptions = <(int, String)>[
   (1, 'New'),
   (2, 'Reviewed'),
@@ -39,7 +39,7 @@ int _statusIdOf(String? status) {
   }
 }
 
-/// Kelola respons form milik sendiri: daftar, detail, dan ubah status.
+/// Kelola respons form
 class FormResponsesScreen extends StatefulWidget {
   final int formId;
   final String title;
@@ -123,7 +123,7 @@ class _FormResponsesScreenState extends State<FormResponsesScreen> {
         _hasMore = result.items.length < result.total;
       });
     } catch (e) {
-      // ponytail: gagal load-more tidak perlu toast keras; user bisa scroll lagi.
+      // ponytail: load-more gagal tanpa toast
     } finally {
       if (mounted) setState(() => _loadingMore = false);
     }

@@ -8,7 +8,7 @@ import '../services/auth_service.dart';
 import '../services/form_service.dart';
 import '../app_router.dart';
 
-/// Tab "Form" — daftar "Form Saya" (kelola) dengan pencarian, filter, & pagination.
+/// Tab Form: kelola form saya
 class FormScreen extends StatefulWidget {
   const FormScreen({super.key});
 
@@ -42,25 +42,27 @@ class _FormScreenState extends State<FormScreen> {
   @override
   void initState() {
     super.initState();
+    formsVersion.addListener(_refreshMyForms);
     _loadMyForms();
   }
 
   @override
   void dispose() {
+    formsVersion.removeListener(_refreshMyForms);
     _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
   Future<void> _loadMyForms() async {
-    // ponytail: debounce — swipe refresh tidak boleh terlalu sering (2 detik).
+    // ponytail: debounce refresh 2 detik
     final now = DateTime.now();
     if (now.difference(_lastRefresh) < const Duration(seconds: 2)) return;
     _lastRefresh = now;
     await _refreshMyForms();
   }
 
-  /// Muat ulang tanpa debounce — dipakai setelah aksi (mis. publish).
+  /// Muat ulang (tanpa debounce)
   Future<void> _refreshMyForms() async {
     setState(() => _loadingForms = true);
     try {
@@ -75,7 +77,7 @@ class _FormScreenState extends State<FormScreen> {
     }
   }
 
-  /// Cari dengan debounce 500ms — tanpa perlu tekan Enter.
+  /// Cari (debounce 500ms)
   void _onSearchChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () {
@@ -86,7 +88,7 @@ class _FormScreenState extends State<FormScreen> {
     });
   }
 
-  /// Hasil setelah pencarian + filter tanggal + urutan.
+  /// Hasil filter & urutan
   List<FormData> get _filtered {
     var list = List<FormData>.from(_myForms);
 

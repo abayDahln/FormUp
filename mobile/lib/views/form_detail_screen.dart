@@ -7,9 +7,7 @@ import '../app_router.dart';
 import '../services/auth_service.dart';
 import '../services/form_service.dart';
 
-/// Halaman "Form Detail" — info singkat form + daftar aksi kelola.
-/// Aksi publikasi sengaja dibuat toggle kecil karena backend masih eksplisit
-/// (bukan otomatis seperti asumsi desain).
+/// Halaman detail form + aksi kelola
 class FormDetailScreen extends StatefulWidget {
   final int formId;
   final FormData? initial;
@@ -45,7 +43,6 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
     AppRouter.of(context).push(page, args);
   }
 
-  /// Panel "Bagikan Form": 3 opsi (salin link, QR, share ke aplikasi lain).
   Future<void> _openShare(FormData form) => showFormShareSheet(context, form);
 
   Future<void> _togglePublish() async {
@@ -135,6 +132,7 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
   Widget _buildHeader(FormData form) {
     final style = formStatusStyle(form.status);
     return Container(
+      clipBehavior: Clip.antiAlias,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -143,6 +141,29 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (form.bannerImage != null && form.bannerImage!.trim().isNotEmpty) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: AspectRatio(
+                aspectRatio: 16 / 7,
+                child: Image.network(
+                  profileImageUrl(form.bannerImage),
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  errorBuilder: (_, _, _) => Container(
+                    width: double.infinity,
+                    color: const Color(0xFFF0F4F4),
+                    child: const Icon(
+                      Icons.broken_image_outlined,
+                      size: 32,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
           Row(
             children: [
               Container(
@@ -159,8 +180,10 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  richToPlainText(form.title),
+                child: RichTextView(
+                  text: form.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
@@ -184,6 +207,21 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
               ),
             ],
           ),
+          if (form.description != null && form.description!.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: Colors.black12),
+            const SizedBox(height: 12),
+            RichTextView(
+              text: form.description!,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.black87,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: Colors.black12),
+          ],
           const SizedBox(height: 10),
           _infoRow(Icons.calendar_today_outlined, 'Dibuat: ${_formatDate(form.createdAt ?? form.updatedAt)}'),
           const SizedBox(height: 4),
@@ -235,41 +273,44 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(kRadius),
       ),
-      child: Column(
-        children: [
-          _actionTile(
-            Icons.edit_outlined,
-            'Update/Edit Soal',
-            () => _push(AppPage.formMaker, {'formId': form.id}),
-          ),
-          _actionDivider(),
-          _actionTile(
-            Icons.visibility_outlined,
-            'Pratinjau',
-            () => _push(AppPage.formPreview, {'formId': form.id}),
-          ),
-          _actionDivider(),
-          _actionTile(
-            Icons.people_outline,
-            'Lihat Respons',
-            () => _push(AppPage.formResponses, {
-              'formId': form.id,
-              'title': richToPlainText(form.title),
-            }),
-          ),
-          _actionDivider(),
-          _actionTile(
-            Icons.settings_outlined,
-            'Setting Form (Jadwal/Akses)',
-            () => _push(AppPage.formMaker, {'formId': form.id}),
-          ),
-          _actionDivider(),
-          _actionTile(
-            Icons.share_outlined,
-            'Bagikan Form',
-            () => _openShare(form),
-          ),
-        ],
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          children: [
+            _actionTile(
+              Icons.edit_outlined,
+              'Edit Soal & Jawaban',
+              () => _push(AppPage.formQuestions, {'formId': form.id}),
+            ),
+            _actionDivider(),
+            _actionTile(
+              Icons.visibility_outlined,
+              'Pratinjau',
+              () => _push(AppPage.formPreview, {'formId': form.id}),
+            ),
+            _actionDivider(),
+            _actionTile(
+              Icons.people_outline,
+              'Lihat Respons',
+              () => _push(AppPage.formResponses, {
+                'formId': form.id,
+                'title': richToPlainText(form.title),
+              }),
+            ),
+            _actionDivider(),
+            _actionTile(
+              Icons.settings_outlined,
+              'Setting Form',
+              () => _push(AppPage.formMaker, {'formId': form.id}),
+            ),
+            _actionDivider(),
+            _actionTile(
+              Icons.share_outlined,
+              'Bagikan Form',
+              () => _openShare(form),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -295,27 +336,30 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(kRadius),
       ),
-      child: ListTile(
-        leading: Icon(
-          form.status == 'published'
-              ? Icons.publish
-              : Icons.visibility_off_outlined,
-          color: kAuthPrimary,
-        ),
-        title: Text(
-          form.status == 'published' ? 'Tarik (kembali ke draf)' : 'Terbitkan form',
-          style: const TextStyle(fontSize: 14, color: Colors.black87),
-        ),
-        subtitle: Text(
-          form.status == 'published'
-              ? 'Form sedang terbuka untuk respons.'
-              : 'Form belum terbuka untuk responden.',
-          style: const TextStyle(fontSize: 12, color: Colors.black54),
-        ),
-        trailing: Switch(
-          value: form.status == 'published',
-          activeTrackColor: kAuthPrimary,
-          onChanged: (_) => _togglePublish(),
+      child: Material(
+        type: MaterialType.transparency,
+        child: ListTile(
+          leading: Icon(
+            form.status == 'published'
+                ? Icons.publish
+                : Icons.visibility_off_outlined,
+            color: kAuthPrimary,
+          ),
+          title: Text(
+            form.status == 'published' ? 'Tarik (kembali ke draf)' : 'Terbitkan form',
+            style: const TextStyle(fontSize: 14, color: Colors.black87),
+          ),
+          subtitle: Text(
+            form.status == 'published'
+                ? 'Form sedang terbuka untuk respons.'
+                : 'Form belum terbuka untuk responden.',
+            style: const TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+          trailing: Switch(
+            value: form.status == 'published',
+            activeTrackColor: kAuthPrimary,
+            onChanged: (_) => _togglePublish(),
+          ),
         ),
       ),
     );

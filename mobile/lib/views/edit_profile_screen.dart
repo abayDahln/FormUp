@@ -17,8 +17,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _fullnameController = TextEditingController();
   final _usernameController = TextEditingController();
   String _email = '';
-  String? _currentImagePath; // profileImage dari server
-  Uint8List? _newImage; // bytes foto baru (belum diupload)
+  String? _currentImagePath;
+  Uint8List? _newImage;
   DateTime? _birthdate;
   bool _loading = true;
   bool _saving = false;
@@ -147,7 +147,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
       await AuthService.updateSession(fullname: fullname, username: username);
 
-      // Perbarui nama di Home agar header ikut berubah.
       if (!mounted) return;
       final delegate = AppRouter.of(context);
       delegate.updateUsername(updated.fullname);

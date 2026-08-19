@@ -9,13 +9,9 @@ import 'rich_editor.dart';
 import '../services/auth_service.dart';
 import '../services/form_service.dart';
 
-/// Panel "Bagikan Form" — 3 opsi: salin link, bagikan QR, bagikan via aplikasi
-/// terpasang (WhatsApp, Instagram, TikTok, dll). Dipakai dari menu kartu form
-/// dan halaman detail.
+/// Panel Bagikan Form
 bool _shareSheetOpen = false;
 
-/// Indikator sheet berbagi sedang dibuka — dipakai caller untuk menolak
-/// double-tap (mis. tile "Bagikan Form" di quick-action yang ikut pop sheet).
 bool get shareSheetBusy => _shareSheetOpen;
 
 Future<void> showFormShareSheet(BuildContext context, FormData form) async {
@@ -28,15 +24,15 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
   try {
     final info = await FormService.getShareInfo(form.id);
     final shareUrl = info['shareUrl'] as String? ?? '';
-    // ponytail: hanya pakai shareUrl backend jika URL lengkap (bukan "/f/x").
+    // ponytail: URL backend lengkap
     if (shareUrl.startsWith('http')) link = shareUrl;
   } catch (_) {
-    // ponytail: gagal ambil shareUrl backend — fallback ke URL dari API.
+    // ponytail: fallback ke URL API
   }
   try {
     qr = await FormService.getShareQr(form.id);
   } catch (_) {
-    qr = null; // ponytail: QR gagal dimuat bukan halangan — link tetap bisa dibagikan.
+    qr = null; // ponytail: QR gagal, link tetap jalan
   }
   final qrBytes = qr;
   if (!context.mounted) {
@@ -85,7 +81,6 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
               style: TextStyle(fontSize: 12, color: Colors.black54),
             ),
             const SizedBox(height: 16),
-            // Opsi 1: salin link
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
@@ -116,7 +111,6 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
               ),
             ),
             const SizedBox(height: 16),
-            // Opsi 2: bagikan QR
             if (qrBytes != null) ...[
               Center(
                 child: Container(
@@ -159,7 +153,6 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
               ),
               const SizedBox(height: 8),
             ],
-            // Opsi 3: bagikan via aplikasi terpasang
             AuthPrimaryButton(
               label: 'Bagikan ke aplikasi lain',
               onPressed: () => _shareText(sheetContext, form, link),

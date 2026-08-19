@@ -71,39 +71,13 @@ flutter:
         - asset: public/fonts/Inter/Inter_18pt-Regular.ttf
         - asset: public/fonts/Inter/Inter_18pt-Italic.ttf
           style: italic
-        - asset: public/fonts/Inter/Inter_18pt-Thin.ttf
-          weight: 100
-        - asset: public/fonts/Inter/Inter_18pt-ExtraLight.ttf
-          weight: 200
-        - asset: public/fonts/Inter/Inter_18pt-Light.ttf
-          weight: 300
-        - asset: public/fonts/Inter/Inter_18pt-Medium.ttf
-          weight: 500
-        - asset: public/fonts/Inter/Inter_18pt-SemiBold.ttf
-          weight: 600
         - asset: public/fonts/Inter/Inter_18pt-Bold.ttf
           weight: 700
-        - asset: public/fonts/Inter/Inter_18pt-ExtraBold.ttf
-          weight: 800
-        - asset: public/fonts/Inter/Inter_18pt-Black.ttf
-          weight: 900
     - family: PlusJakartaSans
       fonts:
         - asset: public/fonts/PlusJakartaSans/PlusJakartaSans-Regular.ttf
-        - asset: public/fonts/PlusJakartaSans/PlusJakartaSans-Italic.ttf
-          style: italic
-        - asset: public/fonts/PlusJakartaSans/PlusJakartaSans-ExtraLight.ttf
-          weight: 200
-        - asset: public/fonts/PlusJakartaSans/PlusJakartaSans-Light.ttf
-          weight: 300
-        - asset: public/fonts/PlusJakartaSans/PlusJakartaSans-Medium.ttf
-          weight: 500
-        - asset: public/fonts/PlusJakartaSans/PlusJakartaSans-SemiBold.ttf
-          weight: 600
         - asset: public/fonts/PlusJakartaSans/PlusJakartaSans-Bold.ttf
           weight: 700
-        - asset: public/fonts/PlusJakartaSans/PlusJakartaSans-ExtraBold.ttf
-          weight: 800
 
 
   # Konfigurasi runtime (API_BASE_URL) — wajib dibundle agar terbaca di APK.

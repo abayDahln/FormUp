@@ -4,7 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-// ponytail: fallback chain .env -> dart-define -> Android emulator default.
+// ponytail: chain fallback .env, dart-define, default.
 String get apiBaseUrl {
   final envUrl = dotenv.isInitialized ? dotenv.env['API_BASE_URL'] : null;
   if (envUrl != null && envUrl.isNotEmpty) return envUrl;
@@ -14,7 +14,7 @@ String get apiBaseUrl {
   );
 }
 
-/// Error API dengan pesan ramah untuk user (bukan detail teknis).
+/// Error API ramah user
 class ApiException implements Exception {
   final String message;
   const ApiException(this.message);
@@ -22,16 +22,15 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
-/// Ubah path relatif gambar (mis. `/profile/xxx.png`) jadi URL lengkap
-/// berdasarkan host API yang sama.
+/// URL lengkap gambar
 String profileImageUrl(String? path) {
   if (path == null || path.isEmpty) return '';
   final origin = apiBaseUrl.replaceFirst(RegExp(r'/api/?$'), '');
   return path.startsWith('http') ? path : '$origin$path';
 }
 
-/// Rate limit sederhana di sisi client per endpoint.
-/// ponytail: penegakan sebenarnya ada di server; ini hanya mencegah spam dari app.
+  /// Rate limit client
+  // ponytail: penegakan di server, client anti-spam.
 class _RateLimiter {
   static const int _maxAttempts = 5;
   static const Duration _window = Duration(minutes: 1);
@@ -77,26 +76,20 @@ class AuthResult {
 }
 
 class AuthService {
-  // ponytail: 6s sekali percobaan, tanpa retry — host mati/slow sudah memberi
-  // feedback cepat di klik pertama, user cukup klik lagi (retry internal malah
-  // membuat app terasa hang ~12s).
+  // ponytail: tanpa retry, error cepat terlihat.
   static const Duration _timeout = Duration(seconds: 6);
   static const int _maxRetries = 0;
 
-  /// Timeout HTTP dipakai juga oleh service lain (mis. upload multipart).
   static Duration get timeout => _timeout;
 
-  // ponytail: token disimpan di shared_preferences agar tetap login antar
-  // restart app (JWT berlaku 7 hari).
+  // ponytail: token di shared_preferences tetap login.
   static String? token;
 
   static String? _email;
 
-  /// Email user yang sedang login (dari sesi tersimpan / hasil login).
   static String? get email => _email;
 
-  /// Dipanggil saat sesi berakhir (token kadaluarsa & refresh gagal) agar
-  /// app kembali ke halaman login. Didaftarkan di main().
+  /// Callback saat sesi berakhir
   static void Function()? onSessionExpired;
 
   static const _kToken = 'auth_token';
@@ -114,7 +107,7 @@ class AuthService {
     await prefs.setString(_kEmail, result.email);
   }
 
-  /// Ambil sesi tersimpan dari disk (dipanggil saat app start).
+  /// Ambil sesi tersimpan
   static Future<AuthResult?> restoreSession() async {    final prefs = await SharedPreferences.getInstance();
     final savedToken = prefs.getString(_kToken);
     if (savedToken == null || savedToken.isEmpty) return null;
@@ -128,11 +121,10 @@ class AuthService {
     );
   }
 
-  /// Pesan error aman ditampilkan ke user (tanpa detail teknis/token).
+  /// Pesan error untuk user
   static String errorMessage(Object e) =>
       e is ApiException ? e.message : 'Terjadi kesalahan yang tidak diketahui.';
 
-  /// Validasi format email sederhana (keamanan input di sisi client).
   static bool isValidEmail(String email) =>
       RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(email);
 
@@ -144,15 +136,13 @@ class AuthService {
     try {
       json = jsonDecode(response.body) as Map<String, dynamic>;
     } catch (_) {
-      // 502/503/504 = server/proxy mati → body bukan JSON (HTML), beri pesan jelas.
       if (response.statusCode >= 502 && response.statusCode <= 504) {
         throw const ApiException(_serverDownMessage);
       }
       throw const ApiException('Respons server tidak valid.');
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      // ponytail: 5xx = masalah server — jangan bocorkan detail internal
-      // (mis. pesan DB dari middleware), tampilkan pesan generik saja.
+      // ponytail: 5xx pesan generik tanpa detail.
       final serverMsg =
           (json['message'] as String?) ?? (json['Message'] as String?);
       throw ApiException(
@@ -164,7 +154,6 @@ class AuthService {
     return json;
   }
 
-  /// HTTP dengan timeout + retry saat koneksi tidak stabil.
   static Future<http.Response> _request(
     String method,
     String path,
@@ -216,7 +205,6 @@ class AuthService {
         headers['Authorization'] = 'Bearer $token';
         response = await _request(method, path, body, headers);
       } else {
-        // Token tidak valid/kedaluwarsa dan refresh gagal → sesi berakhir.
         await logout();
         onSessionExpired?.call();
         throw const ApiException(
@@ -227,7 +215,7 @@ class AuthService {
     return _decode(response);
   }
 
-  /// Deteksi 401 dari lapisan JWT (bukan 401 konten, mis. token form salah).
+  /// Deteksi 401 JWT
   static bool _isAuthRejected(http.Response response) {
     if (response.headers['token-expired']?.toLowerCase() == 'true') return true;
     try {
@@ -239,7 +227,7 @@ class AuthService {
     }
   }
 
-  /// POST /auth/refresh — ambil token baru memakai token lama, tanpa body.
+  /// POST /auth/refresh
   static Future<bool> _refresh() async {
     if (token == null) return false;
     try {
@@ -257,7 +245,7 @@ class AuthService {
     }
   }
 
-  /// Refresh token (publik) — dipakai service lain saat upload 401.
+  /// Refresh token
   static Future<bool> refreshToken() => _refresh();
 
   static Future<AuthResult> login(String email, String password) async {
@@ -327,7 +315,7 @@ class AuthService {
     return json['message'] as String? ?? 'Password berhasil direset';
   }
 
-  /// POST /users/change-password — ganti password akun yang sedang login.
+  /// POST /users/change-password
   static Future<String> changePassword({
     required String currentPassword,
     required String newPassword,
@@ -345,7 +333,7 @@ class AuthService {
     return json['message'] as String? ?? 'Password berhasil diubah';
   }
 
-  /// Perbarui nama/username tersimpan di sesi (dipanggil setelah edit profil).
+  /// Perbarui nama/username sesi
   static Future<void> updateSession({
     String? fullname,
     String? username,
@@ -359,7 +347,7 @@ class AuthService {
     }
   }
 
-  /// Logout di sisi client — bersihkan token (backend tidak punya endpoint logout).
+  /// Logout client
   static Future<void> logout() async {
     token = null;
     _email = null;
@@ -370,30 +358,24 @@ class AuthService {
     await prefs.remove(_kEmail);
   }
 
-  /// POST generik untuk endpoint lain (forms, questions, dll) — memakai token,
-  /// retry, dan auto-refresh yang sama seperti endpoint auth.
   static Future<Map<String, dynamic>> post(
     String path,
     Map<String, dynamic> body,
   ) => _send('POST', path, body, auth: true);
 
-  /// GET generik ber-auth (forms, questions, profile, dsb).
   static Future<Map<String, dynamic>> get(String path) =>
       _send('GET', path, null, auth: true);
 
-  /// PUT generik ber-auth (update form, questions, dsb).
   static Future<Map<String, dynamic>> put(
     String path,
     Map<String, dynamic> body,
   ) => _send('PUT', path, body, auth: true);
 
-  /// PATCH generik ber-auth (update settings, dsb).
   static Future<Map<String, dynamic>> patch(
     String path,
     Map<String, dynamic> body,
   ) => _send('PATCH', path, body, auth: true);
 
-  /// DELETE generik ber-auth.
   static Future<Map<String, dynamic>> delete(String path) =>
       _send('DELETE', path, null, auth: true);
 }

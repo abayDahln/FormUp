@@ -6,8 +6,7 @@ import '../services/auth_service.dart';
 import '../services/form_service.dart';
 import '../app_router.dart';
 
-/// Pratinjau form sendiri sebagai responden: soal bisa diisi untuk melihat
-/// tampilan responden, tetapi respons TIDAK dapat dikirim.
+/// Pratinjau responden
 class FormPreviewScreen extends StatefulWidget {
   final int formId;
 

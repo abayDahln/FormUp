@@ -7,7 +7,7 @@ import '../app_router.dart';
 
 enum _ResponseTab { history, analytics }
 
-/// Tab "Respons": riwayat form yang dikerjakan + analisis form milik sendiri.
+/// Tab Respons: riwayat & analisis
 class ResponseScreen extends StatefulWidget {
   const ResponseScreen({super.key});
 

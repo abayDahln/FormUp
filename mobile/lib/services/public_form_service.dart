@@ -1,6 +1,6 @@
 import 'auth_service.dart';
 
-/// Info form publik (hasil `GET /api/public/forms/{formLink}`).
+/// Info form publik
 class PublicFormInfo {
   final int id;
   final String title;
@@ -59,7 +59,6 @@ DateTime? _parseDate(Object? value) {
   return DateTime.tryParse(s);
 }
 
-/// Opsi pertanyaan publik (isCorrect selalu null dari server).
 class PublicOption {
   final int id;
   final String optionText;
@@ -72,7 +71,6 @@ class PublicOption {
   });
 }
 
-/// Pertanyaan publik (correctAnswer selalu null dari server).
 class PublicQuestion {
   final int id;
   final int typeId;
@@ -111,7 +109,6 @@ class PublicQuestion {
       );
 }
 
-/// Jawaban hasil (per pertanyaan).
 class PublicResultAnswer {
   final int questionId;
   final String question;
@@ -146,7 +143,6 @@ class PublicResultAnswer {
       );
 }
 
-/// Hasil pengerjaan (hasil `GET /api/public/forms/{formLink}/responses/{id}`).
 class PublicFormResult {
   final int responseId;
   final int formId;
@@ -193,15 +189,14 @@ class PublicFormResult {
       );
 }
 
-/// Klien untuk endpoint publik responden (tanpa login).
 class PublicFormService {
-  /// GET /api/public/forms/{formLink} — meta + requirement form.
+  /// GET /public/forms/{formLink}
   static Future<PublicFormInfo> getFormInfo(String formLink) async {
     final json = await AuthService.get('/public/forms/$formLink');
     return PublicFormInfo.fromJson(json['data'] as Map<String, dynamic>);
   }
 
-  /// POST /api/public/forms/{formLink}/questions — ambil soal.
+  /// POST /public/forms/{formLink}/questions
   static Future<List<PublicQuestion>> getQuestions(
     String formLink, {
     String? token,
@@ -216,7 +211,7 @@ class PublicFormService {
     ];
   }
 
-  /// POST /api/public/forms/{formLink}/responses — submit jawaban.
+  /// POST /public/forms/{formLink}/responses
   static Future<Map<String, dynamic>> submit(
     String formLink, {
     String? token,
@@ -232,9 +227,7 @@ class PublicFormService {
     return json['data'] as Map<String, dynamic>;
   }
 
-  /// GET /api/public/forms/{formLink}/responses/{responseId} — ambil hasil.
-  ///
-  /// Hanya pemilik respons (user login lewat JWT) yang bisa melihat hasil.
+  /// GET .../responses/{id}
   static Future<PublicFormResult> getResult(
     String formLink,
     int responseId,

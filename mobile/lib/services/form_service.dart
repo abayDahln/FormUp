@@ -1,9 +1,18 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'auth_service.dart';
 
-/// Model form ringan hasil `GET /api/forms` & `POST /api/forms`.
+/// Sinyal agar layar daftar form/beranda me-refresh setelah form dibuat/diubah.
+final ValueNotifier<int> formsVersion = ValueNotifier(0);
+
+/// Batas maksimal upload media soal/banner (sama dengan server).
+const int kMaxUploadBytes = 10 * 1024 * 1024;
+
+/// true bila ukuran file melebihi batas upload (10 MB).
+bool exceedsUploadLimit(Uint8List bytes) => bytes.length > kMaxUploadBytes;
+
+/// Model form
 class FormData {
   final int id;
   final String title;
@@ -46,7 +55,7 @@ class FormData {
   }
 }
 
-/// Opsi pertanyaan (hasil GET question).
+/// Opsi pertanyaan
 class QuestionOptionData {
   final int? id;
   final String optionText;
@@ -55,7 +64,7 @@ class QuestionOptionData {
   const QuestionOptionData({this.id, required this.optionText, this.isCorrect});
 }
 
-/// Pertanyaan lengkap (hasil `GET /api/forms/{id}/questions`).
+/// Pertanyaan lengkap
 class QuestionData {
   final int id;
   final int typeId;
@@ -102,7 +111,7 @@ class QuestionData {
       );
 }
 
-/// Item riwayat: form yang pernah dikerjakan user (GET /api/users/me/responses).
+/// Item riwayat form
 class MyResponseItem {  final int responseId;
   final int formId;
   final String formTitle;
@@ -132,7 +141,7 @@ class MyResponseItem {  final int responseId;
   }
 }
 
-/// Analisis respons form milik sendiri (GET /api/forms/{id}/analytics).
+/// Analisis respons form
 class FormAnalytics {
   final int totalResponses;
   final int totalQuestions;
@@ -230,7 +239,7 @@ class AnswerAnalyticsData {
       );
 }
 
-/// Item respons (daftar respons form milik sendiri).
+/// Item respons
 class ResponseListItemData {
   final int id;
   final String? respondentName;
@@ -255,7 +264,7 @@ class ResponseListItemData {
   }
 }
 
-/// Jawaban dalam detail respons (per pertanyaan).
+/// Jawaban detail respons
 class ResponseAnswerDetailData {
   final int questionId;
   final String question;
@@ -280,12 +289,11 @@ class ResponseAnswerDetailData {
         answerValue: json['answerValue'] as String?,
       );
 
-  /// Nilai jawaban yang siap ditampilkan (preferensi optionText).
   String get display =>
       (optionText?.isNotEmpty ?? false) ? optionText! : (answerValue ?? '');
 }
 
-/// Detail satu respons form milik sendiri.
+/// Detail respons
 class ResponseDetailData {
   final int id;
   final String? respondentName;
@@ -316,7 +324,7 @@ class ResponseDetailData {
   }
 }
 
-/// Hasil berpaginasi: item halaman + total keseluruhan.
+/// Hasil berpaginasi
 class PagedResult<T> {
   final List<T> items;
   final int total;
@@ -324,9 +332,9 @@ class PagedResult<T> {
   const PagedResult({required this.items, required this.total});
 }
 
-/// Klien untuk endpoint forms & questions.
+/// Klien forms & questions
 class FormService {
-  /// POST /forms — buat form baru, balikin id form.
+  /// POST /forms
   static Future<int> createForm({
     required String title,
     String? description,
@@ -339,13 +347,13 @@ class FormService {
     return data['id'] as int;
   }
 
-  /// GET /forms/{id} — detail form (title, description, settings, dsb).
+  /// GET /forms/{id}
   static Future<Map<String, dynamic>> getForm(int id) async {
     final json = await AuthService.get('/forms/$id');
     return json['data'] as Map<String, dynamic>;
   }
 
-  /// GET /forms — daftar form milik sendiri.
+  /// GET /forms
   static Future<List<FormData>> getMyForms() async {
     final json = await AuthService.get('/forms');
     return [
@@ -354,7 +362,7 @@ class FormService {
     ];
   }
 
-  /// PUT /forms/{id} — update title/description/link/banner form.
+  /// PUT /forms/{id}
   static Future<void> updateForm(
     int id, {
     String? title,
@@ -370,11 +378,11 @@ class FormService {
     });
   }
 
-  /// PATCH /forms/{id}/settings — update pengaturan form.
+  /// PATCH /forms/{id}/settings
   static Future<void> updateSettings(int id, Map<String, dynamic> settings) =>
       AuthService.patch('/forms/$id/settings', settings);
 
-  /// GET /forms/{id}/questions — daftar pertanyaan form.
+  /// GET /forms/{id}/questions
   static Future<List<QuestionData>> getQuestions(int formId) async {
     final json = await AuthService.get('/forms/$formId/questions');
     return [
@@ -383,35 +391,45 @@ class FormService {
     ];
   }
 
-  /// POST /forms/{id}/questions — buat pertanyaan baru (untuk form baru).
-  static Future<void> saveQuestions(
+  /// POST /forms/{id}/questions
+  /// Mengembalikan daftar soal yang dibuat (berisi id) — dipakai upload media.
+  static Future<List<Map<String, dynamic>>> saveQuestions(
     int formId,
     List<Map<String, dynamic>> questions,
   ) async {
-    await AuthService.post('/forms/$formId/questions', {
+    final json = await AuthService.post('/forms/$formId/questions', {
       'questions': questions,
     });
+    return [
+      for (final q in json['data'] as List<dynamic>? ?? [])
+        (q as Map<String, dynamic>),
+    ];
   }
 
-  /// PUT /forms/{id}/questions — update in-place (edit form lama).
-  static Future<void> updateQuestions(
+  /// PUT /forms/{id}/questions
+  /// Mengembalikan daftar soal yang disimpan (berisi id).
+  static Future<List<Map<String, dynamic>>> updateQuestions(
     int formId,
     List<Map<String, dynamic>> questions,
   ) async {
-    await AuthService.put('/forms/$formId/questions', {
+    final json = await AuthService.put('/forms/$formId/questions', {
       'questions': questions,
     });
+    return [
+      for (final q in json['data'] as List<dynamic>? ?? [])
+        (q as Map<String, dynamic>),
+    ];
   }
 
-  /// POST /forms/{id}/publish — toggle publish/draft.
+  /// POST /forms/{id}/publish
   static Future<void> publish(int formId) async {
     await AuthService.post('/forms/$formId/publish', {});
   }
 
-  /// DELETE /forms/{id} — hapus form (soft delete).
+  /// DELETE /forms/{id}
   static Future<void> deleteForm(int id) => AuthService.delete('/forms/$id');
 
-  /// GET /users/me/responses — riwayat form yang pernah dikerjakan user.
+  /// GET /users/me/responses
   static Future<List<MyResponseItem>> getMyResponses() async {
     final json = await AuthService.get('/users/me/responses');
     return [
@@ -420,8 +438,7 @@ class FormService {
     ];
   }
 
-  /// GET /forms/{id}/responses — daftar respons form milik sendiri.
-  /// Dengan [page]/[pageSize] mengembalikan halaman; tanpa keduanya semua.
+  /// GET /forms/{id}/responses
   static Future<PagedResult<ResponseListItemData>> getResponses(
     int formId, {
     int? page,
@@ -452,7 +469,7 @@ class FormService {
     );
   }
 
-  /// GET /forms/{id}/responses/{responseId} — detail satu respons.
+  /// GET /forms/{id}/responses/{responseId}
   static Future<ResponseDetailData> getResponseDetail(
     int formId,
     int responseId,
@@ -461,11 +478,11 @@ class FormService {
     return ResponseDetailData.fromJson(json['data'] as Map<String, dynamic>);
   }
 
-  /// PUT /responses/{id}/status — ubah status respons (New/Reviewed/...).
+  /// PUT /responses/{id}/status
   static Future<void> updateResponseStatus(int responseId, int statusId) =>
       AuthService.put('/responses/$responseId/status', {'statusId': statusId});
 
-  /// POST /forms/{id}/feedback — kirim umpan balik user yang sudah mengisi.
+  /// POST /forms/{id}/feedback
   static Future<void> submitFeedback(
     int formId, {
     required String reason,
@@ -478,8 +495,7 @@ class FormService {
     });
   }
 
-  /// GET /forms/{id}/analytics — analisis respons form milik sendiri.
-  /// Dengan [page]/[pageSize] responden dipaginasi; total tetap di `totalResponses`.
+  /// GET /forms/{id}/analytics
   static Future<FormAnalytics> getAnalytics(
     int formId, {
     int? page,
@@ -492,8 +508,7 @@ class FormService {
     return FormAnalytics.fromJson(json['data'] as Map<String, dynamic>);
   }
 
-  /// POST /forms/{id}/banner — upload banner form (multipart, field `file`).
-  /// Mengembalikan path relatif banner (mis. `/banner/xxx.jpg`).
+  /// POST /forms/{id}/banner
   static Future<String> uploadBanner(
     int formId,
     Uint8List bytes,
@@ -501,7 +516,7 @@ class FormService {
   ) =>
       _uploadFile('/forms/$formId/banner', bytes, filename, 'bannerImage');
 
-  /// POST /forms/{formId}/questions/{id}/upload-image — upload gambar soal.
+  /// POST /forms/{formId}/questions/{id}/upload-image
   static Future<String> uploadQuestionImage(
     int formId,
     int questionId,
@@ -515,7 +530,7 @@ class FormService {
         'questionImage',
       );
 
-  /// POST /forms/{formId}/questions/{id}/upload-audio — upload audio soal.
+  /// POST /forms/{formId}/questions/{id}/upload-audio
   static Future<String> uploadQuestionAudio(
     int formId,
     int questionId,
@@ -568,15 +583,13 @@ class FormService {
     return await http.Response.fromStream(streamed);
   }
 
-  /// GET /forms/{id}/share — info berbagi form (URL publik + info QR/token).
+  /// GET /forms/{id}/share
   static Future<Map<String, dynamic>> getShareInfo(int formId) async {
     final json = await AuthService.get('/forms/$formId/share');
     return json['data'] as Map<String, dynamic>? ?? {};
   }
 
-  /// GET /forms/{id}/share/qr — PNG QR code (raw bytes).
-  /// null jika respons bukan PNG (mis. backend down/error), agar UI tidak
-  /// mencoba decode data invalid yang melempar exception ke user.
+  /// GET /forms/{id}/share/qr
   static Future<Uint8List?> getShareQr(int formId) async {
     final bytes = await _authGetBytes('/forms/$formId/share/qr');
     return _isPng(bytes) ? bytes : null;

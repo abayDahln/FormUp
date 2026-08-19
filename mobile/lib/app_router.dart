@@ -18,9 +18,12 @@ import 'views/analytics_screen.dart';
 import 'views/form_responses_screen.dart';
 import 'views/settings_screen.dart';
 import 'views/form_detail_screen.dart';
+import 'views/form_questions_screen.dart';
+import 'views/form_question_edit_screen.dart';
+import 'views/question_draft.dart';
 import 'services/form_service.dart';
 
-/// Route halaman yang dikelola secara deklaratif (Navigator 2.0 / Navigation 3).
+/// Route halaman deklaratif (Navigator 2.0)
 enum AppPage {
   login,
   register,
@@ -29,6 +32,8 @@ enum AppPage {
   resetPassword,
   home,
   formMaker,
+  formQuestions,
+  formQuestionEdit,
   formRunner,
   formDetail,
   formHistoryDetail,
@@ -40,7 +45,6 @@ enum AppPage {
   settings,
 }
 
-/// Satu entri stack: halaman + argumen.
 class AppRoute {
   final AppPage page;
   final Map<String, dynamic> args;
@@ -48,7 +52,6 @@ class AppRoute {
   const AppRoute(this.page, [this.args = const {}]);
 }
 
-/// [Page] kustom tanpa transisi agar berpindah screen instan & hemat resource.
 class AppPageBuilder extends Page<void> {
   final AppRoute route;
   final WidgetBuilder builder;
@@ -66,8 +69,7 @@ class AppPageBuilder extends Page<void> {
   }
 }
 
-/// RouterDelegate — jantung Navigation 3. Mengelola stack halaman secara
-/// deklaratif dan memberitahu Navigator kapan harus di-rebuild.
+/// RouterDelegate Navigation 3
 class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -75,18 +77,31 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   final Map<AppPage, Completer<void>> _popCompleters = {};
   String _username = '';
 
-  /// Kode form dari deep link `/f/{code}` yang menunggu user login dulu.
+  /// Stack guard back: screen push/pop guard di init/dispose. popRoute()
+  /// meminta izin dari guard paling atas (screen paling atas). false = batalkan.
+  final List<Future<bool> Function()> _backGuards = [];
+
+  void pushBackGuard(Future<bool> Function() guard) => _backGuards.add(guard);
+
+  void popBackGuard() {
+    if (_backGuards.isNotEmpty) _backGuards.removeLast();
+  }
+
+  Future<bool> Function()? get _topBackGuard =>
+      _backGuards.isEmpty ? null : _backGuards.last;
+
+  /// Kode form deep link menunggu login
   String? _pendingFormCode;
 
   AppRouterDelegate({AppPage initial = AppPage.login}) {
     _stack.add(AppRoute(initial));
   }
 
-  /// Nama tampilan user untuk halaman Home.
+  /// Nama tampilan di Home
   String get username => _username;
   void setUsername(String value) => _username = value;
 
-  /// Perbarui nama user + notify rebuild (dipakai setelah edit profil).
+  /// Update nama user + notify
   void updateUsername(String value) {
     _username = value;
     notifyListeners();
@@ -115,12 +130,17 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   @override
   Future<bool> popRoute() async {
     if (_stack.length > 1) {
+      final guard = _topBackGuard;
+      if (guard != null) {
+        final allow = await guard();
+        if (!allow) return true;
+      }
       final removed = _stack.removeLast();
       _popCompleters.remove(removed.page)?.complete();
       notifyListeners();
       return true;
     }
-    // ponytail: halaman root — biarkan sistem (Android) menutup app.
+    // ponytail: root, sistem menutup app
     await SystemNavigator.pop();
     return true;
   }
@@ -128,7 +148,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   @override
   Future<void> setNewRoutePath(AppRoute configuration) async {
     _completeAllPending();
-    // Deep link form butuh login: simpan kode, arahkan ke login dulu.
+    // Deep link form butuh login
     if (configuration.page == AppPage.formRunner &&
         configuration.args['code'] is String &&
         AuthService.token == null) {
@@ -145,7 +165,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Masuk ke halaman Home (clear seluruh stack) + simpan nama user.
+  /// Masuk Home
   void goHome(String displayName) {
     _username = displayName;
     _completeAllPending();
@@ -153,7 +173,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
       ..clear()
       ..add(const AppRoute(AppPage.home));
     notifyListeners();
-    // Redirect ke form yang tadinya dibuka lewat deep link (menunggu login).
+    // Push form deep link tertunda
     final pending = _pendingFormCode;
     if (pending != null && pending.isNotEmpty) {
       _pendingFormCode = null;
@@ -161,7 +181,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
     }
   }
 
-  /// Push halaman; Future selesai saat halaman itu di-pop (untuk refresh ulang).
+  /// Push halaman, selesai saat di-pop
   Future<void> push(AppPage page, [Map<String, dynamic> args = const {}]) {
     final completer = Completer<void>();
     _popCompleters[page] = completer;
@@ -178,7 +198,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
     }
   }
 
-  /// Kembali ke Login (logout / back-to-login) — reset seluruh stack.
+  /// Reset ke Login
   void resetToLogin() {
     _completeAllPending();
     _stack
@@ -218,6 +238,16 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
         return HomeScreen(username: _username);
       case AppPage.formMaker:
         return FormMakerScreen(formId: route.args['formId'] as int?);
+      case AppPage.formQuestions:
+        return FormQuestionsScreen(
+          formId: route.args['formId'] as int?,
+          isNew: route.args['isNew'] == true,
+        );
+      case AppPage.formQuestionEdit:
+        return FormQuestionEditScreen(
+          formId: route.args['formId'] as int?,
+          draft: route.args['draft'] as QuestionDraft,
+        );
       case AppPage.formRunner:
         return FormRunnerScreen(initialCode: route.args['code'] as String?);
       case AppPage.formDetail:
@@ -256,7 +286,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
 
 
 
-/// Menerjemahkan URL (mis. `/login`, `/home`) menjadi [AppRoute] (dan kembali).
+/// Terjemahkan URL jadi AppRoute
 class AppRouteParser extends RouteInformationParser<AppRoute> {
   @override
   Future<AppRoute> parseRouteInformation(
@@ -264,7 +294,7 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
   ) async {
     final segments = routeInformation.uri.pathSegments;
     final first = segments.isEmpty ? '' : segments.first;
-    // Deep link form publik: /f/{code} (format shareUrl backend) atau /q/{code}.
+    // Deep link form publik /f /q
     if ((first == 'f' || first == 'q') && segments.length >= 2) {
       return AppRoute(AppPage.formRunner, {'code': segments[1]});
     }
@@ -275,6 +305,8 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       'otp' => const AppRoute(AppPage.otp),
       'reset-password' => const AppRoute(AppPage.resetPassword),
       'form-maker' => const AppRoute(AppPage.formMaker),
+      'form-questions' => const AppRoute(AppPage.formQuestions),
+      'form-question-edit' => const AppRoute(AppPage.formQuestionEdit),
       'form-runner' => const AppRoute(AppPage.formRunner),
       'form-detail' => const AppRoute(AppPage.formDetail),
       'form-history' => const AppRoute(AppPage.formHistoryDetail),
@@ -298,6 +330,8 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       AppPage.resetPassword => 'reset-password',
       AppPage.home => 'home',
       AppPage.formMaker => 'form-maker',
+      AppPage.formQuestions => 'form-questions',
+      AppPage.formQuestionEdit => 'form-question-edit',
       AppPage.formRunner => 'form-runner',
       AppPage.formDetail => 'form-detail',
       AppPage.formHistoryDetail => 'form-history',
@@ -312,7 +346,7 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
   }
 }
 
-/// Akses mudah ke [AppRouterDelegate] dari mana saja via inherited widget.
+/// Akses AppRouterDelegate via inherited widget
 class AppRouter extends InheritedWidget {
   final AppRouterDelegate delegate;
 
