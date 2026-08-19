@@ -63,6 +63,43 @@ export default function RichContentRenderer({ content, format = 'text', classNam
     );
 }
 
+// Helper to remove excessive leading tabs/spaces and blank lines from code blocks
+function dedentCode(str) {
+    if (!str) return '';
+
+    let text = str
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
+
+    const lines = text.split(/\r?\n/);
+
+    // Remove leading empty lines
+    while (lines.length > 0 && lines[0].trim() === '') lines.shift();
+    // Remove trailing empty lines
+    while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop();
+
+    if (lines.length === 0) return '';
+
+    // Calculate common minimum indentation across non-empty lines
+    let minIndent = Infinity;
+    lines.forEach(line => {
+        if (line.trim().length > 0) {
+            const match = line.match(/^[\s\t]+/);
+            const indent = match ? match[0].length : 0;
+            if (indent < minIndent) minIndent = indent;
+        }
+    });
+
+    if (minIndent !== Infinity && minIndent > 0) {
+        return lines.map(line => line.length >= minIndent ? line.slice(minIndent) : line).join('\n');
+    }
+
+    return lines.join('\n');
+}
+
 function processHtmlContent(htmlStr) {
     if (!htmlStr) return '';
     let result = htmlStr;
@@ -76,17 +113,23 @@ function processHtmlContent(htmlStr) {
         return renderKaTeXHtml(formula, false);
     });
 
-    // Style pre/code blocks in HTML to look like StackOverflow code blocks
+    // Style pre/code blocks in HTML to look like StackOverflow code blocks with line numbers & clean dedenting
     result = result.replace(/<pre>(?:<code(?: class="language-([a-zA-Z0-9_#-]+)")?>)?([\s\S]*?)(?:<\/code>)?<\/pre>/gi, (match, lang, codeText) => {
-        const cleanCode = codeText ? codeText.replace(/<[^>]+>/g, '').trim() : '';
+        const rawCode = codeText ? codeText.replace(/<[^>]+>/g, '') : '';
+        const cleanCode = dedentCode(rawCode);
         const language = lang || 'code';
+        const lines = cleanCode.split('\n');
+
         return `
-            <div class="my-3 rounded-xl overflow-hidden bg-slate-900 border border-slate-800 shadow-md font-mono text-xs text-slate-100">
+            <div class="my-3 rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-md font-mono text-xs text-slate-100">
                 <div class="flex items-center justify-between px-4 py-2 bg-slate-950/80 border-b border-slate-800 text-slate-400 text-[11px] font-semibold">
                     <span class="uppercase tracking-wider font-bold text-teal-400">${language}</span>
                 </div>
-                <div class="p-4 overflow-x-auto font-mono text-slate-200 text-xs whitespace-pre">
-                    <code>${cleanCode}</code>
+                <div class="p-4 overflow-x-auto font-mono text-slate-200 text-xs leading-relaxed flex gap-4">
+                    <div class="select-none text-slate-600 text-right pr-2 border-r border-slate-800 font-mono text-xs">
+                        ${lines.map((_, i) => `<div>${i + 1}</div>`).join('')}
+                    </div>
+                    <pre class="flex-1 font-mono text-slate-200 font-normal whitespace-pre border-0 p-0 m-0 bg-transparent"><code>${cleanCode}</code></pre>
                 </div>
             </div>
         `;
@@ -126,7 +169,7 @@ function parseMixedText(text) {
             parts.push(renderTextWithMath(text.substring(lastIndex, match.index), `txt_${lastIndex}`));
         }
         const lang = match[1] || 'code';
-        const code = match[2].trim();
+        const code = match[2];
         parts.push(<CodeBlock key={`code_${match.index}`} code={code} language={lang} />);
         lastIndex = match.index + match[0].length;
     }
@@ -165,14 +208,15 @@ function renderTextWithMath(text, keyPrefix) {
 // ── Code Block Component ─────────────────────────────────
 export function CodeBlock({ code, language = 'code' }) {
     const [copied, setCopied] = useState(false);
+    const cleanCode = dedentCode(code);
 
     const handleCopy = () => {
-        navigator.clipboard.writeText(code);
+        navigator.clipboard.writeText(cleanCode);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const lines = code.split('\n');
+    const lines = cleanCode.split('\n');
 
     return (
         <div className="my-3 rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-md font-mono text-xs text-slate-100">
@@ -198,8 +242,8 @@ export function CodeBlock({ code, language = 'code' }) {
                         <div key={i}>{i + 1}</div>
                     ))}
                 </div>
-                <pre className="flex-1 font-mono text-slate-200 font-normal whitespace-pre">
-                    <code>{code}</code>
+                <pre className="flex-1 font-mono text-slate-200 font-normal whitespace-pre border-0 p-0 m-0 bg-transparent">
+                    <code>{cleanCode}</code>
                 </pre>
             </div>
         </div>

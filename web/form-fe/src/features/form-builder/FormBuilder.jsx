@@ -3,8 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
     Save, Plus, Trash2, ChevronUp, ChevronDown,
     Globe, Lock, ArrowLeft, Upload, FileUp, Image, Music, Download,
-    GripVertical, Code, Calculator, Eye, EyeOff, FileText, Settings,
-    Share2, Copy, Check, QrCode
+    GripVertical, Code, Calculator, Eye, EyeOff, X
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import {
@@ -21,11 +20,11 @@ import MathAndCodeModal from '../../components/ui/MathAndCodeModal';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 const QUESTION_TYPES = [
-    { id: 1, label: 'Esai / Jawaban Singkat' },
-    { id: 2, label: 'Pilihan Ganda' },
-    { id: 3, label: 'Kotak Centang (Multi-pilihan)' },
-    { id: 4, label: 'Tanggal & Waktu' },
-    { id: 5, label: 'Benar / Salah' },
+    { id: 1, label: 'Essay / Short Answer' },
+    { id: 2, label: 'Multiple Choice' },
+    { id: 3, label: 'Checkbox' },
+    { id: 4, label: 'Date Time' },
+    { id: 5, label: 'True / False' },
 ];
 
 const newQuestion = (order) => ({
@@ -60,10 +59,10 @@ export default function FormBuilder() {
     const [dragIndex, setDragIndex] = useState(null);
     const [copiedLink, setCopiedLink] = useState(false);
 
-    // Modal state for Code & KaTeX Math insertion
+    // Modal state for Code & KaTeX Math insertion (for Question or Option)
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('math');
-    const [activeQuestionIdx, setActiveQuestionIdx] = useState(null);
+    const [modalTarget, setModalTarget] = useState({ type: 'question', qIdx: null, oIdx: null });
 
     // Live preview toggle per question
     const [previewVisibility, setPreviewVisibility] = useState({});
@@ -82,91 +81,85 @@ export default function FormBuilder() {
         customFormLink: '',
     });
 
+    const showToast = (msg, type = 'success') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 3000);
+    };
+
     useEffect(() => {
         const load = async () => {
             setLoading(true);
             const [formRes, qRes] = await Promise.all([getFormById(id), getQuestions(id)]);
+
             if (formRes.status === 401) { clearSession(); navigate('/login'); return; }
+
             if (formRes.ok && formRes.data) {
-                setForm(formRes.data);
-                const s = formRes.data.settings || {};
+                const f = formRes.data;
+                setForm(f);
+                const s = f.settings || {};
                 setSettings({
-                    formTypeId: s.formTypeId || 1,
+                    formTypeId: s.formTypeId ?? 1,
                     showScore: s.showScore ?? false,
                     randomizeQuestions: s.randomizeQuestions ?? false,
                     oneResponse: s.oneResponse ?? false,
                     requiredLogin: s.requiredLogin ?? false,
-                    formToken: s.formToken || '',
+                    formToken: s.formToken ?? '',
                     timerDuration: s.timerDuration ? Math.round(s.timerDuration / 60) : '',
-                    openFormTime: s.openFormTime ? s.openFormTime.substring(0, 16) : '',
-                    closeFormTime: s.closeFormTime ? s.closeFormTime.substring(0, 16) : '',
-                    customFormLink: formRes.data.formLink || '',
+                    openFormTime: s.openFormTime ? s.openFormTime.slice(0, 16) : '',
+                    closeFormTime: s.closeFormTime ? s.closeFormTime.slice(0, 16) : '',
+                    customFormLink: f.formLink || '',
                 });
             }
+
             if (qRes.ok && Array.isArray(qRes.data) && qRes.data.length > 0) {
                 setQuestions(qRes.data.map((q, i) => ({
+                    ...q,
                     _id: `q_${q.id}`,
-                    id: q.id,
-                    question: q.question || '',
-                    typeId: q.typeId || 2,
-                    questionOrder: q.questionOrder ?? i + 1,
-                    isRequired: q.isRequired ?? false,
-                    correctAnswer: q.correctAnswer ?? '',
-                    questionImage: q.questionImage ?? null,
-                    questionAudio: q.questionAudio ?? null,
-                    options: q.options?.length > 0 ? q.options : [{ optionText: '', isCorrect: false }],
+                    options: q.options || [],
                 })));
             } else {
                 setQuestions([newQuestion(1)]);
             }
+
             setLoading(false);
         };
         load();
     }, [id, navigate]);
 
-    const showToast = (msg, type = 'success') => {
-        setToast({ msg, type });
-        setTimeout(() => setToast(null), 3500);
-    };
-
     const handleSaveQuestions = async () => {
         setSaving(true);
-        const payload = questions.map((q, i) => ({
-            id: q.id || undefined,
-            question: q.question,
-            typeId: q.typeId,
+        const payloadQuestions = questions.map((q, i) => ({
+            typeId: parseInt(q.typeId),
+            question: q.question || '',
+            questionFormat: q.questionFormat || 'text',
             questionOrder: i + 1,
             isRequired: q.isRequired,
             correctAnswer: q.correctAnswer || null,
-            options: needsOptions(q.typeId)
-                ? q.options.filter(o => o.optionText.trim()).map((o, j) => ({
-                    optionText: o.optionText,
-                    isCorrect: o.isCorrect ?? false,
-                    optionOrder: j + 1,
-                }))
-                : [],
+            questionImage: q.questionImage || null,
+            questionAudio: q.questionAudio || null,
+            options: (q.options || []).map(opt => ({
+                optionText: opt.optionText || '',
+                isCorrect: !!opt.isCorrect,
+            })),
         }));
-        const res = await saveQuestions(id, payload);
+
+        const res = await saveQuestions(id, payloadQuestions);
         setSaving(false);
+
         if (res.ok) {
             showToast('Soal berhasil disimpan!');
             const qRes = await getQuestions(id);
             if (qRes.ok && Array.isArray(qRes.data)) {
                 setQuestions(qRes.data.map((q, i) => ({
-                    _id: `q_${q.id}`,
-                    id: q.id,
-                    question: q.question || '',
-                    typeId: q.typeId || 2,
-                    questionOrder: q.questionOrder ?? i + 1,
-                    isRequired: q.isRequired ?? false,
-                    correctAnswer: q.correctAnswer ?? '',
-                    questionImage: q.questionImage ?? null,
-                    questionAudio: q.questionAudio ?? null,
-                    options: q.options?.length > 0 ? q.options : [{ optionText: '', isCorrect: false }],
+                    ...q,
+                    _id: questions[i]?._id || `q_${q.id}`,
+                    options: q.options || [],
                 })));
             }
+            return true;
         } else {
             showToast(res.message || 'Gagal menyimpan soal', 'error');
+            return false;
         }
     };
 
@@ -251,12 +244,12 @@ export default function FormBuilder() {
         const res = await importQuestions(id, file);
         setImportLoading(false);
         if (res.ok) {
-            showToast(`Berhasil mengimpor! ${res.message}`);
+            showToast(`Berhasil mengimpor ${res.data?.totalImported ?? 0} soal!`);
             const qRes = await getQuestions(id);
             if (qRes.ok && Array.isArray(qRes.data)) {
                 setQuestions(qRes.data.map((q, i) => ({
+                    ...q,
                     _id: `q_${q.id}`,
-                    id: q.id,
                     question: q.question || '',
                     typeId: q.typeId || 2,
                     questionOrder: q.questionOrder ?? i + 1,
@@ -283,10 +276,25 @@ export default function FormBuilder() {
         showToast('Soal berhasil dihapus');
     };
 
+    // Auto-save questions helper for unsaved questions before uploading image/audio
+    const autoSaveBeforeUpload = async (idx) => {
+        let currentQ = questions[idx];
+        if (!currentQ.id) {
+            const success = await handleSaveQuestions();
+            if (!success) return null;
+            const updatedList = await getQuestions(id);
+            if (updatedList.ok && Array.isArray(updatedList.data) && updatedList.data[idx]) {
+                return updatedList.data[idx].id;
+            }
+        }
+        return currentQ.id;
+    };
+
     const handleUploadQuestionImage = async (idx, file) => {
-        const q = questions[idx];
-        if (!q.id) { showToast('Simpan soal terlebih dahulu sebelum mengunggah gambar', 'error'); return; }
-        const res = await uploadQuestionImage(id, q.id, file);
+        const qId = await autoSaveBeforeUpload(idx);
+        if (!qId) { showToast('Gagal memproses soal sebelum mengunggah gambar', 'error'); return; }
+
+        const res = await uploadQuestionImage(id, qId, file);
         if (res.ok) {
             updateQuestion(idx, 'questionImage', res.data?.questionImage ?? null);
             showToast('Gambar soal berhasil diunggah!');
@@ -296,15 +304,24 @@ export default function FormBuilder() {
     };
 
     const handleUploadQuestionAudio = async (idx, file) => {
-        const q = questions[idx];
-        if (!q.id) { showToast('Simpan soal terlebih dahulu sebelum mengunggah audio', 'error'); return; }
-        const res = await uploadQuestionAudio(id, q.id, file);
+        const qId = await autoSaveBeforeUpload(idx);
+        if (!qId) { showToast('Gagal memproses soal sebelum mengunggah audio', 'error'); return; }
+
+        const res = await uploadQuestionAudio(id, qId, file);
         if (res.ok) {
             updateQuestion(idx, 'questionAudio', res.data?.questionAudio ?? null);
             showToast('Audio soal berhasil diunggah!');
         } else {
             showToast(res.message || 'Gagal mengunggah audio', 'error');
         }
+    };
+
+    const handleRemoveQuestionImage = (idx) => {
+        updateQuestion(idx, 'questionImage', null);
+    };
+
+    const handleRemoveQuestionAudio = (idx) => {
+        updateQuestion(idx, 'questionAudio', null);
     };
 
     const addQuestion = () => setQuestions(prev => [...prev, newQuestion(prev.length + 1)]);
@@ -337,16 +354,23 @@ export default function FormBuilder() {
     const updateQuestion = (idx, field, value) =>
         setQuestions(prev => prev.map((q, i) => i === idx ? { ...q, [field]: value } : q));
 
-    const openInsertModal = (idx, mode) => {
-        setActiveQuestionIdx(idx);
+    const openInsertModal = (qIdx, mode, targetType = 'question', oIdx = null) => {
+        setModalTarget({ type: targetType, qIdx, oIdx });
         setModalMode(mode);
         setModalOpen(true);
     };
 
     const handleInsertFromModal = (snippetHtml) => {
-        if (activeQuestionIdx === null) return;
-        const current = questions[activeQuestionIdx].question || '';
-        updateQuestion(activeQuestionIdx, 'question', current + snippetHtml);
+        const { type, qIdx, oIdx } = modalTarget;
+        if (qIdx === null) return;
+
+        if (type === 'option' && oIdx !== null) {
+            const current = questions[qIdx]?.options?.[oIdx]?.optionText || '';
+            updateOption(qIdx, oIdx, 'optionText', current + (current ? ' ' : '') + snippetHtml);
+        } else {
+            const current = questions[qIdx]?.question || '';
+            updateQuestion(qIdx, 'question', current + snippetHtml);
+        }
     };
 
     const togglePreview = (idx) => {
@@ -358,331 +382,377 @@ export default function FormBuilder() {
             i === qIdx ? { ...q, options: [...q.options, { optionText: '', isCorrect: false }] } : q
         ));
 
-    const updateOption = (qIdx, oIdx, field, value) =>
-        setQuestions(prev => prev.map((q, i) =>
-            i === qIdx ? { ...q, options: q.options.map((o, j) => j === oIdx ? { ...o, [field]: value } : o) } : q
-        ));
-
     const removeOption = (qIdx, oIdx) =>
         setQuestions(prev => prev.map((q, i) =>
-            i === qIdx ? { ...q, options: q.options.filter((_, j) => j !== oIdx) } : q
+            i === qIdx ? { ...q, options: q.options.filter((_, oi) => oi !== oIdx) } : q
         ));
 
-    const handleCopyLink = () => {
-        const link = `${window.location.origin}/f/${form?.formLink}`;
-        navigator.clipboard.writeText(link);
-        setCopiedLink(true);
-        setTimeout(() => setCopiedLink(false), 2000);
-    };
+    const updateOption = (qIdx, oIdx, field, val) =>
+        setQuestions(prev => prev.map((q, i) => {
+            if (i !== qIdx) return q;
+            const opts = q.options.map((opt, oi) => {
+                if (oi !== oIdx) return opt;
+                return { ...opt, [field]: val };
+            });
+            return { ...q, options: opts };
+        }));
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-[#F4F8F7] dark:bg-slate-950">
+                <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">Memuat builder formulir...</p>
+            </div>
+        );
+    }
 
     const isPublished = form?.status?.toLowerCase() === 'published';
 
-    if (loading) return (
-        <div className="flex items-center justify-center min-h-screen bg-[#F4F8F7] dark:bg-slate-950">
-            <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">Memuat Form Builder...</p>
-        </div>
-    );
-
     return (
-        <div className="flex min-h-screen w-full bg-[#F4F8F7] dark:bg-slate-950 font-sans antialiased text-slate-800 dark:text-slate-100 transition-colors">
-            {/* <Sidebar /> */}
+        <div className="flex min-h-screen w-full bg-[#F4F8F7] dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100 transition-colors">
+            <Sidebar />
 
-            <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-                {/* Header Navbar */}
-                <div className="sticky top-0 z-20 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 px-6 py-3.5 flex items-center justify-between gap-4 shadow-xs">
+            <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-y-auto">
+
+                {/* Top Header */}
+                <div className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-6 py-3 flex items-center justify-between gap-4 shadow-xs">
                     <div className="flex items-center gap-3 min-w-0">
-                        <button onClick={() => navigate('/my-forms')} className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all">
+                        <button onClick={() => navigate('/my-forms')} className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl transition-all cursor-pointer">
                             <ArrowLeft size={18} />
                         </button>
                         <div className="min-w-0">
-                            <h1 className="text-base font-extrabold text-slate-900 dark:text-white truncate">
-                                {form?.title || 'Formulir Tanpa Judul'}
-                            </h1>
-                            <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">/f/{form?.formLink}</p>
+                            <div className="flex items-center gap-2">
+                                <h1 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white truncate">{form?.title || 'Formulir Tanpa Judul'}</h1>
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${isPublished ? 'bg-teal-50 text-[#00897B] dark:bg-teal-950/60 dark:text-teal-400 border border-teal-200 dark:border-teal-800' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
+                                    {isPublished ? 'Publik' : 'Draf'}
+                                </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">/f/{form?.formLink}</p>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                            isPublished 
-                                ? 'bg-teal-50 text-teal-600 dark:bg-teal-950/60 dark:text-teal-400 border border-teal-200 dark:border-teal-800' 
-                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                        }`}>
-                            {isPublished ? 'Dipublikasikan' : 'Draf'}
-                        </span>
-
                         <button
                             onClick={handleTogglePublish}
                             disabled={publishing}
-                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-60 ${
-                                isPublished 
-                                    ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 hover:bg-amber-100 border border-amber-200 dark:border-amber-800' 
-                                    : 'bg-[#00897B] text-white hover:bg-[#00796B] shadow-xs'
-                            }`}
+                            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${isPublished ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 hover:bg-amber-100' : 'bg-[#00897B] hover:bg-[#00796B] text-white shadow-xs'}`}
                         >
-                            {isPublished ? <><Lock size={13} /> Batal Publikasi</> : <><Globe size={13} /> Publikasikan</>}
+                            {isPublished ? <Lock size={14} /> : <Globe size={14} />}
+                            <span className="hidden sm:inline">{publishing ? 'Memproses...' : isPublished ? 'Jadikan Draf' : 'Publikasikan'}</span>
                         </button>
 
-                        {activeTab === 'questions' && (
-                            <button
-                                onClick={handleSaveQuestions}
-                                disabled={saving}
-                                className="flex items-center gap-1.5 px-4 py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-60"
-                            >
-                                <Save size={14} /> {saving ? 'Menyimpan...' : 'Simpan Soal'}
-                            </button>
-                        )}
-                        {activeTab === 'settings' && (
-                            <button
-                                onClick={handleSaveSettings}
-                                disabled={saving}
-                                className="flex items-center gap-1.5 px-4 py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-60"
-                            >
-                                <Save size={14} /> {saving ? 'Menyimpan...' : 'Simpan Pengaturan'}
-                            </button>
-                        )}
+                        <button
+                            onClick={activeTab === 'settings' ? handleSaveSettings : handleSaveQuestions}
+                            disabled={saving}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-60"
+                        >
+                            <Save size={14} />
+                            <span>{saving ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
+                        </button>
                     </div>
                 </div>
 
-                {/* Toast Notification */}
                 {toast && (
-                    <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-2xl shadow-xl text-xs font-bold text-white transition-all ${toast.type === 'error' ? 'bg-red-500' : 'bg-[#00897B]'}`}>
+                    <div className={`fixed top-16 right-6 z-50 px-4 py-3 rounded-2xl shadow-xl text-xs font-bold text-white transition-all ${toast.type === 'error' ? 'bg-red-500' : 'bg-[#00897B]'}`}>
                         {toast.msg}
                     </div>
                 )}
 
-                {/* Navigation Tabs without emojis */}
-                <div className="flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6">
+                {/* Sub-Header Tabs */}
+                <div className="flex border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 px-6">
                     {[
-                        { key: 'questions', label: 'Soal', icon: FileText },
-                        { key: 'settings', label: 'Pengaturan', icon: Settings },
-                        { key: 'share', label: 'Bagikan & QR', icon: Share2 },
-                    ].map(tab => {
-                        const Icon = tab.icon;
-                        return (
-                            <button
-                                key={tab.key}
-                                onClick={() => { 
-                                    setActiveTab(tab.key); 
-                                    if (tab.key === 'share' && !shareInfo) handleLoadShare(); 
-                                }}
-                                className={`flex items-center gap-2 py-3.5 px-5 text-xs font-extrabold border-b-2 transition-all cursor-pointer ${
-                                    activeTab === tab.key 
-                                        ? 'border-[#00897B] text-[#00897B] dark:border-teal-400 dark:text-teal-400' 
-                                        : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                                }`}
-                            >
-                                <Icon size={14} />
-                                <span>{tab.label}</span>
-                            </button>
-                        );
-                    })}
+                        { key: 'questions', label: '📝 Pertanyaan & Soal' },
+                        { key: 'settings', label: '⚙️ Pengaturan & Aturan' },
+                        { key: 'share', label: '🔗 Bagikan & Kode QR' },
+                    ].map(t => (
+                        <button
+                            key={t.key}
+                            onClick={() => {
+                                setActiveTab(t.key);
+                                if (t.key === 'share') handleLoadShare();
+                            }}
+                            className={`py-3.5 px-5 text-xs font-extrabold border-b-2 transition-all cursor-pointer ${activeTab === t.key ? 'border-[#00897B] text-[#00897B] dark:border-teal-400 dark:text-teal-400' : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                        >
+                            {t.label}
+                        </button>
+                    ))}
                 </div>
 
-                <div className="p-6 max-w-3xl mx-auto w-full space-y-5">
+                <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-6 flex-1">
 
                     {/* ── QUESTIONS TAB ── */}
                     {activeTab === 'questions' && (
                         <>
                             {/* Form Header Info Card */}
-                            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs space-y-4">
-                                <h2 className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                                    Informasi Utama Formulir
-                                </h2>
+                            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs">
                                 <div>
-                                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 block">Judul Formulir</label>
+                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">Judul Formulir</label>
                                     <input
-                                        value={form?.title ?? ''}
+                                        type="text"
+                                        value={form?.title || ''}
                                         onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                                        onBlur={() => form?.title && updateForm(id, { title: form.title, description: form.description })}
+                                        onBlur={() => updateForm(id, { title: form.title, description: form.description })}
                                         placeholder="Judul Formulir..."
-                                        className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]"
+                                        className="w-full text-xl font-extrabold bg-transparent text-slate-900 dark:text-white border-b border-transparent hover:border-slate-200 dark:hover:border-slate-700 focus:border-[#00897B] focus:outline-none py-1 transition-all"
                                     />
                                 </div>
+
                                 <div>
-                                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 block">Deskripsi / Petunjuk Pengisian</label>
+                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">Deskripsi Formulir</label>
                                     <SummernoteEditor
-                                        value={form?.description ?? ''}
-                                        onChange={val => {
-                                            setForm(f => ({ ...f, description: val }));
-                                            updateForm(id, { title: form.title, description: val });
-                                        }}
-                                        placeholder="Tulis deskripsi atau instruksi formulir..."
-                                        className="w-full"
+                                        value={form?.description || ''}
+                                        onChange={(newHtml) => setForm(f => ({ ...f, description: newHtml }))}
+                                        placeholder="Tuliskan petunjuk atau deskripsi umum formulir..."
                                     />
                                 </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 block">Gambar Banner</label>
-                                    {form?.bannerImage && (
-                                        <div className="w-full h-36 relative overflow-hidden rounded-xl mb-2 border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                                            <img src={assetUrl(form.bannerImage)} alt="Banner" className="w-full h-full object-cover" />
-                                        </div>
-                                    )}
-                                    <label className="flex items-center gap-2 cursor-pointer px-3.5 py-2 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-[#00897B] dark:hover:border-teal-400 hover:text-[#00897B] dark:hover:text-teal-400 transition-all w-fit">
-                                        <Upload size={14} /> Unggah Gambar Banner
+
+                                {/* Banner Image Upload */}
+                                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        {form?.bannerImage && (
+                                            <img src={assetUrl(form.bannerImage)} alt="Banner" className="w-16 h-10 object-cover rounded-lg border border-slate-200 dark:border-slate-700" />
+                                        )}
+                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                                            {form?.bannerImage ? 'Gambar Banner Terpasang' : 'Belum Ada Gambar Banner'}
+                                        </span>
+                                    </div>
+                                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold cursor-pointer transition-all">
+                                        <Upload size={13} /> {form?.bannerImage ? 'Ubah Banner' : 'Unggah Banner'}
                                         <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
                                     </label>
                                 </div>
-                            </div>
 
-                            {/* Toolbar Import Soal & Unduh Templat */}
-                            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 flex flex-wrap items-center justify-between gap-3 shadow-xs">
-                                <div className="flex items-center gap-3">
-                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Impor Soal:</span>
-                                    <label className={`flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 text-[#00897B] dark:text-teal-400 rounded-xl text-xs font-bold cursor-pointer hover:bg-teal-100 transition-all ${importLoading ? 'opacity-50 pointer-events-none' : ''}`}>
-                                        <FileUp size={14} /> {importLoading ? 'Mengimpor...' : 'Unggah Berkas (.xlsx, .csv, .docx, .pdf)'}
-                                        <input type="file" accept=".csv,.xlsx,.xls,.pdf,.docx" className="hidden" onChange={handleImportFile} />
+                                {/* Question Import Bar */}
+                                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">Impor soal dari XLSX, CSV, DOCX, atau PDF:</p>
+                                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 hover:bg-teal-100 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0">
+                                        <FileUp size={13} /> {importLoading ? 'Mengimpor...' : 'Impor Soal'}
+                                        <input type="file" accept=".xlsx,.csv,.docx,.pdf" className="hidden" onChange={handleImportFile} disabled={importLoading} />
                                     </label>
                                 </div>
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-xs text-slate-400 dark:text-slate-500 font-semibold mr-1">Templat:</span>
-                                    {['csv', 'xlsx', 'docx', 'pdf'].map(fmt => (
-                                        <a
-                                            key={fmt}
-                                            href={templateDownloadUrl(fmt)}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-extrabold rounded-lg transition-all"
-                                        >
-                                            <Download size={11} /> {fmt.toUpperCase()}
-                                        </a>
-                                    ))}
-                                </div>
                             </div>
 
-                            {/* Questions Cards */}
-                            <div className="space-y-4">
+                            {/* Question Cards List */}
+                            <div className="space-y-5">
                                 {questions.map((q, idx) => (
                                     <div
-                                        key={q._id}
+                                        key={q._id || idx}
                                         draggable
                                         onDragStart={() => handleDragStart(idx)}
-                                        onDragOver={(e) => handleDragOver(e, idx)}
-                                        onDragEnd={() => setDragIndex(null)}
-                                        className={`bg-white dark:bg-slate-900 rounded-2xl border transition-all p-5 shadow-xs space-y-3 relative group ${
-                                            dragIndex === idx 
-                                                ? 'border-[#00897B] ring-2 ring-teal-100 dark:ring-teal-900 shadow-md bg-teal-50/20' 
-                                                : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                                        }`}
+                                        onDragOver={e => handleDragOver(e, idx)}
+                                        className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all"
                                     >
-                                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                                        {/* Card Header Controls */}
+                                        <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
                                             <div className="flex items-center gap-2">
-                                                <div className="cursor-grab active:cursor-grabbing p-1 text-slate-300 dark:text-slate-600 hover:text-slate-600 rounded">
-                                                    <GripVertical size={16} />
+                                                <div className="cursor-grab text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400">
+                                                    <GripVertical size={18} />
                                                 </div>
-                                                <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                                                    Soal {idx + 1}
-                                                </span>
+                                                <span className="text-xs font-extrabold text-slate-400 dark:text-slate-500">Soal #{idx + 1}</span>
                                             </div>
 
-                                            {/* Formula & Code Insertion */}
-                                            <div className="flex items-center gap-1.5">
+                                            <div className="flex items-center gap-1">
+                                                {/* Formula & Code helper buttons for Question */}
                                                 <button
                                                     type="button"
-                                                    onClick={() => openInsertModal(idx, 'math')}
-                                                    className="flex items-center gap-1 px-2.5 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900 border border-teal-200 dark:border-teal-800 text-[#00897B] dark:text-teal-400 text-xs font-bold rounded-lg transition-all"
-                                                    title="Sisipkan Rumus Matematika"
+                                                    onClick={() => openInsertModal(idx, 'math', 'question')}
+                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-all cursor-pointer"
+                                                    title="Sisipkan Rumus Matematika Kompleks (KaTeX)"
                                                 >
-                                                    <Calculator size={13} /> Matematika
+                                                    <Calculator size={13} className="text-[#00897B] dark:text-teal-400" />
+                                                    <span className="hidden sm:inline">Rumus</span>
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    onClick={() => openInsertModal(idx, 'code')}
-                                                    className="flex items-center gap-1 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-teal-400 text-xs font-mono font-bold rounded-lg transition-all"
-                                                    title="Sisipkan Blok Kode"
+                                                    onClick={() => openInsertModal(idx, 'code', 'question')}
+                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-all cursor-pointer"
+                                                    title="Sisipkan Kode Block (StackOverflow Style)"
                                                 >
-                                                    <Code size={13} /> Kode
+                                                    <Code size={13} className="text-teal-600 dark:text-teal-400" />
+                                                    <span className="hidden sm:inline">Kode</span>
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => togglePreview(idx)}
-                                                    className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-all border ${
-                                                        previewVisibility[idx] 
-                                                            ? 'bg-[#00897B] text-white border-[#00897B]' 
-                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
-                                                    }`}
-                                                    title="Buka/Tutup Pratinjau Soal"
+                                                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${previewVisibility[idx] ? 'bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                                                    title="Toggle Live Preview"
                                                 >
-                                                    {previewVisibility[idx] ? <EyeOff size={13} /> : <Eye size={13} />}
-                                                    <span>Pratinjau</span>
+                                                    {previewVisibility[idx] ? <EyeOff size={15} /> : <Eye size={15} />}
                                                 </button>
-                                                <div className="w-px h-4 bg-slate-200 dark:bg-slate-800 mx-1" />
-                                                <button onClick={() => moveQuestion(idx, -1)} className="p-1 text-slate-300 dark:text-slate-600 hover:text-slate-600 rounded cursor-pointer"><ChevronUp size={15} /></button>
-                                                <button onClick={() => moveQuestion(idx, 1)} className="p-1 text-slate-300 dark:text-slate-600 hover:text-slate-600 rounded cursor-pointer"><ChevronDown size={15} /></button>
-                                                <button onClick={() => handleDeleteQuestion(idx)} className="p-1 text-red-400 hover:text-red-600 rounded cursor-pointer"><Trash2 size={15} /></button>
+
+                                                <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
+
+                                                <button onClick={() => moveQuestion(idx, -1)} disabled={idx === 0} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-30 cursor-pointer">
+                                                    <ChevronUp size={16} />
+                                                </button>
+                                                <button onClick={() => moveQuestion(idx, 1)} disabled={idx === questions.length - 1} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-30 cursor-pointer">
+                                                    <ChevronDown size={16} />
+                                                </button>
+                                                <button onClick={() => handleDeleteQuestion(idx)} className="p-1 text-red-400 hover:text-red-600 cursor-pointer">
+                                                    <Trash2 size={16} />
+                                                </button>
                                             </div>
                                         </div>
 
-                                        {/* Editor Teks Soal */}
-                                        <SummernoteEditor
-                                            value={q.question}
-                                            onChange={val => updateQuestion(idx, 'question', val)}
-                                            placeholder="Tuliskan pertanyaan soal di sini..."
-                                            className="w-full"
-                                        />
+                                        {/* Question Text Editor (Summernote) */}
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Pertanyaan Soal</label>
+                                            <SummernoteEditor
+                                                value={q.question || ''}
+                                                onChange={(newHtml) => updateQuestion(idx, 'question', newHtml)}
+                                                placeholder="Tuliskan pertanyaan soal..."
+                                            />
+                                        </div>
 
-                                        {/* Pratinjau Soal */}
-                                        {previewVisibility[idx] && q.question && (
-                                            <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-1">
-                                                <p className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                                                    <Eye size={11} className="text-[#00897B] dark:text-teal-400" /> Pratinjau Tampilan Soal:
-                                                </p>
-                                                <div className="pt-1">
-                                                    <RichContentRenderer content={q.question} className="text-xs text-slate-800 dark:text-slate-100" />
+                                        {/* Live Preview Box (Toggled) */}
+                                        {previewVisibility[idx] && (
+                                            <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700 space-y-2">
+                                                <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                                    <span>Single Live Preview</span>
                                                 </div>
+                                                <RichContentRenderer content={q.question} format={q.questionFormat} className="text-sm font-semibold text-slate-800 dark:text-slate-100" />
                                             </div>
                                         )}
 
-                                        <div className="flex items-center justify-between flex-wrap gap-3 pt-1">
-                                            <div className="flex items-center gap-3">
-                                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Tipe Soal:</label>
+                                        {/* Question Type & Settings */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">Tipe Soal</label>
                                                 <select
                                                     value={q.typeId}
                                                     onChange={e => updateQuestion(idx, 'typeId', parseInt(e.target.value))}
-                                                    className="border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#00897B]"
+                                                    className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00897B]"
                                                 >
-                                                    {QUESTION_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                                    {QUESTION_TYPES.map(t => (
+                                                        <option key={t.id} value={t.id}>{t.label}</option>
+                                                    ))}
                                                 </select>
                                             </div>
-                                            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={q.isRequired}
-                                                    onChange={e => updateQuestion(idx, 'isRequired', e.target.checked)}
-                                                    className="w-4 h-4 text-[#00897B] rounded cursor-pointer"
-                                                />
-                                                Soal Wajib Diisi
-                                            </label>
+
+                                            <div className="flex items-center justify-end pt-5">
+                                                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={q.isRequired}
+                                                        onChange={e => updateQuestion(idx, 'isRequired', e.target.checked)}
+                                                        className="w-4 h-4 text-[#00897B] rounded cursor-pointer"
+                                                    />
+                                                    Soal Wajib Diisi
+                                                </label>
+                                            </div>
                                         </div>
 
-                                        {/* Pilihan Opsi */}
+                                        {/* Media Attachments (Image & Audio + Text together) */}
+                                        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                                            <div className="flex flex-wrap items-center gap-3">
+                                                {/* Image attachment */}
+                                                {q.questionImage ? (
+                                                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
+                                                        <img src={assetUrl(q.questionImage)} alt="Soal" className="h-12 w-20 object-cover rounded-lg" />
+                                                        <div className="flex flex-col gap-1">
+                                                            <label className="text-[11px] font-bold text-[#00897B] dark:text-teal-400 cursor-pointer hover:underline">
+                                                                Ganti Gambar
+                                                                <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionImage(idx, e.target.files[0])} />
+                                                            </label>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveQuestionImage(idx)}
+                                                                className="text-[10px] font-bold text-red-500 hover:underline flex items-center gap-1 cursor-pointer"
+                                                            >
+                                                                <X size={11} /> Hapus Gambar
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <label className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer hover:border-[#00897B] hover:text-[#00897B] transition-all">
+                                                        <Image size={13} /> Tambah Gambar
+                                                        <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionImage(idx, e.target.files[0])} />
+                                                    </label>
+                                                )}
+
+                                                {/* Audio attachment */}
+                                                {q.questionAudio ? (
+                                                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
+                                                        <audio controls src={assetUrl(q.questionAudio)} className="h-8 max-w-[200px]" />
+                                                        <div className="flex flex-col gap-1">
+                                                            <label className="text-[11px] font-bold text-[#00897B] dark:text-teal-400 cursor-pointer hover:underline">
+                                                                Ganti Audio
+                                                                <input type="file" accept="audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionAudio(idx, e.target.files[0])} />
+                                                            </label>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveQuestionAudio(idx)}
+                                                                className="text-[10px] font-bold text-red-500 hover:underline flex items-center gap-1 cursor-pointer"
+                                                            >
+                                                                <X size={11} /> Hapus Audio
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <label className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer hover:border-[#00897B] hover:text-[#00897B] transition-all">
+                                                        <Music size={13} /> Tambah Audio
+                                                        <input type="file" accept="audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionAudio(idx, e.target.files[0])} />
+                                                    </label>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Choices Options (with Formula & Code insertion for Options!) */}
                                         {needsOptions(q.typeId) && (
-                                            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                            <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                                                 <div className="flex items-center justify-between">
-                                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block">Pilihan Jawaban:</label>
+                                                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Pilihan Jawaban:</label>
                                                     <span className="text-[11px] text-slate-400 dark:text-slate-500">Centang kotak untuk menandai jawaban benar</span>
                                                 </div>
                                                 {q.options.map((opt, oIdx) => (
-                                                    <div key={oIdx} className="flex items-center gap-2">
-                                                        <label className="flex items-center gap-1 cursor-pointer">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={opt.isCorrect}
-                                                                onChange={e => updateOption(idx, oIdx, 'isCorrect', e.target.checked)}
-                                                                className="w-4 h-4 text-[#00897B] rounded shrink-0 cursor-pointer"
-                                                                title="Tandai sebagai jawaban benar"
-                                                            />
-                                                            {opt.isCorrect && <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">✓ Benar</span>}
-                                                        </label>
-                                                        <input
-                                                            placeholder={`Pilihan ${oIdx + 1}`}
-                                                            value={opt.optionText}
-                                                            onChange={e => updateOption(idx, oIdx, 'optionText', e.target.value)}
-                                                            className="flex-1 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00897B]"
-                                                        />
-                                                        <button onClick={() => removeOption(idx, oIdx)} className="text-red-400 hover:text-red-600 p-1 shrink-0 cursor-pointer">
-                                                            <Trash2 size={14} />
-                                                        </button>
+                                                    <div key={oIdx} className="space-y-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <label className="flex items-center gap-1 cursor-pointer">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={opt.isCorrect}
+                                                                    onChange={e => updateOption(idx, oIdx, 'isCorrect', e.target.checked)}
+                                                                    className="w-4 h-4 text-[#00897B] rounded shrink-0 cursor-pointer"
+                                                                    title="Tandai sebagai jawaban benar"
+                                                                />
+                                                                {opt.isCorrect && <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">✓ Benar</span>}
+                                                            </label>
+
+                                                            <div className="flex-1 flex items-center gap-1">
+                                                                <input
+                                                                    placeholder={`Pilihan ${oIdx + 1}`}
+                                                                    value={opt.optionText}
+                                                                    onChange={e => updateOption(idx, oIdx, 'optionText', e.target.value)}
+                                                                    className="flex-1 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00897B]"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openInsertModal(idx, 'math', 'option', oIdx)}
+                                                                    className="p-1 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 rounded cursor-pointer"
+                                                                    title="Sisipkan Rumus (KaTeX)"
+                                                                >
+                                                                    <Calculator size={14} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openInsertModal(idx, 'code', 'option', oIdx)}
+                                                                    className="p-1 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 rounded cursor-pointer"
+                                                                    title="Sisipkan Kode Block"
+                                                                >
+                                                                    <Code size={14} />
+                                                                </button>
+                                                            </div>
+
+                                                            <button onClick={() => removeOption(idx, oIdx)} className="text-red-400 hover:text-red-600 p-1 shrink-0 cursor-pointer">
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Option Rich Content Preview if formula/code inserted */}
+                                                        {(opt.optionText?.includes('$') || opt.optionText?.includes('<pre') || opt.optionText?.includes('<code')) && (
+                                                            <div className="ml-6 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-lg text-xs border border-slate-200/60 dark:border-slate-700">
+                                                                <RichContentRenderer content={opt.optionText} format="text" className="text-xs" />
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 ))}
                                                 <button onClick={() => addOption(idx)} className="text-xs font-bold text-[#00897B] dark:text-teal-400 hover:underline mt-1 cursor-pointer">
@@ -691,7 +761,7 @@ export default function FormBuilder() {
                                             </div>
                                         )}
 
-                                        {/* Kunci Jawaban untuk Esai / Tanggal / Benar-Salah */}
+                                        {/* Answer Key for Essay / Date / True-False */}
                                         {[1, 4, 5].includes(q.typeId) && (
                                             <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                                                 <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">
@@ -715,43 +785,6 @@ export default function FormBuilder() {
                                                     />
                                                 )}
                                             </div>
-                                        )}
-
-                                        {/* Media Unggahan */}
-                                        {q.id ? (
-                                            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-                                                {q.questionImage ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <img src={assetUrl(q.questionImage)} alt="Soal" className="h-12 w-20 object-cover rounded-lg border border-slate-200 dark:border-slate-700" />
-                                                        <label className="text-xs font-bold text-[#00897B] dark:text-teal-400 cursor-pointer hover:underline">
-                                                            Ubah Gambar
-                                                            <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionImage(idx, e.target.files[0])} />
-                                                        </label>
-                                                    </div>
-                                                ) : (
-                                                    <label className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer hover:border-[#00897B] hover:text-[#00897B] transition-all">
-                                                        <Image size={13} /> Tambah Gambar
-                                                        <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionImage(idx, e.target.files[0])} />
-                                                    </label>
-                                                )}
-
-                                                {q.questionAudio ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <audio controls src={assetUrl(q.questionAudio)} className="h-8 text-xs" />
-                                                        <label className="text-xs font-bold text-[#00897B] dark:text-teal-400 cursor-pointer hover:underline">
-                                                            Ubah Audio
-                                                            <input type="file" accept="audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionAudio(idx, e.target.files[0])} />
-                                                        </label>
-                                                    </div>
-                                                ) : (
-                                                    <label className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer hover:border-[#00897B] hover:text-[#00897B] transition-all">
-                                                        <Music size={13} /> Tambah Audio
-                                                        <input type="file" accept="audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionAudio(idx, e.target.files[0])} />
-                                                    </label>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <p className="text-[11px] text-slate-400 dark:text-slate-500 italic">Simpan soal terlebih dahulu untuk mengunggah gambar atau audio.</p>
                                         )}
                                     </div>
                                 ))}
@@ -823,7 +856,7 @@ export default function FormBuilder() {
                                             type="datetime-local"
                                             value={settings.openFormTime}
                                             onChange={e => setSettings(s => ({ ...s, openFormTime: e.target.value }))}
-                                            className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-medium bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00897B]"
+                                            className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00897B]"
                                         />
                                     </div>
 
@@ -833,50 +866,39 @@ export default function FormBuilder() {
                                             type="datetime-local"
                                             value={settings.closeFormTime}
                                             onChange={e => setSettings(s => ({ ...s, closeFormTime: e.target.value }))}
-                                            className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-medium bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00897B]"
+                                            className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00897B]"
                                         />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Token Sandi Akses (Opsional)</label>
+                                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Token Kata Sandi Formulir (Opsional)</label>
                                     <input
                                         type="text"
                                         value={settings.formToken}
                                         onChange={e => setSettings(s => ({ ...s, formToken: e.target.value }))}
-                                        placeholder="Masukkan token rahasia..."
+                                        placeholder="contoh: RAHASIA123"
                                         className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00897B]"
                                     />
-                                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Jika diisi, responden wajib memasukkan token sebelum membuka soal.</p>
                                 </div>
 
-                                <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <div className="space-y-3 pt-2">
                                     {[
-                                        { key: 'showScore', label: 'Tampilkan Skor & Kunci Jawaban setelah Kirim' },
+                                        { key: 'showScore', label: 'Tampilkan Skor & Kunci Jawaban setelah Pengisian' },
                                         { key: 'randomizeQuestions', label: 'Acak Urutan Soal untuk Setiap Responden' },
-                                        { key: 'oneResponse', label: 'Batasi 1 Respons per Pengguna / Perangkat' },
-                                        { key: 'requiredLogin', label: 'Wajibkan Login Akun FormUp untuk Mengisi' },
-                                    ].map(item => (
-                                        <label key={item.key} className="flex items-center gap-3 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                                        { key: 'oneResponse', label: 'Batasi 1 Kali Pengisian per Responden/Sesi' },
+                                        { key: 'requiredLogin', label: 'Wajib Login Akun FormUp sebelum Mengisi' },
+                                    ].map(({ key, label }) => (
+                                        <label key={key} className="flex items-center gap-3 cursor-pointer">
                                             <input
                                                 type="checkbox"
-                                                checked={settings[item.key]}
-                                                onChange={e => setSettings(s => ({ ...s, [item.key]: e.target.checked }))}
+                                                checked={settings[key]}
+                                                onChange={e => setSettings(s => ({ ...s, [key]: e.target.checked }))}
                                                 className="w-4 h-4 text-[#00897B] rounded cursor-pointer"
                                             />
-                                            {item.label}
+                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{label}</span>
                                         </label>
                                     ))}
-                                </div>
-
-                                <div className="pt-4 flex justify-end">
-                                    <button
-                                        onClick={handleSaveSettings}
-                                        disabled={saving}
-                                        className="px-6 py-2.5 bg-[#00897B] hover:bg-[#00796B] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-60"
-                                    >
-                                        {saving ? 'Menyimpan...' : 'Simpan Pengaturan'}
-                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -886,40 +908,42 @@ export default function FormBuilder() {
                     {activeTab === 'share' && (
                         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-6 shadow-xs">
                             <h2 className="text-sm font-extrabold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3">
-                                Bagikan Tautan & Kode QR
+                                Bagikan Tautan & Kode QR Formulir
                             </h2>
 
-                            <div className="space-y-5">
+                            <div className="space-y-4">
                                 <div>
-                                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Tautan Publik Formulir</label>
+                                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 block mb-1">Tautan Publik Formulir</label>
                                     <div className="flex items-center gap-2">
                                         <input
+                                            type="text"
                                             readOnly
                                             value={`${window.location.origin}/f/${form?.formLink}`}
-                                            className="flex-1 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3.5 py-2 text-xs font-mono select-all"
+                                            className="flex-1 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
                                         />
                                         <button
-                                            onClick={handleCopyLink}
-                                            className="px-4 py-2 bg-[#00897B] hover:bg-[#00796B] text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(`${window.location.origin}/f/${form?.formLink}`);
+                                                setCopiedLink(true);
+                                                setTimeout(() => setCopiedLink(false), 2000);
+                                            }}
+                                            className="px-4 py-2.5 bg-[#00897B] hover:bg-[#00796B] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
                                         >
-                                            {copiedLink ? <Check size={14} /> : <Copy size={14} />}
-                                            <span>{copiedLink ? 'Tersalin!' : 'Salin Tautan'}</span>
+                                            {copiedLink ? '✓ Tersalin!' : 'Salin Tautan'}
                                         </button>
                                     </div>
                                 </div>
 
                                 {qrBlobUrl && (
-                                    <div className="flex flex-col items-center justify-center p-6 border border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50/50 dark:bg-slate-800/50 space-y-3">
-                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Scan QR Code untuk Mengisi:</p>
-                                        <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                                            <img src={qrBlobUrl} alt="QR Code Formulir" className="w-48 h-48" />
-                                        </div>
+                                    <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col items-center gap-3">
+                                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 block">Kode QR Gambar PNG</label>
+                                        <img src={qrBlobUrl} alt="Kode QR" className="w-44 h-44 border border-slate-200 dark:border-slate-700 rounded-2xl p-2 bg-white shadow-xs" />
                                         <a
                                             href={qrBlobUrl}
-                                            download={`qrcode-${form?.formLink}.png`}
+                                            download={`qr-${form?.formLink}.png`}
                                             className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-xs transition-all"
                                         >
-                                            <Download size={13} /> Unduh QR Code
+                                            <Download size={13} /> Unduh Kode QR PNG
                                         </a>
                                     </div>
                                 )}
