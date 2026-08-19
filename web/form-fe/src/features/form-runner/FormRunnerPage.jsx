@@ -177,11 +177,13 @@ export default function FormRunnerPage() {
         };
 
         const res = await submitPublicFormResponse(formLink, payload);
-        setSubmitting(false);
+        const responseId = res.data?.responseId || res.data?.id || (typeof res.data === 'number' || typeof res.data === 'string' ? res.data : null);
 
-        if (res.ok && res.data?.id) {
-            navigate(`/f/${formLink}/result/${res.data.id}`);
+        if (res.ok && responseId) {
+            // Instantly navigate to result & answer review page
+            navigate(`/f/${formLink}/result/${responseId}`);
         } else {
+            setSubmitting(false);
             setError(res.message || 'Gagal mengirimkan respons formulir.');
         }
     };
