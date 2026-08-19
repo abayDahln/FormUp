@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     CheckCircle2, Award, Home, RotateCcw, AlertTriangle,
-    Send, Loader2, MessageSquare
+    Send, Loader2, MessageSquare, Check, X
 } from 'lucide-react';
 import {
     getPublicResponseResult, getPublicFormByLink, submitFeedback,
     getLocalUser
 } from '../../services/apiService';
+import RichContentRenderer from '../../utils/RichContentRenderer';
 
 export default function FormResultPage() {
     const { formLink, responseId } = useParams();
@@ -78,8 +79,8 @@ export default function FormResultPage() {
     const score = result?.score;
 
     return (
-        <div className="min-h-screen bg-[#F4F8F7] dark:bg-slate-950 font-sans antialiased text-slate-800 dark:text-slate-100 py-12 px-4 flex items-center justify-center transition-colors">
-            <div className="max-w-xl w-full space-y-6">
+        <div className="min-h-screen bg-[#F4F8F7] dark:bg-slate-950 font-sans antialiased text-slate-800 dark:text-slate-100 py-12 px-4 flex justify-center transition-colors">
+            <div className="max-w-2xl w-full space-y-6">
 
                 {/* Main Success Card */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-8 sm:p-10 text-center shadow-xl space-y-6">
@@ -204,6 +205,61 @@ export default function FormResultPage() {
                                 </div>
                             </form>
                         )}
+                    </div>
+                )}
+
+                {/* Detailed Answer Review Section */}
+                {result?.answers && result.answers.length > 0 && (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-4">
+                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                            <div>
+                                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Rincian Jawaban & Review Soal</h3>
+                                <p className="text-xs text-slate-400 dark:text-slate-500">Tinjauan jawaban yang telah Anda kirimkan</p>
+                            </div>
+                            {result.correctCount != null && (
+                                <span className="text-xs font-extrabold px-3 py-1 bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 rounded-full border border-teal-200 dark:border-teal-800">
+                                    Benar {result.correctCount} / {result.scorableQuestions || result.totalQuestions}
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="space-y-4 pt-2">
+                            {result.answers.map((a, i) => {
+                                const isCorrect = a.isCorrect === true;
+                                const isWrong = a.isCorrect === false;
+
+                                return (
+                                    <div key={i} className={`p-4 rounded-2xl border transition-all ${isCorrect ? 'bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60' : isWrong ? 'bg-red-50/50 dark:bg-red-950/30 border-red-200 dark:border-red-800/60' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700'}`}>
+                                        <div className="flex items-start justify-between gap-3 mb-2">
+                                            <div className="flex items-start gap-2 flex-1">
+                                                <span className="font-extrabold text-slate-400 dark:text-slate-500 text-xs shrink-0">{i + 1}.</span>
+                                                <RichContentRenderer content={a.question} format={a.questionFormat} className="text-xs font-bold text-slate-800 dark:text-slate-100" />
+                                            </div>
+
+                                            {a.isCorrect != null && (
+                                                <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${isCorrect ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'}`}>
+                                                    {isCorrect ? <><Check size={11} /> Benar</> : <><X size={11} /> Salah</>}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="pl-5 space-y-1 text-xs">
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-slate-400 dark:text-slate-500 font-bold shrink-0">Jawaban Anda:</span>
+                                                <RichContentRenderer content={a.optionText || a.answerText || '—'} format="text" className="font-bold text-slate-800 dark:text-slate-200" />
+                                            </div>
+
+                                            {isWrong && a.correctAnswer && (
+                                                <div className="flex items-baseline gap-2 text-emerald-600 dark:text-emerald-400 pt-0.5">
+                                                    <span className="font-bold shrink-0">Jawaban Benar:</span>
+                                                    <RichContentRenderer content={a.correctAnswer} format="text" className="font-bold" />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 )}
 

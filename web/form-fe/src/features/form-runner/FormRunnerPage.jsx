@@ -177,11 +177,13 @@ export default function FormRunnerPage() {
         };
 
         const res = await submitPublicFormResponse(formLink, payload);
-        setSubmitting(false);
+        const responseId = res.data?.responseId || res.data?.id || (typeof res.data === 'number' || typeof res.data === 'string' ? res.data : null);
 
-        if (res.ok && res.data?.id) {
-            navigate(`/f/${formLink}/result/${res.data.id}`);
+        if (res.ok && responseId) {
+            // Instantly navigate to result & answer review page
+            navigate(`/f/${formLink}/result/${responseId}`);
         } else {
+            setSubmitting(false);
             setError(res.message || 'Gagal mengirimkan respons formulir.');
         }
     };
@@ -338,10 +340,14 @@ export default function FormRunnerPage() {
 
                             {/* Media if present */}
                             {currentQ.questionImage && (
-                                <img src={assetUrl(currentQ.questionImage)} alt="Soal" className="max-h-64 rounded-2xl object-contain border border-slate-200 dark:border-slate-700" />
+                                <div className="my-2 max-w-md overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs">
+                                    <img src={assetUrl(currentQ.questionImage)} alt="Gambar Soal" className="max-h-64 w-auto max-w-full rounded-xl object-contain mx-auto" />
+                                </div>
                             )}
                             {currentQ.questionAudio && (
-                                <audio controls src={assetUrl(currentQ.questionAudio)} className="w-full mt-2" />
+                                <div className="my-2 max-w-sm w-full bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs">
+                                    <audio controls src={assetUrl(currentQ.questionAudio)} className="w-full h-8 rounded-xl outline-none" />
+                                </div>
                             )}
 
                             {/* Options rendering */}
@@ -405,10 +411,14 @@ export default function FormRunnerPage() {
                                 </div>
 
                                 {q.questionImage && (
-                                    <img src={assetUrl(q.questionImage)} alt="Soal" className="max-h-64 rounded-2xl object-contain border border-slate-200 dark:border-slate-700 ml-10" />
+                                    <div className="my-2 max-w-md overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs sm:ml-10">
+                                        <img src={assetUrl(q.questionImage)} alt="Gambar Soal" className="max-h-64 w-auto max-w-full rounded-xl object-contain mx-auto" />
+                                    </div>
                                 )}
                                 {q.questionAudio && (
-                                    <audio controls src={assetUrl(q.questionAudio)} className="w-full ml-10 mt-2" />
+                                    <div className="my-2 max-w-sm w-full bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs sm:ml-10">
+                                        <audio controls src={assetUrl(q.questionAudio)} className="w-full h-8 rounded-xl outline-none" />
+                                    </div>
                                 )}
 
                                 <div className="pl-0 sm:pl-10 pt-2">

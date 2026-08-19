@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 export default function SummernoteEditor({ value, onChange, placeholder = '', className = '' }) {
     const textareaRef = useRef(null);
     const [scriptsLoaded, setScriptsLoaded] = useState(false);
+    const isInternalChangeRef = useRef(false);
 
     useEffect(() => {
         const getjQuery = () => window.jQuery || window.$;
@@ -45,6 +46,7 @@ export default function SummernoteEditor({ value, onChange, placeholder = '', cl
             .catch(err => console.error('Failed to load Summernote dependencies:', err));
     }, []);
 
+    // Initialize Summernote once scripts are ready
     useEffect(() => {
         if (!scriptsLoaded || !textareaRef.current) return;
 
@@ -58,6 +60,7 @@ export default function SummernoteEditor({ value, onChange, placeholder = '', cl
                 placeholder: placeholder,
                 tabsize: 2,
                 height: 140,
+                maximumImageFileSize: 10 * 1024 * 1024, // 10MB
                 toolbar: [
                     ['style', ['style']],
                     ['font', ['bold', 'italic', 'underline', 'clear']],
@@ -68,6 +71,7 @@ export default function SummernoteEditor({ value, onChange, placeholder = '', cl
                 ],
                 callbacks: {
                     onChange: (contents) => {
+                        isInternalChangeRef.current = true;
                         if (onChange) onChange(contents);
                     }
                 }
@@ -91,9 +95,16 @@ export default function SummernoteEditor({ value, onChange, placeholder = '', cl
         };
     }, [scriptsLoaded]);
 
-    // Sync value changes if value changes externally
+    // Sync value changes ONLY if value changes externally (e.g. initial load or modal insertion), not from internal typing/image upload
     useEffect(() => {
         if (!scriptsLoaded || !textareaRef.current) return;
+
+        // Skip re-setting code if the change originated internally from Summernote itself
+        if (isInternalChangeRef.current) {
+            isInternalChangeRef.current = false;
+            return;
+        }
+
         const $ = window.jQuery || window.$;
         if (typeof $ !== 'function' || !$.fn?.summernote) return;
 
