@@ -15,7 +15,6 @@ public enum FormAccess
 
 public static class ResponseSubmission
 {
-    // ponytail: pesan dibedakan agar klien tahu alasan — tidak ditemukan / belum dibuka / sudah ditutup
     public static ObjectResult Unavailable(FormAccess access, Form? form)
     {
         var (status, message, data) = access switch
@@ -36,7 +35,6 @@ public static class ResponseSubmission
             .Include(f => f.FormSetting)
             .FirstOrDefaultAsync(f => f.Id == formId && f.DeletedAt == null);
 
-        // Pesan dibedakan agar klien tahu alasan: tidak ditemukan / belum dibuka / sudah ditutup.
         if (form == null || form.TakenDownAt != null)
             return Unavailable(FormAccess.NotFound, form);
 
@@ -66,16 +64,12 @@ public static class ResponseSubmission
                 return new UnauthorizedObjectResult(new ApiResponse<object>(401, "Invalid or missing form token"));
         }
 
-        // Pemilik form tidak boleh mengisi form sendiri.
         var ownerClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (!string.IsNullOrEmpty(ownerClaim) && int.TryParse(ownerClaim, out var ownerUid) && form.UserId == ownerUid)
             return new BadRequestObjectResult(new ApiResponse<object>(400, "Anda tidak dapat mengisi form yang Anda buat sendiri"));
 
         if (form.FormSetting?.OneResponse == true)
         {
-            // ponytail: satu respons per orang hanya bisa dijamin untuk user login
-            // (RespondentId). Tamu tanpa akun tidak bisa diidentifikasi secara
-            // andal, jadi batasan ini tidak dipaksakan untuk guest.
             var alreadySubmitted = false;
 
             if (isAuthenticated)
@@ -105,8 +99,6 @@ public static class ResponseSubmission
             .GroupBy(a => a.QuestionId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        // ponytail: soal wajib (isRequired) harus benar-benar dijawab — jangan
-        // percaya validasi di client saja, responden bisa kirim payload kosong.
         foreach (var q in validQuestions.Where(q => q.IsRequired == true))
         {
             if (!answersByQuestion.TryGetValue(q.Id, out var answerList))
@@ -121,15 +113,13 @@ public static class ResponseSubmission
                 return new BadRequestObjectResult(new ApiResponse<object>(400, $"Pertanyaan \"{q.Question1}\" wajib dijawab"));
         }
 
-        // ponytail: validasi isi jawaban per tipe soal — optionId harus milik
-        // soal itu, dan tipe jawaban tidak boleh ditukar (mis. essay diisi option).
         foreach (var (questionId, ansList) in answersByQuestion)
         {
             var q = validQuestions.First(x => x.Id == questionId);
 
             switch (q.TypeId)
             {
-                case 2: // Pilihan Ganda: tepat satu optionId milik soal, tanpa answerValue.
+                case 2:
                     if (ansList.Count != 1 ||
                         ansList[0].OptionId is not int optId2 ||
                         ansList[0].AnswerValue != null ||
@@ -137,21 +127,21 @@ public static class ResponseSubmission
                         return new BadRequestObjectResult(new ApiResponse<object>(400, "Jawaban pilihan ganda tidak valid"));
                     break;
 
-                case 3: // Checkbox: semua optionId milik soal, tanpa answerValue.
+                case 3:
                     if (ansList.Any(a => a.AnswerValue != null || a.OptionId is not int oid ||
                         !q.OptionQuestions.Any(o => o.Id == oid)))
                         return new BadRequestObjectResult(new ApiResponse<object>(400, "Jawaban checkbox tidak valid"));
                     break;
 
-                case 5: // Benar/Salah: tepat satu answerValue "Benar" atau "Salah".
+                case 5:
                     if (ansList.Count != 1 ||
                         ansList[0].OptionId.HasValue ||
                         ansList[0].AnswerValue is not ("Benar" or "Salah"))
                         return new BadRequestObjectResult(new ApiResponse<object>(400, "Jawaban benar/salah tidak valid"));
                     break;
 
-                case 1: // Essay.
-                case 4: // Tanggal & Waktu.
+                case 1:
+                case 4:
                     if (ansList.Count > 1 || ansList.Any(a => a.OptionId.HasValue))
                         return new BadRequestObjectResult(new ApiResponse<object>(400, "Jawaban tidak valid untuk tipe soal ini"));
                     break;
@@ -163,7 +153,6 @@ public static class ResponseSubmission
         if (!string.IsNullOrEmpty(userIdClaim2) && int.TryParse(userIdClaim2, out var uid))
             respondentId = uid;
 
-        // ponytail: nama tamu hanya untuk responden tanpa login; user login diidentifikasi lewat RespondentId
         var respondentName = respondentId == null ? body.RespondentName : null;
 
         var newStatus = await db.ResponseStatuses.FirstAsync(s => s.Status == "new");

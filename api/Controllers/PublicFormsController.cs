@@ -28,7 +28,6 @@ public class PublicFormsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
 
-        // ponytail: tanpa soal di sini — soal hanya lewat /questions setelah requirement terpenuhi
         var isOwner = User.Identity?.IsAuthenticated == true
             && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid)
             && form.UserId == uid;
@@ -71,9 +70,6 @@ public class PublicFormsController : ControllerBase
             .Where(q => q.FormId == form.Id && q.DeletedAt == null)
             .ToListAsync();
 
-        // ponytail: acak urutan soal hanya untuk responden — pembuat form tetap
-        // melihat urutan asli lewat endpoint owner. Nomor soal (1,2,3,..) dibuat
-        // client dari index, jadi otomatis tetap berurutan.
         if (form.FormSetting?.RandomizeQuestions == true)
             Shuffle(questions);
         else
@@ -100,8 +96,6 @@ public class PublicFormsController : ControllerBase
         return await ResponseSubmission.SaveAsync(_db, User, form.Id, request);
     }
 
-    // Hasil untuk responden: hanya pemilik respons (user login lewat JWT) yang
-    // bisa melihat hasilnya. Tanpa login, hasil tidak tersedia.
     [HttpGet("forms/{formLink}/responses/{responseId}")]
     [AllowAnonymous]
     [EnableRateLimiting("submit")]
@@ -139,7 +133,6 @@ public class PublicFormsController : ControllerBase
 
     private ActionResult? CheckAccess(Form form, string? token)
     {
-        // Pemilik form tidak boleh mengisi form sendiri.
         if (User.Identity?.IsAuthenticated == true
             && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid)
             && form.UserId == uid)
@@ -179,7 +172,6 @@ public class PublicFormsController : ControllerBase
         return form;
     }
 
-    // ponytail: mapper publik, jangan bocorkan kunci
     private static QuestionResponse MapPublicQuestion(Question q, bool randomizeOptions = false)
     {
         var options = (q.OptionQuestions ?? []).OrderBy(o => o.OptionOrder).ToList();
@@ -210,8 +202,6 @@ public class PublicFormsController : ControllerBase
         };
     }
 
-    /// <summary>Fisher-Yates shuffle in-place — dipakai untuk mengacak urutan
-    /// soal/opsi per responden. Urutan ID tidak berubah, hanya posisinya.</summary>
     private static void Shuffle<T>(IList<T> list)
     {
         for (var i = list.Count - 1; i > 0; i--)

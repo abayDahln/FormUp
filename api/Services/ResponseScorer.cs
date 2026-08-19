@@ -2,7 +2,6 @@ using FormUpAPI.Models;
 
 namespace FormUpAPI.Services;
 
-// ponytail: skoring dipakai bersama oleh analytics dan endpoint hasil responden
 public static class ResponseScorer
 {
     public static int CountScorable(List<Question> questions) =>
@@ -43,7 +42,6 @@ public static class ResponseScorer
 
     public static ResponseResult BuildResult(Form form, Response response, List<Question> questions)
     {
-        // ponytail: grading (jawaban benar, skor, benar/salah) hanya muncul jika showScore aktif
         var showScore = form.FormSetting?.ShowScore == true;
         var scorable = CountScorable(questions);
         var answeredCount = 0;

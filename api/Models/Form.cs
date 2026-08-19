@@ -14,8 +14,6 @@ public partial class Form
     public string Title { get; set; } = null!;
 
     public string? Description { get; set; }
-
-    /// <summary>Format konten deskripsi: "delta" (Quill Delta JSON) atau "text".</summary>
     public string? DescriptionFormat { get; set; }
 
     public string? BannerImage { get; set; }

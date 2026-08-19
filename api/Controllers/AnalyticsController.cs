@@ -53,9 +53,6 @@ public class AnalyticsController : ControllerBase
         var allResponses = await responsesQuery.ToListAsync(ct);
         var totalResponses = allResponses.Count;
 
-        // ponytail: tanpa page/pageSize → kirim semua responden (perilaku lama
-        // untuk web). Dengan param → rata-rata skor tetap dihitung dari seluruh
-        // respons, tapi hanya responden pada halaman yang dikirim ke klien.
         var currentPage = page.GetValueOrDefault(1);
         var currentPageSize = pageSize.GetValueOrDefault(0);
         var paged = currentPageSize > 0;
@@ -92,7 +89,6 @@ public class AnalyticsController : ControllerBase
                 allScores.Add(score.Value);
         }
 
-        // Bangun hanya responden yang tampil pada halaman (ringan untuk mobile).
         foreach (var response in pageResponses)
         {
             var answers = new List<AnswerAnalytics>();

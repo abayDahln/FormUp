@@ -82,8 +82,6 @@ public class AdminController : ControllerBase
             _ => projected.OrderByDescending(u => u.CreatedAt),
         };
 
-        // ponytail: tanpa page/pageSize → perilaku lama (semua sekaligus),
-        // agar klien lama (web) tidak berubah. Dengan param → respons berpaginasi.
         if (page.HasValue && pageSize.HasValue && pageSize > 0)
         {
             var total = await projected.CountAsync();
@@ -264,8 +262,6 @@ public class AdminController : ControllerBase
             _ => projected.OrderByDescending(f => f.CreatedAt),
         };
 
-        // ponytail: tanpa page/pageSize → perilaku lama (semua sekaligus),
-        // agar klien lama (web) tidak berubah. Dengan param → respons berpaginasi.
         if (page.HasValue && pageSize.HasValue && pageSize > 0)
         {
             var total = await projected.CountAsync();

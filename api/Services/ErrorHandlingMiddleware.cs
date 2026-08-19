@@ -23,8 +23,6 @@ public class ErrorHandlingMiddleware
         }
         catch (SqlException ex)
         {
-            // DB tidak aktif (mis. service SQL Server belum jalan) — pesan generik
-            // agar user (bukan admin server) tidak diberi detail infrastruktur.
             _logger.LogError(ex, "Database unavailable on {Method} {Path}", context.Request.Method, context.Request.Path);
 
             if (context.Response.HasStarted)

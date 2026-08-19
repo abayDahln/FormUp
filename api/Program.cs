@@ -22,7 +22,6 @@ namespace FormUpAPI
             DotNetEnv.Env.Load();
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
             var connString = Environment.GetEnvironmentVariable("DB_CONNECTION")
                 ?? builder.Configuration.GetConnectionString("DefaultConnection");
             if (string.IsNullOrEmpty(connString))
@@ -50,7 +49,6 @@ namespace FormUpAPI
                 });
 
 
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
             {
@@ -98,8 +96,6 @@ namespace FormUpAPI
             if (string.IsNullOrEmpty(keyString))
                 throw new InvalidOperationException("JWT Key is not configured. Set JWT_KEY environment variable or Jwt:Key in appsettings.json.");
 
-            // ponytail: tolak nilai default/placeholder yang dikenal publik —
-            // kalau terpakai, siapa pun bisa memalsukan token & mengambil alih akun.
             if (IsKnownDefaultJwtKey(keyString))
                 throw new InvalidOperationException(
                     "JWT_KEY masih memakai nilai default yang tidak aman. Ganti dengan nilai acak yang panjang.");
@@ -174,7 +170,7 @@ namespace FormUpAPI
                     await context.HttpContext.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(apiResponse), ct);
                 };
 
-                // Endpoint auth (login/register/refresh/OTP): paling ketat.
+                // Endpoint auth
                 options.AddFixedWindowLimiter("auth", o =>
                 {
                     o.PermitLimit = 10;
@@ -182,7 +178,7 @@ namespace FormUpAPI
                     o.QueueLimit = 0;
                 });
 
-                // Manajemen form (form creator): sedang.
+                // Manajemen form
                 options.AddPolicy("creator", context =>
                 {
                     var key = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
@@ -197,7 +193,7 @@ namespace FormUpAPI
                     });
                 });
 
-                // Submit form publik: longgar + berbasis kombinasi form+IP (bukan cuma IP).
+                // Submit form publik
                 options.AddPolicy("submit", context =>
                 {
                     var formKey = context.Request.RouteValues["formId"]?.ToString()
@@ -253,9 +249,6 @@ namespace FormUpAPI
 
             app.Run();
         }
-
-        // ponytail: nilai-nilai yang dikenal publik / muncul di repo & README.
-        // Jangan izinkan server berjalan dengan salah satunya.
         private static bool IsKnownDefaultJwtKey(string key) =>
             key.Trim() switch
             {

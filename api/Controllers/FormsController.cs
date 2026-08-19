@@ -24,10 +24,6 @@ public class FormsController : ControllerBase
         _config = config;
     }
 
-    // ponytail: base URL publik (formup.my.id) > alamat API itu sendiri.
-    // Baca langsung dari env var (pola sama seperti DB_CONNECTION/JWT_KEY di
-    // Program.cs) karena _config["PublicUrl"] terbukti tidak selalu menangkap
-    // env var. Kosong/whitespace → fallback ke host request.
     private string PublicBaseUrl
     {
         get
@@ -67,7 +63,6 @@ public class FormsController : ControllerBase
             })
             .ToListAsync();
 
-        // ponytail: baris lama (sebelum kolom format ada) → deteksi dari isi
         foreach (var f in forms)
             f.DescriptionFormat ??= RichTextValidation.FormatOf(f.Description);
 
@@ -317,7 +312,6 @@ public class FormsController : ControllerBase
         if (request.RequiredLogin.HasValue)
             form.FormSetting.RequiredLogin = request.RequiredLogin.Value;
 
-        // ponytail: open_form_time sekali set saja, tidak bisa diubah; close_form_time bebas di-update
         if (request.OpenFormTime.HasValue)
         {
             if (form.FormSetting.OpenFormTime.HasValue)

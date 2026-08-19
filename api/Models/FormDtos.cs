@@ -71,7 +71,6 @@ public class UpdateFormSettingsRequest
     public DateTime? CloseFormTime { get; set; }
 }
 
-// ponytail: DTO publik responden, jangan bocorkan CorrectAnswer/IsCorrect
 public class PublicFormDetails
 {
     public int Id { get; set; }

@@ -54,7 +54,6 @@ public class EmailService
         };
         mail.To.Add(toEmail);
 
-        // ponytail: 3x percobaan dgn backoff; circuit-breaker penuh untuk layanan eksternal menyusul.
         Exception? last = null;
         for (var attempt = 0; attempt < 3; attempt++)
         {

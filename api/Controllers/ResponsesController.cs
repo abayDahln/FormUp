@@ -53,8 +53,6 @@ public class ResponsesController : ControllerBase
                 SubmittedAt = r.SubmittedAt ?? r.CreatedAt ?? JakartaTime.Now,
             });
 
-        // ponytail: tanpa page/pageSize → perilaku lama (semua sekaligus),
-        // agar klien lama (web) tidak berubah. Dengan param → respons berpaginasi.
         if (page.HasValue && pageSize.HasValue && pageSize > 0)
         {
             var total = await query.CountAsync();

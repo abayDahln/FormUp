@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using System.Security.Claims;
 using FormUpAPI.Models;
 using FormUpAPI.Services;
@@ -143,8 +143,6 @@ public class AuthController : ControllerBase
         }));
     }
 
-    // ponytail: refresh stateless — terima access token yang sudah kedaluwarsa,
-    // validasi signature saja (ignore lifetime) lalu terbitkan token baru.
     [HttpPost("refresh")]
     public async Task<ActionResult<ApiResponse<object>>> Refresh()
     {

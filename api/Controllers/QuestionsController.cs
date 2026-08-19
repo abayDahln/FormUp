@@ -262,7 +262,6 @@ public class QuestionsController : ControllerBase
                 await _db.SaveChangesAsync();
             }
 
-            // Pertanyaan aktif yang tidak ada di payload → soft delete.
             var removedIds = existingQuestions
                 .Where(q => !submittedIds.Contains(q.Id))
                 .Select(q => q.Id)
@@ -393,8 +392,6 @@ public class QuestionsController : ControllerBase
         }
         catch (Exception)
         {
-            // ponytail: jangan bocorkan detail exception mentah ke user — cukup
-            // pesan generik; detail tetap direkam oleh ErrorHandlingMiddleware.
             return BadRequest(new ApiResponse<object>(400, "File tidak dapat dibaca. Pastikan format file sesuai template."));
         }
 
@@ -604,7 +601,6 @@ public class QuestionsController : ControllerBase
         return await _db.Users.FindAsync(userId);
     }
 
-    // ponytail: kunci agar nilai/data tidak berubah di tengah-tengah responden mengerjakan
     private async Task<ActionResult?> EnsureNotPublished(Form form)
     {
         var publishedStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "published");

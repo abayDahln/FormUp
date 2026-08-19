@@ -72,6 +72,5 @@ public class ResultAnswer
     public string? AnswerText { get; set; }
     public string? CorrectAnswer { get; set; }
     public bool? IsCorrect { get; set; }
-    // Daftar opsi (urutan kanonik) untuk pertanyaan pilihan — kosong untuk tipe teks.
     public List<string> Options { get; set; } = new();
 }
