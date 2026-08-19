@@ -1,541 +1,294 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    Users, FileText, MessageSquare, Shield, Ban, CheckCircle,
-    Trash2, Eye, ShieldAlert, ArrowLeft, X, Calendar, Hash
+    Users, FileText, Trash2, ArrowLeft, Shield,
+    Search
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import {
-    adminGetUsers, adminGetUserDetail, adminBanUser, adminActivateUser, adminDeleteUser,
-    adminGetForms, adminGetFormDetail, adminTakedownForm, adminRestoreForm, adminDeleteForm,
-    adminGetFeedback, adminDeleteFeedback, adminTakedownFormFromFeedback, adminRestoreFormFromFeedback,
-    getLocalUser, clearSession
+    adminGetUsers, adminGetForms,
+    adminDeleteUser, adminDeleteForm, clearSession, getLocalUser
 } from '../../services/apiService';
-
-const formatDate = (d) => d
-    ? new Date(d).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : '—';
 
 export default function AdminDashboardPage() {
     const navigate = useNavigate();
-    const currentUser = getLocalUser();
-
-    const [activeTab, setActiveTab] = useState('users');
-    const [loading, setLoading] = useState(true);
-    const [toast, setToast] = useState(null);
-
+    const [user] = useState(() => getLocalUser());
     const [users, setUsers] = useState([]);
     const [forms, setForms] = useState([]);
-    const [feedbacks, setFeedbacks] = useState([]);
-
-    // Detail modals
-    const [userDetail, setUserDetail] = useState(null);
-    const [userDetailLoading, setUserDetailLoading] = useState(false);
-    const [formDetail, setFormDetail] = useState(null);
-    const [formDetailLoading, setFormDetailLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('users');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [toast, setToast] = useState(null);
 
     useEffect(() => {
-        if (currentUser?.role !== 'ADMIN') {
+        if (user?.role !== 'ADMIN') {
             navigate('/dashboard');
             return;
         }
-        loadData();
-    }, [activeTab]);
+
+        const load = async () => {
+            setLoading(true);
+            const [usersRes, formsRes] = await Promise.all([adminGetUsers(), adminGetForms()]);
+            if (usersRes.status === 401 || formsRes.status === 401) {
+                clearSession();
+                navigate('/login');
+                return;
+            }
+            if (usersRes.ok && Array.isArray(usersRes.data)) setUsers(usersRes.data);
+            if (formsRes.ok && Array.isArray(formsRes.data)) setForms(formsRes.data);
+            setLoading(false);
+        };
+        load();
+    }, [navigate, user]);
 
     const showToast = (msg, type = 'success') => {
         setToast({ msg, type });
         setTimeout(() => setToast(null), 3000);
     };
 
-    const loadData = async () => {
-        setLoading(true);
-        if (activeTab === 'users') {
-            const res = await adminGetUsers();
-            if (res.status === 401) { clearSession(); navigate('/login'); return; }
-            if (res.ok) setUsers(Array.isArray(res.data) ? res.data : res.data?.users || []);
-        } else if (activeTab === 'forms') {
-            const res = await adminGetForms();
-            if (res.status === 401) { clearSession(); navigate('/login'); return; }
-            if (res.ok) setForms(Array.isArray(res.data) ? res.data : res.data?.forms || []);
-        } else if (activeTab === 'feedback') {
-            const res = await adminGetFeedback();
-            if (res.status === 401) { clearSession(); navigate('/login'); return; }
-            if (res.ok) setFeedbacks(Array.isArray(res.data) ? res.data : res.data?.feedbacks || []);
-        }
-        setLoading(false);
-    };
-
-    // ── User Detail Modal ─────────────────────────────────────────────────────
-    const openUserDetail = async (userId) => {
-        setUserDetailLoading(true);
-        setUserDetail({ _loading: true });
-        const res = await adminGetUserDetail(userId);
-        setUserDetailLoading(false);
-        if (res.ok && res.data) setUserDetail(res.data);
-        else setUserDetail(null);
-    };
-
-    // ── Form Detail Modal ─────────────────────────────────────────────────────
-    const openFormDetail = async (formId) => {
-        setFormDetailLoading(true);
-        setFormDetail({ _loading: true });
-        const res = await adminGetFormDetail(formId);
-        setFormDetailLoading(false);
-        if (res.ok && res.data) setFormDetail(res.data);
-        else setFormDetail(null);
-    };
-
-    // ── User Actions ──────────────────────────────────────────────────────────
-    const handleBanUser = async (userId) => {
-        const res = await adminBanUser(userId);
-        if (res.ok) { showToast('User banned'); loadData(); }
-        else showToast(res.message || 'Action failed', 'error');
-    };
-
-    const handleActivateUser = async (userId) => {
-        const res = await adminActivateUser(userId);
-        if (res.ok) { showToast('User activated'); loadData(); }
-        else showToast(res.message || 'Action failed', 'error');
-    };
-
     const handleDeleteUser = async (userId) => {
-        if (!window.confirm('Hapus user ini?')) return;
+        if (!window.confirm('Hapus pengguna ini? Semua formulir milik pengguna ini juga akan dihapus.')) return;
         const res = await adminDeleteUser(userId);
-        if (res.ok) { showToast('User deleted'); loadData(); }
-        else showToast(res.message || 'Action failed', 'error');
-    };
-
-    // ── Form Actions ──────────────────────────────────────────────────────────
-    const handleTakedownForm = async (formId) => {
-        const res = await adminTakedownForm(formId);
-        if (res.ok) { showToast('Form taken down'); loadData(); }
-        else showToast(res.message || 'Action failed', 'error');
-    };
-
-    const handleRestoreForm = async (formId) => {
-        const res = await adminRestoreForm(formId);
-        if (res.ok) { showToast('Form restored'); loadData(); }
-        else showToast(res.message || 'Action failed', 'error');
+        if (res.ok) {
+            setUsers(prev => prev.filter(u => u.id !== userId));
+            showToast('Pengguna berhasil dihapus');
+        } else {
+            showToast(res.message || 'Gagal menghapus pengguna', 'error');
+        }
     };
 
     const handleDeleteForm = async (formId) => {
-        if (!window.confirm('Hapus form ini?')) return;
+        if (!window.confirm('Hapus formulir ini? Tindakan ini tidak dapat dibatalkan.')) return;
         const res = await adminDeleteForm(formId);
-        if (res.ok) { showToast('Form deleted'); loadData(); }
-        else showToast(res.message || 'Action failed', 'error');
+        if (res.ok) {
+            setForms(prev => prev.filter(f => f.id !== formId));
+            showToast('Formulir berhasil dihapus');
+        } else {
+            showToast(res.message || 'Gagal menghapus formulir', 'error');
+        }
     };
 
-    // ── Feedback Actions ──────────────────────────────────────────────────────
-    const handleDeleteFeedback = async (feedbackId) => {
-        const res = await adminDeleteFeedback(feedbackId);
-        if (res.ok) { showToast('Feedback removed'); loadData(); }
-        else showToast(res.message || 'Action failed', 'error');
-    };
+    const filteredUsers = users.filter(u => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+            (u.fullname && u.fullname.toLowerCase().includes(q)) ||
+            (u.username && u.username.toLowerCase().includes(q)) ||
+            (u.email && u.email.toLowerCase().includes(q))
+        );
+    });
 
-    const handleTakedownFromFeedback = async (feedbackId) => {
-        const res = await adminTakedownFormFromFeedback(feedbackId);
-        if (res.ok) { showToast('Associated form taken down'); loadData(); }
-        else showToast(res.message || 'Action failed', 'error');
-    };
+    const filteredForms = forms.filter(f => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+            (f.title && f.title.toLowerCase().includes(q)) ||
+            (f.formLink && f.formLink.toLowerCase().includes(q)) ||
+            (f.owner?.fullname && f.owner.fullname.toLowerCase().includes(q))
+        );
+    });
 
-    const handleRestoreFromFeedback = async (feedbackId) => {
-        const res = await adminRestoreFormFromFeedback(feedbackId);
-        if (res.ok) { showToast('Form restored'); loadData(); }
-        else showToast(res.message || 'Action failed', 'error');
-    };
+    if (loading) return (
+        <div className="flex items-center justify-center min-h-screen bg-[#F4F8F7] dark:bg-slate-950">
+            <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">Memuat panel kontrol admin...</p>
+        </div>
+    );
 
     return (
-        <div className="flex min-h-screen w-full bg-slate-50 font-sans antialiased text-slate-800">
+        <div className="flex min-h-screen w-full bg-[#F4F8F7] dark:bg-slate-950 font-sans antialiased text-slate-800 dark:text-slate-100 transition-colors">
             <Sidebar />
 
             <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-                <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3">
-                    <button onClick={() => navigate('/dashboard')} className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg">
-                        <ArrowLeft size={18} />
-                    </button>
-                    <div>
-                        <h1 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                            <Shield className="text-teal-600" size={18} /> Admin Control Center
-                        </h1>
-                        <p className="text-xs text-slate-400">Manage users, forms, and reported feedback across FormUp</p>
+                <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => navigate('/dashboard')} className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all">
+                            <ArrowLeft size={18} />
+                        </button>
+                        <div>
+                            <h1 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                                <Shield size={18} className="text-[#00897B] dark:text-teal-400" />
+                                Kontrol & Manajemen Admin
+                            </h1>
+                            <p className="text-xs text-slate-400 dark:text-slate-500">Kelola akun pengguna, formulir global, dan izin sistem.</p>
+                        </div>
                     </div>
                 </div>
 
                 {toast && (
-                    <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-xs font-bold text-white ${toast.type === 'error' ? 'bg-red-500' : 'bg-teal-600'}`}>
+                    <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-2xl shadow-xl text-xs font-bold text-white transition-all ${toast.type === 'error' ? 'bg-red-500' : 'bg-[#00897B]'}`}>
                         {toast.msg}
                     </div>
                 )}
 
-                {/* Tabs */}
-                <div className="flex border-b border-slate-200 bg-white px-6">
-                    {[
-                        { key: 'users', label: '👥 User Management' },
-                        { key: 'forms', label: '📋 All Forms' },
-                        { key: 'feedback', label: '⚠️ Feedback Reports' },
-                    ].map(tab => (
-                        <button
-                            key={tab.key}
-                            onClick={() => setActiveTab(tab.key)}
-                            className={`py-3.5 px-5 text-xs font-extrabold border-b-2 transition-all ${activeTab === tab.key ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-400 hover:text-slate-700'}`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
+                <div className="p-6 max-w-6xl mx-auto w-full space-y-6">
 
-                <div className="p-6 max-w-6xl mx-auto w-full">
-                    {loading ? (
-                        <div className="text-center py-16 text-slate-400 text-sm">Loading admin data...</div>
-                    ) : (
-                        <>
-                            {/* ── USERS TAB ── */}
-                            {activeTab === 'users' && (
-                                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                                    <table className="w-full text-sm text-left">
-                                        <thead>
-                                            <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                                                <th className="py-3 px-4">User</th>
-                                                <th className="py-3 px-4">Role</th>
-                                                <th className="py-3 px-4">Status</th>
-                                                <th className="py-3 px-4">Forms</th>
-                                                <th className="py-3 px-4 text-right">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {users.length === 0 && (
-                                                <tr><td colSpan={5} className="py-10 text-center text-slate-400 text-xs">No users found.</td></tr>
-                                            )}
-                                            {users.map(u => (
-                                                <tr key={u.id} className="hover:bg-slate-50">
-                                                    <td className="py-3 px-4">
-                                                        <div className="font-bold text-slate-900">{u.fullname || u.username}</div>
-                                                        <div className="text-xs text-slate-400">{u.email}</div>
-                                                    </td>
-                                                    <td className="py-3 px-4">
-                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${u.role === 'ADMIN' ? 'bg-purple-50 text-purple-600' : 'bg-slate-100 text-slate-600'}`}>
-                                                            {u.role}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-3 px-4">
-                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${u.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                                                            {u.isActive ? 'Active' : 'Banned'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-3 px-4 text-xs font-semibold text-slate-600">{u.formCount ?? 0}</td>
-                                                    <td className="py-3 px-4 text-right">
-                                                        <div className="flex items-center justify-end gap-1.5">
-                                                            <button
-                                                                onClick={() => openUserDetail(u.id)}
-                                                                className="p-1 text-teal-500 hover:text-teal-700 rounded"
-                                                                title="Lihat Detail"
-                                                            >
-                                                                <Eye size={14} />
-                                                            </button>
-                                                            {u.isActive ? (
-                                                                <button onClick={() => handleBanUser(u.id)} className="px-2.5 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-100">
-                                                                    <Ban size={12} className="inline mr-1" /> Ban
-                                                                </button>
-                                                            ) : (
-                                                                <button onClick={() => handleActivateUser(u.id)} className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-100">
-                                                                    <CheckCircle size={12} className="inline mr-1" /> Activate
-                                                                </button>
-                                                            )}
-                                                            <button onClick={() => handleDeleteUser(u.id)} className="p-1 text-red-400 hover:text-red-600 rounded">
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
+                    {/* Stats Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex items-center justify-between">
+                            <div>
+                                <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Total Pengguna Terdaftar</p>
+                                <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">{users.length}</h3>
+                            </div>
+                            <div className="p-3 bg-teal-50 dark:bg-teal-950/60 rounded-xl text-[#00897B] dark:text-teal-400">
+                                <Users size={22} />
+                            </div>
+                        </div>
 
-                            {/* ── FORMS TAB ── */}
-                            {activeTab === 'forms' && (
-                                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                                    <table className="w-full text-sm text-left">
-                                        <thead>
-                                            <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                                                <th className="py-3 px-4">Form</th>
-                                                <th className="py-3 px-4">Owner</th>
-                                                <th className="py-3 px-4">Status</th>
-                                                <th className="py-3 px-4">Responses</th>
-                                                <th className="py-3 px-4 text-right">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {forms.length === 0 && (
-                                                <tr><td colSpan={5} className="py-10 text-center text-slate-400 text-xs">No forms found.</td></tr>
-                                            )}
-                                            {forms.map(f => (
-                                                <tr key={f.id} className="hover:bg-slate-50">
-                                                    <td className="py-3 px-4">
-                                                        <div className="font-bold text-slate-900">{f.title}</div>
-                                                        <div className="text-xs font-mono text-slate-400">/f/{f.formLink}</div>
-                                                    </td>
-                                                    <td className="py-3 px-4 text-xs">
-                                                        <div className="font-semibold text-slate-800">{f.ownerName || 'Unknown'}</div>
-                                                        <div className="text-slate-400">{f.ownerEmail}</div>
-                                                    </td>
-                                                    <td className="py-3 px-4">
-                                                        {f.takenDownAt ? (
-                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Taken Down</span>
-                                                        ) : (
-                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-600">{f.status}</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="py-3 px-4 text-xs font-semibold text-slate-600">{f.responseCount ?? 0}</td>
-                                                    <td className="py-3 px-4 text-right">
-                                                        <div className="flex items-center justify-end gap-1.5">
-                                                            <button
-                                                                onClick={() => openFormDetail(f.id)}
-                                                                className="p-1 text-teal-500 hover:text-teal-700 rounded"
-                                                                title="Lihat Detail"
-                                                            >
-                                                                <Eye size={14} />
-                                                            </button>
-                                                            {f.takenDownAt ? (
-                                                                <button onClick={() => handleRestoreForm(f.id)} className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-100">
-                                                                    Restore
-                                                                </button>
-                                                            ) : (
-                                                                <button onClick={() => handleTakedownForm(f.id)} className="px-2.5 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-100">
-                                                                    <ShieldAlert size={12} className="inline mr-1" /> Takedown
-                                                                </button>
-                                                            )}
-                                                            <button onClick={() => handleDeleteForm(f.id)} className="p-1 text-red-400 hover:text-red-600 rounded">
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex items-center justify-between">
+                            <div>
+                                <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Total Formulir Global</p>
+                                <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">{forms.length}</h3>
+                            </div>
+                            <div className="p-3 bg-blue-50 dark:bg-blue-950/60 rounded-xl text-blue-600 dark:text-blue-400">
+                                <FileText size={22} />
+                            </div>
+                        </div>
+                    </div>
 
-                            {/* ── FEEDBACK TAB ── */}
-                            {activeTab === 'feedback' && (
-                                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                                    <table className="w-full text-sm text-left">
-                                        <thead>
-                                            <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                                                <th className="py-3 px-4">Reason</th>
-                                                <th className="py-3 px-4">Description</th>
-                                                <th className="py-3 px-4">Form</th>
-                                                <th className="py-3 px-4">Reporter</th>
-                                                <th className="py-3 px-4 text-right">Actions</th>
+                    {/* Tab Navigation & Search */}
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            <button
+                                onClick={() => setActiveTab('users')}
+                                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                                    activeTab === 'users' 
+                                        ? 'bg-[#00897B] text-white shadow-xs' 
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                                }`}
+                            >
+                                Kelola Pengguna ({users.length})
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('forms')}
+                                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                                    activeTab === 'forms' 
+                                        ? 'bg-[#00897B] text-white shadow-xs' 
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                                }`}
+                            >
+                                Kelola Formulir ({forms.length})
+                            </button>
+                        </div>
+
+                        <div className="relative w-full sm:w-64">
+                            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                placeholder="Cari data..."
+                                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#00897B]"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Table View */}
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
+                        {activeTab === 'users' ? (
+                            <div className="overflow-x-auto w-full">
+                                <table className="w-full text-sm text-left">
+                                    <thead>
+                                        <tr className="bg-slate-50 dark:bg-slate-800/60 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
+                                            <th className="py-3 px-4">Pengguna</th>
+                                            <th className="py-3 px-4">Email</th>
+                                            <th className="py-3 px-4">Peran</th>
+                                            <th className="py-3 px-4">Verifikasi</th>
+                                            <th className="py-3 px-4 text-right">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {filteredUsers.map(u => (
+                                            <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                                <td className="py-3.5 px-4">
+                                                    <div className="font-bold text-slate-900 dark:text-white">{u.fullname}</div>
+                                                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">@{u.username}</div>
+                                                </td>
+                                                <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 font-medium text-xs">{u.email}</td>
+                                                <td className="py-3.5 px-4">
+                                                    <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
+                                                        u.role === 'ADMIN' 
+                                                            ? 'bg-purple-50 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400 border border-purple-200 dark:border-purple-800' 
+                                                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                                    }`}>
+                                                        {u.role}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3.5 px-4">
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                                        u.isVerified 
+                                                            ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400' 
+                                                            : 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400'
+                                                    }`}>
+                                                        {u.isVerified ? 'Terverifikasi' : 'Belum Verifikasi'}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3.5 px-4 text-right">
+                                                    <button
+                                                        onClick={() => handleDeleteUser(u.id)}
+                                                        className="p-1 text-red-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                                                        title="Hapus Pengguna"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
                                             </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {feedbacks.length === 0 && (
-                                                <tr><td colSpan={5} className="py-10 text-center text-slate-400 text-xs">No feedback reports found.</td></tr>
-                                            )}
-                                            {feedbacks.map(fb => (
-                                                <tr key={fb.id} className="hover:bg-slate-50">
-                                                    <td className="py-3 px-4 font-bold text-slate-900 text-xs">{fb.reason}</td>
-                                                    <td className="py-3 px-4 text-xs text-slate-600 max-w-xs truncate">{fb.description || '—'}</td>
-                                                    <td className="py-3 px-4 text-xs font-semibold text-slate-800">{fb.formTitle || `Form #${fb.formId}`}</td>
-                                                    <td className="py-3 px-4 text-xs text-slate-500">{fb.userName || '—'}</td>
-                                                    <td className="py-3 px-4 text-right">
-                                                        <div className="flex items-center justify-end gap-1.5">
-                                                            <button
-                                                                onClick={() => handleTakedownFromFeedback(fb.id)}
-                                                                className="px-2.5 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-100"
-                                                            >
-                                                                <ShieldAlert size={11} className="inline mr-1" /> Takedown
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleRestoreFromFeedback(fb.id)}
-                                                                className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-100"
-                                                            >
-                                                                Restore
-                                                            </button>
-                                                            <button onClick={() => handleDeleteFeedback(fb.id)} className="p-1 text-red-400 hover:text-red-600 rounded">
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </>
-                    )}
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto w-full">
+                                <table className="w-full text-sm text-left">
+                                    <thead>
+                                        <tr className="bg-slate-50 dark:bg-slate-800/60 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
+                                            <th className="py-3 px-4">Judul Formulir</th>
+                                            <th className="py-3 px-4">Pemilik</th>
+                                            <th className="py-3 px-4">Status</th>
+                                            <th className="py-3 px-4">Respons</th>
+                                            <th className="py-3 px-4 text-right">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {filteredForms.map(f => (
+                                            <tr key={f.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                                <td className="py-3.5 px-4">
+                                                    <div className="font-bold text-slate-900 dark:text-white">{f.title || 'Formulir Tanpa Judul'}</div>
+                                                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">/f/{f.formLink}</div>
+                                                </td>
+                                                <td className="py-3.5 px-4 text-xs text-slate-600 dark:text-slate-300 font-medium">
+                                                    {f.owner?.fullname || '—'}
+                                                </td>
+                                                <td className="py-3.5 px-4">
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                                        f.status === 'PUBLISHED' 
+                                                            ? 'bg-teal-50 text-teal-600 dark:bg-teal-950/60 dark:text-teal-400 border border-teal-200 dark:border-teal-800' 
+                                                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                                    }`}>
+                                                        {f.status}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3.5 px-4 text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                    {f.responseCount ?? 0}
+                                                </td>
+                                                <td className="py-3.5 px-4 text-right">
+                                                    <button
+                                                        onClick={() => handleDeleteForm(f.id)}
+                                                        className="p-1 text-red-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                                                        title="Hapus Formulir"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+
                 </div>
             </div>
-
-            {/* ── USER DETAIL MODAL ── */}
-            {userDetail && (
-                <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-                        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-                            <h3 className="text-sm font-extrabold text-slate-900">Detail User</h3>
-                            <button onClick={() => setUserDetail(null)} className="text-slate-400 hover:text-slate-700 rounded-lg p-1">
-                                <X size={17} />
-                            </button>
-                        </div>
-
-                        {userDetailLoading || userDetail._loading ? (
-                            <div className="py-12 text-center text-slate-400 text-xs">Memuat data...</div>
-                        ) : (
-                            <div className="p-5 space-y-5">
-                                {/* Avatar + name */}
-                                <div className="flex items-center gap-4">
-                                    <div className="w-14 h-14 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xl font-extrabold shrink-0">
-                                        {(userDetail.fullname || userDetail.username || 'U').charAt(0).toUpperCase()}
-                                    </div>
-                                    <div>
-                                        <p className="text-base font-extrabold text-slate-900">{userDetail.fullname || '—'}</p>
-                                        <p className="text-xs text-slate-400">@{userDetail.username || '—'}</p>
-                                        <p className="text-xs text-slate-400">{userDetail.email}</p>
-                                    </div>
-                                    <div className="ml-auto flex flex-col gap-1 items-end">
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${userDetail.role === 'ADMIN' ? 'bg-purple-50 text-purple-600' : 'bg-slate-100 text-slate-600'}`}>
-                                            {userDetail.role}
-                                        </span>
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${userDetail.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                                            {userDetail.isActive ? 'Active' : 'Banned'}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Stats */}
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="bg-slate-50 rounded-xl px-4 py-3">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Forms</p>
-                                        <p className="text-xl font-extrabold text-slate-900 mt-0.5">{userDetail.formCount ?? 0}</p>
-                                    </div>
-                                    <div className="bg-slate-50 rounded-xl px-4 py-3">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Responses</p>
-                                        <p className="text-xl font-extrabold text-slate-900 mt-0.5">{userDetail.responseCount ?? 0}</p>
-                                    </div>
-                                </div>
-
-                                {/* Dates */}
-                                <div className="space-y-2 text-xs">
-                                    {userDetail.birthdate && (
-                                        <div className="flex items-center gap-2 text-slate-600">
-                                            <Calendar size={13} className="text-slate-400" />
-                                            <span className="font-semibold">Lahir:</span>
-                                            <span>{userDetail.birthdate?.split('T')[0]}</span>
-                                        </div>
-                                    )}
-                                    <div className="flex items-center gap-2 text-slate-600">
-                                        <Hash size={13} className="text-slate-400" />
-                                        <span className="font-semibold">ID:</span>
-                                        <span className="font-mono">{userDetail.id}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-slate-600">
-                                        <span className="font-semibold">Bergabung:</span>
-                                        <span>{formatDate(userDetail.createdAt)}</span>
-                                    </div>
-                                    {userDetail.deletedAt && (
-                                        <div className="flex items-center gap-2 text-red-600 font-bold">
-                                            <span>Deleted:</span>
-                                            <span>{formatDate(userDetail.deletedAt)}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* ── FORM DETAIL MODAL ── */}
-            {formDetail && (
-                <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
-                        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
-                            <h3 className="text-sm font-extrabold text-slate-900">Detail Form</h3>
-                            <button onClick={() => setFormDetail(null)} className="text-slate-400 hover:text-slate-700 rounded-lg p-1">
-                                <X size={17} />
-                            </button>
-                        </div>
-
-                        {formDetailLoading || formDetail._loading ? (
-                            <div className="py-12 text-center text-slate-400 text-xs">Memuat data...</div>
-                        ) : (
-                            <div className="overflow-y-auto p-5 space-y-4">
-                                {/* Form header */}
-                                <div>
-                                    <div className="flex items-start justify-between gap-2">
-                                        <h4 className="text-base font-extrabold text-slate-900 leading-tight">{formDetail.title}</h4>
-                                        <div className="flex flex-col gap-1 items-end shrink-0">
-                                            {formDetail.takenDownAt ? (
-                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Taken Down</span>
-                                            ) : (
-                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-600">{formDetail.status}</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <p className="text-xs font-mono text-slate-400 mt-1">/f/{formDetail.formLink}</p>
-                                    {formDetail.description && (
-                                        <p className="text-xs text-slate-600 mt-2 line-clamp-3">{formDetail.description}</p>
-                                    )}
-                                </div>
-
-                                {/* Stats */}
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="bg-slate-50 rounded-xl px-4 py-3">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Responses</p>
-                                        <p className="text-xl font-extrabold text-slate-900 mt-0.5">{formDetail.responseCount ?? 0}</p>
-                                    </div>
-                                    <div className="bg-slate-50 rounded-xl px-4 py-3">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Form ID</p>
-                                        <p className="text-xl font-extrabold text-slate-900 mt-0.5 font-mono">#{formDetail.id}</p>
-                                    </div>
-                                </div>
-
-                                {/* Owner */}
-                                {formDetail.owner && (
-                                    <div className="bg-slate-50 rounded-xl p-4">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Owner</p>
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-extrabold">
-                                                {(formDetail.owner.fullname || 'U').charAt(0)}
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-bold text-slate-900">{formDetail.owner.fullname}</p>
-                                                <p className="text-[11px] text-slate-400">{formDetail.owner.email}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Settings */}
-                                {formDetail.settings && (
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Settings</p>
-                                        <pre className="bg-slate-900 text-teal-300 text-[11px] rounded-xl p-3 overflow-x-auto font-mono leading-relaxed">
-                                            {JSON.stringify(formDetail.settings, null, 2)}
-                                        </pre>
-                                    </div>
-                                )}
-
-                                {/* Dates */}
-                                <div className="space-y-1.5 text-xs text-slate-600">
-                                    <div className="flex gap-2"><span className="font-bold w-24 shrink-0">Dibuat:</span><span>{formatDate(formDetail.createdAt)}</span></div>
-                                    <div className="flex gap-2"><span className="font-bold w-24 shrink-0">Diupdate:</span><span>{formatDate(formDetail.updatedAt)}</span></div>
-                                    {formDetail.takenDownAt && (
-                                        <div className="flex gap-2 text-red-600 font-bold"><span className="w-24 shrink-0">Taken Down:</span><span>{formatDate(formDetail.takenDownAt)}</span></div>
-                                    )}
-                                    {formDetail.deletedAt && (
-                                        <div className="flex gap-2 text-red-600 font-bold"><span className="w-24 shrink-0">Deleted:</span><span>{formatDate(formDetail.deletedAt)}</span></div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

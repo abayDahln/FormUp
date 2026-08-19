@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
 import { createForm, clearSession } from '../../services/apiService';
 
 export default function CreateForm() {
@@ -8,78 +8,89 @@ export default function CreateForm() {
     const location = useLocation();
     const templateData = location.state?.templateData;
 
-    const [title, setTitle] = useState(templateData?.title || '');
-    const [description, setDescription] = useState(templateData?.description || '');
-    const [creating, setCreating] = useState(false);
     const [error, setError] = useState('');
+    const [creating, setCreating] = useState(true);
 
-    const handleCreate = async (e) => {
-        e.preventDefault();
-        if (!title.trim()) { setError('Title is required.'); return; }
-        setCreating(true);
-        setError('');
-        const res = await createForm({ title: title.trim(), description: description.trim() });
-        setCreating(false);
-        if (res.status === 401) { clearSession(); navigate('/login'); return; }
-        if (res.ok && res.data?.id) {
-            navigate(`/forms/${res.data.id}/edit`);
-        } else {
-            setError(res.message || 'Failed to create form.');
-        }
-    };
+    useEffect(() => {
+        let isMounted = true;
+
+        const initForm = async () => {
+            try {
+                setCreating(true);
+                setError('');
+
+                const payload = {
+                    title: templateData?.title || 'Formulir Tanpa Judul',
+                    description: templateData?.description || '',
+                };
+
+                const res = await createForm(payload);
+
+                if (!isMounted) return;
+
+                if (res.status === 401) {
+                    clearSession();
+                    navigate('/login');
+                    return;
+                }
+
+                if (res.ok && res.data?.id) {
+                    navigate(`/forms/${res.data.id}/edit`, { replace: true });
+                } else {
+                    setError(res.message || 'Gagal membuat formulir baru.');
+                    setCreating(false);
+                }
+            } catch (err) {
+                if (!isMounted) return;
+                console.error('Create form error:', err);
+                setError('Terjadi kesalahan saat membuat formulir.');
+                setCreating(false);
+            }
+        };
+
+        initForm();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [navigate, templateData]);
 
     return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
-            <div className="w-full max-w-md">
-                <button
-                    onClick={() => navigate('/my-forms')}
-                    className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 mb-6"
-                >
-                    <ArrowLeft size={16} /> Back
-                </button>
-
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-5">
-                    <div>
-                        <h1 className="text-xl font-bold text-slate-800">Create New Form</h1>
-                        <p className="text-sm text-slate-500 mt-1">
-                            {templateData ? `Using template: ${templateData.title}` : 'Start from scratch'}
-                        </p>
+        <div className="min-h-screen bg-[#F4F8F7] dark:bg-slate-950 flex items-center justify-center p-4 font-sans text-slate-800 dark:text-slate-100">
+            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl p-8 text-center space-y-5">
+                {creating ? (
+                    <div className="space-y-4 py-6">
+                        <Loader2 className="w-10 h-10 text-[#00897B] dark:text-teal-400 animate-spin mx-auto" />
+                        <div>
+                            <h2 className="text-base font-extrabold text-slate-900 dark:text-white">Menyiapkan Formulir Baru...</h2>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Anda akan langsung diarahkan ke Form Builder.</p>
+                        </div>
                     </div>
-
-                    <form onSubmit={handleCreate} className="space-y-4">
-                        <div>
-                            <label className="text-xs font-semibold text-slate-600 mb-1 block">Form Title *</label>
-                            <input
-                                type="text"
-                                value={title}
-                                onChange={e => setTitle(e.target.value)}
-                                placeholder="e.g. Customer Feedback Survey"
-                                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-                                autoFocus
-                            />
+                ) : (
+                    <div className="space-y-4">
+                        <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto">
+                            <AlertCircle size={24} />
                         </div>
                         <div>
-                            <label className="text-xs font-semibold text-slate-600 mb-1 block">Description (optional)</label>
-                            <textarea
-                                value={description}
-                                onChange={e => setDescription(e.target.value)}
-                                placeholder="Brief description of the form..."
-                                rows={3}
-                                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
-                            />
+                            <h2 className="text-base font-extrabold text-slate-900 dark:text-white">Gagal Membuat Formulir</h2>
+                            <p className="text-xs text-red-500 dark:text-red-400 mt-1">{error}</p>
                         </div>
-
-                        {error && <p className="text-xs text-red-600 font-medium">{error}</p>}
-
-                        <button
-                            type="submit"
-                            disabled={creating}
-                            className="w-full py-2.5 bg-[#005B52] hover:bg-[#00463F] text-white font-bold text-sm rounded-xl transition-all disabled:opacity-60"
-                        >
-                            {creating ? 'Creating...' : 'Create Form'}
-                        </button>
-                    </form>
-                </div>
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                onClick={() => navigate('/my-forms')}
+                                className="flex-1 py-2.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all"
+                            >
+                                <ArrowLeft size={14} /> Kembali
+                            </button>
+                            <button
+                                onClick={() => window.location.reload()}
+                                className="flex-1 py-2.5 px-4 bg-[#00897B] hover:bg-[#00796B] text-white font-bold text-xs rounded-xl transition-all"
+                            >
+                                Coba Lagi
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

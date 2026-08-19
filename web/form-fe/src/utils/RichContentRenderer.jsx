@@ -47,7 +47,6 @@ export default function RichContentRenderer({ content, format = 'text', classNam
     const isHtml = /<[a-z][\s\S]*>/i.test(rawStr);
 
     if (isHtml) {
-        // Pre-process HTML to replace $$...$$ or $...$ with rendered KaTeX or styled code blocks
         const processedHtml = processHtmlContent(rawStr);
         return (
             <div 
@@ -57,7 +56,6 @@ export default function RichContentRenderer({ content, format = 'text', classNam
         );
     }
 
-    // Process string content (supports ```code blocks```, $$math$$, $math$, line breaks)
     return (
         <div className={`rich-text-content leading-relaxed ${className}`}>
             {parseMixedText(rawStr)}
@@ -112,14 +110,12 @@ function renderKaTeXHtml(formula, block = false) {
         }
     }
 
-    // Backup SVG / HTML Math Formatter
     return formatLaTeXFallback(trimmed, block);
 }
 
 function parseMixedText(text) {
     if (!text) return null;
 
-    // Check for code blocks (```lang \n code \n ```)
     const codeBlockRegex = /```([a-zA-Z0-9_#-]*)\n([\s\S]*?)```/g;
     const parts = [];
     let lastIndex = 0;
@@ -166,7 +162,7 @@ function renderTextWithMath(text, keyPrefix) {
     );
 }
 
-// ── StackOverflow-Style Code Block Component ─────────────────────────────────
+// ── Code Block Component ─────────────────────────────────
 export function CodeBlock({ code, language = 'code' }) {
     const [copied, setCopied] = useState(false);
 
@@ -179,7 +175,7 @@ export function CodeBlock({ code, language = 'code' }) {
     const lines = code.split('\n');
 
     return (
-        <div className="my-3 rounded-xl overflow-hidden bg-slate-900 border border-slate-800 shadow-md font-mono text-xs text-slate-100">
+        <div className="my-3 rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-md font-mono text-xs text-slate-100">
             <div className="flex items-center justify-between px-4 py-2 bg-slate-950/80 border-b border-slate-800 text-slate-400 text-[11px] font-semibold">
                 <div className="flex items-center gap-2">
                     <Code size={13} className="text-teal-400" />
@@ -188,11 +184,11 @@ export function CodeBlock({ code, language = 'code' }) {
                 <button
                     type="button"
                     onClick={handleCopy}
-                    className="flex items-center gap-1 px-2 py-1 hover:text-white hover:bg-slate-800 rounded transition-all"
-                    title="Copy code"
+                    className="flex items-center gap-1 px-2.5 py-1 hover:text-white hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
+                    title="Salin Kode"
                 >
                     {copied ? <Check size={12} className="text-teal-400" /> : <Copy size={12} />}
-                    <span>{copied ? 'Copied!' : 'Copy'}</span>
+                    <span>{copied ? 'Tersalin!' : 'Salin'}</span>
                 </button>
             </div>
 
@@ -216,15 +212,15 @@ export function MathBlock({ formula, block = false }) {
 
     if (block) {
         return (
-            <div className="my-3 p-3 bg-teal-50/60 border border-teal-200/80 rounded-xl text-center font-serif text-base text-slate-800 shadow-sm overflow-x-auto">
-                <div className="inline-block px-3 py-1 font-math tracking-wide" dangerouslySetInnerHTML={{ __html: html }} />
+            <div className="my-3 p-3 bg-teal-50/60 dark:bg-teal-950/40 border border-teal-200/80 dark:border-teal-800/80 rounded-2xl text-center font-serif text-base text-slate-800 dark:text-slate-100 shadow-xs overflow-x-auto">
+                <div className="inline-block px-3 py-1 tracking-wide" dangerouslySetInnerHTML={{ __html: html }} />
             </div>
         );
     }
 
     return (
         <span
-            className="inline-block px-1.5 py-0.5 bg-teal-50 border border-teal-200 rounded font-serif text-sm text-slate-800 mx-0.5"
+            className="inline-block px-1.5 py-0.5 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 rounded font-serif text-sm text-slate-800 dark:text-slate-100 mx-0.5"
             dangerouslySetInnerHTML={{ __html: html }}
         />
     );
@@ -234,8 +230,8 @@ function formatLaTeXFallback(expr, block) {
     if (!expr) return '';
     let html = expr;
 
-    html = html.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '<span class="inline-flex flex-col text-center align-middle mx-1 font-serif"><span class="border-b border-slate-700 px-1 text-xs font-semibold">$1</span><span class="px-1 text-xs font-semibold">$2</span></span>');
-    html = html.replace(/\\sqrt\{([^}]+)\}/g, '<span class="font-serif">√<span class="border-t border-slate-700 px-0.5">$1</span></span>');
+    html = html.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '<span class="inline-flex flex-col text-center align-middle mx-1 font-serif"><span class="border-b border-slate-700 dark:border-slate-300 px-1 text-xs font-semibold">$1</span><span class="px-1 text-xs font-semibold">$2</span></span>');
+    html = html.replace(/\\sqrt\{([^}]+)\}/g, '<span class="font-serif">√<span class="border-t border-slate-700 dark:border-slate-300 px-0.5">$1</span></span>');
     html = html.replace(/\\sqrt\s*([a-zA-Z0-9]+)/g, '√$1');
     html = html.replace(/\^{([^}]+)\}/g, '<sup>$1</sup>');
     html = html.replace(/\^([0-9a-zA-Z]+)/g, '<sup>$1</sup>');

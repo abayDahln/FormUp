@@ -4,9 +4,9 @@ import Sidebar from '../../../components/layout/Sidebar';
 import Topbar from '../../../components/layout/Topbar';
 import {
     Plus, MoreVertical, MessageSquare, Calendar,
-    Edit3, Eye, Trash2, Globe, Lock, CheckCircle2
+    Edit3, Eye, Trash2, CheckCircle2, FileText
 } from 'lucide-react';
-import { getMyForms, deleteForm, togglePublishForm, clearSession, assetUrl } from '../../../services/apiService';
+import { getMyForms, deleteForm, clearSession, assetUrl, createForm } from '../../../services/apiService';
 
 const MyForms = () => {
     const navigate = useNavigate();
@@ -15,6 +15,8 @@ const MyForms = () => {
     const [loading, setLoading] = useState(true);
     const [openMenuId, setOpenMenuId] = useState(null);
     const [actionLoading, setActionLoading] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [creatingForm, setCreatingForm] = useState(false);
     const menuRef = useRef(null);
 
     useEffect(() => {
@@ -52,26 +54,34 @@ const MyForms = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleTogglePublish = async (formId) => {
-        setActionLoading(formId);
-        setOpenMenuId(null);
+    const handleCreateNewForm = async () => {
+        if (creatingForm) return;
+        setCreatingForm(true);
         try {
-            const result = await togglePublishForm(formId);
-            if (result.ok) {
-                const updated = await getMyForms();
-                if (updated.ok && Array.isArray(updated.data)) {
-                    setMyForms(updated.data);
-                }
+            const res = await createForm({
+                title: 'Formulir Tanpa Judul',
+                description: '',
+            });
+            if (res.status === 401) {
+                clearSession();
+                navigate('/login');
+                return;
+            }
+            if (res.ok && res.data?.id) {
+                navigate(`/forms/${res.data.id}/edit`);
+            } else {
+                navigate('/create-form');
             }
         } catch (err) {
-            console.error('Toggle publish error:', err);
+            console.error('Error creating form:', err);
+            navigate('/create-form');
         } finally {
-            setActionLoading(null);
+            setCreatingForm(false);
         }
     };
 
     const handleDelete = async (formId) => {
-        if (!window.confirm('Delete this form? This action cannot be undone.')) return;
+        if (!window.confirm('Hapus formulir ini? Tindakan ini tidak dapat dibatalkan.')) return;
         setActionLoading(formId);
         setOpenMenuId(null);
         try {
@@ -92,43 +102,58 @@ const MyForms = () => {
 
     const filteredForms = myForms.filter((form) => {
         const s = form.status?.toLowerCase() ?? 'draft';
-        if (activeTab === 'Published') return s === 'published';
-        if (activeTab === 'Draft') return s === 'draft';
+        if (activeTab === 'Published' && s !== 'published') return false;
+        if (activeTab === 'Draft' && s !== 'draft') return false;
+
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            return (
+                (form.title && form.title.toLowerCase().includes(q)) ||
+                (form.description && form.description.toLowerCase().includes(q)) ||
+                (form.status && form.status.toLowerCase().includes(q))
+            );
+        }
+
         return true;
     });
 
     const tabs = [
-        { id: 'All', label: `All (${myForms.length})` },
-        { id: 'Published', label: `Published (${publishedForms.length})` },
-        { id: 'Draft', label: `Draft (${draftForms.length})` },
+        { id: 'All', label: `Semua (${myForms.length})` },
+        { id: 'Published', label: `Dipublikasikan (${publishedForms.length})` },
+        { id: 'Draft', label: `Draf (${draftForms.length})` },
     ];
 
     return (
-        <div className="flex min-h-screen w-full bg-[#F4F8F7] font-sans antialiased text-slate-800 overflow-hidden">
+        <div className="flex h-screen w-full bg-[#F4F8F7] dark:bg-slate-950 font-sans antialiased text-slate-800 dark:text-slate-100 overflow-hidden transition-colors">
+            
             <Sidebar />
 
-            <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+            <div className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto">
                 <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 space-y-6">
 
-                    <Topbar />
+                    <Topbar 
+                        searchQuery={searchQuery} 
+                        onSearchChange={setSearchQuery} 
+                        placeholder="Cari formulir Anda..." 
+                    />
 
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pt-2">
                         <div>
-                            <h1 className="text-[28px] font-bold text-slate-900 tracking-tight">My Forms</h1>
-                            <p className="text-sm text-slate-500 font-medium mt-0.5">
-                                Manage and track your active collection of forms.
+                            <h1 className="text-2xl sm:text-[28px] font-bold text-slate-900 dark:text-white tracking-tight">Formulir Saya</h1>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                                Kelola dan pantau seluruh koleksi formulir Anda.
                             </p>
                         </div>
 
-                        <div className="flex items-center bg-gray-100/80 p-1.5 rounded-full border border-gray-200">
+                        <div className="flex items-center bg-slate-200/80 dark:bg-slate-800 p-1.5 rounded-full border border-slate-200 dark:border-slate-700 self-start md:self-auto">
                             {tabs.map((tab) => (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`px-6 py-2.5 rounded-full text-[14px] font-bold transition-all duration-200 ${
+                                    className={`px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
                                         activeTab === tab.id
-                                            ? 'bg-white text-gray-900 shadow-sm border border-gray-200/50'
-                                            : 'text-gray-500 hover:text-gray-700'
+                                            ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                                     }`}
                                 >
                                     {tab.label}
@@ -138,44 +163,46 @@ const MyForms = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="bg-[#126f63] rounded-2xl p-6 text-white shadow-sm relative overflow-hidden md:col-span-2 lg:col-span-1">
+                        <div className="bg-[#005B52] dark:bg-teal-950/60 rounded-2xl p-6 text-white shadow-sm relative overflow-hidden md:col-span-2 lg:col-span-1 border border-teal-800/40">
                             <div className="relative z-10">
-                                <p className="text-white/80 font-bold text-[11px] uppercase tracking-wider mb-1">Total Responses</p>
-                                <h2 className="text-3xl font-extrabold tracking-tight">{totalResponses.toLocaleString()}</h2>
+                                <p className="text-teal-200 font-bold text-[11px] uppercase tracking-wider mb-1">Total Respons</p>
+                                <h2 className="text-3xl font-extrabold tracking-tight">{totalResponses.toLocaleString('id-ID')}</h2>
                             </div>
                             <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
                         </div>
 
-                        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm md:col-span-2 lg:col-span-1">
-                            <p className="text-slate-400 font-bold text-[11px] uppercase tracking-wider mb-1">Active Forms</p>
-                            <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">{publishedForms.length}</h2>
-                            <p className="text-[#00897B] flex items-center text-xs font-bold mt-2">
-                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Live & accepting responses
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm md:col-span-2 lg:col-span-1">
+                            <p className="text-slate-400 dark:text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Formulir Aktif</p>
+                            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">{publishedForms.length}</h2>
+                            <p className="text-[#00897B] dark:text-teal-400 flex items-center text-xs font-bold mt-2">
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Aktif & menerima respons
                             </p>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" ref={menuRef}>
                         <div
-                            onClick={() => navigate('/create-form')}
-                            className="bg-white border-2 border-dashed border-slate-200 rounded-2xl min-h-70 flex flex-col items-center justify-center cursor-pointer hover:border-[#6DBFB3] transition-colors group shadow-sm"
+                            onClick={handleCreateNewForm}
+                            className="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl min-h-[260px] flex flex-col items-center justify-center cursor-pointer hover:border-[#00897B] dark:hover:border-teal-400 transition-colors group shadow-sm p-6 text-center"
                         >
-                            <div className="w-12 h-12 bg-teal-50 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                <Plus className="w-6 h-6 text-[#00897B]" />
+                            <div className="w-12 h-12 bg-teal-50 dark:bg-teal-950/60 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform text-[#00897B] dark:text-teal-400">
+                                <Plus className="w-6 h-6" />
                             </div>
-                            <h3 className="text-slate-800 font-bold text-sm mb-1">New Form</h3>
-                            <p className="text-slate-400 text-[11px] font-medium text-center px-6">
-                                Start from scratch or use a<br />template
+                            <h3 className="text-slate-900 dark:text-white font-bold text-sm mb-1">
+                                {creatingForm ? 'Menyiapkan...' : 'Formulir Baru'}
+                            </h3>
+                            <p className="text-slate-400 dark:text-slate-500 text-xs font-medium max-w-[170px]">
+                                Bangun dari awal atau gunakan templat
                             </p>
                         </div>
 
                         {loading ? (
-                            <div className="col-span-full py-12 text-center text-slate-400 text-sm font-medium">
-                                Loading forms...
+                            <div className="col-span-full py-16 text-center text-slate-400 dark:text-slate-500 text-sm font-medium">
+                                Memuat formulir...
                             </div>
                         ) : filteredForms.length === 0 ? (
-                            <div className="col-span-full py-12 text-center text-slate-400 text-sm font-medium">
-                                No {activeTab.toLowerCase()} forms found.
+                            <div className="col-span-full py-16 text-center text-slate-400 dark:text-slate-500 text-sm font-medium">
+                                {searchQuery ? `Tidak ada formulir yang cocok dengan "${searchQuery}".` : 'Belum ada formulir pada tab ini.'}
                             </div>
                         ) : (
                             filteredForms.map((form) => {
@@ -184,89 +211,83 @@ const MyForms = () => {
                                 const responseCount = form.responseCount ?? 0;
                                 const isActing = actionLoading === form.id;
                                 const createdDate = form.createdAt
-                                    ? new Date(form.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                                    : 'Recent';
+                                    ? new Date(form.createdAt).toLocaleDateString('id-ID', { month: 'short', day: 'numeric', year: 'numeric' })
+                                    : 'Baru saja';
 
                                 return (
                                     <div
                                         key={form.id}
-                                        className={`bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col ${isActing ? 'opacity-60 pointer-events-none' : ''}`}
+                                        className={`bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between group ${isActing ? 'opacity-60 pointer-events-none' : ''}`}
                                     >
-                                        <div className="h-32 bg-linear-to-br from-teal-50 to-blue-50 relative p-4 flex items-start justify-end border-b border-slate-100 ">
+                                        <div className="h-36 bg-slate-100 dark:bg-slate-800/80 relative p-4 flex items-start justify-between border-b border-slate-100 dark:border-slate-800 overflow-hidden">
                                             {form.bannerImage ? (
-                                                <img src={assetUrl(form.bannerImage)} alt={form.title} className="absolute inset-0 w-full h-full object-cover rounded-t-2xl" />
+                                                <img 
+                                                    src={assetUrl(form.bannerImage)} 
+                                                    alt={form.title} 
+                                                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                                                />
                                             ) : (
-                                                <div className="absolute inset-x-6 top-6 bottom-0 bg-white shadow-sm rounded-t-xl border border-slate-200 border-b-0 opacity-80 flex flex-col gap-2 p-3">
-                                                    <div className="w-1/2 h-2 bg-slate-200 rounded-full" />
-                                                    <div className="w-full h-2 bg-slate-100 rounded-full" />
-                                                    <div className="w-3/4 h-2 bg-slate-100 rounded-full" />
+                                                <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-teal-50/50 to-blue-50/50 dark:from-slate-800 dark:to-slate-900">
+                                                    <FileText size={32} className="text-[#00897B]/30 dark:text-teal-400/30" />
                                                 </div>
                                             )}
-                                            <span className={`relative z-10 px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wider shadow-sm ${
-                                                isPublished ? 'bg-teal-50 text-[#00897B]' : 'bg-slate-100 text-slate-500'
+
+                                            <span className={`relative z-10 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shadow-xs ${
+                                                isPublished 
+                                                    ? 'bg-teal-600 text-white' 
+                                                    : 'bg-slate-800/90 text-white backdrop-blur-xs'
                                             }`}>
-                                                {status}
+                                                {isPublished ? 'Dipublikasikan' : 'Draf'}
                                             </span>
 
-                                            <div className="relative z-10 ml-2">
+                                            <div className="relative z-10 ml-auto">
                                                 <button
                                                     onClick={() => setOpenMenuId(openMenuId === form.id ? null : form.id)}
-                                                    className="p-1.5 bg-white/80 backdrop-blur-sm rounded-full text-slate-600 hover:bg-white shadow-sm transition-all"
+                                                    className="p-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-full text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 shadow-sm transition-all cursor-pointer"
                                                 >
                                                     <MoreVertical className="w-4 h-4" />
                                                 </button>
 
+                                                {/* Dropdown Menu (Hanya opsi Hapus) */}
                                                 {openMenuId === form.id && (
-                                                    <div className="absolute right-0 top-8 w-44 bg-white rounded-xl shadow-lg border border-slate-100 z-50 py-1 overflow-hidden">
-                                                        <button
-                                                            onClick={() => handleTogglePublish(form.id)}
-                                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                                                        >
-                                                            {isPublished ? <Lock className="w-3.5 h-3.5 text-amber-500" /> : <Globe className="w-3.5 h-3.5 text-teal-500" />}
-                                                            {isPublished ? 'Unpublish' : 'Publish'}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => navigate(`/forms/${form.id}/edit`)}
-                                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                                                        >
-                                                            <Edit3 className="w-3.5 h-3.5 text-blue-500" /> Edit Form
-                                                        </button>
-                                                        <div className="border-t border-slate-100 my-1" />
+                                                    <div className="absolute right-0 top-8 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 py-1 overflow-hidden">
                                                         <button
                                                             onClick={() => handleDelete(form.id)}
-                                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                                                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
                                                         >
-                                                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                                                            <Trash2 className="w-3.5 h-3.5" /> Hapus
                                                         </button>
                                                     </div>
                                                 )}
                                             </div>
                                         </div>
 
-                                        <div className="p-4 flex flex-col flex-1">
-                                            <div className="flex justify-between items-start mb-3">
-                                                <h3 className="text-sm font-bold text-slate-800 leading-tight line-clamp-1">{form.title}</h3>
+                                        <div className="p-4 flex flex-col flex-1 space-y-3">
+                                            <div>
+                                                <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight line-clamp-1 group-hover:text-[#00897B] dark:group-hover:text-teal-400 transition-colors">
+                                                    {form.title || 'Formulir Tanpa Judul'}
+                                                </h3>
                                             </div>
-                                            <div className="flex items-center gap-3 mb-5 text-xs font-medium text-slate-500">
+                                            <div className="flex items-center gap-3 text-xs font-medium text-slate-400 dark:text-slate-500">
                                                 <span className="flex items-center gap-1">
-                                                    <MessageSquare className="w-3.5 h-3.5" /> {responseCount} Responses
+                                                    <MessageSquare className="w-3.5 h-3.5" /> {responseCount} Respons
                                                 </span>
                                                 <span className="flex items-center gap-1">
                                                     <Calendar className="w-3.5 h-3.5" /> {createdDate}
                                                 </span>
                                             </div>
-                                            <div className="mt-auto flex gap-2">
+                                            <div className="mt-auto flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                                                 <button
                                                     onClick={() => navigate(`/forms/${form.id}/edit`)}
-                                                    className="flex-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 text-xs transition-colors"
+                                                    className="flex-1 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold py-1.5 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-colors cursor-pointer"
                                                 >
                                                     <Edit3 className="w-3.5 h-3.5" /> Edit
                                                 </button>
                                                 <button
                                                     onClick={() => navigate(`/forms/${form.id}/responses`)}
-                                                    className="flex-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold py-1.5 rounded-lg flex items-center justify-center gap-1.5 text-xs transition-colors"
+                                                    className="flex-1 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold py-1.5 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-colors cursor-pointer"
                                                 >
-                                                    <Eye className="w-3.5 h-3.5" /> Responses
+                                                    <Eye className="w-3.5 h-3.5" /> Respons
                                                 </button>
                                             </div>
                                         </div>

@@ -13,13 +13,11 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
         if (mode === 'math') {
             const formula = mathInput.trim();
             if (formula) {
-                // Insert as LaTeX math block
                 onInsert(`<p>$$${formula}$$</p><p><br></p>`);
             }
         } else if (mode === 'code') {
             const code = codeInput.trim();
             if (code) {
-                // Insert as clean pre/code block
                 onInsert(`<pre><code class="language-${codeLanguage}">${code}</code></pre><p><br></p>`);
             }
         }
@@ -31,26 +29,26 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4 font-sans text-slate-800">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full p-6 space-y-4 font-sans text-slate-800 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-150">
                 
                 {/* Header */}
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
                         {mode === 'math' ? (
-                            <div className="p-2 bg-teal-50 text-teal-600 rounded-xl">
+                            <div className="p-2 bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 rounded-xl">
                                 <Calculator size={18} />
                             </div>
                         ) : (
-                            <div className="p-2 bg-slate-900 text-teal-400 rounded-xl">
+                            <div className="p-2 bg-slate-900 dark:bg-slate-800 text-teal-400 rounded-xl">
                                 <Code size={18} />
                             </div>
                         )}
-                        <h3 className="text-sm font-extrabold text-slate-900">
-                            {mode === 'math' ? 'Insert KaTeX Math Formula' : 'Insert Code Snippet'}
+                        <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                            {mode === 'math' ? 'Sisipkan Rumus Matematika (KaTeX)' : 'Sisipkan Blok Kode (Syntax Highlight)'}
                         </h3>
                     </div>
-                    <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700 rounded-lg">
+                    <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg cursor-pointer">
                         <X size={18} />
                     </button>
                 </div>
@@ -59,24 +57,24 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
                 {mode === 'math' && (
                     <div className="space-y-4">
                         <div>
-                            <label className="text-xs font-bold text-slate-700 block mb-1.5">Quick LaTeX Symbols:</label>
+                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">Simbol Cepat LaTeX:</label>
                             <div className="flex flex-wrap gap-1.5">
                                 {[
-                                    { label: 'Fraction (a/b)', sym: '\\frac{a}{b}' },
-                                    { label: 'Square Root (√x)', sym: '\\sqrt{x}' },
-                                    { label: 'Power (x²)', sym: 'x^2' },
-                                    { label: 'Subscript (x₁)', sym: 'x_1' },
-                                    { label: 'Sum (∑)', sym: '\\sum_{i=1}^{n}' },
+                                    { label: 'Pecahan (a/b)', sym: '\\frac{a}{b}' },
+                                    { label: 'Akar (√x)', sym: '\\sqrt{x}' },
+                                    { label: 'Pangkat (x²)', sym: 'x^2' },
+                                    { label: 'Subskrip (x₁)', sym: 'x_1' },
+                                    { label: 'Sigma (∑)', sym: '\\sum_{i=1}^{n}' },
                                     { label: 'Integral (∫)', sym: '\\int_{a}^{b}' },
                                     { label: 'Plus-Minus (±)', sym: '\\pm' },
-                                    { label: 'Infinity (∞)', sym: '\\infty' },
+                                    { label: 'Tak Hingga (∞)', sym: '\\infty' },
                                     { label: 'Pi (π)', sym: '\\pi' },
                                 ].map((s, i) => (
                                     <button
                                         key={i}
                                         type="button"
                                         onClick={() => insertMathSymbol(s.sym)}
-                                        className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-mono font-bold rounded-lg transition-all"
+                                        className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-mono font-bold rounded-lg transition-all cursor-pointer"
                                     >
                                         {s.label}
                                     </button>
@@ -85,20 +83,20 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
                         </div>
 
                         <div>
-                            <label className="text-xs font-bold text-slate-700 block mb-1">LaTeX Input Expression</label>
+                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Ekspresi Rumus LaTeX</label>
                             <textarea
                                 rows={3}
                                 value={mathInput}
                                 onChange={e => setMathInput(e.target.value)}
-                                placeholder="e.g. \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}"
-                                className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-teal-400"
+                                placeholder="contoh: \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}"
+                                className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]"
                             />
                         </div>
 
                         {/* Live KaTeX Preview */}
                         <div>
-                            <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Formula Live Preview:</label>
-                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 min-h-16 flex items-center justify-center">
+                            <label className="text-[11px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">Pratinjau Rumus:</label>
+                            <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-4 min-h-16 flex items-center justify-center">
                                 <RichContentRenderer content={`$$${mathInput || '...'}$$`} className="text-sm font-bold" />
                             </div>
                         </div>
@@ -109,11 +107,11 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
                 {mode === 'code' && (
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                            <label className="text-xs font-bold text-slate-700">Language:</label>
+                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Bahasa Pemrograman:</label>
                             <select
                                 value={codeLanguage}
                                 onChange={e => setCodeLanguage(e.target.value)}
-                                className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
+                                className="border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#00897B] bg-white dark:bg-slate-800"
                             >
                                 <option value="javascript">JavaScript</option>
                                 <option value="python">Python</option>
@@ -127,19 +125,19 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
                         </div>
 
                         <div>
-                            <label className="text-xs font-bold text-slate-700 block mb-1">Code Snippet Input</label>
+                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Kode Sumber</label>
                             <textarea
                                 rows={5}
                                 value={codeInput}
                                 onChange={e => setCodeInput(e.target.value)}
-                                placeholder="Paste or type code snippet here..."
-                                className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-teal-400"
+                                placeholder="Ketik atau tempel potongan kode di sini..."
+                                className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]"
                             />
                         </div>
 
                         {/* Live Code Preview */}
                         <div>
-                            <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Code Live Preview (StackOverflow style):</label>
+                            <label className="text-[11px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">Pratinjau Kode:</label>
                             <div className="max-h-40 overflow-y-auto rounded-xl">
                                 <RichContentRenderer content={`<pre><code class="language-${codeLanguage}">${codeInput || '// ...'}</code></pre>`} />
                             </div>
@@ -148,20 +146,20 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
                 )}
 
                 {/* Actions */}
-                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
+                        className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl cursor-pointer"
                     >
-                        Cancel
+                        Batal
                     </button>
                     <button
                         type="button"
                         onClick={handleInsert}
-                        className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5"
+                        className="px-4 py-2 bg-[#00897B] hover:bg-[#00796B] text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
                     >
-                        <Check size={14} /> Insert Once
+                        <Check size={14} /> Sisipkan ke Soal
                     </button>
                 </div>
 
