@@ -45,11 +45,9 @@ export default function Sidebar() {
                     </div>
                     <div>
                         <h1 className="text-xl font-extrabold tracking-tight leading-none text-white">FormUp</h1>
-                        <span className="text-[11px] text-teal-200 dark:text-teal-400 font-semibold tracking-wide">Ruang Kerja Pro</span>
                     </div>
                 </Link>
 
-                {/* Navigation Links - Clean fixed list without scrolling */}
                 <nav className="space-y-1.5 flex-1">
                     {menuItems.map((item) => {
                         const Icon = item.icon;
@@ -73,7 +71,6 @@ export default function Sidebar() {
                 </nav>
             </div>
 
-            {/* Logout Button Always Fixed at Bottom */}
             <div className="pt-4 mt-auto border-t border-white/10 dark:border-slate-800 shrink-0">
                 <button
                     onClick={handleLogout}

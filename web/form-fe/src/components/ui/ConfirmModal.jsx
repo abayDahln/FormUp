@@ -1,4 +1,3 @@
-// src/components/ui/ConfirmModal.jsx
 import React from 'react';
 import { AlertTriangle, HelpCircle, CheckCircle2 } from 'lucide-react';
 
@@ -10,7 +9,7 @@ const ConfirmModal = ({
   message, 
   confirmText = 'Ya, Lanjutkan', 
   cancelText = 'Batal',
-  variant = 'danger', // 'danger' | 'primary' | 'warning'
+  variant = 'danger', 
   isLoading = false 
 }) => {
   if (!isOpen) return null;

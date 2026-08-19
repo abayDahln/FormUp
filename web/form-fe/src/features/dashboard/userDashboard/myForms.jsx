@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../../components/layout/Sidebar';
 import Topbar from '../../../components/layout/Topbar';
+import ConfirmModal from '../../../components/ui/ConfirmModal'; // 1. Import Modal dari UI
 import {
     Plus, MoreVertical, MessageSquare, Calendar,
     Edit3, Eye, Trash2, CheckCircle2, FileText
@@ -18,6 +19,16 @@ const MyForms = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [creatingForm, setCreatingForm] = useState(false);
     const menuRef = useRef(null);
+
+    // 2. State untuk mengontrol Pop-up Konfirmasi
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        variant: 'danger',
+        confirmText: 'Ya, Hapus',
+        formId: null,
+    });
 
     useEffect(() => {
         const fetchMyForms = async () => {
@@ -80,10 +91,25 @@ const MyForms = () => {
         }
     };
 
-    const handleDelete = async (formId) => {
-        if (!window.confirm('Hapus formulir ini? Tindakan ini tidak dapat dibatalkan.')) return;
-        setActionLoading(formId);
+    // 3. Pemicu munculnya pop-up konfirmasi hapus
+    const triggerDelete = (formId) => {
         setOpenMenuId(null);
+        setConfirmModal({
+            isOpen: true,
+            title: 'Hapus Formulir?',
+            message: 'Apakah Anda yakin ingin menghapus formulir ini? Tindakan ini tidak dapat dibatalkan.',
+            variant: 'danger',
+            confirmText: 'Ya, Hapus',
+            formId: formId,
+        });
+    };
+
+    // 4. Eksekusi hapus setelah pengguna menekan tombol "Ya, Hapus" di modal
+    const executeDelete = async () => {
+        const formId = confirmModal.formId;
+        if (!formId) return;
+
+        setActionLoading(formId);
         try {
             const result = await deleteForm(formId);
             if (result.ok) {
@@ -93,6 +119,7 @@ const MyForms = () => {
             console.error('Delete form error:', err);
         } finally {
             setActionLoading(null);
+            setConfirmModal(prev => ({ ...prev, isOpen: false, formId: null }));
         }
     };
 
@@ -248,11 +275,11 @@ const MyForms = () => {
                                                     <MoreVertical className="w-4 h-4" />
                                                 </button>
 
-                                                {/* Dropdown Menu (Hanya opsi Hapus) */}
+                                                {/* Dropdown Menu */}
                                                 {openMenuId === form.id && (
                                                     <div className="absolute right-0 top-8 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 py-1 overflow-hidden">
                                                         <button
-                                                            onClick={() => handleDelete(form.id)}
+                                                            onClick={() => triggerDelete(form.id)}
                                                             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
                                                         >
                                                             <Trash2 className="w-3.5 h-3.5" /> Hapus
@@ -299,6 +326,18 @@ const MyForms = () => {
 
                 </main>
             </div>
+
+            {/* 5. Render Komponen ConfirmModal di sini */}
+            <ConfirmModal 
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={executeDelete}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                variant={confirmModal.variant}
+                confirmText={confirmModal.confirmText}
+                isLoading={actionLoading !== null}
+            />
         </div>
     );
 };
