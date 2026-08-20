@@ -66,9 +66,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kAuthBg,
-      body: AuthBackground(
-        child: SafeArea(
-          child: LayoutBuilder(
+      body: AbsorbPointer(
+        absorbing: _loading,
+        child: AuthBackground(
+          child: SafeArea(
+            child: LayoutBuilder(
             builder: (context, constraints) {
               return SingleChildScrollView(
                 child: ConstrainedBox(
@@ -146,6 +148,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             },
           ),
         ),
+      ),
       ),
     );
   }

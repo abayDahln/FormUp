@@ -373,8 +373,10 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              children: [
+          : AbsorbPointer(
+              absorbing: _saving,
+              child: Stack(
+                children: [
                 AuthBackground(
                   child: SafeArea(
                     child: ValueListenableBuilder<ActiveRichEditor?>(
@@ -413,6 +415,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
                 const FloatingRichToolbar(),
               ],
             ),
+          ),
     );
   }
 

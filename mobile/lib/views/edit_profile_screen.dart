@@ -193,8 +193,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : AuthBackground(
-              child: SafeArea(
+          : AbsorbPointer(
+              absorbing: _saving,
+              child: AuthBackground(
+                child: SafeArea(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
                   child: Column(
@@ -247,6 +249,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
               ),
             ),
+          ),
     );
   }
 

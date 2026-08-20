@@ -334,12 +334,124 @@ class FormRunnerViewState extends State<FormRunnerView> {
     }
   }
 
-  /// Auto submit saat waktu habis
-  Future<void> _autoSubmit() async {
-    if (_submitting) return;
-    showAuthToast(context, "Waktu pengerjaan telah habis, jawaban dikirim", isError: true);
-    await _submit();
+  /// Auto submit saat waktu habis: field kosong dibiarkan kosong (tidak dianggap
+/// error), lalu tampilkan dialog konfirmasi bahwa jawaban sudah terkirim.
+Future<void> _autoSubmit() async {
+  if (_submitting) return;
+  setState(() => _submitting = true);
+  try {
+    final answers = <Map<String, dynamic>>[];
+    for (final q in _questions) {
+      switch (q.typeId) {
+        case 1: // Essay
+          final text = _textAnswers[q.id]?.text.trim() ?? '';
+          if (text.isNotEmpty) {
+            answers.add({'questionId': q.id, 'answerValue': text});
+          }
+          break;
+        case 2: // Multiple Choice
+          final optionId = _singleAnswers[q.id];
+          if (optionId != null) {
+            answers.add({'questionId': q.id, 'optionId': optionId});
+          }
+          break;
+        case 3: // Checkbox
+          for (final oid in _multiAnswers[q.id] ?? {}) {
+            answers.add({'questionId': q.id, 'optionId': oid});
+          }
+          break;
+        case 4: // Date Time
+          final dt = _datetimeAnswers[q.id];
+          if (dt != null) {
+            answers.add({
+              'questionId': q.id,
+              'answerValue': _formatDateTime(dt),
+            });
+          }
+          break;
+        case 5: // True/False
+          final tf = _tfAnswers[q.id];
+          if (tf != null) {
+            answers.add({'questionId': q.id, 'answerValue': tf});
+          }
+          break;
+      }
+    }
+
+    final data = await PublicFormService.submit(
+      _formLink!,
+      token: _tokenController.text.trim().isEmpty
+          ? null
+          : _tokenController.text.trim(),
+      respondentName: _isLoggedIn ? null : _nameController.text,
+      answers: answers,
+    );
+    final responseId = data['responseId'] as int;
+    if (!mounted) return;
+
+    // Hasil hanya untuk user login
+    if (_isLoggedIn) {
+      final result = await PublicFormService.getResult(_formLink!, responseId);
+      if (!mounted) return;
+      setState(() {
+        _result = result;
+        _step = _RunnerStep.result;
+        _errorQuestionIds.clear();
+      });
+    }
+
+    // Konfirmasi jawaban sudah terkirim (Kembali / Lihat Respons)
+    await _showSubmittedDialog(
+      message: 'Waktu pengerjaan telah habis, jawaban Anda sudah terkirim.',
+    );
+  } catch (e) {
+    if (!mounted) return;
+    showAuthToast(context, AuthService.errorMessage(e), isError: true);
+  } finally {
+    if (mounted) setState(() => _submitting = false);
   }
+}
+
+/// Dialog konfirmasi jawaban sudah terkirim (Kembali ke Beranda / Lihat Respons).
+Future<void> _showSubmittedDialog({String message = 'Jawaban Anda sudah terkirim.'}) async {
+  final viewResponse = _isLoggedIn;
+  final action = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text(
+        'Jawaban Terkirim',
+        style: TextStyle(fontFamily: kFontBold),
+      ),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, 'back'),
+          child: Text(
+            viewResponse ? 'Kembali ke Beranda' : 'Kembali',
+          ),
+        ),
+        if (viewResponse)
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'result'),
+            child: const Text(
+              'Lihat Respons',
+              style: TextStyle(color: kAuthPrimary),
+            ),
+          ),
+      ],
+    ),
+  );
+  if (!mounted) return;
+  if (action == 'back') {
+    if (viewResponse) {
+      final router = AppRouter.of(context);
+      router.goHome(router.username);
+    } else {
+      AppRouter.of(context).pop();
+    }
+  }
+  // action 'result' atau dismiss → tetap di halaman hasil (sudah di-set di atas).
+}
 
   /// Index soal wajib pertama yang belum dijawab (urut dari atas), atau null.
   int? _firstUnansweredIndex() {
@@ -482,6 +594,7 @@ class FormRunnerViewState extends State<FormRunnerView> {
         _step = _RunnerStep.result;
         _errorQuestionIds.clear();
       });
+      await _showSubmittedDialog();
       return true;
     } catch (e) {
       if (!mounted) return false;
@@ -663,46 +776,37 @@ class FormRunnerViewState extends State<FormRunnerView> {
   }
 
   Widget _buildFillStep() {
-    if (_formTypeId == 2 && _questions.length > 1) {
-      return _buildMultiPageFill();
-    }
-    return _buildSinglePageFill();
+    return AbsorbPointer(
+      absorbing: _submitting,
+      child: _formTypeId == 2 && _questions.length > 1
+          ? _buildMultiPageFill()
+          : _buildSinglePageFill(),
+    );
   }
 
   /// Mode Single Page
   Widget _buildSinglePageFill() {
     final info = _info!;
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildFormHeaderCard(info),
-                const SizedBox(height: 16),
-                for (var i = 0; i < _questions.length; i++) ...[
-                  _buildQuestionCard(i),
-                  const SizedBox(height: 12),
-                ],
-              ],
-            ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildFormHeaderCard(info),
+          const SizedBox(height: 16),
+          for (var i = 0; i < _questions.length; i++) ...[
+            _buildQuestionCard(i),
+            const SizedBox(height: 12),
+          ],
+          const SizedBox(height: 4),
+          AuthPrimaryButton(
+            label: _submitting ? "Mengirim..." : "Kirim Jawaban",
+            loading: _submitting,
+            onPressed: _submit,
           ),
-        ),
-        SafeArea(
-          top: false,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-            color: Colors.white,
-            child: AuthPrimaryButton(
-              label: _submitting ? "Mengirim..." : "Kirim Jawaban",
-              loading: _submitting,
-              onPressed: _submit,
-            ),
-          ),
-        ),
-      ],
+          const SizedBox(height: 8),
+        ],
+      ),
     );
   }
 
@@ -856,7 +960,7 @@ class FormRunnerViewState extends State<FormRunnerView> {
           ],
           const SizedBox(height: 6),
           Text(
-            "${_questions.length} pertanyaan · ${_questions.where((q) => q.isRequired == true).length} wajib dijawab",
+            "${_questions.length} pertanyaan",
             style: const TextStyle(fontSize: 12, color: Colors.black54),
           ),
         ],
@@ -1542,7 +1646,7 @@ class _CountdownBadgeState extends State<_CountdownBadge> {
   @override
   Widget build(BuildContext context) {
     final danger = _secondsLeft <= 60;
-    final color = danger ? const Color(0xFFC0392B) : kAuthPrimary;
+    final color = danger ? const Color(0xFFC0392B) : Colors.black87;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
