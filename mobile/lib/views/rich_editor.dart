@@ -1539,14 +1539,6 @@ class RichTextView extends StatelessWidget {
       final b = blocks[i];
       final t = b.plain.trim();
 
-      if (t.startsWith('```')) {
-        widgets.add(Text.rich(
-          TextSpan(style: style, children: b.spans),
-        ));
-        i++;
-        continue;
-      }
-
       final fence = RegExp(r'^```([a-zA-Z0-9_#-]*)$').firstMatch(t);
       if (fence != null) {
         final lang = fence.group(1) ?? '';
@@ -1565,6 +1557,14 @@ class RichTextView extends StatelessWidget {
           language: lang,
           code: codeLines.join('\n'),
         ));
+        continue;
+      }
+
+      if (t.startsWith('```')) {
+        widgets.add(Text.rich(
+          TextSpan(style: style, children: b.spans),
+        ));
+        i++;
         continue;
       }
 

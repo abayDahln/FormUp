@@ -56,7 +56,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0x1FBDC9C8)),
+                    border: Border.all(color: const Color(0xCCBDC9C8)),
                   ),
                   child: Row(
                     children: [

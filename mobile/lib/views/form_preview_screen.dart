@@ -118,6 +118,9 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
+        shape: const Border(
+          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
           onPressed: () => AppRouter.of(context).pop(),

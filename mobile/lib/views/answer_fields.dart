@@ -251,13 +251,25 @@ class AnswerFields extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             control,
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(top: 7),
+              child: Text(
+                '$letter. ',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: kFontBold,
+                  color: Colors.black87,
+                  height: 1.3,
+                ),
+              ),
+            ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.only(top: 2),
+                padding: const EdgeInsets.only(top: 7),
                 child: RichTextView(
                   text: text,
-                  prefix: '$letter. ',
                   style: const TextStyle(
                     fontSize: 14,
                     color: Colors.black87,

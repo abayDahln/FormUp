@@ -100,6 +100,9 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
+        shape: const Border(
+          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => AppRouter.of(context).pop(),

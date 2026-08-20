@@ -349,6 +349,9 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
+        shape: const Border(
+          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        ),
         title: Text(
           _isEdit ? "Edit Form" : "Buat Form",
           style: const TextStyle(

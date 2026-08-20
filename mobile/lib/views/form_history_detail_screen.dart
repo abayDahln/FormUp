@@ -56,6 +56,9 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
+        shape: const Border(
+          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        ),
         title: const Text(
           "Detail Riwayat",
           style: TextStyle(

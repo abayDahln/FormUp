@@ -287,6 +287,9 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
+        shape: const Border(
+          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        ),
         title: const Text(
           'Edit Soal',
           style: TextStyle(

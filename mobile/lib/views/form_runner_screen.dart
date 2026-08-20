@@ -62,6 +62,9 @@ class _FormRunnerScreenState extends State<FormRunnerScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
+        shape: const Border(
+          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
           // Lewat popRoute agar back guard (dialog keluar form) tetap jalan.
@@ -131,6 +134,9 @@ class FormRunnerViewState extends State<FormRunnerView> {
   final Map<int, DateTime?> _datetimeAnswers = {};
   final Map<int, FocusNode> _essayFocusNodes = {};
   final List<GlobalKey> _questionKeys = [];
+
+  // ID soal wajib yang belum dijawab (untuk indikator merah saat submit gagal).
+  final Set<int> _errorQuestionIds = {};
 
   bool get _requiresToken => _info?.requiresToken ?? false;
   bool get _isLoggedIn => AuthService.token != null;
@@ -376,6 +382,15 @@ class FormRunnerViewState extends State<FormRunnerView> {
     if (_submitting) return false;
     final firstUnanswered = _firstUnansweredIndex();
     if (firstUnanswered != null) {
+      final unansweredIds = <int>{
+        for (final q in _questions)
+          if (q.isRequired == true && !_isAnswered(q)) q.id,
+      };
+      setState(() {
+        _errorQuestionIds
+          ..clear()
+          ..addAll(unansweredIds);
+      });
       _scrollToUnanswered(firstUnanswered);
       showAuthToast(context, "Pertanyaan wajib belum dijawab", isError: true);
       return false;
@@ -465,6 +480,7 @@ class FormRunnerViewState extends State<FormRunnerView> {
       setState(() {
         _result = result;
         _step = _RunnerStep.result;
+        _errorQuestionIds.clear();
       });
       return true;
     } catch (e) {
@@ -486,6 +502,7 @@ class FormRunnerViewState extends State<FormRunnerView> {
       _currentQuestion = 0;
       _tokenController.clear();
       _nameController.clear();
+      _errorQuestionIds.clear();
     });
   }
 
@@ -658,16 +675,19 @@ class FormRunnerViewState extends State<FormRunnerView> {
     return Column(
       children: [
         Expanded(
-          child: ListView(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-            children: [
-              _buildFormHeaderCard(info),
-              const SizedBox(height: 16),
-              for (var i = 0; i < _questions.length; i++) ...[
-                _buildQuestionCard(i),
-                const SizedBox(height: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildFormHeaderCard(info),
+                const SizedBox(height: 16),
+                for (var i = 0; i < _questions.length; i++) ...[
+                  _buildQuestionCard(i),
+                  const SizedBox(height: 12),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         SafeArea(
@@ -873,6 +893,7 @@ class FormRunnerViewState extends State<FormRunnerView> {
 
   Widget _buildQuestionCard(int index) {
     final q = _questions[index];
+    final hasError = _errorQuestionIds.contains(q.id);
     return Container(
       key: _questionKeys[index],
       padding: const EdgeInsets.all(18),
@@ -880,6 +901,10 @@ class FormRunnerViewState extends State<FormRunnerView> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
+        border: Border.all(
+          color: hasError ? const Color(0xFFC0392B) : Colors.transparent,
+          width: 1.5,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -889,13 +914,21 @@ class FormRunnerViewState extends State<FormRunnerView> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  '${index + 1}. ',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: kFontBold,
+                    color: Colors.black87,
+                    height: 1.4,
+                  ),
+                ),
                 Expanded(
                   child: RichTextView(
                     text: q.question,
-                    prefix: '${index + 1}. ',
                     style: const TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.bold,
                       fontFamily: kFontBold,
                       color: Colors.black87,
                       height: 1.4,
@@ -928,16 +961,26 @@ class FormRunnerViewState extends State<FormRunnerView> {
             ],
             essayController: _textAnswers[q.id],
             essayFocusNode: _essayFocusNodes[q.id],
-            onEssayChanged: (_) => setState(() {}),
+            onEssayChanged: (_) =>
+                setState(() => _errorQuestionIds.remove(q.id)),
             singleValue: _singleAnswers[q.id],
             multiValue: _multiAnswers[q.id] ?? {},
             tfValue: _tfAnswers[q.id],
             dateLabel: _datetimeAnswers[q.id] == null
                 ? null
                 : _formatDateTime(_datetimeAnswers[q.id]!),
-            onSingleChanged: (v) => setState(() => _singleAnswers[q.id] = v),
-            onMultiChanged: (v) => setState(() => _multiAnswers[q.id] = v),
-            onTfChanged: (v) => setState(() => _tfAnswers[q.id] = v),
+            onSingleChanged: (v) => setState(() {
+              _singleAnswers[q.id] = v;
+              _errorQuestionIds.remove(q.id);
+            }),
+            onMultiChanged: (v) => setState(() {
+              _multiAnswers[q.id] = v;
+              _errorQuestionIds.remove(q.id);
+            }),
+            onTfChanged: (v) => setState(() {
+              _tfAnswers[q.id] = v;
+              _errorQuestionIds.remove(q.id);
+            }),
             onPickDateTime: () => _pickDateTime(q.id),
           ),
         ],
@@ -964,6 +1007,7 @@ class FormRunnerViewState extends State<FormRunnerView> {
     setState(() {
       _datetimeAnswers[questionId] =
           DateTime(date.year, date.month, date.day, time.hour, time.minute);
+      _errorQuestionIds.remove(questionId);
     });
   }
 
@@ -1156,13 +1200,11 @@ class FormRunnerViewState extends State<FormRunnerView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: RichTextView(
-                  text: a.question,
-                  prefix: '${index + 1}. ',
+Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${index + 1}. ',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -1170,15 +1212,25 @@ class FormRunnerViewState extends State<FormRunnerView> {
                     color: Colors.black87,
                   ),
                 ),
-              ),
-              if (showScore && a.isCorrect != null)
-                Icon(
-                  a.isCorrect! ? Icons.check_circle : Icons.cancel,
-                  color: a.isCorrect! ? const Color(0xFF2E7D32) : const Color(0xFFC0392B),
-                  size: 20,
+                Expanded(
+                  child: RichTextView(
+                    text: a.question,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: kFontBold,
+                      color: Colors.black87,
+                    ),
+                  ),
                 ),
-            ],
-          ),
+                if (showScore && a.isCorrect != null)
+                  Icon(
+                    a.isCorrect! ? Icons.check_circle : Icons.cancel,
+                    color: a.isCorrect! ? const Color(0xFF2E7D32) : const Color(0xFFC0392B),
+                    size: 20,
+                  ),
+              ],
+            ),
           const SizedBox(height: 10),
           ResultOptionsList(
             options: a.options,
