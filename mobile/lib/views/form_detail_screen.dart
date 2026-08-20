@@ -97,7 +97,7 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
     return Scaffold(
       backgroundColor: kBg,
       appBar: AppBar(
-        backgroundColor: kBg,
+        backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
@@ -107,7 +107,7 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
         title: const Text(
           'Detail Form',
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
             color: Colors.black87,

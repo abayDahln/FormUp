@@ -51,23 +51,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
-                      onPressed: () => AppRouter.of(context).pop(),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Pengaturan',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: kFontBold,
-                        color: Colors.black87,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0x1FBDC9C8)),
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
+                        onPressed: () => AppRouter.of(context).pop(),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Pengaturan',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: kFontBold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 4),
                 const Text(

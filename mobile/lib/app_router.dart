@@ -21,7 +21,7 @@ import 'views/form_detail_screen.dart';
 import 'views/form_questions_screen.dart';
 import 'views/form_question_edit_screen.dart';
 import 'views/form_start_screen.dart';
-import 'views/barcode_scanner_screen.dart';
+import 'views/qrcode_scanner_screen.dart';
 import 'views/question_draft.dart';
 import 'services/form_service.dart';
 
@@ -38,7 +38,7 @@ enum AppPage {
   formQuestionEdit,
   formRunner,
   formStart,
-  barcodeScanner,
+  qrcodeScanner,
   formDetail,
   formHistoryDetail,
   changePassword,
@@ -97,6 +97,10 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   /// Kode form deep link menunggu login
   String? _pendingFormCode;
 
+  /// true bila session dimulai dari deep link (stack root bukan login/home).
+  /// Back di root fallback ke beranda, bukan menutup app.
+  bool _viaDeepLink = false;
+
   AppRouterDelegate({AppPage initial = AppPage.login}) {
     _stack.add(AppRoute(initial));
   }
@@ -133,18 +137,28 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
 
   @override
   Future<bool> popRoute() async {
+    // Guard selalu diperiksa (termasuk di root, mis. deep link form).
+    final guard = _topBackGuard;
+    if (guard != null) {
+      final allow = await guard();
+      if (!allow) return true;
+    }
     if (_stack.length > 1) {
-      final guard = _topBackGuard;
-      if (guard != null) {
-        final allow = await guard();
-        if (!allow) return true;
-      }
       final removed = _stack.removeLast();
       _popCompleters.remove(removed.page)?.complete();
       notifyListeners();
       return true;
     }
-    // ponytail: root, sistem menutup app
+    // Root tanpa history: fallback ke beranda bila masuk via deep link.
+    if (_viaDeepLink) {
+      _viaDeepLink = false;
+      _stack
+        ..clear()
+        ..add(const AppRoute(AppPage.home));
+      notifyListeners();
+      return true;
+    }
+    // ponytail: root normal, sistem menutup app
     await SystemNavigator.pop();
     return true;
   }
@@ -163,6 +177,9 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
       notifyListeners();
       return;
     }
+    // Sesi dari deep link (root bukan login/home) → back fallback ke beranda.
+    _viaDeepLink =
+        configuration.page != AppPage.login && configuration.page != AppPage.home;
     _stack
       ..clear()
       ..add(configuration);
@@ -173,6 +190,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   void goHome(String displayName) {
     _username = displayName;
     _completeAllPending();
+    _viaDeepLink = false;
     _stack
       ..clear()
       ..add(const AppRoute(AppPage.home));
@@ -194,17 +212,25 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
     return completer.future;
   }
 
-  void pop([Object? result]) {
-    if (_stack.length > 1) {
-      final removed = _stack.removeLast();
-      _popCompleters.remove(removed.page)?.complete();
-      notifyListeners();
-    }
+void pop([Object? result]) {
+  if (_stack.length > 1) {
+    final removed = _stack.removeLast();
+    _popCompleters.remove(removed.page)?.complete();
+    notifyListeners();
+  } else if (_viaDeepLink) {
+    // Root dari deep link → fallback ke beranda
+    _viaDeepLink = false;
+    _stack
+      ..clear()
+      ..add(const AppRoute(AppPage.home));
+    notifyListeners();
   }
+}
 
   /// Reset ke Login
   void resetToLogin() {
     _completeAllPending();
+    _viaDeepLink = false;
     _stack
       ..clear()
       ..add(const AppRoute(AppPage.login));
@@ -259,8 +285,8 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
         );
       case AppPage.formStart:
         return FormStartScreen(formLink: route.args['formLink'] as String? ?? '');
-      case AppPage.barcodeScanner:
-        return const BarcodeScannerScreen();
+      case AppPage.qrcodeScanner:
+        return const QrcodeScannerScreen();
       case AppPage.formDetail:
         return FormDetailScreen(
           formId: route.args['formId'] as int? ?? 0,
@@ -320,7 +346,7 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       'form-question-edit' => const AppRoute(AppPage.formQuestionEdit),
       'form-runner' => const AppRoute(AppPage.formRunner),
       'form-start' => AppRoute(AppPage.formStart, {'formLink': segments.length >= 3 ? segments[2] : ''}),
-      'scan-barcode' => const AppRoute(AppPage.barcodeScanner),
+      'scan-qrcode' => const AppRoute(AppPage.qrcodeScanner),
       'form-detail' => const AppRoute(AppPage.formDetail),
       'form-history' => const AppRoute(AppPage.formHistoryDetail),
       'change-password' => const AppRoute(AppPage.changePassword),
@@ -347,7 +373,7 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       AppPage.formQuestionEdit => 'form-question-edit',
       AppPage.formRunner => 'form-runner',
       AppPage.formStart => 'form-start',
-      AppPage.barcodeScanner => 'scan-barcode',
+      AppPage.qrcodeScanner => 'scan-qrcode',
       AppPage.formDetail => 'form-detail',
       AppPage.formHistoryDetail => 'form-history',
       AppPage.changePassword => 'change-password',

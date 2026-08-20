@@ -57,6 +57,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
   final QuillController _titleController = richTextController(null);
   final QuillController _descController = richTextController(null);
   final _timerController = TextEditingController();
+  String _timerUnit = 'menit';
   final _tokenController = TextEditingController();
   final _customLinkController = TextEditingController();
   AppRouterDelegate? _router;
@@ -95,7 +96,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
         requiredLogin: _requiredLogin,
         openFormTime: _openFormTime,
         closeFormTime: _closeFormTime,
-        timer: _timerController.text,
+        timer: '$_timerUnit:${_timerController.text}',
         token: _tokenController.text,
         customLink: _customLinkController.text,
         bannerImage: _newBanner != null
@@ -178,7 +179,16 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
             rawClose != null ? DateTime.tryParse(rawClose)?.toLocal() : null;
         _openTimeAlreadySet = _openFormTime != null;
         if (settings?['timerDuration'] is int) {
-          _timerController.text = '${settings!['timerDuration']}';
+          final timerSeconds = settings!['timerDuration'] as int;
+          if (timerSeconds > 0 && timerSeconds % 3600 == 0) {
+            _timerUnit = 'jam';
+            _timerController.text = '${timerSeconds ~/ 3600}';
+          } else if (timerSeconds > 0) {
+            _timerUnit = 'menit';
+            _timerController.text = '${timerSeconds ~/ 60}';
+          } else {
+            _timerController.text = '';
+          }
         }
         _customLinkController.text = form['formLink'] as String? ?? '';
         _baseline = _snapshot();
@@ -247,14 +257,16 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
       return;
     }
 
+    final timerValue = int.tryParse(_timerController.text.trim());
     final settingsPayload = <String, dynamic>{
       'formTypeId': _formTypeId,
       'showScore': _showScore,
       'randomizeQuestions': _randomizeQuestions,
       'oneResponse': _oneResponse,
       'requiredLogin': _requiredLogin,
-      if (_timerController.text.trim().isNotEmpty)
-        'timerDuration': int.tryParse(_timerController.text.trim()),
+      if (timerValue != null && timerValue > 0)
+        'timerDuration':
+            timerValue * (_timerUnit == 'jam' ? 3600 : 60),
       if (_tokenController.text.trim().isNotEmpty)
         'formToken': _tokenController.text.trim(),
       if (_openFormTime != null && !_openTimeAlreadySet)
@@ -334,12 +346,14 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
     return Scaffold(
       backgroundColor: kAuthBg,
       appBar: AppBar(
-        backgroundColor: kAuthBg,
+        backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
         title: Text(
           _isEdit ? "Edit Form" : "Buat Form",
           style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
             color: Colors.black87,
           ),
@@ -575,17 +589,19 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
           ),
           const SizedBox(height: 14),
           _settingsLabel("Tipe Form"),
-          DropdownButtonHideUnderline(
-            child: DropdownButton<int>(
-              value: _formTypeId,
-              isExpanded: true,
-              items: const [
-                DropdownMenuItem(value: 1, child: Text("Single Page")),
-                DropdownMenuItem(value: 2, child: Text("Multi Page")),
-              ],
-              onChanged: (v) {
-                if (v != null) setState(() => _formTypeId = v);
-              },
+          _dropdownCard(
+            DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                value: _formTypeId,
+                isExpanded: true,
+                items: const [
+                  DropdownMenuItem(value: 1, child: Text("Formulir")),
+                  DropdownMenuItem(value: 2, child: Text("Ujian")),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _formTypeId = v);
+                },
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -605,12 +621,34 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
           ),
           const SizedBox(height: 8),
           _settingsLabel("Batas Waktu"),
-          TextField(
-            controller: _timerController,
-            keyboardType: TextInputType.number,
-            decoration: _fieldDecoration(
-              "menit (opsional)",
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _timerController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: _fieldDecoration(
+                    "mis. 30 (opsional)",
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _dropdownCard(
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _timerUnit,
+                    items: const [
+                      DropdownMenuItem(value: 'menit', child: Text("Menit")),
+                      DropdownMenuItem(value: 'jam', child: Text("Jam")),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) setState(() => _timerUnit = v);
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           _settingsLabel("Token Akses"),
@@ -909,6 +947,19 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
     final hh = local.hour.toString().padLeft(2, '0');
     final mm = local.minute.toString().padLeft(2, '0');
     return "${local.day} ${months[local.month - 1]} ${local.year}, $hh:$mm";
+  }
+
+  /// Bungkus dropdown agar tampil seperti field text lainnya di screen ini.
+  Widget _dropdownCard(Widget child) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F4F4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF6E7979)),
+      ),
+      child: child,
+    );
   }
 
   InputDecoration _fieldDecoration(String hint) {

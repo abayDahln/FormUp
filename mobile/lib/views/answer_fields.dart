@@ -13,6 +13,7 @@ class AnswerFields extends StatelessWidget {
   final int typeId;
   final List<AnswerOption> options;
   final TextEditingController? essayController;
+  final FocusNode? essayFocusNode;
   final ValueChanged<String>? onEssayChanged;
   final int? singleValue;
   final Set<int> multiValue;
@@ -28,6 +29,7 @@ class AnswerFields extends StatelessWidget {
     required this.typeId,
     this.options = const [],
     this.essayController,
+    this.essayFocusNode,
     this.onEssayChanged,
     this.singleValue,
     this.multiValue = const {},
@@ -45,6 +47,7 @@ class AnswerFields extends StatelessWidget {
       case 1: // Essay
         return TextField(
           controller: essayController,
+          focusNode: essayFocusNode,
           maxLines: 3,
           onChanged: onEssayChanged,
           decoration: _decoration("Tulis jawaban Anda..."),
@@ -57,17 +60,27 @@ class AnswerFields extends StatelessWidget {
             onChanged: onSingleChanged ?? (_) {},
             child: Column(
               children: [
-                for (final o in options)
-                  RadioListTile<int>(
-                    value: o.id,
-                    title: RichTextView(
-                      text: o.text,
-                      style: const TextStyle(fontSize: 14),
+                for (var i = 0; i < options.length; i++) ...[
+                  if (i > 0)
+                    const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Color(0xFFE5E8E8),
                     ),
-                    dense: true,
-                    activeColor: kAuthPrimary,
-                    contentPadding: EdgeInsets.zero,
+                  _buildChoiceOption(
+                    index: i,
+                    text: options[i].text,
+                    onTap: onSingleChanged == null
+                        ? null
+                        : () => onSingleChanged!(options[i].id),
+                    control: Radio<int>(
+                      value: options[i].id,
+                      activeColor: kAuthPrimary,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
                   ),
+                ],
               ],
             ),
           ),
@@ -77,29 +90,30 @@ class AnswerFields extends StatelessWidget {
           type: MaterialType.transparency,
           child: Column(
             children: [
-              for (final o in options)
-                CheckboxListTile(
-                  value: multiValue.contains(o.id),
-                  onChanged: onMultiChanged == null
-                      ? null
-                      : (v) {
-                          final selected = Set<int>.of(multiValue);
-                          if (v == true) {
-                            selected.add(o.id);
-                          } else {
-                            selected.remove(o.id);
-                          }
-                          onMultiChanged!(selected);
-                        },
-                  title: RichTextView(
-                    text: o.text,
-                    style: const TextStyle(fontSize: 14),
+              for (var i = 0; i < options.length; i++) ...[
+                if (i > 0)
+                  const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Color(0xFFE5E8E8),
                   ),
-                  dense: true,
-                  activeColor: kAuthPrimary,
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
+                _buildChoiceOption(
+                  index: i,
+                  text: options[i].text,
+                  onTap: onMultiChanged == null
+                      ? null
+                      : () => _toggleMulti(options[i].id),
+                  control: Checkbox(
+                    value: multiValue.contains(options[i].id),
+                    onChanged: onMultiChanged == null
+                        ? null
+                        : (_) => _toggleMulti(options[i].id),
+                    activeColor: kAuthPrimary,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
+              ],
             ],
           ),
         );
@@ -205,6 +219,55 @@ class AnswerFields extends StatelessWidget {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: kAuthPrimary, width: 1.5),
+      ),
+    );
+  }
+
+  void _toggleMulti(int optionId) {
+    final selected = Set<int>.of(multiValue);
+    if (selected.contains(optionId)) {
+      selected.remove(optionId);
+    } else {
+      selected.add(optionId);
+    }
+    onMultiChanged!(selected);
+  }
+
+  /// Baris opsi pilihan ganda/checkbox:
+  /// kontrol (radio/checkbox) + teks opsi format "A. {text}".
+  Widget _buildChoiceOption({
+    required int index,
+    required String text,
+    required Widget control,
+    VoidCallback? onTap,
+  }) {
+    final letter = String.fromCharCode(65 + index);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            control,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: RichTextView(
+                  text: text,
+                  prefix: '$letter. ',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

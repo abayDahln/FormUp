@@ -1484,6 +1484,7 @@ class RichTextView extends StatelessWidget {
   final TextAlign? textAlign;
   final int? maxLines;
   final TextOverflow? overflow;
+  final bool ignoreInlineFontSize;
 
   const RichTextView({
     super.key,
@@ -1493,13 +1494,15 @@ class RichTextView extends StatelessWidget {
     this.textAlign,
     this.maxLines,
     this.overflow,
+    this.ignoreInlineFontSize = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return const SizedBox.shrink();
-    final blocks = _contentBlocks(trimmed);
+    final parsed = _contentBlocks(trimmed);
+    final blocks = ignoreInlineFontSize ? _stripFontSizeFromBlocks(parsed) : parsed;
     final widgets = _blocksToWidgets(blocks);
 
     final isPlainSingle =
@@ -1882,4 +1885,30 @@ Color _parseColor(String hex) {
   final h = hex.replaceAll('#', '');
   final value = int.tryParse(h, radix: 16) ?? 0x000000;
   return h.length == 6 ? Color(0xFF000000 | value) : Color(value);
+}
+
+/// Hapus semua font-size inline dari blok rich text (mis. dari wysiwyg).
+List<_RichBlock> _stripFontSizeFromBlocks(List<_RichBlock> blocks) {
+  return [
+    for (final b in blocks)
+      _RichBlock(
+        b.align,
+        _stripFontSizeSpans(b.spans),
+        b.plain,
+      ),
+  ];
+}
+
+List<InlineSpan> _stripFontSizeSpans(List<InlineSpan> spans) {
+  return [
+    for (final s in spans)
+      if (s is TextSpan)
+        TextSpan(
+          text: s.text,
+          style: s.style?.copyWith(fontSize: null),
+          children: s.children == null ? null : _stripFontSizeSpans(s.children!),
+        )
+      else
+        s,
+  ];
 }

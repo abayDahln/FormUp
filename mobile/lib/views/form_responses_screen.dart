@@ -161,7 +161,7 @@ class _FormResponsesScreenState extends State<FormResponsesScreen> {
     return Scaffold(
       backgroundColor: kAuthBg,
       appBar: AppBar(
-        backgroundColor: kAuthBg,
+        backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
@@ -170,7 +170,12 @@ class _FormResponsesScreenState extends State<FormResponsesScreen> {
         ),
         title: Text(
           widget.title,
-          style: const TextStyle(fontFamily: kFontBold, color: Colors.black87),
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: Colors.black87,
+          ),
         ),
       ),
       body: _loading

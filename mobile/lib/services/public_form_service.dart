@@ -81,6 +81,8 @@ class PublicQuestion {
   final int questionOrder;
   final bool? isRequired;
   final bool? randomizeOptions;
+  final String? questionImage;
+  final String? questionAudio;
   final List<PublicOption> options;
 
   const PublicQuestion({
@@ -90,6 +92,8 @@ class PublicQuestion {
     required this.questionOrder,
     this.isRequired,
     this.randomizeOptions,
+    this.questionImage,
+    this.questionAudio,
     this.options = const [],
   });
 
@@ -101,6 +105,8 @@ class PublicQuestion {
         questionOrder: json['questionOrder'] as int? ?? 0,
         isRequired: json['isRequired'] as bool?,
         randomizeOptions: json['randomizeOptions'] as bool?,
+        questionImage: json['questionImage'] as String?,
+        questionAudio: json['questionAudio'] as String?,
         options: [
           for (final o in json['options'] as List<dynamic>? ?? [])
             PublicOption(

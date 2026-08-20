@@ -3,16 +3,16 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'auth_widgets.dart';
 import '../app_router.dart';
 
-/// Screen scan QR/barcode untuk masuk form.
+/// Screen scan QR code untuk masuk form.
 /// Hanya menerima link format https://formup.my.id/f/{formLink}
-class BarcodeScannerScreen extends StatefulWidget {
-  const BarcodeScannerScreen({super.key});
+class QrcodeScannerScreen extends StatefulWidget {
+  const QrcodeScannerScreen({super.key});
 
   @override
-  State<BarcodeScannerScreen> createState() => _BarcodeScannerScreenState();
+  State<QrcodeScannerScreen> createState() => _QrcodeScannerScreenState();
 }
 
-class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
+class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
   final MobileScannerController _controller = MobileScannerController();
   bool _handled = false;
 
@@ -103,7 +103,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
-                "Arahkan kamera ke QR/barcode berisi link form\nformat: https://formup.my.id/f/{kode}",
+                "Arahkan kamera ke QR code berisi link form\nformat: https://formup.my.id/f/{kode}",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white, fontSize: 13),
               ),

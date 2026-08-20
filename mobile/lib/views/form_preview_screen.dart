@@ -115,7 +115,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
     return Scaffold(
       backgroundColor: kAuthBg,
       appBar: AppBar(
-        backgroundColor: kAuthBg,
+        backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
@@ -124,7 +124,12 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
         ),
         title: const Text(
           "Pratinjau Form",
-          style: TextStyle(fontFamily: kFontBold, color: Colors.black87),
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: Colors.black87,
+          ),
         ),
       ),
       body: _loading

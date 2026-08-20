@@ -284,12 +284,17 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
     return Scaffold(
       backgroundColor: kAuthBg,
       appBar: AppBar(
-        backgroundColor: kAuthBg,
+        backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
         title: const Text(
           'Edit Soal',
-          style: TextStyle(fontFamily: kFontBold, color: Colors.black87),
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: Colors.black87,
+          ),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),

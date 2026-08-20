@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'auth_widgets.dart';
 import 'answer_fields.dart';
 import 'rich_editor.dart';
@@ -13,16 +14,18 @@ class FormRunnerView extends StatefulWidget {
   final String? initialCode;
   final String? initialToken;
   final bool showTitle;
+  final ValueChanged<PublicFormInfo>? onInfoLoaded;
 
   const FormRunnerView({
     super.key,
     this.initialCode,
     this.initialToken,
     this.showTitle = true,
+    this.onInfoLoaded,
   });
 
   @override
-  State<FormRunnerView> createState() => _FormRunnerViewState();
+  State<FormRunnerView> createState() => FormRunnerViewState();
 }
 
 /// Halaman mengerjakan form
@@ -39,12 +42,24 @@ class FormRunnerScreen extends StatefulWidget {
 enum _RunnerStep { code, fill, result }
 
 class _FormRunnerScreenState extends State<FormRunnerScreen> {
+  final GlobalKey<FormRunnerViewState> _viewKey =
+      GlobalKey<FormRunnerViewState>();
+  int? _timerSeconds;
+
+  void _onInfoLoaded(PublicFormInfo info) {
+    if (mounted) setState(() => _timerSeconds = info.timerDuration);
+  }
+
+  void _onTimerExpired() {
+    _viewKey.currentState?.handleTimerExpired();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kAuthBg,
       appBar: AppBar(
-        backgroundColor: kAuthBg,
+        backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
@@ -54,14 +69,34 @@ class _FormRunnerScreenState extends State<FormRunnerScreen> {
         ),
         title: const Text(
           "Kerjakan Form",
-          style: TextStyle(fontFamily: kFontBold, color: Colors.black87),
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: Colors.black87,
+          ),
         ),
+        actions: [
+          if (_timerSeconds != null && _timerSeconds! > 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Center(
+                child: _CountdownBadge(
+                  key: ValueKey(_timerSeconds),
+                  seconds: _timerSeconds!,
+                  onExpired: _onTimerExpired,
+                ),
+              ),
+            ),
+        ],
       ),
       body: AuthBackground(
         child: SafeArea(
           child: FormRunnerView(
+            key: _viewKey,
             initialCode: widget.initialCode,
             initialToken: widget.initialToken,
+            onInfoLoaded: _onInfoLoaded,
           ),
         ),
       ),
@@ -69,7 +104,7 @@ class _FormRunnerScreenState extends State<FormRunnerScreen> {
   }
 }
 
-class _FormRunnerViewState extends State<FormRunnerView> {
+class FormRunnerViewState extends State<FormRunnerView> {
   AppRouterDelegate? _router;
 
   final _codeController = TextEditingController();
@@ -94,6 +129,8 @@ class _FormRunnerViewState extends State<FormRunnerView> {
   final Map<int, Set<int>> _multiAnswers = {};
   final Map<int, String?> _tfAnswers = {};
   final Map<int, DateTime?> _datetimeAnswers = {};
+  final Map<int, FocusNode> _essayFocusNodes = {};
+  final List<GlobalKey> _questionKeys = [];
 
   bool get _requiresToken => _info?.requiresToken ?? false;
   bool get _isLoggedIn => AuthService.token != null;
@@ -125,6 +162,9 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     _nameController.dispose();
     for (final c in _textAnswers.values) {
       c.dispose();
+    }
+    for (final f in _essayFocusNodes.values) {
+      f.dispose();
     }
     super.dispose();
   }
@@ -179,6 +219,11 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     return exit ?? false;
   }
 
+  /// Panggil saat timer form habis (dari countdown di AppBar).
+  Future<void> handleTimerExpired() async {
+    await _autoSubmit();
+  }
+
   Future<void> _submitCode() async {
     if (_loading) return;
     final code = _codeController.text.trim();
@@ -207,6 +252,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
         _formLink = code;
         _info = info;
       });
+      widget.onInfoLoaded?.call(info);
       if (info.requiresToken) {
         // Token sudah diberikan dari screen sebelumnya → langsung isi form
         if (widget.initialToken != null && widget.initialToken!.isNotEmpty) {
@@ -256,10 +302,15 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     _multiAnswers.clear();
     _tfAnswers.clear();
     _datetimeAnswers.clear();
+    _essayFocusNodes.clear();
+    _questionKeys
+      ..clear()
+      ..addAll([for (var i = 0; i < questions.length; i++) GlobalKey()]);
     for (final q in questions) {
       switch (q.typeId) {
         case 1: // Essay
           _textAnswers[q.id] = TextEditingController();
+          _essayFocusNodes[q.id] = FocusNode();
           break;
         case 4: // Date Time
           _datetimeAnswers[q.id] = null;
@@ -284,9 +335,51 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     await _submit();
   }
 
+  /// Index soal wajib pertama yang belum dijawab (urut dari atas), atau null.
+  int? _firstUnansweredIndex() {
+    for (var i = 0; i < _questions.length; i++) {
+      final q = _questions[i];
+      if (q.isRequired == true && !_isAnswered(q)) return i;
+    }
+    return null;
+  }
+
+  /// Scroll ke soal belum dijawab pertama dan fokus ke field esai-nya (jika ada).
+  void _scrollToUnanswered(int index) {
+    if (_formTypeId == 2 && _questions.length > 1) {
+      // Mode multi-page: pindah ke halaman soal tsb.
+      setState(() => _currentQuestion = index);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _focusEssayIfAny(index));
+      return;
+    }
+    // Mode single-page: scroll ke kartu soal tsb lalu fokus.
+    final ctx = _questionKeys[index].currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focusEssayIfAny(index));
+  }
+
+  void _focusEssayIfAny(int index) {
+    final q = _questions[index];
+    if (q.typeId == 1) {
+      _essayFocusNodes[q.id]?.requestFocus();
+    }
+  }
+
   /// Submit jawaban. Mengembalikan true bila berhasil, false bila gagal/validasi.
   Future<bool> _submit() async {
     if (_submitting) return false;
+    final firstUnanswered = _firstUnansweredIndex();
+    if (firstUnanswered != null) {
+      _scrollToUnanswered(firstUnanswered);
+      showAuthToast(context, "Pertanyaan wajib belum dijawab", isError: true);
+      return false;
+    }
     final answers = <Map<String, dynamic>>[];
     for (final q in _questions) {
       switch (q.typeId) {
@@ -559,93 +652,11 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     return _buildSinglePageFill();
   }
 
-  int _answeredCount() {
-    var n = 0;
-    for (final q in _questions) {
-      switch (q.typeId) {
-        case 1: // Essay
-          if ((_textAnswers[q.id]?.text.trim() ?? '').isNotEmpty) n++;
-          break;
-        case 2: // Multiple Choice
-          if (_singleAnswers[q.id] != null) n++;
-          break;
-        case 3: // Checkbox
-          if ((_multiAnswers[q.id] ?? {}).isNotEmpty) n++;
-          break;
-        case 4: // Date Time
-          if (_datetimeAnswers[q.id] != null) n++;
-          break;
-        case 5: // True/False
-          if (_tfAnswers[q.id] != null) n++;
-          break;
-      }
-    }
-    return n;
-  }
-
-  /// Header sticky + progress
-  Widget _buildProgressHeader() {
-    final total = _questions.length;
-    final answered = _answeredCount();
-    final pct = total == 0 ? 0 : (answered / total * 100).round();
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-      color: Colors.white,
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _info?.title ?? '',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: kFontBold,
-                    color: Colors.black87,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '$answered / $total Terjawab ($pct%)',
-                style: const TextStyle(fontSize: 12, color: kAuthPrimary),
-              ),
-            ],
-          ),
-          if ((_info?.timerDuration ?? 0) > 0) ...[
-            const SizedBox(height: 6),
-            Align(
-              alignment: Alignment.centerRight,
-              child: _CountdownBadge(
-                minutes: _info!.timerDuration!,
-                onExpired: _autoSubmit,
-              ),
-            ),
-          ],
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: total == 0 ? 0 : answered / total,
-              minHeight: 6,
-              backgroundColor: const Color(0xFFD8DEDE),
-              color: kAuthPrimary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// Mode Single Page
   Widget _buildSinglePageFill() {
     final info = _info!;
     return Column(
       children: [
-        _buildProgressHeader(),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
@@ -701,18 +712,6 @@ class _FormRunnerViewState extends State<FormRunnerView> {
                 style: const TextStyle(fontSize: 12, color: kAuthPrimary),
               ),
             ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: (_currentQuestion + 1) / _questions.length,
-              minHeight: 6,
-              backgroundColor: const Color(0xFFD8DEDE),
-              color: kAuthPrimary,
-            ),
           ),
         ),
         Expanded(
@@ -817,12 +816,13 @@ class _FormRunnerViewState extends State<FormRunnerView> {
           ),
           // Deskripsi form (jika diisi)
           if (info.description != null && info.description!.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             RichTextView(
               text: info.description!,
+              ignoreInlineFontSize: true,
               style: const TextStyle(
-                fontSize: 13,
-                color: Colors.black54,
+                fontSize: 15,
+                color: Colors.black87,
                 height: 1.4,
               ),
             ),
@@ -830,7 +830,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
           if (info.timerDuration != null && info.timerDuration! > 0) ...[
             const SizedBox(height: 6),
             Text(
-              "⏱ ${info.timerDuration} menit",
+              "⏱ ${_formatDuration(info.timerDuration!)}",
               style: const TextStyle(fontSize: 12, color: kAuthPrimary),
             ),
           ],
@@ -874,7 +874,8 @@ class _FormRunnerViewState extends State<FormRunnerView> {
   Widget _buildQuestionCard(int index) {
     final q = _questions[index];
     return Container(
-      padding: const EdgeInsets.all(16),
+      key: _questionKeys[index],
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -883,47 +884,42 @@ class _FormRunnerViewState extends State<FormRunnerView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 26,
-                height: 26,
-                decoration: const BoxDecoration(
-                  color: kPrimarySoft,
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text(
-                    "${index + 1}",
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: RichTextView(
+                    text: q.question,
+                    prefix: '${index + 1}. ',
                     style: const TextStyle(
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
                       fontFamily: kFontBold,
-                      color: kAuthPrimary,
-                      fontSize: 12,
+                      color: Colors.black87,
+                      height: 1.4,
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: RichTextView(
-                  text: q.question,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: kFontBold,
-                    color: Colors.black87,
+                if (q.isRequired == true)
+                  const Text(
+                    "*",
+                    style: TextStyle(color: Color(0xFFC0392B), fontSize: 16),
                   ),
-                ),
-              ),
-              if (q.isRequired == true)
-                const Text(
-                  "*",
-                  style: TextStyle(color: Color(0xFFC0392B), fontSize: 16),
-                ),
-            ],
+              ],
+            ),
           ),
+          // Gambar soal (jika dilampirkan)
+          if (q.questionImage != null && q.questionImage!.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _QuestionImage(url: q.questionImage!),
+          ],
+          // Audio soal (jika dilampirkan)
+          if (q.questionAudio != null && q.questionAudio!.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _QuestionAudio(url: q.questionAudio!),
+          ],
           const SizedBox(height: 12),
           AnswerFields(
             typeId: q.typeId,
@@ -931,6 +927,7 @@ class _FormRunnerViewState extends State<FormRunnerView> {
               for (final o in q.options) AnswerOption(o.id, o.optionText),
             ],
             essayController: _textAnswers[q.id],
+            essayFocusNode: _essayFocusNodes[q.id],
             onEssayChanged: (_) => setState(() {}),
             singleValue: _singleAnswers[q.id],
             multiValue: _multiAnswers[q.id] ?? {},
@@ -1270,6 +1267,164 @@ class _FormRunnerViewState extends State<FormRunnerView> {
     final mm = local.minute.toString().padLeft(2, '0');
     return "${local.day} ${months[local.month - 1]} ${local.year}, $hh:$mm";
   }
+
+  /// Format durasi dari detik menjadi "X jam Y menit" / "Y menit"
+  String _formatDuration(int seconds) {
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    if (h > 0 && m > 0) return "$h jam $m menit";
+    if (h > 0) return "$h jam";
+    if (m > 0) return "$m menit";
+    return "$seconds detik";
+  }
+}
+
+/// Gambar soal
+class _QuestionImage extends StatelessWidget {
+  final String url;
+
+  const _QuestionImage({required this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(maxHeight: 220),
+        color: kPrimarySoft,
+        child: Image.network(
+          profileImageUrl(url),
+          fit: BoxFit.contain,
+          errorBuilder: (_, _, _) => const SizedBox(
+            height: 140,
+            child: Center(
+              child: Icon(
+                Icons.broken_image_outlined,
+                color: Colors.grey,
+                size: 32,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pemutar audio soal
+class _QuestionAudio extends StatefulWidget {
+  final String url;
+
+  const _QuestionAudio({required this.url});
+
+  @override
+  State<_QuestionAudio> createState() => _QuestionAudioState();
+}
+
+class _QuestionAudioState extends State<_QuestionAudio> {
+  final AudioPlayer _player = AudioPlayer();
+  bool _playing = false;
+  Duration? _duration;
+  Duration _position = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _player.onPlayerStateChanged.listen((state) {
+      if (mounted) setState(() => _playing = state == PlayerState.playing);
+    });
+    _player.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _duration = d);
+    });
+    _player.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _position = p);
+    });
+    _player.onPlayerComplete.listen((_) {
+      if (mounted) {
+        setState(() {
+          _position = Duration.zero;
+          _playing = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggle() async {
+    if (_playing) {
+      await _player.pause();
+    } else {
+      await _player.setSource(UrlSource(profileImageUrl(widget.url)));
+      await _player.resume();
+    }
+  }
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxMs = (_duration ?? Duration.zero).inMilliseconds;
+    final posMs = _position.inMilliseconds.clamp(0, maxMs).toDouble();
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F4F4),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: _toggle,
+            icon: Icon(
+              _playing ? Icons.pause_circle : Icons.play_circle,
+              color: kAuthPrimary,
+              size: 32,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Audio Soal",
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+                const SizedBox(height: 4),
+                Slider(
+                  value: maxMs == 0 ? 0 : posMs,
+                  max: maxMs == 0 ? 1 : maxMs.toDouble(),
+                  activeColor: kAuthPrimary,
+                  onChanged: maxMs == 0
+                      ? null
+                      : (v) async {
+                          final t = Duration(milliseconds: v.round());
+                          await _player.seek(t);
+                          setState(() => _position = t);
+                        },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            maxMs == 0 ? _fmt(_position) : _fmt(_duration!),
+            style: const TextStyle(fontSize: 11, color: Colors.black54),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 const _feedbackReasons = <String>[
@@ -1279,12 +1434,16 @@ const _feedbackReasons = <String>[
   'Bug / Technical Issue',
 ];
 
-/// Countdown mandiri
+/// Countdown mandiri (durasi dalam detik)
 class _CountdownBadge extends StatefulWidget {
-  final int minutes;
+  final int seconds;
   final VoidCallback onExpired;
 
-  const _CountdownBadge({required this.minutes, required this.onExpired});
+  const _CountdownBadge({
+    super.key,
+    required this.seconds,
+    required this.onExpired,
+  });
 
   @override
   State<_CountdownBadge> createState() => _CountdownBadgeState();
@@ -1298,7 +1457,7 @@ class _CountdownBadgeState extends State<_CountdownBadge> {
   @override
   void initState() {
     super.initState();
-    _secondsLeft = widget.minutes * 60;
+    _secondsLeft = widget.seconds;
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       if (_secondsLeft <= 1) {
@@ -1322,9 +1481,10 @@ class _CountdownBadgeState extends State<_CountdownBadge> {
   }
 
   String get _label {
-    final m = (_secondsLeft ~/ 60).toString().padLeft(2, '0');
+    final h = (_secondsLeft ~/ 3600).toString().padLeft(2, '0');
+    final m = ((_secondsLeft % 3600) ~/ 60).toString().padLeft(2, '0');
     final s = (_secondsLeft % 60).toString().padLeft(2, '0');
-    return '$m:$s';
+    return '$h:$m:$s';
   }
 
   @override

@@ -83,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openScanner() {
-    AppRouter.of(context).push(AppPage.barcodeScanner);
+    AppRouter.of(context).push(AppPage.qrcodeScanner);
   }
 
   void _openResponse(MyResponseItem item) {
@@ -316,7 +316,7 @@ class _HomeScreenState extends State<HomeScreen> {
               prefixIcon: const Icon(Icons.link, color: kAuthText),
               suffixIcon: IconButton(
                 onPressed: _openScanner,
-                tooltip: 'Scan barcode',
+                tooltip: 'Scan QR Code',
                 icon: const Icon(Icons.qr_code_scanner, color: kAuthPrimary),
               ),
               filled: true,
