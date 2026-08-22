@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:form_up/views/rich_editor.dart';
+import 'package:form_up/core/widgets/rich_editor.dart';
 
 void main() {
   group('richToPlainText', () {
@@ -51,3 +51,4 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
+

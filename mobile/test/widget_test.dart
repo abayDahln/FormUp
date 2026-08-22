@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:form_up/app_router.dart';
+import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/main.dart';
 
 void main() {
@@ -10,3 +10,4 @@ void main() {
     expect(find.text('Lupa Kata Sandi?'), findsOneWidget);
   });
 }
+

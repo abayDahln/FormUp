@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_quill/flutter_quill.dart';
-import 'app_router.dart';
-import 'services/auth_service.dart';
-import 'views/auth_widgets.dart';
+import 'package:form_up/core/router/app_router.dart';
+import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/widgets/auth_widgets.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,4 +50,5 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+
 

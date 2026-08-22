@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:form_up/views/rich_editor.dart';
+import 'package:form_up/core/widgets/rich_editor.dart';
 
 void main() {
   test('encodeRichText menghasilkan HTML, richDocument membacanya balik', () {
@@ -72,3 +72,4 @@ void main() {
     expect(encodeRichText(controller), '');
   });
 }
+
