@@ -11,11 +11,18 @@ import 'package:form_up/features/home/screens/home_screen.dart';
 import 'package:form_up/features/form/screens/form_maker_screen.dart';
 import 'package:form_up/features/form_runner/screens/form_runner_screen.dart';
 import 'package:form_up/features/form/screens/form_history_detail_screen.dart';
+import 'package:form_up/features/form/screens/history_form_detail_screen.dart';
 import 'package:form_up/features/auth/screens/change_password_screen.dart';
 import 'package:form_up/features/profile/screens/edit_profile_screen.dart';
 import 'package:form_up/features/form/screens/form_preview_screen.dart';
 import 'package:form_up/features/form/screens/analytics_screen.dart';
 import 'package:form_up/features/responses/screens/form_responses_screen.dart';
+import 'package:form_up/features/responses/screens/respondent_detail_screen.dart';
+import 'package:form_up/features/admin/screens/admin_home_screen.dart';
+import 'package:form_up/features/admin/screens/admin_user_detail_screen.dart';
+import 'package:form_up/features/admin/screens/admin_form_detail_screen.dart';
+import 'package:form_up/features/admin/screens/admin_feedback_detail_screen.dart';
+import 'package:form_up/core/services/admin_service.dart';
 import 'package:form_up/features/settings/settings_screen.dart';
 import 'package:form_up/features/form/screens/form_detail_screen.dart';
 import 'package:form_up/features/form/screens/form_questions_screen.dart';
@@ -40,12 +47,18 @@ enum AppPage {
   formStart,
   qrcodeScanner,
   formDetail,
+  historyFormDetail,
   formHistoryDetail,
   changePassword,
   editProfile,
   formPreview,
   formAnalytics,
   formResponses,
+  respondentDetail,
+  adminPanel,
+  adminUserDetail,
+  adminFormDetail,
+  adminFeedbackDetail,
   settings,
 }
 
@@ -135,6 +148,11 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
     );
   }
 
+  /// Halaman root sesuai role: admin masuk ke Admin Panel, user biasa ke Home
+  AppPage get _rootPage => AuthService.role == 'ADMIN'
+      ? AppPage.adminPanel
+      : AppPage.home;
+
   @override
   Future<bool> popRoute() async {
     // Guard selalu diperiksa (termasuk di root, mis. deep link form).
@@ -149,12 +167,12 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
       notifyListeners();
       return true;
     }
-    // Root tanpa history: fallback ke beranda bila masuk via deep link.
+    // Root tanpa history: fallback ke halaman root bila masuk via deep link.
     if (_viaDeepLink) {
       _viaDeepLink = false;
       _stack
         ..clear()
-        ..add(const AppRoute(AppPage.home));
+        ..add(AppRoute(_rootPage));
       notifyListeners();
       return true;
     }
@@ -186,14 +204,14 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Masuk Home
+  /// Masuk halaman root sesuai role (Admin Panel untuk admin, Home untuk user)
   void goHome(String displayName) {
     _username = displayName;
     _completeAllPending();
     _viaDeepLink = false;
     _stack
       ..clear()
-      ..add(const AppRoute(AppPage.home));
+      ..add(AppRoute(_rootPage));
     notifyListeners();
     // Push form deep link tertunda
     final pending = _pendingFormCode;
@@ -218,11 +236,11 @@ void pop([Object? result]) {
     _popCompleters.remove(removed.page)?.complete();
     notifyListeners();
   } else if (_viaDeepLink) {
-    // Root dari deep link → fallback ke beranda
+    // Root dari deep link → fallback ke halaman root sesuai role
     _viaDeepLink = false;
     _stack
       ..clear()
-      ..add(const AppRoute(AppPage.home));
+      ..add(AppRoute(_rootPage));
     notifyListeners();
   }
 }
@@ -292,6 +310,11 @@ void pop([Object? result]) {
           formId: route.args['formId'] as int? ?? 0,
           initial: route.args['form'] as FormData?,
         );
+      case AppPage.historyFormDetail:
+        return HistoryFormDetailScreen(
+          formLink: route.args['formLink'] as String? ?? '',
+          formTitle: route.args['formTitle'] as String? ?? '',
+        );
       case AppPage.formHistoryDetail:
         return FormHistoryDetailScreen(
           formLink: route.args['formLink'] as String? ?? '',
@@ -314,6 +337,27 @@ void pop([Object? result]) {
         return FormResponsesScreen(
           formId: route.args['formId'] as int? ?? 0,
           title: route.args['title'] as String? ?? '',
+        );
+      case AppPage.respondentDetail:
+        return RespondentDetailScreen(
+          formId: route.args['formId'] as int? ?? 0,
+          title: route.args['title'] as String? ?? '',
+          responseId: route.args['responseId'] as int? ?? 0,
+          respondentName: route.args['respondentName'] as String? ?? '',
+        );
+      case AppPage.adminPanel:
+        return const AdminHomeScreen();
+      case AppPage.adminUserDetail:
+        return AdminUserDetailScreen(
+          userId: route.args['userId'] as int? ?? 0,
+        );
+      case AppPage.adminFormDetail:
+        return AdminFormDetailScreen(
+          formId: route.args['formId'] as int? ?? 0,
+        );
+      case AppPage.adminFeedbackDetail:
+        return AdminFeedbackDetailScreen(
+          feedback: route.args['feedback'] as AdminFeedbackItem,
         );
       case AppPage.settings:
         return const SettingsScreen();
@@ -349,6 +393,7 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       'scan-qrcode' => const AppRoute(AppPage.qrcodeScanner),
       'form-detail' => const AppRoute(AppPage.formDetail),
       'form-history' => const AppRoute(AppPage.formHistoryDetail),
+      'history-form' => const AppRoute(AppPage.historyFormDetail),
       'change-password' => const AppRoute(AppPage.changePassword),
       'edit-profile' => const AppRoute(AppPage.editProfile),
       'form-preview' => const AppRoute(AppPage.formPreview),
@@ -375,12 +420,18 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       AppPage.formStart => 'form-start',
       AppPage.qrcodeScanner => 'scan-qrcode',
       AppPage.formDetail => 'form-detail',
+      AppPage.historyFormDetail => 'history-form',
       AppPage.formHistoryDetail => 'form-history',
       AppPage.changePassword => 'change-password',
       AppPage.editProfile => 'edit-profile',
       AppPage.formPreview => 'form-preview',
       AppPage.formAnalytics => 'form-analytics',
       AppPage.formResponses => 'form-responses',
+      AppPage.respondentDetail => 'respondent-detail',
+      AppPage.adminPanel => 'admin-panel',
+      AppPage.adminUserDetail => 'admin-user',
+      AppPage.adminFormDetail => 'admin-form',
+      AppPage.adminFeedbackDetail => 'admin-feedback',
       AppPage.settings => 'settings',
     };
     return RouteInformation(uri: Uri.parse('/$name'));

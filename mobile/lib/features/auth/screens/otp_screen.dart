@@ -136,16 +136,16 @@ class _OtpScreenState extends State<OtpScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const AuthTitle(
-                          title: "Verifikasi",
-                          subtitle: "Verifikasi email Anda",
-                        ),
-                        const SizedBox(height: 40),
-                        AuthCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
+                       children: [
+                         AuthCard(
+                           child: Column(
+                             crossAxisAlignment: CrossAxisAlignment.stretch,
+                             children: [
+                               const AuthTitle(
+                                 title: "Verifikasi",
+                                 subtitle: "Verifikasi email Anda",
+                               ),
+                               const SizedBox(height: 24),
                               Text(
                                 "Kode OTP telah dikirim ke\n${widget.email}",
                                 textAlign: TextAlign.center,
@@ -185,14 +185,14 @@ class _OtpScreenState extends State<OtpScreen> {
                                 loading: _loading,
                                 onPressed: _verify,
                               ),
+                              const SizedBox(height: 20),
+                              AuthInlineLink(
+                                link: "Kembali ke Masuk",
+                                onTap: () =>
+                                    AppRouter.of(context).resetToLogin(),
+                              ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                        AuthBottomPill(
-                          link: "Kembali ke Masuk",
-                          onTap: () =>
-                              AppRouter.of(context).resetToLogin(),
                         ),
                       ],
                     ),

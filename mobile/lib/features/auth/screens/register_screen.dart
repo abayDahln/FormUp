@@ -93,25 +93,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const AuthTitle(
-                          title: "Daftar",
-                          subtitle: "Buat akun baru untuk memulai",
-                        ),
-                        const SizedBox(height: 24),
-                        AuthCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              AuthTextField(
+                       children: [
+                         AuthCard(
+                           child: Column(
+                             crossAxisAlignment: CrossAxisAlignment.stretch,
+                             children: [
+                               const AuthTitle(
+                                 title: "Daftar",
+                                 subtitle: "Buat akun baru untuk memulai",
+                               ),
+                               const SizedBox(height: 24),
+                               AuthTextField(
                                 controller: _fullnameController,
                                 hint: "Nama Lengkap",
+                                label: "Nama Lengkap",
                                 icon: Icons.person_outline,
                               ),
                               const SizedBox(height: 17),
                               AuthTextField(
                                 controller: _emailController,
                                 hint: "Email",
+                                label: "Email",
                                 icon: Icons.email_outlined,
                                 keyboardType: TextInputType.emailAddress,
                               ),
@@ -119,6 +121,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               AuthTextField(
                                 controller: _passwordController,
                                 hint: "Kata Sandi",
+                                label: "Kata Sandi",
                                 icon: Icons.lock_outline,
                                 obscure: true,
                               ),
@@ -126,6 +129,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               AuthTextField(
                                 controller: _confirmController,
                                 hint: "Konfirmasi Kata Sandi",
+                                label: "Konfirmasi Kata Sandi",
                                 icon: Icons.lock_outline,
                                 obscure: true,
                               ),
@@ -174,14 +178,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 20),
+                              AuthInlineLink(
+                                question: "Sudah punya akun? ",
+                                link: "Masuk",
+                                onTap: () => AppRouter.of(context).pop(),
+                              ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                        AuthBottomPill(
-                          question: "Sudah punya akun? ",
-                          link: "Masuk",
-                          onTap: () => AppRouter.of(context).pop(),
                         ),
                       ],
                     ),

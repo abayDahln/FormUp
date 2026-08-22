@@ -288,20 +288,27 @@ class AnswerFields extends StatelessWidget {
 class ResultOptionsList extends StatelessWidget {
   final List<String> options;
   final String? answerText;
+  final List<String> selectedOptions;
   final String? correctAnswer;
   final bool showScore;
+  final bool? isCorrect;
 
   const ResultOptionsList({
     super.key,
     required this.options,
     this.answerText,
+    this.selectedOptions = const [],
     this.correctAnswer,
     this.showScore = false,
+    this.isCorrect,
   });
 
   @override
   Widget build(BuildContext context) {
     if (options.isEmpty) return const SizedBox.shrink();
+    final selected = selectedOptions.isNotEmpty
+        ? selectedOptions
+        : (answerText != null && answerText!.isNotEmpty ? [answerText!] : <String>[]);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -312,10 +319,10 @@ class ResultOptionsList extends StatelessWidget {
             child: _OptionResultRow(
               letter: String.fromCharCode(65 + i),
               option: options[i],
-              isCorrect: showScore &&
-                  correctAnswer != null &&
-                  options[i] == correctAnswer,
-              isUserAnswer: answerText != null && options[i] == answerText,
+              isSelected: selected.contains(options[i]),
+              isCorrectOption:
+                  showScore && correctAnswer != null && options[i] == correctAnswer,
+              userIsCorrect: isCorrect,
             ),
           ),
       ],
@@ -323,31 +330,73 @@ class ResultOptionsList extends StatelessWidget {
   }
 }
 
+/// Status pewarnaan satu baris opsi hasil
+enum _OptionStatus { neutral, selectedNeutral, userCorrect, userWrong, correctKey }
+
 class _OptionResultRow extends StatelessWidget {
   final String letter;
   final String option;
-  final bool isCorrect;
-  final bool isUserAnswer;
+  final bool isSelected;
+  final bool isCorrectOption;
+  final bool? userIsCorrect;
 
   const _OptionResultRow({
     required this.letter,
     required this.option,
-    required this.isCorrect,
-    required this.isUserAnswer,
+    required this.isSelected,
+    required this.isCorrectOption,
+    required this.userIsCorrect,
   });
+
+  _OptionStatus get _status {
+    if (!showColors) {
+      return isSelected ? _OptionStatus.selectedNeutral : _OptionStatus.neutral;
+    }
+    // Jawaban user BENAR: cukup opsi user hijau.
+    if (isSelected && userIsCorrect == true) return _OptionStatus.userCorrect;
+    // Jawaban user SALAH: opsi user merah + kunci jawaban hijau.
+    if (isSelected && userIsCorrect == false) return _OptionStatus.userWrong;
+    if (!isSelected && isCorrectOption) return _OptionStatus.correctKey;
+    if (isSelected) return _OptionStatus.selectedNeutral;
+    return _OptionStatus.neutral;
+  }
+
+  bool get showColors => userIsCorrect != null;
 
   @override
   Widget build(BuildContext context) {
-    final bg = isCorrect
-        ? const Color(0xFFE3F4E8)
-        : isUserAnswer
-            ? const Color(0xFFE0F2F1)
-            : const Color(0xFFF0F4F4);
-    final fg = isCorrect
-        ? const Color(0xFF2E7D32)
-        : isUserAnswer
-            ? kAuthPrimary
-            : Colors.black87;
+    const greenBg = Color(0xFFE3F4E8);
+    const greenFg = Color(0xFF2E7D32);
+    const redBg = Color(0xFFFDECEA);
+    const redFg = Color(0xFFC0392B);
+
+    final (bg, fg, icon) = switch (_status) {
+      _OptionStatus.userCorrect => (
+          greenBg,
+          greenFg,
+          const Icon(Icons.check_circle, size: 16, color: greenFg),
+        ),
+      _OptionStatus.correctKey => (
+          greenBg,
+          greenFg,
+          const Icon(Icons.check_circle, size: 16, color: greenFg),
+        ),
+      _OptionStatus.userWrong => (
+          redBg,
+          redFg,
+          const Icon(Icons.cancel, size: 16, color: redFg),
+        ),
+      _OptionStatus.selectedNeutral => (
+          const Color(0xFFE0F2F1),
+          kAuthPrimary,
+          Icon(Icons.radio_button_checked, size: 16, color: kAuthPrimary),
+        ),
+      _OptionStatus.neutral => (
+          const Color(0xFFF0F4F4),
+          Colors.black87,
+          null,
+        ),
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -372,10 +421,7 @@ class _OptionResultRow extends StatelessWidget {
               style: TextStyle(fontSize: 13, color: fg),
             ),
           ),
-          if (isCorrect)
-            const Icon(Icons.check_circle, size: 16, color: Color(0xFF2E7D32))
-          else if (isUserAnswer)
-            Icon(Icons.radio_button_checked, size: 16, color: kAuthPrimary),
+          ?icon,
         ],
       ),
     );

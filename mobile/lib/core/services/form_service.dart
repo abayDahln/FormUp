@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'auth_service.dart';
+import 'public_form_service.dart' show MyAttempt, PublicFormResult;
 
 /// Sinyal agar layar daftar form/beranda me-refresh setelah form dibuat/diubah.
 final ValueNotifier<int> formsVersion = ValueNotifier(0);
@@ -500,12 +501,44 @@ class FormService {
     int formId, {
     int? page,
     int? pageSize,
+    String? search,
   }) async {
-    final path = page != null && pageSize != null
-        ? '/forms/$formId/analytics?page=$page&pageSize=$pageSize'
-        : '/forms/$formId/analytics';
-    final json = await AuthService.get(path);
+    final params = <String>[
+      if (page != null && pageSize != null) 'page=$page',
+      if (page != null && pageSize != null) 'pageSize=$pageSize',
+      if (search != null && search.trim().isNotEmpty)
+        'search=${Uri.encodeQueryComponent(search.trim())}',
+    ];
+    final query = params.isEmpty ? '' : '?${params.join('&')}';
+    final json = await AuthService.get('/forms/$formId/analytics$query');
     return FormAnalytics.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  /// GET /forms/{formId}/responses/{responseId}/result
+  /// Hasil lengkap satu respon (skor + kunci jawaban) untuk pemilik form.
+  static Future<PublicFormResult> getResponseResult(
+    int formId,
+    int responseId,
+  ) async {
+    final json = await AuthService.get(
+      '/forms/$formId/responses/$responseId/result',
+    );
+    return PublicFormResult.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  /// GET /forms/{formId}/responses/{responseId}/attempts
+  /// Semua attempt responden yang sama pada form yang sama.
+  static Future<List<MyAttempt>> getRespondentAttempts(
+    int formId,
+    int responseId,
+  ) async {
+    final json = await AuthService.get(
+      '/forms/$formId/responses/$responseId/attempts',
+    );
+    return [
+      for (final a in json['data'] as List<dynamic>? ?? [])
+        MyAttempt.fromJson(a as Map<String, dynamic>),
+    ];
   }
 
   /// POST /forms/{id}/banner
@@ -561,7 +594,7 @@ class FormService {
     try {
       json = jsonDecode(response.body) as Map<String, dynamic>;
     } catch (_) {
-      throw const ApiException('Respons server tidak valid.');
+      throw const ApiException('Terjadi kesalahan, coba lagi nanti.');
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(json['message'] as String? ?? 'Terjadi kesalahan.');

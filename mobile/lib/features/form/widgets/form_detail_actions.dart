@@ -31,7 +31,14 @@ class FormDetailActions extends StatelessWidget {
             _ActionTile(
               Icons.edit_outlined,
               'Edit Soal & Jawaban',
-              () => onPush(AppPage.formQuestions, {'formId': form.id}),
+              form.responseCount > 0
+                  ? () => showAuthToast(
+                        context,
+                        'Soal tidak dapat diubah karena form sudah memiliki respons',
+                        isError: true,
+                      )
+                  : () => onPush(AppPage.formQuestions, {'formId': form.id}),
+              locked: form.responseCount > 0,
             ),
             _divider(),
             _ActionTile(
@@ -75,16 +82,23 @@ class _ActionTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final bool locked;
 
-  const _ActionTile(this.icon, this.label, this.onTap);
+  const _ActionTile(this.icon, this.label, this.onTap, {this.locked = false});
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon, color: kAuthPrimary),
+      leading: Icon(
+        locked ? Icons.lock_outline : icon,
+        color: kAuthPrimary,
+      ),
       title: Text(
         label,
-        style: const TextStyle(fontSize: 14, color: Colors.black87),
+        style: TextStyle(
+          fontSize: 14,
+          color: locked ? Colors.black38 : Colors.black87,
+        ),
       ),
       trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
       onTap: onTap,

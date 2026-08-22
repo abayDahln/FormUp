@@ -83,7 +83,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
 
   Future<void> _save() async {
     if (_saving) return;
-    final title = _form.titleController.document.toPlainText().trim();
+    final title = _form.titleController.text.trim();
     if (title.isEmpty) {
       showAuthToast(context, "Judul form wajib diisi", isError: true);
       return;
@@ -108,13 +108,13 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
         formId = widget.formId!;
         await FormService.updateForm(
           formId,
-          title: _form.titleController.document.toPlainText().trim(),
+          title: _form.titleController.text.trim(),
           description: encodeRichText(_form.descController),
           formLink: customLink.isEmpty ? null : customLink,
         );
       } else {
         formId = await FormService.createForm(
-          title: _form.titleController.document.toPlainText().trim(),
+          title: _form.titleController.text.trim(),
           description: encodeRichText(_form.descController),
         );
         if (customLink.isNotEmpty) {

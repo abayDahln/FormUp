@@ -82,19 +82,20 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const AuthTitle(
-                          title: "Ubah Kata Sandi",
-                          subtitle: "Masukkan kata sandi saat ini dan kata sandi baru Anda.",
-                        ),
-                        const SizedBox(height: 40),
-                        AuthCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              AuthTextField(
+                       children: [
+                         AuthCard(
+                           child: Column(
+                             crossAxisAlignment: CrossAxisAlignment.stretch,
+                             children: [
+                               const AuthTitle(
+                                 title: "Ubah Kata Sandi",
+                                 subtitle: "Masukkan kata sandi saat ini dan kata sandi baru Anda.",
+                               ),
+                               const SizedBox(height: 24),
+                               AuthTextField(
                                 controller: _currentController,
                                 hint: "Kata Sandi Saat Ini",
+                                label: "Kata Sandi Saat Ini",
                                 icon: Icons.lock_outline,
                                 obscure: true,
                               ),
@@ -102,6 +103,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                               AuthTextField(
                                 controller: _newController,
                                 hint: "Kata Sandi Baru",
+                                label: "Kata Sandi Baru",
                                 icon: Icons.lock_reset,
                                 obscure: true,
                               ),
@@ -109,6 +111,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                               AuthTextField(
                                 controller: _confirmController,
                                 hint: "Konfirmasi Kata Sandi Baru",
+                                label: "Konfirmasi Kata Sandi Baru",
                                 icon: Icons.lock_outline,
                                 obscure: true,
                               ),
@@ -139,13 +142,13 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                                 loading: _loading,
                                 onPressed: _save,
                               ),
+                              const SizedBox(height: 20),
+                              AuthInlineLink(
+                                link: "Kembali ke Profil",
+                                onTap: () => AppRouter.of(context).pop(),
+                              ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                        AuthBottomPill(
-                          link: "Kembali ke Profil",
-                          onTap: () => AppRouter.of(context).pop(),
                         ),
                       ],
                     ),

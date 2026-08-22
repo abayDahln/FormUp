@@ -55,12 +55,14 @@ class AuthResult {
   final String fullname;
   final String username;
   final String email;
+  final String role;
 
   AuthResult({
     required this.token,
     required this.fullname,
     required this.username,
     required this.email,
+    this.role = 'USER',
   });
 
   factory AuthResult.fromJson(Map<String, dynamic> json) {
@@ -71,6 +73,7 @@ class AuthResult {
       fullname: user['fullname'] as String? ?? '',
       username: user['username'] as String? ?? '',
       email: user['email'] as String? ?? '',
+      role: user['role'] as String? ?? 'USER',
     );
   }
 }
@@ -86,8 +89,17 @@ class AuthService {
   static String? token;
 
   static String? _email;
+  static String? _role;
+  static bool _rememberMe = true;
 
   static String? get email => _email;
+
+  /// Role user login ('ADMIN' / 'USER')
+  static String get role => _role ?? 'USER';
+
+  /// Ingat saya: true = sesi tersimpan (auto-login sampai token kedaluwarsa),
+  /// false = sesi hanya hidup selama aplikasi terbuka.
+  static bool get rememberMe => _rememberMe;
 
   /// Callback saat sesi berakhir
   static void Function()? onSessionExpired;
@@ -96,28 +108,53 @@ class AuthService {
   static const _kFullname = 'auth_fullname';
   static const _kUsername = 'auth_username';
   static const _kEmail = 'auth_email';
+  static const _kRole = 'auth_role';
+  static const _kRemember = 'auth_remember';
+
+  /// Simpan pilihan ingat saya
+  static Future<void> setRememberMe(bool value) async {
+    _rememberMe = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kRemember, value);
+  }
 
   static Future<void> _persistSession(AuthResult result) async {
     token = result.token;
     _email = result.email;
+    _role = result.role;
     final prefs = await SharedPreferences.getInstance();
+
+    // Tanpa "ingat saya": sesi hanya di memori, hapus sisa sesi tersimpan.
+    if (!_rememberMe) {
+      await prefs.remove(_kToken);
+      await prefs.remove(_kFullname);
+      await prefs.remove(_kUsername);
+      await prefs.remove(_kEmail);
+      await prefs.remove(_kRole);
+      return;
+    }
+
     await prefs.setString(_kToken, result.token);
     await prefs.setString(_kFullname, result.fullname);
     await prefs.setString(_kUsername, result.username);
     await prefs.setString(_kEmail, result.email);
+    await prefs.setString(_kRole, result.role);
   }
 
   /// Ambil sesi tersimpan
   static Future<AuthResult?> restoreSession() async {    final prefs = await SharedPreferences.getInstance();
+    _rememberMe = prefs.getBool(_kRemember) ?? true;
     final savedToken = prefs.getString(_kToken);
     if (savedToken == null || savedToken.isEmpty) return null;
     token = savedToken;
     _email = prefs.getString(_kEmail) ?? '';
+    _role = prefs.getString(_kRole) ?? 'USER';
     return AuthResult(
       token: savedToken,
       fullname: prefs.getString(_kFullname) ?? '',
       username: prefs.getString(_kUsername) ?? '',
       email: prefs.getString(_kEmail) ?? '',
+      role: _role!,
     );
   }
 
@@ -129,7 +166,11 @@ class AuthService {
       RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(email);
 
   static const _serverDownMessage =
-      'Server sedang offline. Silakan coba lagi nanti.';
+      'Terjadi gangguan pada layanan. Silakan coba lagi nanti.';
+  static const _connectionMessage =
+      'Gagal terhubung. Periksa koneksi internet kamu dan coba lagi.';
+  static const _invalidResponseMessage =
+      'Terjadi kesalahan, coba lagi nanti.';
 
   static Map<String, dynamic> _decode(http.Response response) {
     final Map<String, dynamic> json;
@@ -139,7 +180,7 @@ class AuthService {
       if (response.statusCode >= 502 && response.statusCode <= 504) {
         throw const ApiException(_serverDownMessage);
       }
-      throw const ApiException('Respons server tidak valid.');
+      throw const ApiException(_invalidResponseMessage);
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       // ponytail: 5xx pesan generik tanpa detail.
@@ -173,15 +214,11 @@ class AuthService {
         return await http.Response.fromStream(streamed);
       } on TimeoutException {
         if (attempt >= _maxRetries) {
-          throw const ApiException(
-            'Server sedang offline. Silakan coba lagi nanti.',
-          );
+          throw const ApiException(_connectionMessage);
         }
       } on http.ClientException {
         if (attempt >= _maxRetries) {
-          throw const ApiException(
-            'Server sedang offline. Silakan coba lagi nanti.',
-          );
+          throw const ApiException(_connectionMessage);
         }
       }
       attempt++;
@@ -351,11 +388,13 @@ class AuthService {
   static Future<void> logout() async {
     token = null;
     _email = null;
+    _role = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kToken);
     await prefs.remove(_kFullname);
     await prefs.remove(_kUsername);
     await prefs.remove(_kEmail);
+    await prefs.remove(_kRole);
   }
 
   static Future<Map<String, dynamic>> post(

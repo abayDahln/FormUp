@@ -247,14 +247,23 @@ Future<void> showFormQuickActions(
           const Divider(height: 1, color: Colors.black12),
           const SizedBox(height: 4),
           _sheetAction(
-            icon: Icons.edit_outlined,
+            icon: form.responseCount > 0
+                ? Icons.lock_outline
+                : Icons.edit_outlined,
             label: 'Edit Soal & Jawaban',
-            onTap: () => _closeAndPush(
-              sheetContext,
-              context,
-              AppPage.formQuestions,
-              {'formId': form.id},
-            ),
+            muted: form.responseCount > 0,
+            onTap: form.responseCount > 0
+                ? () => showAuthToast(
+                      context,
+                      'Soal tidak dapat diubah karena form sudah memiliki respons',
+                      isError: true,
+                    )
+                : () => _closeAndPush(
+                    sheetContext,
+                    context,
+                    AppPage.formQuestions,
+                    {'formId': form.id},
+                  ),
           ),
           _sheetAction(
             icon: Icons.visibility_outlined,
@@ -328,12 +337,16 @@ Widget _sheetAction({
   required IconData icon,
   required String label,
   required VoidCallback onTap,
+  bool muted = false,
 }) {
   return ListTile(
     leading: Icon(icon, color: kAuthPrimary),
     title: Text(
       label,
-      style: const TextStyle(fontSize: 14, color: Colors.black87),
+      style: TextStyle(
+        fontSize: 14,
+        color: muted ? Colors.black38 : Colors.black87,
+      ),
     ),
     trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
     onTap: onTap,

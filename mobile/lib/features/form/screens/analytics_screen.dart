@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
@@ -25,6 +27,9 @@ class AnalyticsScreen extends StatefulWidget {
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
   static const _pageSize = 20;
   final _scrollController = ScrollController();
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+  String _query = '';
   FormAnalytics? _analytics;
   List<RespondentAnalyticsData> _respondents = [];
   bool _loading = true;
@@ -46,8 +51,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      setState(() => _query = value.trim());
+      _load();
+    });
   }
 
   Future<void> _load() async {
@@ -61,12 +77,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         widget.formId,
         page: 1,
         pageSize: _pageSize,
+        search: _query,
       );
       if (!mounted) return;
       setState(() {
         _analytics = analytics;
         _respondents = analytics.respondents;
-        _hasMore = analytics.respondents.length < analytics.totalResponses;
+        _hasMore =
+            analytics.respondents.length < analytics.totalResponses &&
+                analytics.respondents.isNotEmpty;
       });
     } catch (e) {
       if (!mounted) return;
@@ -85,18 +104,30 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         widget.formId,
         page: next,
         pageSize: _pageSize,
+        search: _query,
       );
       if (!mounted) return;
       setState(() {
         _page = next;
         _respondents = [..._respondents, ...analytics.respondents];
-        _hasMore = analytics.respondents.length < analytics.totalResponses;
+        _hasMore =
+            analytics.respondents.length < analytics.totalResponses &&
+                analytics.respondents.isNotEmpty;
       });
     } catch (e) {
       // ponytail: load-more gagal, scroll lagi
     } finally {
       if (mounted) setState(() => _loadingMore = false);
     }
+  }
+
+  void _openRespondent(RespondentAnalyticsData respondent) {
+    AppRouter.of(context).push(AppPage.respondentDetail, {
+      'formId': widget.formId,
+      'title': widget.title,
+      'responseId': respondent.responseId,
+      'respondentName': respondent.respondentName ?? '',
+    });
   }
 
   @override
@@ -124,7 +155,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ),
         ),
       ),
-      body: _loading
+      body: _loading && _analytics == null
           ? const Center(child: CircularProgressIndicator())
           : AuthBackground(
               child: SafeArea(
@@ -152,8 +183,45 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    AnalyticsSummaryRow(analytics: _analytics!),
-                    const SizedBox(height: 20),
+                    if (_analytics != null)
+                      AnalyticsSummaryRow(analytics: _analytics!),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _searchController,
+                      onChanged: _onSearchChanged,
+                      decoration: InputDecoration(
+                        hintText: 'Cari responden...',
+                        hintStyle:
+                            const TextStyle(color: Colors.black38, fontSize: 14),
+                        prefixIcon: const Icon(Icons.search,
+                            color: Colors.black54, size: 20),
+                        suffixIcon: _searchController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.close,
+                                    color: Colors.black54, size: 18),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  _onSearchChanged('');
+                                },
+                              )
+                            : null,
+                        isDense: true,
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 16),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(7.5),
+                          borderSide:
+                              const BorderSide(color: Color(0xFF6E7979)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(7.5),
+                          borderSide: const BorderSide(color: kAuthPrimary),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     const Text(
                       "Responden",
                       style: TextStyle(
@@ -173,12 +241,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Column(
-                          children: const [
-                            Icon(Icons.people_outline, color: Colors.grey, size: 36),
-                            SizedBox(height: 10),
+                          children: [
+                            const Icon(Icons.people_outline,
+                                color: Colors.grey, size: 36),
+                            const SizedBox(height: 10),
                             Text(
-                              'Belum ada responden',
-                              style: TextStyle(
+                              _query.isEmpty
+                                  ? 'Belum ada responden'
+                                  : 'Tidak ada hasil untuk "${_searchController.text}"',
+                              style: const TextStyle(
                                 fontSize: 13,
                                 color: Colors.black54,
                               ),
@@ -191,6 +262,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         AnalyticsRespondentCard(
                           index: i,
                           respondent: _respondents[i],
+                          onTap: () => _openRespondent(_respondents[i]),
                         ),
                         const SizedBox(height: 12),
                       ],

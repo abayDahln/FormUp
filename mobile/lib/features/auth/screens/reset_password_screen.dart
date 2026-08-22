@@ -80,20 +80,21 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const AuthTitle(
-                          title: "Atur Ulang Kata Sandi",
-                          subtitle:
-                              "Buat kata sandi baru untuk akun Anda.\nMinimal 8 karakter.",
-                        ),
-                        const SizedBox(height: 40),
-                        AuthCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              AuthTextField(
+                       children: [
+                         AuthCard(
+                           child: Column(
+                             crossAxisAlignment: CrossAxisAlignment.stretch,
+                             children: [
+                               const AuthTitle(
+                                 title: "Atur Ulang Kata Sandi",
+                                 subtitle:
+                                     "Buat kata sandi baru untuk akun Anda.\nMinimal 8 karakter.",
+                               ),
+                               const SizedBox(height: 24),
+                               AuthTextField(
                                 controller: _newPasswordController,
                                 hint: "Kata Sandi Baru",
+                                label: "Kata Sandi Baru",
                                 icon: Icons.lock_outline,
                                 obscure: true,
                               ),
@@ -101,6 +102,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                               AuthTextField(
                                 controller: _confirmPasswordController,
                                 hint: "Konfirmasi Kata Sandi",
+                                label: "Konfirmasi Kata Sandi",
                                 icon: Icons.lock_outline,
                                 obscure: true,
                               ),
@@ -131,14 +133,14 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                 loading: _loading,
                                 onPressed: _resetPassword,
                               ),
+                              const SizedBox(height: 20),
+                              AuthInlineLink(
+                                link: "Kembali ke Masuk",
+                                onTap: () =>
+                                    AppRouter.of(context).resetToLogin(),
+                              ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                        AuthBottomPill(
-                          link: "Kembali ke Masuk",
-                          onTap: () =>
-                              AppRouter.of(context).resetToLogin(),
                         ),
                       ],
                     ),

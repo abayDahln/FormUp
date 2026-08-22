@@ -6,9 +6,9 @@ import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 
-/// Kartu header form maker: judul, deskripsi, dan banner
+/// Kartu header form maker: judul (plain text), deskripsi (rich), dan banner
 class FormMakerHeaderCard extends StatelessWidget {
-  final QuillController titleController;
+  final TextEditingController titleController;
   final QuillController descController;
   final String? bannerImage;
   final Uint8List? newBanner;
@@ -47,10 +47,35 @@ class FormMakerHeaderCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          RichTextEditor(
+          TextField(
             controller: titleController,
-            hint: "Contoh: Survey Kepuasan",
-            minHeight: 48,
+            style: const TextStyle(fontSize: 15, color: Colors.black87),
+            cursorColor: kAuthPrimary,
+            decoration: InputDecoration(
+              hintText: "Contoh: Survey Kepuasan",
+              hintStyle: const TextStyle(color: kAuthText),
+              filled: true,
+              fillColor: const Color(0xFFF0F4F4),
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 14,
+                horizontal: 16,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: kAuthText),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: kAuthText),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(
+                  color: kAuthPrimary,
+                  width: 1.5,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 16),
           const Text(

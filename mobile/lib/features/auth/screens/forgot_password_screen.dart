@@ -63,39 +63,40 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const AuthTitle(
-                          title: "Lupa Kata Sandi",
-                          subtitle:
-                              "Masukkan email yang terdaftar.\nKami akan mengirimkan kode OTP ke email Anda.",
-                        ),
-                        const SizedBox(height: 40),
-                        AuthCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              AuthTextField(
-                                controller: _emailController,
-                                hint: "Email",
-                                icon: Icons.email_outlined,
-                                keyboardType: TextInputType.emailAddress,
-                              ),
-                              const SizedBox(height: 22),
-                              AuthPrimaryButton(
-                                label: "Kirim OTP",
-                                pill: true,
-                                loading: _loading,
-                                onPressed: _sendOtp,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        AuthBottomPill(
-                          link: "Kembali ke Masuk",
-                          onTap: () => AppRouter.of(context).pop(),
-                        ),
-                      ],
+                       children: [
+                         AuthCard(
+                           child: Column(
+                             crossAxisAlignment: CrossAxisAlignment.stretch,
+                             children: [
+                               const AuthTitle(
+                                 title: "Lupa Kata Sandi",
+                                 subtitle:
+                                     "Masukkan email yang terdaftar.\nKami akan mengirimkan kode OTP ke email Anda.",
+                               ),
+                               const SizedBox(height: 24),
+                               AuthTextField(
+                                 controller: _emailController,
+                                 hint: "Email",
+                                 label: "Email",
+                                 icon: Icons.email_outlined,
+                                 keyboardType: TextInputType.emailAddress,
+                               ),
+                               const SizedBox(height: 22),
+                               AuthPrimaryButton(
+                                 label: "Kirim OTP",
+                                 pill: true,
+                                 loading: _loading,
+                                 onPressed: _sendOtp,
+                               ),
+                               const SizedBox(height: 20),
+                               AuthInlineLink(
+                                 link: "Kembali ke Masuk",
+                                 onTap: () => AppRouter.of(context).pop(),
+                               ),
+                             ],
+                           ),
+                         ),
+                       ],
                     ),
                   ),
                 ),

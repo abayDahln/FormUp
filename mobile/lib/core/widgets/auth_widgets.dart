@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_toast.dart';
 
 // ===== Design system =====
 const kBg = Color(0xFFE2F3F2);
@@ -153,6 +154,7 @@ class AuthTextField extends StatefulWidget {
   final IconData icon;
   final bool obscure;
   final TextInputType? keyboardType;
+  final String? label;
 
   const AuthTextField({
     super.key,
@@ -161,6 +163,7 @@ class AuthTextField extends StatefulWidget {
     required this.icon,
     this.obscure = false,
     this.keyboardType,
+    this.label,
   });
 
   @override
@@ -178,7 +181,7 @@ class _AuthTextFieldState extends State<AuthTextField> {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    final field = SizedBox(
       height: 56,
       child: TextField(
         controller: widget.controller,
@@ -219,6 +222,28 @@ class _AuthTextFieldState extends State<AuthTextField> {
           ),
         ),
       ),
+    );
+
+    final label = widget.label;
+    if (label == null || label.isEmpty) return field;
+
+    // Label di atas field, gaya sama dengan form maker
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: kAuthPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        field,
+      ],
     );
   }
 }
@@ -319,6 +344,49 @@ class AuthPrimaryButton extends StatelessWidget {
 }
 
 /// Pill navigasi antar screen
+/// Baris link inline (pengganti AuthBottomPill saat digabung ke dalam kartu)
+class AuthInlineLink extends StatelessWidget {
+  final String? question;
+  final String link;
+  final VoidCallback onTap;
+
+  const AuthInlineLink({
+    super.key,
+    this.question,
+    required this.link,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          if (question != null)
+            Text(
+              question!,
+              style: const TextStyle(color: Colors.black54, fontSize: 14),
+            ),
+          GestureDetector(
+            onTap: onTap,
+            child: Text(
+              link,
+              style: const TextStyle(
+                color: kAuthPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                fontFamily: kFontBold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class AuthBottomPill extends StatelessWidget {
   final String? question;
   final String link;
@@ -468,65 +536,12 @@ class _OtpFieldState extends State<OtpField> {
   }
 }
 
-/// Toast pill putih
+/// Wrapper kompatibel: tampil sebagai toast flat colored (varian error/success)
 void showAuthToast(
   BuildContext context,
   String message, {
   bool isError = false,
 }) {
-  final overlay = Overlay.of(context);
-  late final OverlayEntry entry;
-  entry = OverlayEntry(
-    builder: (context) => Positioned(
-      left: 22,
-      right: 22,
-      bottom: MediaQuery.of(context).viewInsets.bottom +
-          MediaQuery.of(context).viewPadding.bottom +
-          16,
-      child: IgnorePointer(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: const Color(0xCCBDC9C8)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Icon(
-                isError ? Icons.error_outline : Icons.check_circle_outline,
-                color: isError ? const Color(0xFFC0392B) : kAuthPrimary,
-                size: 20,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  message,
-                  style: const TextStyle(
-                    color: Colors.black87,
-                    fontSize: 14,
-                    height: 1.3,
-                    fontWeight: FontWeight.w400,
-                    fontFamily: 'Inter',
-                    decoration: TextDecoration.none,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
-  overlay.insert(entry);
-  Future.delayed(const Duration(milliseconds: 2500), () {
-    if (entry.mounted) entry.remove();
-  });
+  showAppToast(context, message,
+      type: isError ? ToastType.error : ToastType.success);
 }

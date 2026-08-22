@@ -41,7 +41,9 @@ class FormMakerSnapshot {
 /// Controller state untuk FormMakerScreen: menampung seluruh nilai form,
 /// snapshot/deteksi perubahan, parsing data form, dan payload pengaturan.
 class FormMakerController {
-  final QuillController titleController = richTextController(null);
+  /// Judul selalu plain text (konsisten dengan versi web).
+  /// Data lama berformat Delta tetap dibaca lalu dikonversi ke plain.
+  final TextEditingController titleController = TextEditingController();
   final QuillController descController = richTextController(null);
   final TextEditingController timerController = TextEditingController();
   String timerUnit = 'menit';
@@ -76,7 +78,7 @@ class FormMakerController {
       jsonEncode(c.document.toDelta().toJson());
 
   FormMakerSnapshot snapshot() => FormMakerSnapshot(
-        title: _delta(titleController),
+        title: titleController.text.trim(),
         desc: _delta(descController),
         formTypeId: formTypeId,
         showScore: showScore,
@@ -119,7 +121,7 @@ class FormMakerController {
     final settings = form['settings'] as Map<String, dynamic>?;
     final rawOpen = settings?['openFormTime'] as String?;
     final rawClose = settings?['closeFormTime'] as String?;
-    titleController.document = richDocument(form['title'] as String?);
+    titleController.text = richToPlainText(form['title'] as String?);
     descController.document = richDocument(form['description'] as String?);
     bannerImage = form['bannerImage'] as String?;
     newBanner = null;

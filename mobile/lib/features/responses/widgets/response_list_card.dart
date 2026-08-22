@@ -7,14 +7,12 @@ import 'package:form_up/features/responses/widgets/response_status.dart';
 class ResponseListCard extends StatelessWidget {
   final ResponseListItemData response;
   final int index;
-  final ValueChanged<int> onStatusChanged;
   final VoidCallback onOpenDetail;
 
   const ResponseListCard({
     super.key,
     required this.response,
     required this.index,
-    required this.onStatusChanged,
     required this.onOpenDetail,
   });
 
@@ -68,19 +66,6 @@ class ResponseListCard extends StatelessWidget {
               : _formatTime(r.submittedAt!),
           style: const TextStyle(fontSize: 11, color: Colors.black54),
         ),
-        trailing: DropdownButtonHideUnderline(
-          child: DropdownButton<int>(
-            value: responseStatusIdOf(r.status),
-            style: const TextStyle(fontSize: 12, color: Colors.black87),
-            items: [
-              for (final s in responseStatusOptions)
-                DropdownMenuItem(value: s.$1, child: Text(s.$2)),
-            ],
-            onChanged: (v) {
-              if (v != null) onStatusChanged(v);
-            },
-          ),
-        ),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         children: [
           Container(
@@ -129,8 +114,7 @@ class ResponseListCard extends StatelessWidget {
               ],
             ),
           ),
-        ],
-      ),
+        ],      ),
     );
   }
 }

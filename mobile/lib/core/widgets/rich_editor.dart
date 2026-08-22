@@ -1521,6 +1521,7 @@ class RichTextView extends StatelessWidget {
         overflow: overflow,
       );
     }
+    if (widgets.isEmpty) return const SizedBox.shrink();
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1538,6 +1539,13 @@ class RichTextView extends StatelessWidget {
     while (i < blocks.length) {
       final b = blocks[i];
       final t = b.plain.trim();
+
+      // Lewati blok yang hanya berisi spasi/baris kosong (mis. sisa enter
+      // atau spasi di editor) supaya tidak membuat whitespace semu.
+      if (t.isEmpty && !b.spans.any((s) => s is WidgetSpan)) {
+        i++;
+        continue;
+      }
 
       final fence = RegExp(r'^```([a-zA-Z0-9_#-]*)$').firstMatch(t);
       if (fence != null) {

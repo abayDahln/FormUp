@@ -126,6 +126,7 @@ class PublicResultAnswer {
   final String? correctAnswer;
   final bool? isCorrect;
   final List<String> options;
+  final List<String> selectedOptions;
 
   const PublicResultAnswer({
     required this.questionId,
@@ -135,6 +136,7 @@ class PublicResultAnswer {
     this.correctAnswer,
     this.isCorrect,
     this.options = const [],
+    this.selectedOptions = const [],
   });
 
   factory PublicResultAnswer.fromJson(Map<String, dynamic> json) =>
@@ -147,6 +149,10 @@ class PublicResultAnswer {
         isCorrect: json['isCorrect'] as bool?,
         options: [
           for (final o in json['options'] as List<dynamic>? ?? [])
+            o as String? ?? '',
+        ],
+        selectedOptions: [
+          for (final o in json['selectedOptions'] as List<dynamic>? ?? [])
             o as String? ?? '',
         ],
       );
@@ -198,6 +204,34 @@ class PublicFormResult {
       );
 }
 
+/// Satu attempt pengerjaan user pada sebuah form
+class MyAttempt {
+  final int responseId;
+  final DateTime? submittedAt;
+  final bool showScore;
+  final double? score;
+  final int correctCount;
+  final int wrongCount;
+
+  const MyAttempt({
+    required this.responseId,
+    this.submittedAt,
+    this.showScore = false,
+    this.score,
+    this.correctCount = 0,
+    this.wrongCount = 0,
+  });
+
+  factory MyAttempt.fromJson(Map<String, dynamic> json) => MyAttempt(
+        responseId: json['responseId'] as int,
+        submittedAt: _parseDate(json['submittedAt']),
+        showScore: json['showScore'] as bool? ?? false,
+        score: (json['score'] as num?)?.toDouble(),
+        correctCount: json['correctCount'] as int? ?? 0,
+        wrongCount: json['wrongCount'] as int? ?? 0,
+      );
+}
+
 class PublicFormService {
   /// GET /public/forms/{formLink}
   static Future<PublicFormInfo> getFormInfo(String formLink) async {
@@ -244,5 +278,14 @@ class PublicFormService {
     final json =
         await AuthService.get('/public/forms/$formLink/responses/$responseId');
     return PublicFormResult.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  /// GET .../my-responses — semua attempt user pada satu form
+  static Future<List<MyAttempt>> getMyAttempts(String formLink) async {
+    final json = await AuthService.get('/public/forms/$formLink/my-responses');
+    return [
+      for (final a in json['data'] as List<dynamic>? ?? [])
+        MyAttempt.fromJson(a as Map<String, dynamic>),
+    ];
   }
 }

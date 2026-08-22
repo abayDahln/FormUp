@@ -14,6 +14,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _loading = false;
+  bool _rememberMe = AuthService.rememberMe;
 
   @override
   void dispose() {
@@ -70,19 +71,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const AuthTitle(
-                          title: "Masuk",
-                          subtitle: "Masuk untuk mengelola formulir Anda",
-                        ),
-                        const SizedBox(height: 40),
-                        AuthCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              AuthTextField(
+                       children: [
+                         AuthCard(
+                           child: Column(
+                             crossAxisAlignment: CrossAxisAlignment.stretch,
+                             children: [
+                               const AuthTitle(
+                                 title: "Masuk",
+                                 subtitle:
+                                     "Masuk untuk mengelola formulir Anda",
+                               ),
+                               const SizedBox(height: 24),
+                               AuthTextField(
                                 controller: _emailController,
                                 hint: "Email",
+                                label: "Email",
                                 icon: Icons.email_outlined,
                                 keyboardType: TextInputType.emailAddress,
                               ),
@@ -90,8 +93,47 @@ class _LoginScreenState extends State<LoginScreen> {
                               AuthTextField(
                                 controller: _passwordController,
                                 hint: "Kata Sandi",
+                                label: "Kata Sandi",
                                 icon: Icons.lock_outline,
                                 obscure: true,
+                              ),
+                              const SizedBox(height: 12),
+                              // Ingat saya: sesi tetap tersimpan sampai
+                              // token kedaluwarsa
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() => _rememberMe = !_rememberMe);
+                                  AuthService.setRememberMe(_rememberMe);
+                                },
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 19,
+                                      height: 19,
+                                      decoration: BoxDecoration(
+                                        color: _rememberMe
+                                            ? kAuthPrimary
+                                            : Colors.white,
+                                        borderRadius:
+                                            BorderRadius.circular(5.5),
+                                        border:
+                                            Border.all(color: kAuthText),
+                                      ),
+                                      child: _rememberMe
+                                          ? const Icon(Icons.check,
+                                              size: 14, color: Colors.white)
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    const Text(
+                                      "Ingat saya",
+                                      style: TextStyle(
+                                        color: Colors.black54,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                               const SizedBox(height: 16),
                               AuthPrimaryButton(
@@ -99,9 +141,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 loading: _loading,
                                 onPressed: _login,
                               ),
-                              const SizedBox(height: 24),
-                              Align(
-                                alignment: Alignment.center,
+                              const SizedBox(height: 18),
+                              Center(
                                 child: GestureDetector(
                                   onTap: () {
                                     AppRouter.of(context)
@@ -114,22 +155,20 @@ class _LoginScreenState extends State<LoginScreen> {
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
                                       fontFamily: kFontBold,
-                                      decoration: TextDecoration.underline,
-                                      decorationColor: kAuthPrimary,
                                     ),
                                   ),
                                 ),
                               ),
+                              const SizedBox(height: 18),
+                              AuthInlineLink(
+                                question: "Pengguna baru? ",
+                                link: "Daftar",
+                                onTap: () {
+                                  AppRouter.of(context).push(AppPage.register);
+                                },
+                              ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                        AuthBottomPill(
-                          question: "Pengguna baru? ",
-                          link: "Daftar",
-                          onTap: () {
-                            AppRouter.of(context).push(AppPage.register);
-                          },
                         ),
                       ],
                     ),

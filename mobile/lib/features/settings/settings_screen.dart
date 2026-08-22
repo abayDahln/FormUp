@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -29,7 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Keluar', style: TextStyle(color: Color(0xFFC0392B))),
+            child: const Text('Keluar', style: TextStyle(color: kDangerColor)),
           ),
         ],
       ),
@@ -145,7 +146,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         borderRadius: BorderRadius.circular(18),
         boxShadow: softShadow(),
       ),
-      child: Column(children: children),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(children: children),
+      ),
     );
   }
 }

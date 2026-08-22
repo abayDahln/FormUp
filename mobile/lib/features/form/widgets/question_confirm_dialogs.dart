@@ -48,7 +48,7 @@ Future<bool?> showSaveConfirmDialog(BuildContext context) {
         style: TextStyle(fontFamily: kFontBold),
       ),
       content: const Text(
-        'Soal akan disimpan ke server.',
+        'Semua perubahan soal akan disimpan.',
       ),
       actions: [
         TextButton(

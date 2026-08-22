@@ -3,9 +3,7 @@ import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/router/app_router.dart';
-import 'package:form_up/features/responses/widgets/response_detail_sheet.dart';
 import 'package:form_up/features/responses/widgets/response_list_card.dart';
-import 'package:form_up/features/responses/widgets/response_status.dart';
 
 /// Kelola respons form
 class FormResponsesScreen extends StatefulWidget {
@@ -97,52 +95,13 @@ class _FormResponsesScreenState extends State<FormResponsesScreen> {
     }
   }
 
-  Future<void> _changeStatus(int responseId, int statusId) async {
-    try {
-      await FormService.updateResponseStatus(responseId, statusId);
-      if (!mounted) return;
-      final label = responseStatusOptions
-          .firstWhere((s) => s.$1 == statusId)
-          .$2
-          .toLowerCase();
-      setState(() {
-        _responses = [
-          for (final r in _responses)
-            if (r.id == responseId)
-              ResponseListItemData(
-                id: r.id,
-                respondentName: r.respondentName,
-                status: label,
-                submittedAt: r.submittedAt,
-              )
-            else
-              r,
-        ];
-      });
-      showAuthToast(context, 'Status diperbarui');
-    } catch (e) {
-      if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
-    }
-  }
-
-  Future<void> _openDetail(int responseId) async {
-    try {
-      final detail = await FormService.getResponseDetail(
-        widget.formId,
-        responseId,
-      );
-      if (!mounted) return;
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (context) => ResponseDetailSheet(detail: detail),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
-    }
+  void _openDetail(ResponseListItemData response) {
+    AppRouter.of(context).push(AppPage.respondentDetail, {
+      'formId': widget.formId,
+      'title': widget.title,
+      'responseId': response.id,
+      'respondentName': response.respondentName ?? '',
+    });
   }
 
   @override
@@ -224,9 +183,7 @@ class _FormResponsesScreenState extends State<FormResponsesScreen> {
                             return ResponseListCard(
                               response: _responses[i],
                               index: i,
-                              onStatusChanged: (v) =>
-                                  _changeStatus(_responses[i].id, v),
-                              onOpenDetail: () => _openDetail(_responses[i].id),
+                              onOpenDetail: () => _openDetail(_responses[i]),
                             );
                           },
                         ),

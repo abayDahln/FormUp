@@ -117,7 +117,7 @@ class UserService {
     try {
       json = jsonDecode(response.body) as Map<String, dynamic>;
     } catch (_) {
-      throw const ApiException('Respons server tidak valid.');
+      throw const ApiException('Terjadi kesalahan, coba lagi nanti.');
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(json['message'] as String? ?? 'Terjadi kesalahan.');
