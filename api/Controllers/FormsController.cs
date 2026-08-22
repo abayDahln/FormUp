@@ -372,6 +372,12 @@ public class FormsController : ControllerBase
             return Ok(new ApiResponse<object>(200, "Form unpublished"));
         }
 
+        // Form tanpa soal tidak boleh dipublish
+        var questionCount = await _db.Questions.CountAsync(q => q.FormId == form.Id && q.DeletedAt == null);
+        if (questionCount == 0)
+            return BadRequest(new ApiResponse<object>(400,
+                "Form tidak dapat dipublish karena belum memiliki soal"));
+
         form.StatusId = publishedStatus.Id;
         form.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();

@@ -136,7 +136,7 @@ Semua request (kecuali endpoint auth publik seperti login/register/OTP) butuh to
 Authorization: Bearer <your-jwt-token>
 ```
 
-Token access berlaku 24 jam secara default (`Jwt:AccessTokenMinutes = 1440`); perbarui via `POST /api/auth/refresh`.
+Token access berlaku 14 hari secara default (`Jwt:AccessTokenMinutes = 20160`); perbarui via `POST /api/auth/refresh`. Token yang sudah kedaluwarsa masih bisa di-refresh hingga 7 hari — user tidak perlu login ulang selama 1–2 minggu.
 
 ### Contoh: Buat Form Baru
 

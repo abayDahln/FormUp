@@ -34,9 +34,14 @@ public class QuestionsController : ControllerBase
             return Unauthorized(new ApiResponse<object>(401, "User not found"));
 
         var form = await _db.Forms
-            .FirstOrDefaultAsync(f => f.Id == formId && f.UserId == user.Id && f.DeletedAt == null);
+            .Include(f => f.Status)
+            .FirstOrDefaultAsync(f => f.Id == formId && f.DeletedAt == null);
 
         if (form == null)
+            return NotFound(new ApiResponse<object>(404, "Form not found"));
+
+        // Pemilik form atau admin boleh melihat soal
+        if (form.UserId != user.Id && user.Role != "ADMIN")
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
         var questions = await _db.Questions
@@ -64,10 +69,6 @@ public class QuestionsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        var blocked = await EnsureNotPublished(form);
-        if (blocked != null)
-            return blocked;
-
         var typeIds = request.Questions.Select(q => q.TypeId).Distinct().ToList();
         var validTypes = await _db.QuestionTypes
             .Where(t => typeIds.Contains(t.Id))
@@ -78,13 +79,18 @@ public class QuestionsController : ControllerBase
         if (invalidTypes.Count > 0)
             return BadRequest(new ApiResponse<object>(400, $"Invalid type IDs: {string.Join(", ", invalidTypes)}"));
 
+        using var tx = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        await LockFormRow(formId);
+
+        var blocked = await EnsureNoResponses(formId);
+        if (blocked != null)
+            return blocked;
+
         var maxOrder = await _db.Questions
             .Where(q => q.FormId == formId && q.DeletedAt == null)
             .MaxAsync(q => (int?)q.QuestionOrder) ?? 0;
 
         var createdIds = new List<int>();
-
-        using var tx = await _db.Database.BeginTransactionAsync();
 
         try
         {
@@ -165,10 +171,6 @@ public class QuestionsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        var blocked = await EnsureNotPublished(form);
-        if (blocked != null)
-            return blocked;
-
         var typeIds = request.Questions.Select(q => q.TypeId).Distinct().ToList();
         var validTypes = await _db.QuestionTypes
             .Where(t => typeIds.Contains(t.Id))
@@ -179,7 +181,12 @@ public class QuestionsController : ControllerBase
         if (invalidTypes.Count > 0)
             return BadRequest(new ApiResponse<object>(400, $"Invalid type IDs: {string.Join(", ", invalidTypes)}"));
 
-        using var tx = await _db.Database.BeginTransactionAsync();
+        using var tx = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        await LockFormRow(formId);
+
+        var blocked = await EnsureNoResponses(formId);
+        if (blocked != null)
+            return blocked;
 
         try
         {
@@ -280,6 +287,9 @@ public class QuestionsController : ControllerBase
                         .SetProperty(q => q.UpdatedAt, JakartaTime.Now));
             }
 
+            // Form published yang kehabisan soal otomatis kembali jadi draft
+            await UnpublishIfNoQuestions(form);
+
             await tx.CommitAsync();
 
             var questions = await _db.Questions
@@ -310,7 +320,10 @@ public class QuestionsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        var blocked = await EnsureNotPublished(form);
+        using var tx = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        await LockFormRow(formId);
+
+        var blocked = await EnsureNoResponses(formId);
         if (blocked != null)
             return blocked;
 
@@ -327,6 +340,11 @@ public class QuestionsController : ControllerBase
         question.DeletedAt = JakartaTime.Now;
         question.UpdatedAt = JakartaTime.Now;
         await _db.SaveChangesAsync();
+
+        // Form published yang kehabisan soal otomatis kembali jadi draft
+        await UnpublishIfNoQuestions(form);
+
+        await tx.CommitAsync();
 
         return Ok(new ApiResponse<object>(200, "Question deleted"));
     }
@@ -350,7 +368,10 @@ public class QuestionsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        var blocked = await EnsureNotPublished(form);
+        using var tx = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        await LockFormRow(formId);
+
+        var blocked = await EnsureNoResponses(formId);
         if (blocked != null)
             return blocked;
 
@@ -402,8 +423,6 @@ public class QuestionsController : ControllerBase
         var maxOrder = await _db.Questions
             .Where(q => q.FormId == formId && q.DeletedAt == null)
             .MaxAsync(q => (int?)q.QuestionOrder) ?? 0;
-
-        using var tx = await _db.Database.BeginTransactionAsync();
 
         try
         {
@@ -495,7 +514,7 @@ public class QuestionsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        var blocked = await EnsureNotPublished(form);
+        var blocked = await EnsureNoResponses(formId);
         if (blocked != null)
             return blocked;
 
@@ -557,7 +576,7 @@ public class QuestionsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        var blocked = await EnsureNotPublished(form);
+        var blocked = await EnsureNoResponses(formId);
         if (blocked != null)
             return blocked;
 
@@ -601,12 +620,47 @@ public class QuestionsController : ControllerBase
         return await _db.Users.FindAsync(userId);
     }
 
-    private async Task<ActionResult?> EnsureNotPublished(Form form)
+    /// <summary>
+    /// Kunci row Form (UPDLOCK) dalam transaksi serializable supaya edit soal
+    /// dan submit respons tidak bisa saling menimpa di waktu bersamaan.
+    /// </summary>
+    private async Task LockFormRow(int formId)
     {
-        var publishedStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "published");
-        if (form.StatusId == publishedStatus.Id)
-            return BadRequest(new ApiResponse<object>(400, "Soal tidak dapat diubah karena form sudah dipublish"));
+        await _db.Database.ExecuteSqlRawAsync(
+            "SELECT [id] FROM [Form] WITH (UPDLOCK, ROWLOCK) WHERE [id] = {0}", formId);
+    }
+
+    /// <summary>
+    /// Soal hanya boleh diedit jika form belum punya respon sama sekali.
+    /// Dipanggil di DALAM transaksi setelah row form dikunci agar bebas race condition.
+    /// </summary>
+    private async Task<ActionResult?> EnsureNoResponses(int formId)
+    {
+        var hasResponse = await _db.Responses.AnyAsync(r => r.FormId == formId);
+        if (hasResponse)
+            return BadRequest(new ApiResponse<object>(400,
+                "Soal tidak dapat diubah karena form sudah memiliki respons"));
+
         return null;
+    }
+
+    /// <summary>
+    /// Aturan: form published yang kehabisan soal otomatis kembali jadi draft.
+    /// Dipanggil di DALAM transaksi sebelum commit.
+    /// </summary>
+    private async Task UnpublishIfNoQuestions(Form form)
+    {
+        var remaining = await _db.Questions.CountAsync(q => q.FormId == form.Id && q.DeletedAt == null);
+        if (remaining > 0 || form.Status == null)
+            return;
+
+        var draftStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "draft");
+        if (form.StatusId != draftStatus.Id)
+        {
+            form.StatusId = draftStatus.Id;
+            form.UpdatedAt = JakartaTime.Now;
+            await _db.SaveChangesAsync();
+        }
     }
 
     private static QuestionResponse MapQuestion(Question q) => new()

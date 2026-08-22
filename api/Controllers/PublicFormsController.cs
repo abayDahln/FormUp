@@ -131,6 +131,51 @@ public class PublicFormsController : ControllerBase
         return Ok(new ApiResponse<object>(200, "OK", ResponseScorer.BuildResult(form, response, questions)));
     }
 
+    [HttpGet("forms/{formLink}/my-responses")]
+    [Authorize]
+    [EnableRateLimiting("submit")]
+    public async Task<ActionResult<ApiResponse<object>>> GetMyResponses(string formLink)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            return Unauthorized(new ApiResponse<object>(401, "User not found"));
+
+        var form = await _db.Forms
+            .Include(f => f.FormSetting)
+            .FirstOrDefaultAsync(f => f.FormLink == formLink && f.DeletedAt == null);
+
+        if (form == null || form.TakenDownAt != null)
+            return NotFound(new ApiResponse<object>(404, "Form tidak ditemukan"));
+
+        var responses = await _db.Responses
+            .Include(r => r.RespondentAnswers)
+                .ThenInclude(a => a.Option)
+            .Where(r => r.FormId == form.Id && r.RespondentId == userId)
+            .OrderByDescending(r => r.SubmittedAt)
+            .ToListAsync();
+
+        var questions = await _db.Questions
+            .Include(q => q.OptionQuestions)
+            .Where(q => q.FormId == form.Id && q.DeletedAt == null)
+            .ToListAsync();
+
+        var attempts = responses.Select(r =>
+        {
+            var built = ResponseScorer.BuildResult(form, r, questions);
+            return new MyAttemptDto
+            {
+                ResponseId = r.Id,
+                SubmittedAt = r.SubmittedAt,
+                ShowScore = built.ShowScore,
+                Score = built.Score,
+                CorrectCount = built.CorrectCount,
+                WrongCount = built.WrongCount,
+            };
+        }).ToList();
+
+        return Ok(new ApiResponse<object>(200, "OK", attempts));
+    }
+
     private ActionResult? CheckAccess(Form form, string? token)
     {
         if (User.Identity?.IsAuthenticated == true

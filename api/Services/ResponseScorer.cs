@@ -50,8 +50,12 @@ public static class ResponseScorer
 
         foreach (var q in questions.OrderBy(q => q.QuestionOrder))
         {
-            var answer = response.RespondentAnswers.FirstOrDefault(a => a.QuestionId == q.Id);
-            if (answer != null)
+            var answerRows = response.RespondentAnswers
+                .Where(a => a.QuestionId == q.Id)
+                .ToList();
+            var answer = answerRows.FirstOrDefault();
+
+            if (answerRows.Count > 0)
                 answeredCount++;
 
             var isCorrect = showScore ? IsAnswerCorrect(answer, q) : null;
@@ -71,6 +75,11 @@ public static class ResponseScorer
                     .OrderBy(o => o.OptionOrder)
                     .Where(o => !string.IsNullOrEmpty(o.OptionText))
                     .Select(o => o.OptionText!)
+                    .ToList(),
+                SelectedOptions = answerRows
+                    .Select(a => GetAnswerText(a, q))
+                    .Where(t => !string.IsNullOrEmpty(t))
+                    .Select(t => t!)
                     .ToList(),
             });
         }

@@ -73,4 +73,15 @@ public class ResultAnswer
     public string? CorrectAnswer { get; set; }
     public bool? IsCorrect { get; set; }
     public List<string> Options { get; set; } = new();
+    public List<string> SelectedOptions { get; set; } = new();
+}
+
+public class MyAttemptDto
+{
+    public int ResponseId { get; set; }
+    public DateTime? SubmittedAt { get; set; }
+    public bool ShowScore { get; set; }
+    public double? Score { get; set; }
+    public int CorrectCount { get; set; }
+    public int WrongCount { get; set; }
 }

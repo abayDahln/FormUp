@@ -31,6 +31,15 @@ public static class ResponseSubmission
         FormUpDbContext db, ClaimsPrincipal user,
         int formId, SubmitResponseRequest body)
     {
+        // Transaksi serializable + UPDLOCK pada row form: menyerialisasi
+        // submit respons terhadap pembuat form yang sedang mengedit/menghapus
+        // soal di waktu bersamaan.
+        await using var tx = await db.Database.BeginTransactionAsync(
+            System.Data.IsolationLevel.Serializable);
+
+        await db.Database.ExecuteSqlRawAsync(
+            "SELECT [id] FROM [Form] WITH (UPDLOCK, ROWLOCK) WHERE [id] = {0}", formId);
+
         var form = await db.Forms
             .Include(f => f.FormSetting)
             .FirstOrDefaultAsync(f => f.Id == formId && f.DeletedAt == null);
@@ -181,6 +190,8 @@ public static class ResponseSubmission
 
         db.RespondentAnswers.AddRange(answers);
         await db.SaveChangesAsync();
+
+        tx.Commit();
 
         return new OkObjectResult(new ApiResponse<object>(201, "Response submitted", new { responseId = response.Id }));
     }

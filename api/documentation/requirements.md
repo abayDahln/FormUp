@@ -19,7 +19,7 @@ FormUp API adalah layanan backend yang robust dan scalable untuk platform FormUp
 
 **Login User:**
 - User login dengan email/username dan password
-- JWT token dengan expiry default 1440 menit (24 jam), diatur via `Jwt:AccessTokenMinutes`
+- JWT token dengan expiry default 20160 menit (14 hari), diatur via `Jwt:AccessTokenMinutes`
 - Support refresh token untuk perpanjangan token tanpa login ulang
 
 **Profile Management:**
@@ -418,7 +418,7 @@ UglyToad.PdfPig
 ## 7. Security Requirements
 
 ### Authentication
-- JWT access token dengan expiry 1440 menit (24 jam)
+- JWT access token dengan expiry 20160 menit (14 hari), refresh window 7 hari
 - Refresh token support
 - Invalid tokens di blacklist
 - Logout invalidates token

@@ -68,7 +68,10 @@ public class JwtService
                 ValidateAudience = true,
                 ValidAudience = _audience,
                 ValidateLifetime = true,
-                ClockSkew = TimeSpan.FromMinutes(30)
+                // Jendela refresh: token yang sudah kedaluwarsa masih boleh
+                // diperbarui lewat /auth/refresh hingga 7 hari, supaya user
+                // tidak perlu login ulang selama 1-2 minggu.
+                ClockSkew = TimeSpan.FromDays(7)
             }, out _);
         }
         catch

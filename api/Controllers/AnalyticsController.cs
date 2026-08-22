@@ -22,7 +22,7 @@ public class AnalyticsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<object>>> GetAnalytics(int formId, [FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken ct)
+    public async Task<ActionResult<ApiResponse<object>>> GetAnalytics(int formId, [FromQuery] int? page, [FromQuery] int? pageSize, [FromQuery] string? search, CancellationToken ct)
     {
         var user = await GetCurrentUser();
         if (user == null)
@@ -47,47 +47,44 @@ public class AnalyticsController : ControllerBase
             .Include(r => r.Respondent)
             .Include(r => r.RespondentAnswers)
                 .ThenInclude(a => a.Option)
-            .Where(r => r.FormId == formId)
-            .OrderByDescending(r => r.SubmittedAt);
+            .Where(r => r.FormId == formId);
 
-        var allResponses = await responsesQuery.ToListAsync(ct);
-        var totalResponses = allResponses.Count;
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            responsesQuery = responsesQuery.Where(r =>
+                (r.Respondent != null && r.Respondent.Fullname.Contains(term)) ||
+                (r.RespondentName != null && r.RespondentName.Contains(term)));
+        }
+
+        // Paging di level database — tidak lagi memuat semua respon.
+        var totalResponses = await responsesQuery.CountAsync(ct);
 
         var currentPage = page.GetValueOrDefault(1);
         var currentPageSize = pageSize.GetValueOrDefault(0);
         var paged = currentPageSize > 0;
         var pageResponses = paged
-            ? allResponses.Skip((currentPage - 1) * currentPageSize).Take(currentPageSize).ToList()
-            : allResponses;
+            ? await responsesQuery
+                .OrderByDescending(r => r.SubmittedAt)
+                .Skip((currentPage - 1) * currentPageSize)
+                .Take(currentPageSize)
+                .ToListAsync(ct)
+            : await responsesQuery.OrderByDescending(r => r.SubmittedAt).ToListAsync(ct);
+
+        // Skor semua responden untuk averageScore dihitung dari proyeksi ringan
+        // (tanpa Include navigasi), bukan dari seluruh entity graph.
+        var answerRowEntities = await _db.RespondentAnswers
+            .AsNoTracking()
+            .Where(a => a.Response.FormId == formId)
+            .Select(a => new { a.ResponseId, a.QuestionId, a.OptionId, a.AnswerValue })
+            .ToListAsync(ct);
+        var answerRows = answerRowEntities
+            .Select(r => (r.ResponseId, r.QuestionId, r.OptionId, r.AnswerValue))
+            .ToList();
+
+        double? averageScore = ComputeAverageScore(questions, scorableQuestions, answerRows);
 
         var respondents = new List<RespondentAnalytics>();
-        var allScores = new List<double>();
-
-        foreach (var response in allResponses)
-        {
-            var answeredCount = 0;
-            var correctCount = 0;
-
-            foreach (var q in questions)
-            {
-                var answer = response.RespondentAnswers
-                    .FirstOrDefault(a => a.QuestionId == q.Id);
-
-                if (answer != null)
-                    answeredCount++;
-
-                var isCorrect = ResponseScorer.IsAnswerCorrect(answer, q);
-                if (isCorrect == true)
-                    correctCount++;
-            }
-
-            double? score = scorableQuestions > 0
-                ? Math.Round((double)correctCount / scorableQuestions * 100, 1)
-                : null;
-
-            if (score.HasValue)
-                allScores.Add(score.Value);
-        }
 
         foreach (var response in pageResponses)
         {
@@ -140,10 +137,6 @@ public class AnalyticsController : ControllerBase
             });
         }
 
-        double? averageScore = allScores.Count > 0
-            ? Math.Round(allScores.Average(), 1)
-            : (double?)null;
-
         if (paged)
         {
             return Ok(new ApiResponse<object>(200, "OK", new
@@ -166,6 +159,53 @@ public class AnalyticsController : ControllerBase
             AverageScore = averageScore,
             Respondents = respondents,
         }));
+    }
+
+    /// <summary>
+    /// Hitung rata-rata skor seluruh respon form dari proyeksi baris jawaban
+    /// ringan (ResponseId, QuestionId, OptionId, AnswerValue).
+    /// </summary>
+    private static double? ComputeAverageScore(
+        List<Question> questions,
+        int scorableQuestions,
+        List<(int ResponseId, int QuestionId, int? OptionId, string? AnswerValue)> answerRows)
+    {
+        if (scorableQuestions == 0)
+            return null;
+
+        var correctByText = new Dictionary<int, string>();
+        var correctOptionByQuestion = new Dictionary<int, int>();
+        foreach (var q in questions)
+        {
+            var option = q.OptionQuestions.FirstOrDefault(o => o.IsCorrect == true);
+            if (option != null)
+                correctOptionByQuestion[q.Id] = option.Id;
+            if (!string.IsNullOrEmpty(q.CorrectAnswer))
+                correctByText[q.Id] = q.CorrectAnswer.Trim();
+        }
+
+        var scores = new List<double>();
+        foreach (var group in answerRows.GroupBy(a => a.ResponseId))
+        {
+            var correctCount = 0;
+            foreach (var row in group)
+            {
+                if (correctOptionByQuestion.TryGetValue(row.QuestionId, out var correctId))
+                {
+                    if (row.OptionId == correctId)
+                        correctCount++;
+                }
+                else if (correctByText.TryGetValue(row.QuestionId, out var key))
+                {
+                    if (string.Equals(row.AnswerValue?.Trim(), key, StringComparison.OrdinalIgnoreCase))
+                        correctCount++;
+                }
+            }
+
+            scores.Add(Math.Round((double)correctCount / scorableQuestions * 100, 1));
+        }
+
+        return scores.Count > 0 ? Math.Round(scores.Average(), 1) : null;
     }
 
     private async Task<User?> GetCurrentUser()

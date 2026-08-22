@@ -123,6 +123,111 @@ public class ResponsesController : ControllerBase
         return Ok(new ApiResponse<object>(200, "OK", detail));
     }
 
+    /// <summary>
+    /// Hasil lengkap satu respon (skor, kunci jawaban, opsi) untuk pemilik form.
+    /// Dipakai screen Respondent Detail.
+    /// </summary>
+    [HttpGet("api/forms/{formId}/responses/{id}/result")]
+    public async Task<ActionResult<ApiResponse<object>>> GetResult(int formId, int id)
+    {
+        var user = await GetCurrentUser();
+        if (user == null)
+            return Unauthorized(new ApiResponse<object>(401, "User not found"));
+
+        var form = await _db.Forms
+            .Include(f => f.FormSetting)
+            .FirstOrDefaultAsync(f => f.Id == formId && f.UserId == user.Id && f.DeletedAt == null);
+
+        if (form == null)
+            return NotFound(new ApiResponse<object>(404, "Form not found"));
+
+        var response = await _db.Responses
+            .Include(r => r.Respondent)
+            .Include(r => r.RespondentAnswers)
+                .ThenInclude(a => a.Option)
+            .FirstOrDefaultAsync(r => r.Id == id && r.FormId == formId);
+
+        if (response == null)
+            return NotFound(new ApiResponse<object>(404, "Response not found"));
+
+        var questions = await _db.Questions
+            .Include(q => q.OptionQuestions)
+            .Where(q => q.FormId == formId && q.DeletedAt == null)
+            .ToListAsync();
+
+        return Ok(new ApiResponse<object>(200, "OK", ResponseScorer.BuildResult(form, response, questions)));
+    }
+
+    /// <summary>
+    /// Semua attempt responden yang sama pada form yang sama (dicocokkan lewat
+    /// akun login; fallback ke nama yang diketik saat submit sebagai guest).
+    /// </summary>
+    [HttpGet("api/forms/{formId}/responses/{id}/attempts")]
+    public async Task<ActionResult<ApiResponse<object>>> GetRespondentAttempts(int formId, int id)
+    {
+        var user = await GetCurrentUser();
+        if (user == null)
+            return Unauthorized(new ApiResponse<object>(401, "User not found"));
+
+        var form = await _db.Forms
+            .Include(f => f.FormSetting)
+            .FirstOrDefaultAsync(f => f.Id == formId && f.UserId == user.Id && f.DeletedAt == null);
+
+        if (form == null)
+            return NotFound(new ApiResponse<object>(404, "Form not found"));
+
+        var target = await _db.Responses
+            .FirstOrDefaultAsync(r => r.Id == id && r.FormId == formId);
+
+        if (target == null)
+            return NotFound(new ApiResponse<object>(404, "Response not found"));
+
+        var sameRespondent = _db.Responses.Where(r => r.FormId == formId);
+        sameRespondent = target.RespondentId.HasValue
+            ? sameRespondent.Where(r => r.RespondentId == target.RespondentId)
+            : sameRespondent.Where(
+                r => r.RespondentId == null && r.RespondentName != null && r.RespondentName == target.RespondentName);
+
+        var showScore = form.FormSetting?.ShowScore == true;
+        var attempts = await sameRespondent
+            .OrderByDescending(r => r.SubmittedAt)
+            .Select(r => new MyAttemptDto
+            {
+                ResponseId = r.Id,
+                SubmittedAt = r.SubmittedAt,
+                ShowScore = showScore,
+            })
+            .ToListAsync();
+
+        // Skor per attempt (butuh koreksi jawaban).
+        if (showScore)
+        {
+            var questions = await _db.Questions
+                .Include(q => q.OptionQuestions)
+                .Where(q => q.FormId == formId && q.DeletedAt == null)
+                .ToListAsync();
+
+            var ids = attempts.Select(a => a.ResponseId).ToList();
+            var rows = await _db.Responses
+                .Where(r => ids.Contains(r.Id))
+                .Include(r => r.RespondentAnswers)
+                    .ThenInclude(a => a.Option)
+                .ToListAsync();
+
+            foreach (var attempt in attempts)
+            {
+                var match = rows.FirstOrDefault(r => r.Id == attempt.ResponseId);
+                if (match == null) continue;
+                var built = ResponseScorer.BuildResult(form, match, questions);
+                attempt.Score = built.Score;
+                attempt.CorrectCount = built.CorrectCount;
+                attempt.WrongCount = built.WrongCount;
+            }
+        }
+
+        return Ok(new ApiResponse<object>(200, "OK", attempts));
+    }
+
     [HttpPut("api/responses/{id}/status")]
     public async Task<ActionResult<ApiResponse<object>>> UpdateStatus(int id, [FromBody] UpdateResponseStatusRequest request)
     {

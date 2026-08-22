@@ -31,7 +31,7 @@ public class ErrorHandlingMiddleware
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             context.Response.ContentType = "application/json";
 
-            var apiResponse = new ApiResponse<object>(503, "Server sedang offline. Silakan coba lagi nanti.");
+            var apiResponse = new ApiResponse<object>(503, "Layanan sedang tidak tersedia. Silakan coba lagi nanti.");
             await context.Response.WriteAsync(JsonSerializer.Serialize(apiResponse));
         }
         catch (Exception ex)
@@ -44,7 +44,7 @@ public class ErrorHandlingMiddleware
             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
             context.Response.ContentType = "application/json";
 
-            var apiResponse = new ApiResponse<object>(500, "Internal server error");
+            var apiResponse = new ApiResponse<object>(500, "Terjadi kesalahan pada layanan. Silakan coba lagi nanti.");
             await context.Response.WriteAsync(JsonSerializer.Serialize(apiResponse));
         }
     }
