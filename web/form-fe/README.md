@@ -1,16 +1,47 @@
-# React + Vite
+# FormUp Web Frontend (`form-fe`)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend web FormUp: form builder, dashboard, dan form runner. Dibangun dengan **React 19 + Vite**, **Tailwind CSS v4**, `react-router-dom`, dan `lucide-react` — sepenuhnya JavaScript (JSX), tanpa TypeScript.
 
-Currently, two official plugins are available:
+## Menjalankan
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Prasyarat: Node.js LTS dan backend API yang berjalan di `http://localhost:5000` (lihat [`api/README.md`](../../api/README.md)).
 
-## React Compiler
+```bash
+npm install
+npm run dev        # dev server di http://localhost:5173
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Perintah lain:
 
-## Expanding the ESLint configuration
+```bash
+npm run build      # build produksi ke dist/
+npm run preview    # preview hasil build
+npm run lint       # ESLint
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Struktur
+
+```
+src/
+├── main.jsx                  # Entrypoint + router
+├── App.jsx                   # Layout & route guard
+├── components/
+│   ├── layout/               # Sidebar, Topbar
+│   └── ui/                   # Button, ConfirmModal, ProtectedRoute, editor, dst.
+├── features/
+│   ├── auth/                 # Login, Register, VerifyRegister, ForgotPassword
+│   ├── admin/                # Dashboard admin
+│   ├── dashboard/            # My forms, responses, templates, history
+│   ├── form-builder/         # CreateForm, FormBuilder
+│   ├── form-responses/       # Responses & analytics per form
+│   ├── form-runner/          # Pengisian form publik
+│   └── profile/              # Profil pengguna
+├── services/apiService.js    # Client REST ke backend API
+└── utils/                    # Helper render rich content
+```
+
+## Catatan
+
+- CORS backend sudah mengizinkan `http://localhost:5173`.
+- Tipe pertanyaan memakai ID reference table yang sama dengan mobile/API: 1 Essay, 2 Pilihan Ganda, 3 Checkbox, 4 Tanggal & Waktu, 5 Benar/Salah.
+- Belum ada framework test yang dikonfigurasi.

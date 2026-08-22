@@ -19,7 +19,7 @@ FormUp API adalah layanan backend yang robust dan scalable untuk platform FormUp
 
 **Login User:**
 - User login dengan email/username dan password
-- Return JWT token dengan expiry 60 menit
+- JWT token dengan expiry default 1440 menit (24 jam), diatur via `Jwt:AccessTokenMinutes`
 - Support refresh token untuk perpanjangan token tanpa login ulang
 
 **Profile Management:**
@@ -221,7 +221,7 @@ FormUp API adalah layanan backend yang robust dan scalable untuk platform FormUp
 
 - Horizontal scaling: Support multiple API instances
 - Database: Read replicas untuk heavy read operations
-- Caching: Redis untuk frequently accessed data
+- Caching: (rencana) Redis untuk frequently accessed data
 - CDN: Static assets via CDN
 - Load balancing: Distribute traffic
 
@@ -230,7 +230,7 @@ FormUp API adalah layanan backend yang robust dan scalable untuk platform FormUp
 - HTTPS: All traffic encrypted
 - Authentication: JWT dengan secure secret
 - Authorization: Role-based access control (RBAC)
-- Password: bcrypt hashing
+- Password: PBKDF2 hashing (SHA256, 100.000 iterasi, format `salt.hash`)
 - Rate Limiting: 100 requests/minute for free tier
 - Input Validation: Prevent SQL injection & XSS
 - CSRF Protection
@@ -278,28 +278,27 @@ FormUp API adalah layanan backend yang robust dan scalable untuk platform FormUp
 - JWT (JSON Web Tokens)
 
 ### Validation
-- FluentValidation
+- DataAnnotations + validasi manual di controller
 
 ### Logging
-- Serilog
+- `ILogger` bawaan ASP.NET Core
 
 ### API Documentation
-- Swagger/OpenAPI
+- Swagger/OpenAPI (Swashbuckle)
 
 ### File Storage
-- AWS S3 / Google Cloud Storage / Azure Blob
-
-### Caching
-- Redis (optional tapi recommended)
+- Local storage (`wwwroot/uploads`), disajikan via static files
 
 ### Dependencies
 ```
 Microsoft.EntityFrameworkCore.SqlServer
 Microsoft.AspNetCore.Authentication.JwtBearer
-FluentValidation.AspNetCore
-Serilog.AspNetCore
 Swashbuckle.AspNetCore
-Microsoft.AspNetCore.Identity
+DotNetEnv
+QRCoder
+ClosedXML / DocumentFormat.OpenXml
+QuestPDF
+UglyToad.PdfPig
 ```
 
 ---
@@ -419,7 +418,7 @@ Microsoft.AspNetCore.Identity
 ## 7. Security Requirements
 
 ### Authentication
-- JWT token dengan 60 menit expiry
+- JWT access token dengan expiry 1440 menit (24 jam)
 - Refresh token support
 - Invalid tokens di blacklist
 - Logout invalidates token
@@ -431,7 +430,7 @@ Microsoft.AspNetCore.Identity
 - Users access own resources
 
 ### Data Protection
-- Passwords hashed dengan bcrypt
+- Passwords hashed dengan PBKDF2 (SHA256, 100.000 iterasi)
 - Sensitive data encrypted at rest
 - SSL/TLS untuk komunikasi
 - GDPR compliance ready

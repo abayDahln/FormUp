@@ -1,112 +1,108 @@
 ﻿# FormUp API
 
-https://img.shields.io/badge/.NET-8.0-blue
-https://img.shields.io/badge/ASP.NET%2520Core-8.0-purple
-https://img.shields.io/badge/Entity%2520Framework-8.0-green
-https://img.shields.io/badge/SQL%2520Server-2022-red
+![.NET](https://img.shields.io/badge/.NET-8.0-blue)
+![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-8.0-purple)
+![Entity Framework](https://img.shields.io/badge/Entity%20Framework%20Core-8.0-green)
+![SQL Server](https://img.shields.io/badge/SQL%20Server-2022-red)
 
 ## Tentang FormUp API
 
-FormUp API adalah layanan backend untuk platform FormUp - sebuah aplikasi pembuat form modern yang mirip Google Forms dan Quizizz. API ini memungkinkan pengguna membuat form, membagikan link, dan mengumpulkan response dengan mudah. Cocok digunakan untuk survey, kuis, polling, ujian, dan berbagai jenis form lainnya.
+FormUp API adalah layanan backend untuk platform FormUp — aplikasi pembuat form yang mirip Google Forms dan Quizizz. API ini memungkinkan pengguna membuat form, membagikan link, dan mengumpulkan response dengan mudah. Cocok untuk survey, kuis, polling, ujian, dan berbagai jenis form lainnya.
 
 ## Fitur Utama
 
-- **Kelola Form**: Buat, edit, publikasi, dan atur form dengan berbagai tipe pertanyaan
-- **Buat Pertanyaan**: Dukung banyak tipe pertanyaan - pilihan ganda, text, rating, checkbox, dropdown, tanggal, waktu, dan upload file
-- **Kumpulkan Response**: Lihat response masuk secara real-time dengan status tracking
-- **Analisis & Laporan**: Dapatkan statistik lengkap, grafik, dan export data
-- **Template**: Pakai template yang sudah siap atau buat template custom sendiri
-- **Login Aman**: Autentikasi JWT dengan manajemen role pengguna
-- **Bagikan Form**: Dukung link shareable, QR code, dan embed ke website
-- **Kontrol Akses**: Pilih form publik, terbatas, atau butuh token khusus
+- **Kelola Form**: Buat, edit, publikasi (draft → published → closed), duplicate, dan atur form
+- **Tipe Pertanyaan**: essay, pilihan ganda, checkbox, tanggal & waktu, benar/salah (reference table di database)
+- **Kumpulkan Response**: respons publik via link/QR dengan proteksi token, timer, dan skor
+- **Analisis & Export**: statistik respons dan export Excel/PDF
+- **Autentikasi**: JWT + verifikasi OTP email saat registrasi, refresh token, lupa/reset password
+- **Admin**: kelola user (ban/activate), moderasi form (takedown/restore), feedback pengguna
 
-## Struktur Teknologi
-
-### Stack yang Dipakai
+## Teknologi
 
 | Bagian | Teknologi |
 |--------|-----------|
 | Framework | ASP.NET Core 8.0 |
-| Database | SQL Server 2022 |
-| ORM | Entity Framework Core 8.0 |
-| Autentikasi | JWT (JSON Web Tokens) |
-| Validasi | FluentValidation |
-| Logging | Serilog |
-| API Docs | Swagger/OpenAPI |
-| File Storage | Cloud Storage (S3/GCS) |
-| Cache | Redis (opsional) |
+| Database | SQL Server + Entity Framework Core 8 |
+| Autentikasi | JWT Bearer (`System.IdentityModel.Tokens.Jwt`) |
+| Password hashing | PBKDF2 SHA256, 100.000 iterasi |
+| API Docs | Swagger/OpenAPI (Swashbuckle) |
+| Konfigurasi | DotNetEnv (`.env`) + `appsettings.json` |
+| File storage | Local (`wwwroot/uploads`), disajikan via static files |
+| Email OTP | SMTP (default Gmail) |
+| Lainnya | QRCoder (QR code), ClosedXML/QuestPDF (export), PdfPig (import Word/PDF) |
 
-### Struktur Folder
+## Struktur Folder
 
 ```
-FormUpAPI/
-├── Controllers/
-│   └── 
-├── Models/
-│   ├── User.cs
-│   ├── Form.cs
-│   ├── FormSetting.cs
-│   ├── FormStatus.cs
-│   ├── Question.cs
-│   ├── QuestionType.cs
-│   ├── OptionQuestion.cs
-│   ├── Response.cs
-│   ├── ResponseStatus.cs
-│   ├── RespondentAnswer.cs
-│   └── FormUpDbContext.cs
-├── Properties/
-│   └── launchSettings.json
+api/
+├── Controllers/        # Admin, Analytics, Auth, Feedbacks, Forms,
+│                       # PublicForms, Questions, References, Responses,
+│                       # Templates, Users
+├── Models/             # Entitas EF Core, DTOs, FormUpDbContext
+├── Services/           # JwtService, EmailService, ErrorHandlingMiddleware, dll.
+├── Migrations/         # Migrasi EF Core
+├── Properties/         # launchSettings.json
+├── wwwroot/uploads/    # File upload user
+├── documentation/      # Dokumentasi API (Bahasa Indonesia)
 ├── appsettings.json
-├── Program.cs
-└── FormUpAPI.http
+├── .env.example        # Template environment variable
+└── FormUpAPI.csproj
 ```
 
 ## Mulai dari Nol
 
-### Yang Dibutuhkan
+### Prasyarat
 
-- .NET 8.0 SDK atau lebih baru
-- SQL Server 2022 atau lebih baru
-- Visual Studio 2022 atau VS Code
+- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) atau lebih baru
+- SQL Server (LocalDB, Express, atau Developer edition) — mis. via [SQL Server 2022 Express](https://www.microsoft.com/sql-server/sql-server-downloads)
+- [dotnet-ef tool](https://learn.microsoft.com/en-us/ef/core/cli/dotnet): `dotnet tool install --global dotnet-ef`
 - Git
 
 ### Cara Install
 
-**1. Clone repository**
+**1. Clone repository** (dari root repo):
 
 ```bash
-git clone https://github.com/yourusername/FormUpAPI.git
-cd FormUpAPI
+git clone <url-repo-anda>.git
+cd FormUp/api
 ```
 
-**2. Install dependency**
+**2. Restore dependency**
 
 ```bash
 dotnet restore
 ```
 
-**3. Atur file appsettings.json**
+**3. Buat file `.env`** — salin dari template lalu isi nilai:
 
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost;Database=FormUpDb;Trusted_Connection=True;TrustServerCertificate=True;"
-  },
-  "JwtSettings": {
-    "Secret": "your-super-secret-key-at-least-32-characters",
-    "Issuer": "FormUpAPI",
-    "Audience": "FormUpClient",
-    "ExpiryMinutes": 60
-  },
-  "Storage": {
-    "Provider": "Local",
-    "BasePath": "uploads/"
-  },
-  "Cors": {
-    "AllowedOrigins": ["http://localhost:3000", "https://formup.app"]
-  }
-}
+```bash
+cp .env.example .env
 ```
+
+Isi file `.env`:
+
+```dotenv
+# Koneksi database (WAJIB)
+DB_CONNECTION=Server=localhost;Database=FormUpDb;Trusted_Connection=True;TrustServerCertificate=True
+
+# Kunci signing JWT (WAJIB) - minimal 32 karakter, WAJIB diganti di production
+JWT_KEY=ganti-dengan-kunci-acak-minimal-32-karakter
+
+# SMTP untuk kirim OTP email (WAJIB untuk register & lupa password)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=email-anda@gmail.com
+SMTP_PASS=password-aplikasi-gmail
+SMTP_FROM=email-anda@gmail.com
+
+# URL publik untuk share link form
+PUBLIC_URL=https://formup.my.id
+```
+
+> **Prioritas konfigurasi**: env var (`DB_CONNECTION`, `JWT_KEY`, `SMTP_*`) menimpa nilai di `appsettings.json`. Section JWT di appsettings bernama **`Jwt`** (bukan `JwtSettings`). Aplikasi menolak startup jika `JWT_KEY` masih nilai default atau kurang dari 32 karakter.
+>
+> **Catatan Gmail**: gunakan *App Password* (bukan password akun) — aktifkan 2FA lalu buat di https://myaccount.google.com/apppasswords.
 
 **4. Setup database**
 
@@ -114,82 +110,67 @@ dotnet restore
 dotnet ef database update
 ```
 
+Perintah ini membuat semua tabel sesuai migrasi EF Core di database `FormUpDb`.
+
 **5. Jalankan aplikasi**
 
 ```bash
 dotnet run
 ```
 
-API akan bisa diakses di `http://localhost:5000`.
-
-## Dokumentasi API
-
-Dokumentasi lengkap API tersedia di file-file berikut:
-
-- **[API Endpoints](./API-ENDPOINTS.md)** - Daftar semua endpoint dengan request dan response
-- **[Autentikasi](./API-AUTHENTICATION.md)** - Cara login, register, dan manajemen token
-- **[Data Models](./DATA-MODELS.md)** - Struktur data dan database schema
-- **[Status Codes](./API-STATUS-CODES.md)** - Penjelasan HTTP status codes
-- **[Deployment](./DEPLOYMENT.md)** - Setup production dan monitoring
-- **[Requirements](./REQUIREMENTS.md)** - Spesifikasi lengkap project
+API berjalan di **http://localhost:5000**, Swagger UI di **http://localhost:5000/swagger** (browser akan terbuka otomatis pada profile `http`).
 
 ## Quick Start API
 
 ### Base URL
 
 ```
-https://localhost:5000/api
+http://localhost:5000/api
 ```
 
 ### Autentikasi
 
-Semua request (kecuali register dan login) butuh token JWT di header:
+Semua request (kecuali endpoint auth publik seperti login/register/OTP) butuh token JWT di header:
 
 ```
 Authorization: Bearer <your-jwt-token>
 ```
 
+Token access berlaku 24 jam secara default (`Jwt:AccessTokenMinutes = 1440`); perbarui via `POST /api/auth/refresh`.
+
 ### Contoh: Buat Form Baru
 
 ```bash
-curl -X POST https://localhost:5000/api/forms \
+curl -X POST http://localhost:5000/api/forms \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Survey Kepuasan",
-    "description": "Tolong isi survey ini",
-    "status": "draft"
+    "description": "Tolong isi survey ini"
   }'
 ```
 
 ### Tipe Pertanyaan yang Didukung
 
+ID tipe merujuk ke reference table `QuestionType` di database (dapat dicek via `GET /api/references/question-types`):
+
 | ID | Tipe | Keterangan |
-|----|----|-----------|
-| 1 | multiple_choice | Pilih satu dari beberapa opsi |
-| 2 | checkbox | Pilih lebih dari satu opsi |
-| 3 | text | Input text pendek |
-| 4 | textarea | Input text panjang |
-| 5 | dropdown | Pilih dari dropdown |
-| 6 | rating | Rating bintang (1-5 atau 1-10) |
-| 7 | date | Pemilih tanggal |
-| 8 | time | Pemilih waktu |
-| 9 | file_upload | Upload file |
-| 10 | linear_scale | Skala linier |
+|----|------|------------|
+| 1 | Essay | Input teks panjang |
+| 2 | Pilihan Ganda | Pilih satu dari beberapa opsi |
+| 3 | Checkbox | Pilih lebih dari satu opsi |
+| 4 | Tanggal & Waktu | Pemilih tanggal/waktu |
+| 5 | Benar/Salah | Jawaban true/false |
 
 ## Development
-
-### Menjalankan Test
-
-```bash
-dotnet test
-```
 
 ### Build untuk Production
 
 ```bash
 dotnet publish -c Release -o ./publish
 ```
+
+> Project ini belum memiliki unit test — perintah `dotnet test` akan gagal karena belum ada test project.
 
 ### Database Migrations
 
@@ -200,16 +181,31 @@ dotnet ef migrations add AddNewFeature
 # Update database
 dotnet ef database update
 
-# Hapus migration
+# Hapus migration terakhir (yang belum di-apply)
 dotnet ef migrations remove
 ```
+
+## Dokumentasi API
+
+Dokumentasi lengkap tersedia di folder [`documentation/`](./documentation/):
+
+- **[API Endpoints](./documentation/api_endpoints.md)** — daftar semua endpoint dengan request/response
+- **[Autentikasi](./documentation/api_authentication.md)** — register + OTP, login, refresh, lupa password
+- **[Data Models](./documentation/data_models.md)** — struktur data dan skema database
+- **[Status Codes](./documentation/api_status_code.md)** — penjelasan HTTP status codes
+- **[Konsep](./documentation/concepts.md)** — konsep inti platform
+- **[Mekanisme Keamanan](./documentation/mechanisms.md)** — rate limiting, token, proteksi
+- **[Alur Link Form](./documentation/form_link_flow.md)** — share link & short code
+- **[Admin Endpoint](./documentation/admin_endpoint.md)** — endpoint admin & moderasi
+- **[Deployment](./documentation/deployment.md)** — setup production
+- **[Requirements](./documentation/requirements.md)** — spesifikasi project
+- **[Fitur Mendatang](./documentation/future_features.md)** — roadmap fitur
 
 ## Performance Target
 
 - API Response Time: < 200ms (p95)
 - Concurrent Users: 10,000+
 - Uptime SLA: 99.9%
-- Database Query Time: < 50ms
 - File Upload Limit: 10MB per file
 
 ## Contributing
@@ -224,48 +220,13 @@ dotnet ef migrations remove
 
 - Ikuti prinsip Clean Code
 - Gunakan async/await untuk I/O operations
-- Implement dependency injection dengan benar
-- Tulis unit test untuk business logic
-- Dokumentasi public API dengan XML comments
-
-## Support
-
-- Dokumentasi: https://formup.com/docs
-- API Reference: https://formup.com/api/docs
-- Email: support@formup.com
-- GitHub Issues: https://github.com/yourusername/FormUpAPI/issues
+- Semua response dibungkus `ApiResponse<T>` (`Status`, `Message`, `Data`)
+- Soft delete via kolom `deleted_at` pada entitas utama
+- Kolom database `snake_case` via Fluent API di `FormUpDbContext`
 
 ## License
 
 Project ini proprietary dan confidential.
-
-## Roadmap
-
-**Phase 1: MVP (Current)**
-- Core form management
-- Multiple question types
-- Response collection
-- Basic analytics
-- User authentication
-
-**Phase 2: Enhancement (Q2 2026)**
-- Template library
-- Conditional logic
-- Advanced analytics
-- Export capabilities
-- Webhook support
-
-**Phase 3: Scale (Q3 2026)**
-- Mobile application
-- Third-party integrations
-- Enterprise features
-- Team collaboration
-
-**Phase 4: Monetization (Q4 2026)**
-- Premium features
-- Subscription plans
-- Enterprise licenses
-- API rate limits
 
 ---
 

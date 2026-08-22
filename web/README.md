@@ -1,4 +1,4 @@
-# 🚀 FormUp Web
+# FormUp Web
 
 > **Smart Form Builder for Forms, Quizzes & Assessments**
 
@@ -6,111 +6,111 @@
 
 FormUp dilengkapi berbagai fitur seperti **timer, shuffle soal & jawaban, Word to Form, custom short link, dashboard statistik, hingga export hasil ke Excel.**
 
+Aplikasi web ini berada di subfolder [`form-fe/`](./form-fe) dalam monorepo FormUp.
+
 ---
 
-## ✨ Features
+## Features
 
-* ⏱️ **Timer & Auto Submit**
+- **Timer & Auto Submit**
   Form otomatis disubmit ketika waktu pengerjaan habis.
 
-* 🔀 **Shuffle Questions & Answers**
+- **Shuffle Questions & Answers**
   Acak urutan soal dan pilihan jawaban.
 
-* 📄 **Word → Form**
+- **Word to Form**
   Buat form dari dokumen Word menggunakan template yang telah disediakan.
 
-* 🔗 **Custom Short Link**
+- **Custom Short Link**
   Buat link form yang lebih pendek dan mudah dibagikan.
 
-* 🖼️ **Image Zoom**
+- **Image Zoom**
   Tampilkan gambar dengan jelas dan dapat diperbesar.
 
-* 📐 **Math Formula & Code**
+- **Math Formula & Code**
   Mendukung tampilan rumus matematika dan code snippet pada soal.
 
-* 📊 **Dashboard Statistics**
+- **Dashboard Statistics**
   Lihat statistik dan visualisasi hasil jawaban melalui dashboard.
 
-* 📥 **Import & Export**
+- **Import & Export**
   Import soal dari **Word / Excel** dan export hasil jawaban ke **Excel**.
 
-* 📝 **Multiple Question Types**
-  Mendukung pilihan ganda, multiple answer, essay, dan jawaban waktu.
+- **Multiple Question Types**
+  Mendukung essay, pilihan ganda, checkbox, tanggal & waktu, dan benar/salah.
 
-* 🔐 **Custom Authentication**
+- **Custom Authentication**
   Sistem login & register menggunakan akun FormUp sendiri tanpa Google Login.
 
-* 🌓 **Dark & Light Mode**
+- **Dark & Light Mode**
   Pilih tampilan sesuai preferensi pengguna.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-* **React**
-* **JavaScript / TypeScript**
-* **HTML & CSS**
-* **Excel / Word Import & Export**
+- **React 19** + **Vite**
+- **JavaScript (JSX)** — tanpa TypeScript
+- **Tailwind CSS v4**, `react-router-dom`, `lucide-react`
 
 ---
 
+## Getting Started
 
-## 🚀 Getting Started
+Prasyarat: [Node.js](https://nodejs.org) LTS terbaru dan backend FormUp API yang berjalan di `http://localhost:5000` (lihat [`api/README.md`](../api/README.md)).
 
-Clone repository:
-
-```bash
-git clone https://github.com/username/formup-web.git
-cd formup-web
-```
-
-Install dependencies:
+Dari root monorepo:
 
 ```bash
+cd web/form-fe
 npm install
+npm run dev        # development server di http://localhost:5173
 ```
 
-Jalankan development server:
+Perintah lain:
 
 ```bash
-npm run dev
+npm run build      # build produksi
+npm run preview    # preview hasil build
+npm run lint       # ESLint
 ```
 
 ---
 
-## 🎯 Use Cases
+## Use Cases
 
 FormUp dapat digunakan untuk:
 
-* 🎓 Ujian dan kuis
-* 🏫 Assessment sekolah
-* 👨‍🏫 Pembuatan soal
-* 🧑‍💼 Training & evaluation
-* 💻 Technical / Coding Test
-* 📋 Survey & data collection
+- Ujian dan kuis
+- Assessment sekolah
+- Pembuatan soal
+- Training & evaluation
+- Technical / Coding Test
+- Survey & data collection
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
-* [x] Form Builder
-* [x] Timer & Auto Submit
-* [x] Shuffle Questions & Answers
-* [x] Word → Form
-* [x] Excel Import & Export
-* [x] Dashboard Statistics
-* [x] Custom Short Link
-* [x] Math Formula & Code
-* [x] Image Zoom
-* [x] Custom Authentication
-* [x] Dark / Light Mode
+- [x] Form Builder
+- [x] Timer & Auto Submit
+- [x] Shuffle Questions & Answers
+- [x] Word to Form
+- [x] Excel Import & Export
+- [x] Dashboard Statistics
+- [x] Custom Short Link
+- [x] Math Formula & Code
+- [x] Image Zoom
+- [x] Custom Authentication
+- [x] Dark / Light Mode
 
 ---
 
-## ⭐ Support
+## Support
+
 <div align="center">
 
-### 🚀 FormUp
+### FormUp
 
 **Build Forms. Collect Answers. Analyze Results.**
 

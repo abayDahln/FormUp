@@ -65,6 +65,7 @@ wwwroot/questions/
 graphify-out/
 AGENTS.md
 .history/
+.opencode/
 
 package.json
 package-lock.json
