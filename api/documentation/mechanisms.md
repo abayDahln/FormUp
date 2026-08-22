@@ -15,8 +15,8 @@ Daftar konsep/mekanisme yang sudah diterapkan untuk meringankan beban client (we
 | Mekanisme | Penjelasan |
 |---|---|
 | **Paginasi daftar respons** | Endpoint `GET /forms/{id}/responses` menerima param `page` & `pageSize`; tanpa param tetap mengembalikan semua (backward-compatible), dengan param mengembalikan `{items, total, page, pageSize}`. |
-| **Paginasi analytics** | Endpoint `GET /forms/{id}/analytics` menerima param `page` & `pageSize`; skor/rata-rata tetap dihitung dari seluruh data, tapi hanya responden pada halaman yang dikirim — ringan untuk client. |
-| **Infinite scroll** | Screen respons & analytics memuat 20 item/halaman lalu menambah saat user mendekati ujung list, mengurangi payload & memori. |
+| **Paginasi analytics** | Endpoint `GET /forms/{id}/analytics` menerima `page`, `pageSize`, dan `search` (filter nama responden); paging dieksekusi di database, skor/rata-rata tetap dihitung dari seluruh data via proyeksi ringan — hanya responden halaman aktif yang dimuat lengkap. |
+| **Pagination tombol halaman** | Screen respons & admin panel memuat 20 item/halaman dengan navigasi prev/next di ujung list — payload per request konstan dan hemat memori mobile. |
 
 ## 3. Keamanan (Server)
 
@@ -25,10 +25,13 @@ Daftar konsep/mekanisme yang sudah diterapkan untuk meringankan beban client (we
 | **Validasi isRequired server** | Soal wajib diverifikasi di server (bukan hanya client), sehingga payload kosong untuk soal wajib ditolak. |
 | **Validasi kepemilikan opsi** | `optionId` harus milik soal yang dijawab dan tipe jawaban tidak boleh ditukar (mis. essay diisi option) — mencegah data korup. |
 | **JWT key anti-default** | Server gagal start jika `JWT_KEY` memakai nilai default/placeholder atau < 32 karakter — mencegah pemalsuan token. |
-| **Refresh terbatas** | Token yang kedaluwarsa hanya bisa di-refresh dalam jendela ±30 menit, bukan tanpa batas — membatasi masa pakai token curian. |
+| **Refresh terbatas** | Access token berlaku 14 hari; token yang sudah kedaluwarsa masih bisa di-refresh hingga 7 hari setelahnya (`/auth/refresh`). Kombinasi ini membuat user tidak perlu login ulang selama 1–2 minggu, sambil tetap membatasi masa pakai token curian. |
 | **Error generik** | Exception mentah tidak pernah dikirim ke user; detail hanya dicatat di log server. |
 | **One-response untuk user login** | Batasan "satu respons per orang" hanya dipaksakan untuk user login (via `RespondentId`), karena tamu tanpa akun tidak bisa diidentifikasi andal. |
 | **Kunci jawaban tersembunyi** | Endpoint publik tidak pernah mengirim `isCorrect`/`correctAnswer` — responden tidak bisa menebak jawaban dari API. |
+| **Kunci mutasi soal per respon** | Soal hanya bisa diedit selama form belum punya respons; form published yang kehabisan soal otomatis kembali `draft` — menjaga konsistensi jawaban vs pembahasan. |
+| **Serialisasi edit soal vs submit** | Mutasi soal dan submit respons sama-sama memakai transaksi `Serializable` + `UPDLOCK` pada row form — creator yang mengedit saat responden submit tidak bisa saling menimpa (bebas race condition). |
+| **Akses soal untuk admin** | `GET /forms/{id}/questions` diakses pemilik form atau role `ADMIN` — dipakai panel admin untuk melihat isi form tanpa menjadi owner. |
 
 ## 4. Performa Client
 

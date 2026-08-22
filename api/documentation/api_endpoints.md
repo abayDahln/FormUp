@@ -878,17 +878,47 @@ Akses:
 
 **Jika `showScore = false`:** `score`, `correctCount`, `wrongCount` = 0/null dan per soal `correctAnswer`/`isCorrect` tidak dikirim (hanya jawaban responden).
 
+## 5. Riwayat Attempt Saya pada Satu Form (User Login)
+
+`GET /api/public/forms/{formLink}/my-responses`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Mengembalikan semua attempt user yang sedang login untuk form ini, terbaru lebih dulu — dipakai tab Riwayat (pengelompokan per form) dan pemilih attempt.
+
+**Response 200:**
+```json
+{
+  "status": 200,
+  "message": "OK",
+  "data": [
+    {
+      "responseId": 12,
+      "submittedAt": "2026-08-22T09:15:00Z",
+      "showScore": true,
+      "score": 87.5,
+      "correctCount": 7,
+      "wrongCount": 1
+    }
+  ]
+}
+```
+
+Catatan: `showScore`, `score`, `correctCount`, `wrongCount` mengikuti pengaturan form; `score` `null` jika form tidak menampilkan nilai. Tidak mensyaratkan form masih `published` — riwayat tetap bisa dibuka walau form sudah di-unpublish.
+
 ---
 
 # Question Endpoints (Sudah Diimplementasikan)
 
-> **Kunci edit:** jika form berstatus `published`, semua endpoint mutasi soal di bawah ditolak `400 Soal tidak dapat diubah karena form sudah dipublish` (mencegah nilai/data tidak konsisten saat responden sedang mengerjakan). Unpublish form dulu untuk mengedit.
+> **Aturan mutasi soal:** soal boleh diedit selama form belum punya respons apa pun — termasuk form berstatus `published`. Jika sudah ada minimal 1 respon, semua mutasi soal ditolak `400 Soal tidak dapat diubah karena form sudah memiliki respons` (menjaga konsistensi data jawaban). Form `published` yang kehabisan soal otomatis kembali ke status `draft`.
 
 ## 1. Daftar Pertanyaan
 
 `GET /api/forms/{formId}/questions`
 
 **Headers:** `Authorization: Bearer <token>`
+
+Diakses oleh **pemilik form** atau **admin** (role `ADMIN`).
 
 **Response 200:**
 ```json
@@ -1197,23 +1227,30 @@ Untuk pilihan ganda: kirim `optionId`. Untuk text: kirim `answerValue`.
 
 ## 2. Daftar Responses (Owner)
 
-`GET /api/forms/{formId}/responses`
+`GET /api/forms/{formId}/responses?page=1&pageSize=20`
 
 **Headers:** `Authorization: Bearer <token>`
 
-**Response 200:**
+Mendukung pagination: kirim `page` + `pageSize` → respons `{items, total, page, pageSize}`; tanpa parameter → array penuh (backward-compat).
+
+**Response 200 (dengan pagination):**
 ```json
 {
   "status": 200,
   "message": "OK",
-  "data": [
-    {
-      "id": 1,
-      "respondentName": "John Doe",
-      "status": "new",
-      "submittedAt": "2026-07-28T10:30:00Z"
-    }
-  ]
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "respondentName": "John Doe",
+        "status": "new",
+        "submittedAt": "2026-07-28T10:30:00Z"
+      }
+    ],
+    "total": 42,
+    "page": 1,
+    "pageSize": 20
+  }
 }
 ```
 
@@ -1262,7 +1299,78 @@ Untuk pilihan ganda: kirim `optionId`. Untuk text: kirim `answerValue`.
 
 ---
 
-## 4. Update Status Response (Owner)
+## 4. Hasil Lengkap Response (Owner)
+
+`GET /api/forms/{formId}/responses/{id}/result`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Hasil lengkap satu respons milik responden — format identik dengan endpoint hasil publik (`ResponseScorer.BuildResult`): skor, kunci jawaban, opsi tiap soal, dan `selectedOptions` (semua opsi/teks yang dipilih responden; penting untuk checkbox multi-pilihan). Dipakai screen Respondent Detail.
+
+**Response 200:**
+```json
+{
+  "status": 200,
+  "message": "OK",
+  "data": {
+    "responseId": 1,
+    "formId": 1,
+    "formTitle": "Quiz Matematika",
+    "showScore": true,
+    "score": 87.5,
+    "correctCount": 7,
+    "wrongCount": 1,
+    "totalQuestions": 8,
+    "scorableQuestions": 8,
+    "answeredCount": 8,
+    "answers": [
+      {
+        "questionId": 1,
+        "question": "2+2 berapa?",
+        "questionFormat": "text",
+        "typeId": 3,
+        "answerText": "4",
+        "correctAnswer": "4",
+        "isCorrect": true,
+        "options": ["3", "4", "5"],
+        "selectedOptions": ["4"]
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 5. Attempt Lain Responden yang Sama (Owner)
+
+`GET /api/forms/{formId}/responses/{id}/attempts`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Daftar semua attempt responden yang sama pada form yang sama — dicocokkan via akun login (`respondent_id`); untuk guest memakai pencocokan nama (`respondent_name`). Diurutkan terbaru lebih dulu.
+
+**Response 200:**
+```json
+{
+  "status": 200,
+  "message": "OK",
+  "data": [
+    {
+      "responseId": 12,
+      "submittedAt": "2026-08-22T09:15:00Z",
+      "showScore": true,
+      "score": 87.5,
+      "correctCount": 7,
+      "wrongCount": 1
+    }
+  ]
+}
+```
+
+---
+
+## 6. Update Status Response (Owner)
 
 `PUT /api/responses/{id}/status`
 
@@ -1277,6 +1385,8 @@ Untuk pilihan ganda: kirim `optionId`. Untuk text: kirim `answerValue`.
 
 Status: 1=new, 2=reviewed, 3=flagged.
 
+> **Catatan UI:** opsi ubah status (accept/reject) sudah dihapus dari aplikasi mobile; endpoint ini masih tersedia untuk kompatibilitas.
+
 **Response 200:**
 ```json
 {
@@ -1287,7 +1397,7 @@ Status: 1=new, 2=reviewed, 3=flagged.
 
 ---
 
-## 5. Export Responses (Owner)
+## 7. Export Responses (Owner)
 
 `GET /api/forms/{formId}/responses/export`
 
@@ -1689,13 +1799,19 @@ Soft delete form.
 
 ## 1. Statistik Form
 
-`GET /api/forms/{formId}/analytics`
+`GET /api/forms/{formId}/analytics?page=1&pageSize=20&search=john`
 
 **Headers:** `Authorization: Bearer <token>` (pemilik form)
 
 Menampilkan statistik lengkap form: total responden, skor tiap responden, rata-rata skor, detail jawaban.
 
-**Response 200:**
+**Query params (semua opsional):**
+| Param | Keterangan |
+|-------|------------|
+| `page`, `pageSize` | Pagination responden di level database. Tanpa keduanya → semua responden dikirim (backward-compat). |
+| `search` | Filter nama responden (nama akun login atau nama guest), case-insensitive `contains`. |
+
+**Response 200 (dengan pagination):**
 ```json
 {
   "status": 200,
@@ -1724,28 +1840,12 @@ Menampilkan statistik lengkap form: total responden, skor tiap responden, rata-r
             "answerText": "Biru",
             "correctAnswer": "Biru",
             "isCorrect": true
-          },
-          {
-            "questionId": 2,
-            "question": "2+2 berapa?",
-            "questionFormat": "text",
-            "typeId": 3,
-            "answerText": "5",
-            "correctAnswer": "4",
-            "isCorrect": false
-          },
-          {
-            "questionId": 3,
-            "question": "Komentar",
-            "questionFormat": "text",
-            "typeId": 4,
-            "answerText": "Bagus",
-            "correctAnswer": null,
-            "isCorrect": null
           }
         ]
       }
-    ]
+    ],
+    "page": 1,
+    "pageSize": 20
   }
 }
 ```
@@ -1753,8 +1853,9 @@ Menampilkan statistik lengkap form: total responden, skor tiap responden, rata-r
 **Penjelasan:**
 - `scorableQuestions` = jumlah soal yang memiliki kunci jawaban (CorrectAnswer atau opsi dengan IsCorrect)
 - `score` = `correctCount / scorableQuestions * 100`, null jika tidak ada soal yang bisa diskor
-- `averageScore` = rata-rata skor semua responden
+- `averageScore` = rata-rata skor **semua** responden (tidak terpengaruh filter search/pagination)
 - `isCorrect` = `true`/`false` untuk soal yang bisa diskor, `null` untuk soal survey
+- Pagination & pencarian dieksekusi di database; hanya halaman aktif yang dimuat lengkap dengan jawabannya
 
 ---
 
