@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -324,6 +325,10 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                 separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (context, i) {
                   final q = questions[i];
+                  final imageDataUri = q['image'] as String?;
+                  final options = (q['options'] as List<dynamic>? ?? [])
+                      .whereType<String>()
+                      .toList();
                   return Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
@@ -346,6 +351,40 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                             color: Colors.black87,
                           ),
                         ),
+                        // Gambar soal dari server (data URI base64)
+                        if (imageDataUri != null) ...[
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxHeight: 140),
+                              child: Image.memory(
+                                base64Decode(imageDataUri.split(',').last),
+                                fit: BoxFit.contain,
+                                alignment: Alignment.centerLeft,
+                                errorBuilder: (_, _, _) =>
+                                    const SizedBox.shrink(),
+                              ),
+                            ),
+                          ),
+                        ],
+                        // Teks opsi jawaban hasil parse
+                        if (options.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          for (final opt in options)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                "• $opt",
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ),
+                        ],
                         const SizedBox(height: 6),
                         Wrap(
                           spacing: 6,
@@ -356,12 +395,14 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                                   'Tipe ${q['typeId']}'),
                             if (q['isRequired'] == true)
                               _previewChip('Wajib', kDangerColor),
-                            if ((q['optionsCount'] as int? ?? 0) > 0)
-                              _previewChip('${q['optionsCount']} opsi'),
+                            if (options.isNotEmpty)
+                              _previewChip('${options.length} opsi'),
                             if (q['hasCorrectAnswer'] == true)
                               _previewChip('Ada kunci', kSuccessColor),
-                            if (q['hasImage'] == true)
-                              _previewChip('🖼 Gambar'),
+                            // Chip hanya fallback bila gambar terlalu besar
+                            // untuk dikirim sebagai base64 oleh server.
+                            if (q['hasImage'] == true && imageDataUri == null)
+                              _previewChip('Gambar'),
                           ],
                         ),
                       ],
