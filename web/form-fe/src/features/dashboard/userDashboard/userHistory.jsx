@@ -175,6 +175,7 @@ export default function History() {
                                             <tr className="bg-slate-50 dark:bg-slate-800/60 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
                                                 <th className="py-4 px-6">Judul Formulir</th>
                                                 <th className="py-4 px-6">Waktu Pengiriman</th>
+                                                <th className="py-4 px-6">Skor</th>
                                                 <th className="py-4 px-6">Status</th>
                                                 <th className="py-4 px-6 text-right">Aksi</th>
                                             </tr>
@@ -192,6 +193,15 @@ export default function History() {
                                                     </td>
                                                     <td className="py-4 px-6 text-slate-500 dark:text-slate-400 font-medium">
                                                         {formatDate(item.submittedAt)}
+                                                    </td>
+                                                    <td className="py-4 px-6">
+                                                        {item.showScore && item.score != null ? (
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 border border-teal-200 dark:border-teal-800">
+                                                                <Award size={12} /> {item.score}%
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">—</span>
+                                                        )}
                                                     </td>
                                                     <td className="py-4 px-6">
                                                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${getStatusBadge(item.status)}`}>

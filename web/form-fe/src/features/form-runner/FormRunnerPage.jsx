@@ -2,13 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Clock, Lock, ArrowRight, ArrowLeft,
-    AlertCircle, Send, Loader2
+    AlertCircle, Send, Loader2, Maximize2
 } from 'lucide-react';
 import {
     getPublicFormByLink, getPublicFormQuestions, submitPublicFormResponse,
     clearSession, assetUrl, getLocalUser
 } from '../../services/apiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
+import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
 
 export default function FormRunnerPage() {
     const { formLink } = useParams();
@@ -28,8 +29,10 @@ export default function FormRunnerPage() {
     // Answers state: { [questionId]: value }
     const [answers, setAnswers] = useState({});
 
-    // Wizard step for step-by-step layout
     const [currentStep, setCurrentStep] = useState(0);
+
+    // Lightbox modal for full-resolution question image viewing
+    const [lightboxImage, setLightboxImage] = useState(null);
 
     // Timer
     const [timeLeft, setTimeLeft] = useState(null);
@@ -159,29 +162,55 @@ export default function FormRunnerPage() {
         setError('');
 
         const formattedAnswers = Object.entries(answers).map(([questionId, value]) => {
-            const q = questions.find(item => item.id === parseInt(questionId));
+            const q = questions.find(item => item.id === parseInt(questionId, 10));
             if (!q) return null;
 
             if (q.typeId === 2) {
-                return { questionId: q.id, optionId: value ? parseInt(value) : null };
+                const parsed = parseInt(value, 10);
+                return {
+                    questionId: q.id,
+                    optionId: !isNaN(parsed) && parsed > 0 ? parsed : null,
+                };
             }
+
             if (q.typeId === 3) {
-                return { questionId: q.id, optionIds: Array.isArray(value) ? value.map(v => parseInt(v)) : [] };
+                const ids = Array.isArray(value) ? value.map(v => parseInt(v, 10)).filter(id => !isNaN(id) && id > 0) : [];
+                return { questionId: q.id, optionIds: ids };
             }
-            return { questionId: q.id, answerText: String(value || '') };
+
+            if (q.typeId === 5) {
+                // Live backend hanya terima "Benar" atau "Salah" (case-sensitive, huruf besar B/S)
+                const strVal = String(value || '').trim();
+                const normalizedVal = (strVal.toLowerCase() === 'benar' || strVal.toLowerCase() === 'true') ? 'Benar' : 'Salah';
+                return {
+                    questionId: q.id,
+                    answerValue: normalizedVal,
+                };
+            }
+
+            return {
+                questionId: q.id,
+                answerValue: String(value || ''),
+                answerText: String(value || '')
+            };
         }).filter(Boolean);
 
         const payload = {
+            token: tokenInput ? tokenInput.trim() : null,
             respondentName: respondentName.trim() || 'Anonim',
             answers: formattedAnswers,
         };
 
         const res = await submitPublicFormResponse(formLink, payload);
-        const responseId = res.data?.responseId || res.data?.id || (typeof res.data === 'number' || typeof res.data === 'string' ? res.data : null);
+        const responseData = res.data;
+        const responseId = responseData?.responseId || responseData?.id || (typeof responseData === 'number' || typeof responseData === 'string' ? responseData : null);
+        const guestToken = responseData?.guestToken || null;
 
         if (res.ok && responseId) {
-            // Instantly navigate to result & answer review page
-            navigate(`/f/${formLink}/result/${responseId}`);
+            // Pass guestToken via router state so FormResultPage can fetch result
+            navigate(`/f/${formLink}/result/${responseId}`, {
+                state: { guestToken }
+            });
         } else {
             setSubmitting(false);
             setError(res.message || 'Gagal mengirimkan respons formulir.');
@@ -340,8 +369,20 @@ export default function FormRunnerPage() {
 
                             {/* Media if present */}
                             {currentQ.questionImage && (
-                                <div className="my-2 max-w-md overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs">
-                                    <img src={assetUrl(currentQ.questionImage)} alt="Gambar Soal" className="max-h-64 w-auto max-w-full rounded-xl object-contain mx-auto" />
+                                <div className="my-2 max-w-md relative group/img overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs">
+                                    <img
+                                        src={assetUrl(currentQ.questionImage)}
+                                        alt="Gambar Soal"
+                                        className="max-h-64 w-auto max-w-full rounded-xl object-contain mx-auto cursor-zoom-in transition-transform group-hover/img:scale-[1.01]"
+                                        onClick={() => setLightboxImage({ src: assetUrl(currentQ.questionImage), alt: 'Gambar Soal' })}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setLightboxImage({ src: assetUrl(currentQ.questionImage), alt: 'Gambar Soal' })}
+                                        className="absolute bottom-3 right-3 p-2 bg-slate-900/80 hover:bg-slate-900 text-white rounded-xl shadow-md text-xs font-bold flex items-center gap-1 backdrop-blur-xs opacity-0 group-hover/img:opacity-100 transition-opacity cursor-pointer"
+                                    >
+                                        <Maximize2 size={13} /> Perbesar
+                                    </button>
                                 </div>
                             )}
                             {currentQ.questionAudio && (
@@ -411,8 +452,20 @@ export default function FormRunnerPage() {
                                 </div>
 
                                 {q.questionImage && (
-                                    <div className="my-2 max-w-md overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs sm:ml-10">
-                                        <img src={assetUrl(q.questionImage)} alt="Gambar Soal" className="max-h-64 w-auto max-w-full rounded-xl object-contain mx-auto" />
+                                    <div className="my-2 max-w-md relative group/img overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs sm:ml-10">
+                                        <img
+                                            src={assetUrl(q.questionImage)}
+                                            alt="Gambar Soal"
+                                            className="max-h-64 w-auto max-w-full rounded-xl object-contain mx-auto cursor-zoom-in transition-transform group-hover/img:scale-[1.01]"
+                                            onClick={() => setLightboxImage({ src: assetUrl(q.questionImage), alt: 'Gambar Soal' })}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setLightboxImage({ src: assetUrl(q.questionImage), alt: 'Gambar Soal' })}
+                                            className="absolute bottom-3 right-3 p-2 bg-slate-900/80 hover:bg-slate-900 text-white rounded-xl shadow-md text-xs font-bold flex items-center gap-1 backdrop-blur-xs opacity-0 group-hover/img:opacity-100 transition-opacity cursor-pointer"
+                                        >
+                                            <Maximize2 size={13} /> Perbesar
+                                        </button>
                                     </div>
                                 )}
                                 {q.questionAudio && (
@@ -441,6 +494,14 @@ export default function FormRunnerPage() {
                 )}
 
             </div>
+
+            {/* Lightbox Modal */}
+            <ImageLightboxModal
+                isOpen={!!lightboxImage}
+                src={lightboxImage?.src}
+                alt={lightboxImage?.alt}
+                onClose={() => setLightboxImage(null)}
+            />
         </div>
     );
 }
@@ -485,7 +546,9 @@ function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange)
                                 onChange={() => handleAnswerChange(q.id, opt.id)}
                                 className="w-4 h-4 text-[#00897B] cursor-pointer"
                             />
-                            <span className="text-xs sm:text-sm">{opt.optionText}</span>
+                            <div className="text-xs sm:text-sm leading-relaxed flex-1">
+                                <RichContentRenderer content={opt.optionText} />
+                            </div>
                         </label>
                     );
                 })}
@@ -515,7 +578,9 @@ function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange)
                                 onChange={e => handleCheckboxChange(q.id, opt.id, e.target.checked)}
                                 className="w-4 h-4 text-[#00897B] rounded cursor-pointer"
                             />
-                            <span className="text-xs sm:text-sm">{opt.optionText}</span>
+                            <div className="text-xs sm:text-sm leading-relaxed flex-1">
+                                <RichContentRenderer content={opt.optionText} />
+                            </div>
                         </label>
                     );
                 })}
@@ -535,25 +600,24 @@ function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange)
         );
     }
 
-    // 5: True / False
+    // 5: True / False — menyimpan "Benar"/"Salah" sesuai kontrak live API
     if (q.typeId === 5) {
         return (
             <div className="grid grid-cols-2 gap-3 max-w-sm">
-                {['True', 'False'].map((choice) => {
-                    const labelText = choice === 'True' ? 'Benar (True)' : 'Salah (False)';
-                    const isSelected = val === choice;
+                {[{ value: 'Benar', label: 'Benar' }, { value: 'Salah', label: 'Salah' }].map((choice) => {
+                    const isSelected = String(val) === choice.value;
                     return (
                         <button
-                            key={choice}
+                            key={choice.value}
                             type="button"
-                            onClick={() => handleAnswerChange(q.id, choice)}
+                            onClick={() => handleAnswerChange(q.id, choice.value)}
                             className={`py-3 px-4 rounded-2xl border text-xs font-bold transition-all cursor-pointer ${
                                 isSelected
                                     ? 'border-[#00897B] bg-[#00897B] text-white shadow-xs'
                                     : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50'
                             }`}
                         >
-                            {labelText}
+                            {choice.label}
                         </button>
                     );
                 })}
