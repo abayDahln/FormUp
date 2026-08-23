@@ -120,7 +120,10 @@ public class PublicFormsController : ControllerBase
             && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid)
             && response.RespondentId == uid;
 
-        if (!isOwner)
+        // Respons guest (tanpa akun) tidak memiliki identitas — bisa diakses
+        // siapa pun yang menyimpan link + responseId setelah submit.
+        // Respons milik user login tetap hanya bisa dibaca pemiliknya.
+        if (!isOwner && response.RespondentId != null)
             return Unauthorized(new ApiResponse<object>(401, "Anda tidak berhak melihat hasil ini"));
 
         var questions = await _db.Questions

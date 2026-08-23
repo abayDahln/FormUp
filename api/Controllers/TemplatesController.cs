@@ -1,6 +1,7 @@
 using ClosedXML.Excel;
 using DocumentFormat.OpenXml.Packaging;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -9,6 +10,7 @@ namespace FormUpAPI.Controllers;
 
 [Route("api/templates")]
 [ApiController]
+[EnableRateLimiting("template")]
 public class TemplatesController : ControllerBase
 {
     [HttpGet("import-questions")]

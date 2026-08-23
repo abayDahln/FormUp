@@ -208,6 +208,18 @@ namespace FormUpAPI
                         QueueLimit = 0,
                     });
                 });
+
+                // Download template import soal (file digenerate di server → mahal)
+                options.AddPolicy("template", context =>
+                {
+                    var key = context.Connection.RemoteIpAddress?.ToString() ?? "anon";
+                    return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 10,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                    });
+                });
             });
 
             var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? [];
