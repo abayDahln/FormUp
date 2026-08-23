@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/models/question_draft.dart';
+import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/features/form/widgets/question_preview_box.dart';
@@ -18,7 +19,10 @@ class QuestionTextSection extends StatelessWidget {
     required this.preview,
     required this.onPreviewChanged,
     required this.onTypeChanged,
+    this.questionFieldKey,
   });
+
+  final Key? questionFieldKey;
 
   @override
   Widget build(BuildContext context) {
@@ -31,10 +35,34 @@ class QuestionTextSection extends StatelessWidget {
           onChanged: onTypeChanged,
         ),
         const SizedBox(height: 12),
+        Row(
+          children: const [
+            Text(
+              "Pertanyaan",
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                fontFamily: kFontBold,
+                color: kAuthPrimary,
+              ),
+            ),
+            SizedBox(width: 2),
+            Text(
+              "*",
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: kDangerColor,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
         RichTextEditor(
           controller: q.question,
           hint: "Tulis pertanyaan...",
           minHeight: 70,
+          key: questionFieldKey,
         ),
         const SizedBox(height: 8),
         Row(

@@ -929,7 +929,7 @@ class _RichTextEditorState extends State<RichTextEditor> {
             )),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFFF0F4F4),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: const Color(0xFF6E7979)),
         ),

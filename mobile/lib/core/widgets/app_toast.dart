@@ -51,15 +51,26 @@ void showAppToast(
     builder: (context) => Positioned(
       left: 20,
       right: 20,
-      top: MediaQuery.of(context).viewPadding.top + 12,
+      bottom: MediaQuery.of(context).viewInsets.bottom +
+          MediaQuery.of(context).viewPadding.bottom +
+          16,
       child: Material(
         type: MaterialType.transparency,
         child: Container(
           padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
           decoration: BoxDecoration(
-            color: v.color.withValues(alpha: 0.13),
+            // Tint warna varian di-blend ke putih → solid & mudah dibaca,
+            // tidak tembus pandang ke konten di belakangnya.
+            color: Color.alphaBlend(v.color.withValues(alpha: 0.14), Colors.white),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: v.color.withValues(alpha: 0.55)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,

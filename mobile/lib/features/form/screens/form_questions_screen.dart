@@ -1,10 +1,14 @@
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
+import 'package:form_up/core/theme.dart';
+import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form/controllers/question_payload_builder.dart';
 import 'package:form_up/features/form/controllers/question_validation.dart';
@@ -26,11 +30,14 @@ class FormQuestionsScreen extends StatefulWidget {
 }
 
 class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
+  static const _allowedImportExt = ['pdf', 'docx', 'xlsx', 'xls', 'csv'];
+
   final List<QuestionDraft> _questions = [];
   List<QuestionDraft> _baseline = [];
   AppRouterDelegate? _router;
   bool _loading = true;
   bool _saving = false;
+  bool _importing = false;
   double? _progress;
 
   bool get _hasChanges {
@@ -116,6 +123,322 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
       'draft': draft,
     });
     if (mounted) setState(() {});
+  }
+
+  /// Impor soal dari file .docx/.pdf/.xlsx/.csv via endpoint backend.
+  /// Gambar di dalam docx/pdf ikut terekstrak ke soal.
+  /// Alur: pilih file → preview (parse & validasi) → konfirmasi → save.
+  Future<void> _importSoal() async {
+    if (widget.formId == null || _saving || _importing) return;
+
+    final picked = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: _allowedImportExt,
+      withData: true,
+    );
+    final file = picked?.files.single;
+    if (file == null || !mounted) return;
+    final bytes = file.bytes;
+    if (bytes == null) {
+      showAuthToast(context, "Gagal membaca file", isError: true);
+      return;
+    }
+
+    setState(() => _importing = true);
+    try {
+      // 1) Preview: parse & validasi saja, belum menyimpan apa pun
+      final preview = await FormService.previewQuestionImport(
+        widget.formId!,
+        bytes,
+        file.name,
+      );
+      if (!mounted) return;
+
+      if (preview['blocked'] == true) {
+        showAppToast(
+          context,
+          "Form sudah memiliki respons — soal tidak dapat diubah",
+          type: ToastType.warning,
+          title: "Impor Ditolak",
+        );
+        return;
+      }
+
+      final questions = (preview['questions'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+
+      // 2) Tampilkan preview + daftar error format sebelum benar-benar impor
+      final confirmed = await _showImportPreview(questions, preview);
+      if (!mounted || confirmed != true) return;
+
+      // 3) Simpan sungguhan ke database
+      final result = await FormService.saveQuestionImport(
+        widget.formId!,
+        bytes,
+        file.name,
+      );
+      if (!mounted) return;
+      final imported = result['totalImported'] as int? ?? 0;
+      final skipped = result['totalSkipped'] as int? ?? 0;
+      showAppToast(
+        context,
+        "$imported soal diimpor${skipped > 0 ? ", $skipped dilewati" : ""}",
+        type: imported > 0 ? ToastType.success : ToastType.warning,
+        title: "Impor Selesai",
+      );
+      await _loadQuestions();
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
+
+  /// Sheet preview daftar soal hasil parse. Return true jika user menekan impor.
+  /// Error format per baris ditampilkan jelas; tombol impor dinonaktifkan
+  /// bila tidak ada satu pun baris valid.
+  Future<bool?> _showImportPreview(
+    List<Map<String, dynamic>> questions,
+    Map<String, dynamic> preview,
+  ) {
+    final totalRows = preview['totalRows'] as int? ?? questions.length;
+    final canImport = preview['canImport'] == true && questions.isNotEmpty;
+    final errors = (preview['errors'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    const maxVisibleErrors = 5;
+    final errorTextColor = Color.lerp(kDangerColor, Colors.black, 0.25)!;
+
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.75,
+        maxChildSize: 0.92,
+        minChildSize: 0.5,
+        builder: (_, scrollController) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      "Preview Impor (${questions.length} soal dari $totalRows baris)",
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: kFontBold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(sheetContext, false),
+                  ),
+                ],
+              ),
+            ),
+            // Daftar error format: baris, kolom, dan alasannya terlihat jelas.
+            if (errors.isNotEmpty)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: kDangerColor.withValues(alpha: 0.08),
+                  border: Border.all(color: kDangerColor.withValues(alpha: 0.4)),
+                  borderRadius: BorderRadius.circular(kRadiusMd),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.error_outline,
+                            size: 16, color: kDangerColor),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            "${errors.length} baris bermasalah dan akan dilewati",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: kFontBold,
+                              color: kDangerColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    for (final e in errors.take(maxVisibleErrors))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          "• Baris ${e['rowNumber']} (${e['field']}): ${e['message']}",
+                          style: TextStyle(fontSize: 11, color: errorTextColor),
+                        ),
+                      ),
+                    if (errors.length > maxVisibleErrors)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          "... dan ${errors.length - maxVisibleErrors} error lainnya",
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                            color: errorTextColor,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            if (questions.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "Tidak ada soal valid yang terbaca dari file.\n"
+                    "Perbaiki baris di atas atau unduh template import untuk format yang benar.",
+                    style: TextStyle(fontSize: 12, color: errorTextColor),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.separated(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                itemCount: questions.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, i) {
+                  final q = questions[i];
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: kAuthFieldFill,
+                      borderRadius: BorderRadius.circular(kRadiusMd),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        RichTextView(
+                          text: q['question'] as String? ?? '',
+                          prefix: "${q['order']}. ",
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: kFontBold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            _previewChip(
+                              questionTypes[q['typeId'] as int?]?.$1 ??
+                                  'Tipe ${q['typeId']}'),
+                            if (q['isRequired'] == true)
+                              _previewChip('Wajib', kDangerColor),
+                            if ((q['optionsCount'] as int? ?? 0) > 0)
+                              _previewChip('${q['optionsCount']} opsi'),
+                            if (q['hasCorrectAnswer'] == true)
+                              _previewChip('Ada kunci', kSuccessColor),
+                            if (q['hasImage'] == true)
+                              _previewChip('🖼 Gambar'),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(sheetContext, false),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.black26),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(kRadius)),
+                        ),
+                        child: const Text('Batal',
+                            style: TextStyle(color: Colors.black54)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        onPressed: canImport
+                            ? () => Navigator.pop(sheetContext, true)
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kAuthPrimary,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.black12,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(kRadius)),
+                        ),
+                        icon: const Icon(Icons.download_done, size: 20),
+                        label: Text(
+                          questions.isEmpty
+                              ? 'Tidak Ada Soal Valid'
+                              : 'Impor Sekarang',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _previewChip(String label, [Color color = kAuthPrimary]) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          fontFamily: kFontBold,
+          color: color,
+        ),
+      ),
+    );
   }
 
   void _moveQuestion(int index, int delta) {
@@ -251,6 +574,21 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
             color: Colors.black87,
           ),
         ),
+        actions: [
+          if (widget.formId != null)
+            IconButton(
+              tooltip: 'Impor soal dari file',
+              icon: _importing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.upload_file_outlined,
+                      color: kAuthPrimary),
+              onPressed: _importing ? null : _importSoal,
+            ),
+        ],
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
           onPressed: () async {

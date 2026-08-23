@@ -72,7 +72,7 @@ class FormMakerSettingsCard extends StatelessWidget {
           TextField(
             controller: c.customLinkController,
             decoration: _fieldDecoration(
-              "mis. survey-kepuasan (opsional)",
+              "mis. survey-kepuasan",
             ),
             onChanged: (v) => c.customLinkController.value =
                 c.customLinkController.value.copyWith(
@@ -92,7 +92,7 @@ class FormMakerSettingsCard extends StatelessWidget {
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: _fieldDecoration(
-                    "mis. 30 (opsional)",
+                    "mis. 30",
                   ),
                 ),
               ),
@@ -121,7 +121,7 @@ class FormMakerSettingsCard extends StatelessWidget {
           TextField(
             controller: c.tokenController,
             decoration: _fieldDecoration(
-              "opsional",
+              "",
             ),
           ),
           const SizedBox(height: 8),
@@ -265,7 +265,7 @@ class _DateTimeTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFFF0F4F4),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: enabled ? const Color(0xFF6E7979) : const Color(0xFFD8DEDE),
@@ -338,7 +338,7 @@ Widget _dropdownCard(Widget child) {
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 14),
     decoration: BoxDecoration(
-      color: const Color(0xFFF0F4F4),
+      color: Colors.white,
       borderRadius: BorderRadius.circular(8),
       border: Border.all(color: const Color(0xFF6E7979)),
     ),
@@ -351,7 +351,7 @@ InputDecoration _fieldDecoration(String hint) {
     hintText: hint,
     hintStyle: const TextStyle(color: kAuthText, fontSize: 14),
     filled: true,
-    fillColor: const Color(0xFFF0F4F4),
+    fillColor: Colors.white,
     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),

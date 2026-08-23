@@ -30,6 +30,10 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
 
   bool get _isEdit => widget.formId != null;
 
+  final ScrollController _scrollController = ScrollController();
+  final FocusNode _titleFocusNode = FocusNode();
+  final GlobalKey _titleFieldKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -50,6 +54,8 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
   @override
   void dispose() {
     _router?.popBackGuard();
+    _scrollController.dispose();
+    _titleFocusNode.dispose();
     _form.dispose();
     super.dispose();
   }
@@ -86,6 +92,16 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
     final title = _form.titleController.text.trim();
     if (title.isEmpty) {
       showAuthToast(context, "Judul form wajib diisi", isError: true);
+      // Auto-scroll + fokus ke field judul yang masih kosong
+      final ctx = _titleFieldKey.currentContext;
+      if (ctx != null) {
+        await Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 300),
+          alignment: 0.2,
+        );
+        _titleFocusNode.requestFocus();
+      }
       return;
     }
     final newBanner = _form.newBanner;
@@ -204,28 +220,31 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
                       valueListenable: activeRichEditor,
                       builder: (context, active, _) {
                         final toolbarVisible = active != null;
-                        return SingleChildScrollView(
-                          padding: EdgeInsets.fromLTRB(
-                            22,
-                            4,
-                            22,
-                            toolbarVisible ? 110 : 24,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              FormMakerHeaderCard(
-                                titleController: _form.titleController,
-                                descController: _form.descController,
-                                bannerImage: _form.bannerImage,
-                                newBanner: _form.newBanner,
-                                onPickBanner: _pickBanner,
-                                onRemoveBanner: () => setState(() {
-                                  _form.newBanner = null;
-                                  _form.bannerImage = null;
-                                  _form.bannerCleared = true;
-                                }),
-                              ),
+                         return SingleChildScrollView(
+                           controller: _scrollController,
+                           padding: EdgeInsets.fromLTRB(
+                             22,
+                             4,
+                             22,
+                             toolbarVisible ? 110 : 24,
+                           ),
+                           child: Column(
+                             crossAxisAlignment: CrossAxisAlignment.stretch,
+                             children: [
+                               FormMakerHeaderCard(
+                                 titleController: _form.titleController,
+                                 descController: _form.descController,
+                                 bannerImage: _form.bannerImage,
+                                 newBanner: _form.newBanner,
+                                 onPickBanner: _pickBanner,
+                                 onRemoveBanner: () => setState(() {
+                                   _form.newBanner = null;
+                                   _form.bannerImage = null;
+                                   _form.bannerCleared = true;
+                                 }),
+                                 titleFocusNode: _titleFocusNode,
+                                 titleFieldKey: _titleFieldKey,
+                               ),
                               const SizedBox(height: 16),
                               FormMakerSettingsCard(
                                 controller: _form,

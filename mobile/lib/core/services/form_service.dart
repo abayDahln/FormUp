@@ -616,6 +616,55 @@ class FormService {
     return await http.Response.fromStream(streamed);
   }
 
+  /// POST /forms/{id}/questions/import/preview — parse & validasi file impor
+  /// (.docx/.pdf/.xlsx/.csv) TANPA menyimpan ke database.
+  /// Return `{preview, blocked, totalRows, totalQuestions, skippedCount,
+  /// canImport, errors: [{rowNumber, field, message}], questions: [...]}`.
+  static Future<Map<String, dynamic>> previewQuestionImport(
+    int formId,
+    Uint8List bytes,
+    String filename,
+  ) =>
+      _postQuestionImport(
+        '/forms/$formId/questions/import/preview',
+        bytes,
+        filename,
+      );
+
+  /// POST /forms/{id}/questions/import — simpan hasil impor soal ke database.
+  /// Panggil setelah user konfirmasi dari preview.
+  /// Return `{totalImported, totalSkipped, errors}`.
+  static Future<Map<String, dynamic>> saveQuestionImport(
+    int formId,
+    Uint8List bytes,
+    String filename,
+  ) =>
+      _postQuestionImport('/forms/$formId/questions/import', bytes, filename);
+
+  static Future<Map<String, dynamic>> _postQuestionImport(
+    String path,
+    Uint8List bytes,
+    String filename,
+  ) async {
+    final uri = Uri.parse('$apiBaseUrl$path');
+    var response = await _upload(uri, bytes, filename);
+    if (response.statusCode == 401 &&
+        response.headers['token-expired'] == 'true' &&
+        await AuthService.refreshToken()) {
+      response = await _upload(uri, bytes, filename);
+    }
+    final Map<String, dynamic> json;
+    try {
+      json = jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      throw const ApiException('Terjadi kesalahan, coba lagi nanti.');
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(json['message'] as String? ?? 'Terjadi kesalahan.');
+    }
+    return json['data'] as Map<String, dynamic>? ?? {};
+  }
+
   /// GET /forms/{id}/share
   static Future<Map<String, dynamic>> getShareInfo(int formId) async {
     final json = await AuthService.get('/forms/$formId/share');

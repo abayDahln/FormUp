@@ -36,6 +36,9 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
   AppRouterDelegate? _router;
   bool _preview = false;
   bool _uploading = false;
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _questionFieldKey = GlobalKey();
+  final GlobalKey _answerSectionKey = GlobalKey();
 
   QuestionDraft get q => _working;
 
@@ -56,6 +59,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
   @override
   void dispose() {
     _router?.popBackGuard();
+    _scrollController.dispose();
     _working.dispose();
     super.dispose();
   }
@@ -74,10 +78,26 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
     return false;
   }
 
+  /// Auto-scroll ke field yang gagal validasi
+  Future<void> _scrollToError(String error) async {
+    final toAnswer = error.toLowerCase().contains('opsi');
+    final ctx = toAnswer
+        ? _answerSectionKey.currentContext
+        : _questionFieldKey.currentContext;
+    if (ctx != null) {
+      await Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 300),
+        alignment: 0.15,
+      );
+    }
+  }
+
   bool _validate() {
     final error = validateQuestionDraft(q);
     if (error != null) {
       showAuthToast(context, error, isError: true);
+      _scrollToError(error);
       return false;
     }
     return true;
@@ -235,6 +255,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                 builder: (context, active, _) {
                   final toolbarVisible = active != null;
                   return SingleChildScrollView(
+                    controller: _scrollController,
                     padding: EdgeInsets.fromLTRB(
                       22,
                       4,
@@ -248,6 +269,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                           title: 'Soal',
                           icon: Icons.help_outline,
                           child: QuestionTextSection(
+                            questionFieldKey: _questionFieldKey,
                             draft: q,
                             preview: _preview,
                             onPreviewChanged: (v) =>
@@ -260,6 +282,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                           title: 'Jawaban',
                           icon: Icons.rule,
                           child: QuestionAnswerSection(
+                            optionsKey: _answerSectionKey,
                             draft: q,
                             onChanged: () => setState(() {}),
                           ),

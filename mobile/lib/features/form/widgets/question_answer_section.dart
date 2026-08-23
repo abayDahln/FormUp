@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/models/question_draft.dart';
+import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 
@@ -7,11 +8,13 @@ import 'package:form_up/core/widgets/rich_editor.dart';
 class QuestionAnswerSection extends StatelessWidget {
   final QuestionDraft draft;
   final VoidCallback onChanged;
+  final Key? optionsKey;
 
   const QuestionAnswerSection({
     super.key,
     required this.draft,
     required this.onChanged,
+    this.optionsKey,
   });
 
   @override
@@ -19,18 +22,57 @@ class QuestionAnswerSection extends StatelessWidget {
     final q = draft;
     if (q.typeId == 5) return _buildTrueFalseAnswer(q);
     if (q.typeId == 1) {
-      return TextField(
-        controller: q.correctAnswer,
-        maxLines: null,
-        decoration: _fieldDecoration(
-          "Kunci jawaban (opsional, untuk kuis)",
-        ),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Kunci Jawaban',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              fontFamily: kFontBold,
+              color: kAuthPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: q.correctAnswer,
+            maxLines: null,
+            decoration: _fieldDecoration(
+              "Kunci jawaban untuk kuis",
+            ),
+          ),
+        ],
       );
     }
     if (q.hasOptions) {
       return Column(
+        key: optionsKey,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Row(
+            children: const [
+              Text(
+                'Opsi Jawaban',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: kFontBold,
+                  color: kAuthPrimary,
+                ),
+              ),
+              SizedBox(width: 2),
+              Text(
+                '*',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: kDangerColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           for (var oi = 0; oi < q.options.length; oi++)
             _OptionRow(
               index: oi,
@@ -201,7 +243,7 @@ InputDecoration _fieldDecoration(String hint) {
     hintText: hint,
     hintStyle: const TextStyle(color: kAuthText, fontSize: 14),
     filled: true,
-    fillColor: const Color(0xFFF0F4F4),
+    fillColor: Colors.white,
     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
