@@ -8,6 +8,7 @@ import {
 import Sidebar from '../../components/layout/Sidebar';
 import {
     getFormById, getFormResponses, getFormAnalytics,
+    getResponseResult,
     updateResponseStatus, clearSession, exportUrl, getMyFeedback
 } from '../../services/apiService';
 
@@ -46,7 +47,7 @@ export default function FormResponsesPage() {
             try {
                 const [formRes, respRes, analyticsRes] = await Promise.all([
                     getFormById(id),
-                    getFormResponses(id, 1, PAGE_SIZE),
+                    getFormResponses(id, { page: 1, pageSize: PAGE_SIZE }),
                     getFormAnalytics(id, 1, 100)
                 ]);
 
@@ -416,7 +417,15 @@ export default function FormResponsesPage() {
                                                             </td>
                                                             <td className="py-3.5 px-4 text-right">
                                                                 <button
-                                                                    onClick={() => setSelectedRespondent(r)}
+                                                                    onClick={async () => {
+                                                                        // Use analytics answers if present, else fetch /result for detailed scored view
+                                                                        if (r.answers && r.answers.length > 0) {
+                                                                            setSelectedRespondent(r);
+                                                                        } else {
+                                                                            const res = await getResponseResult(id, r.responseId);
+                                                                            setSelectedRespondent(res.ok && res.data ? { ...r, ...res.data } : r);
+                                                                        }
+                                                                    }}
                                                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#00897B] hover:bg-[#00796B] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
                                                                 >
                                                                     <Eye size={13} /> Review Jawaban

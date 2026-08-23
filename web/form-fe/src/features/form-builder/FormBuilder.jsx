@@ -17,7 +17,8 @@ import RichContentRenderer from '../../utils/RichContentRenderer';
 import SummernoteEditor from '../../components/ui/SummernoteEditor';
 import MathAndCodeModal from '../../components/ui/MathAndCodeModal';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.formup.my.id';
+const FRONTEND_BASE_URL = import.meta.env.VITE_FRONTEND_URL || 'https://formup.my.id';
 
 const QUESTION_TYPES = [
     { id: 1, label: 'Essay / Short Answer' },
@@ -240,7 +241,7 @@ export default function FormBuilder() {
             setShareInfo(res.data);
             const token = localStorage.getItem('token');
             const qrRes = await fetch(
-                `${API_BASE_URL}/api/forms/${id}/share/qr?frontendUrl=${encodeURIComponent(window.location.origin)}`,
+                `${API_BASE_URL}/api/forms/${id}/share/qr?frontendUrl=${encodeURIComponent(FRONTEND_BASE_URL)}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             if (qrRes.ok) {
@@ -548,12 +549,27 @@ export default function FormBuilder() {
                                 </div>
 
                                 {/* Question Import Bar */}
-                                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
-                                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">Impor soal dari XLSX, CSV, DOCX, atau PDF:</p>
-                                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 hover:bg-teal-100 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0">
-                                        <FileUp size={13} /> {importLoading ? 'Mengimpor...' : 'Impor Soal'}
-                                        <input type="file" accept=".xlsx,.csv,.docx,.pdf" className="hidden" onChange={handleImportFile} disabled={importLoading} />
-                                    </label>
+                                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">Impor soal dari XLSX, CSV, DOCX, atau PDF:</p>
+                                        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 hover:bg-teal-100 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0">
+                                            <FileUp size={13} /> {importLoading ? 'Mengimpor...' : 'Impor Soal'}
+                                            <input type="file" accept=".xlsx,.csv,.docx,.pdf" className="hidden" onChange={handleImportFile} disabled={importLoading} />
+                                        </label>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">Unduh template:</span>
+                                        {['csv', 'xlsx', 'docx'].map(fmt => (
+                                            <a
+                                                key={fmt}
+                                                href={templateDownloadUrl(fmt)}
+                                                download
+                                                className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[11px] font-bold transition-all"
+                                            >
+                                                <Download size={11} /> .{fmt.toUpperCase()}
+                                            </a>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
@@ -840,7 +856,7 @@ export default function FormBuilder() {
                                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Slug Tautan Khusus</label>
                                     <div className="flex items-center gap-2">
                                         <span className="text-xs font-mono text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
-                                            {window.location.origin}/f/
+                                            {FRONTEND_BASE_URL}/f/
                                         </span>
                                         <input
                                             value={settings.customFormLink}
@@ -959,12 +975,12 @@ export default function FormBuilder() {
                                         <input
                                             type="text"
                                             readOnly
-                                            value={`${window.location.origin}/f/${form?.formLink}`}
+                                            value={`${FRONTEND_BASE_URL}/f/${form?.formLink}`}
                                             className="flex-1 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
                                         />
                                         <button
                                             onClick={() => {
-                                                navigator.clipboard.writeText(`${window.location.origin}/f/${form?.formLink}`);
+                                                navigator.clipboard.writeText(`${FRONTEND_BASE_URL}/f/${form?.formLink}`);
                                                 setCopiedLink(true);
                                                 setTimeout(() => setCopiedLink(false), 2000);
                                             }}

@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.formup.my.id';
 
 const getToken = () => localStorage.getItem('token');
 
@@ -238,8 +238,20 @@ export const uploadQuestionAudio = async (formId, questionId, file) => {
 };
 
 // ── Response Endpoints (Owner) ────────────────────────────────────────────────
-export const getFormResponses = async (formId) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/responses`, { headers: authHeaders() }));
+export const getFormResponses = async (formId, { page, pageSize } = {}) => {
+    const params = new URLSearchParams();
+    if (page != null) params.set('page', page);
+    if (pageSize != null) params.set('pageSize', pageSize);
+    const qs = params.toString() ? `?${params}` : '';
+    return parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/responses${qs}`, { headers: authHeaders() }));
+};
 export const getResponseDetail = async (formId, responseId) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/responses/${responseId}`, { headers: authHeaders() }));
+
+// GET /api/forms/{formId}/responses/{id}/result — scored result for owner view
+export const getResponseResult = async (formId, responseId) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/responses/${responseId}/result`, { headers: authHeaders() }));
+
+// GET /api/forms/{formId}/responses/{id}/attempts — all attempts by same respondent
+export const getResponseAttempts = async (formId, responseId) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/responses/${responseId}/attempts`, { headers: authHeaders() }));
 
 export const updateResponseStatus = async (responseId, statusId) => {
     const res = await fetch(`${API_BASE_URL}/api/responses/${responseId}/status`, {
