@@ -3,14 +3,16 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { 
     ArrowLeft, Download, Eye, X, BarChart2, Loader2, 
     MessageSquare, AlertTriangle, CheckCircle2, XCircle, 
-    MinusCircle, ChevronLeft, ChevronRight, TrendingUp, Calendar
+    MinusCircle, ChevronLeft, ChevronRight, TrendingUp, Calendar, Maximize2
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import {
     getFormById, getFormResponses, getFormAnalytics,
     getResponseResult,
-    updateResponseStatus, clearSession, exportUrl, getMyFeedback
+    updateResponseStatus, clearSession, exportFormResponses, getMyFeedback, assetUrl
 } from '../../services/apiService';
+import RichContentRenderer from '../../utils/RichContentRenderer';
+import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
 
 const STATUS_OPTIONS = [
     { id: 1, label: 'Baru', code: 'new' },
@@ -33,6 +35,8 @@ export default function FormResponsesPage() {
     const [loading, setLoading] = useState(true);
     const [statusUpdating, setStatusUpdating] = useState(null);
     const [toast, setToast] = useState(null);
+    const [exporting, setExporting] = useState(false);
+    const [lightboxImage, setLightboxImage] = useState(null);
 
     // Feedback
     const [feedbacks, setFeedbacks] = useState([]);
@@ -99,6 +103,24 @@ export default function FormResponsesPage() {
     const showToast = (msg, type = 'success') => {
         setToast({ msg, type });
         setTimeout(() => setToast(null), 3000);
+    };
+
+    const handleExport = async (formId) => {
+        if (!formId || exporting) return;
+        setExporting(true);
+        try {
+            const res = await exportFormResponses(formId);
+            if (!res.ok) {
+                showToast(res.message || 'Gagal mengekspor CSV.', 'error');
+            } else {
+                showToast('File CSV berhasil diunduh');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('Terjadi kesalahan saat mengekspor CSV.', 'error');
+        } finally {
+            setExporting(false);
+        }
     };
 
     const handleStatusChange = async (responseId, statusId) => {
@@ -249,18 +271,19 @@ export default function FormResponsesPage() {
                     <div className="flex items-center gap-2 shrink-0">
                         <button
                             onClick={() => navigate(`/forms/${id}/analytics`)}
-                            className="flex items-center gap-1.5 px-3.5 py-2 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900 text-[#00897B] dark:text-teal-400 text-xs font-bold rounded-xl transition-all"
+                            className="flex items-center gap-1.5 px-3.5 py-2 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900 text-[#00897B] dark:text-teal-400 text-xs font-bold rounded-xl transition-all cursor-pointer"
                         >
                             <BarChart2 size={14} /> Analisis
                         </button>
-                        <a
-                            href={exportUrl(id)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs"
+                        <button
+                            type="button"
+                            onClick={() => handleExport(id)}
+                            disabled={exporting}
+                            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs disabled:opacity-60 cursor-pointer"
                         >
-                            <Download size={14} /> Unduh CSV
-                        </a>
+                            {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                            <span>{exporting ? 'Mengekspor...' : 'Unduh CSV'}</span>
+                        </button>
                     </div>
                 </div>
 
@@ -558,9 +581,26 @@ export default function FormResponsesPage() {
                                                     {index + 1}
                                                 </span>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-semibold text-slate-900 dark:text-white leading-relaxed">
-                                                        {answer.question}
-                                                    </p>
+                                                    <div className="text-sm font-semibold text-slate-900 dark:text-white leading-relaxed">
+                                                        <RichContentRenderer content={answer.question} />
+                                                    </div>
+                                                    {answer.questionImage && (
+                                                        <div className="my-2 max-w-xs relative group/img overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 p-1 bg-white dark:bg-slate-900 shadow-xs">
+                                                            <img
+                                                                src={assetUrl(answer.questionImage)}
+                                                                alt="Gambar Soal"
+                                                                className="max-h-40 w-auto rounded-lg object-contain mx-auto cursor-zoom-in"
+                                                                onClick={() => setLightboxImage({ src: assetUrl(answer.questionImage), alt: 'Gambar Soal' })}
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setLightboxImage({ src: assetUrl(answer.questionImage), alt: 'Gambar Soal' })}
+                                                                className="absolute bottom-2 right-2 p-1.5 bg-slate-900/80 hover:bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity cursor-pointer"
+                                                            >
+                                                                <Maximize2 size={11} /> Perbesar
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-bold ${status.className}`}>
@@ -581,7 +621,9 @@ export default function FormResponsesPage() {
                                                         ? 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-900 dark:text-red-200'
                                                         : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200'
                                                 }`}>
-                                                    {answer.answerText || answer.answerValue || answer.optionText || (
+                                                    {answer.answerText || answer.answerValue || answer.optionText ? (
+                                                        <RichContentRenderer content={answer.answerText || answer.answerValue || answer.optionText} />
+                                                    ) : (
                                                         <span className="text-slate-400 dark:text-slate-500 italic">Tidak ada jawaban</span>
                                                     )}
                                                 </div>
@@ -593,7 +635,7 @@ export default function FormResponsesPage() {
                                                         Kunci / Jawaban Benar:
                                                     </p>
                                                     <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-3 text-emerald-900 dark:text-emerald-200 font-bold">
-                                                        {answer.correctAnswer}
+                                                        <RichContentRenderer content={answer.correctAnswer} />
                                                     </div>
                                                 </div>
                                             )}
@@ -635,6 +677,14 @@ export default function FormResponsesPage() {
                     </div>
                 </div>
             )}
+
+            {/* Lightbox Modal */}
+            <ImageLightboxModal
+                isOpen={!!lightboxImage}
+                src={lightboxImage?.src}
+                alt={lightboxImage?.alt}
+                onClose={() => setLightboxImage(null)}
+            />
         </div>
     );
 }

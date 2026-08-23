@@ -2,13 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Clock, Lock, ArrowRight, ArrowLeft,
-    AlertCircle, Send, Loader2
+    AlertCircle, Send, Loader2, Maximize2
 } from 'lucide-react';
 import {
     getPublicFormByLink, getPublicFormQuestions, submitPublicFormResponse,
     clearSession, assetUrl, getLocalUser
 } from '../../services/apiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
+import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
 
 export default function FormRunnerPage() {
     const { formLink } = useParams();
@@ -28,8 +29,10 @@ export default function FormRunnerPage() {
     // Answers state: { [questionId]: value }
     const [answers, setAnswers] = useState({});
 
-    // Wizard step for step-by-step layout
     const [currentStep, setCurrentStep] = useState(0);
+
+    // Lightbox modal for full-resolution question image viewing
+    const [lightboxImage, setLightboxImage] = useState(null);
 
     // Timer
     const [timeLeft, setTimeLeft] = useState(null);
@@ -366,8 +369,20 @@ export default function FormRunnerPage() {
 
                             {/* Media if present */}
                             {currentQ.questionImage && (
-                                <div className="my-2 max-w-md overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs">
-                                    <img src={assetUrl(currentQ.questionImage)} alt="Gambar Soal" className="max-h-64 w-auto max-w-full rounded-xl object-contain mx-auto" />
+                                <div className="my-2 max-w-md relative group/img overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs">
+                                    <img
+                                        src={assetUrl(currentQ.questionImage)}
+                                        alt="Gambar Soal"
+                                        className="max-h-64 w-auto max-w-full rounded-xl object-contain mx-auto cursor-zoom-in transition-transform group-hover/img:scale-[1.01]"
+                                        onClick={() => setLightboxImage({ src: assetUrl(currentQ.questionImage), alt: 'Gambar Soal' })}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setLightboxImage({ src: assetUrl(currentQ.questionImage), alt: 'Gambar Soal' })}
+                                        className="absolute bottom-3 right-3 p-2 bg-slate-900/80 hover:bg-slate-900 text-white rounded-xl shadow-md text-xs font-bold flex items-center gap-1 backdrop-blur-xs opacity-0 group-hover/img:opacity-100 transition-opacity cursor-pointer"
+                                    >
+                                        <Maximize2 size={13} /> Perbesar
+                                    </button>
                                 </div>
                             )}
                             {currentQ.questionAudio && (
@@ -437,8 +452,20 @@ export default function FormRunnerPage() {
                                 </div>
 
                                 {q.questionImage && (
-                                    <div className="my-2 max-w-md overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs sm:ml-10">
-                                        <img src={assetUrl(q.questionImage)} alt="Gambar Soal" className="max-h-64 w-auto max-w-full rounded-xl object-contain mx-auto" />
+                                    <div className="my-2 max-w-md relative group/img overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs sm:ml-10">
+                                        <img
+                                            src={assetUrl(q.questionImage)}
+                                            alt="Gambar Soal"
+                                            className="max-h-64 w-auto max-w-full rounded-xl object-contain mx-auto cursor-zoom-in transition-transform group-hover/img:scale-[1.01]"
+                                            onClick={() => setLightboxImage({ src: assetUrl(q.questionImage), alt: 'Gambar Soal' })}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setLightboxImage({ src: assetUrl(q.questionImage), alt: 'Gambar Soal' })}
+                                            className="absolute bottom-3 right-3 p-2 bg-slate-900/80 hover:bg-slate-900 text-white rounded-xl shadow-md text-xs font-bold flex items-center gap-1 backdrop-blur-xs opacity-0 group-hover/img:opacity-100 transition-opacity cursor-pointer"
+                                        >
+                                            <Maximize2 size={13} /> Perbesar
+                                        </button>
                                     </div>
                                 )}
                                 {q.questionAudio && (
@@ -467,6 +494,14 @@ export default function FormRunnerPage() {
                 )}
 
             </div>
+
+            {/* Lightbox Modal */}
+            <ImageLightboxModal
+                isOpen={!!lightboxImage}
+                src={lightboxImage?.src}
+                alt={lightboxImage?.alt}
+                onClose={() => setLightboxImage(null)}
+            />
         </div>
     );
 }
@@ -511,7 +546,9 @@ function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange)
                                 onChange={() => handleAnswerChange(q.id, opt.id)}
                                 className="w-4 h-4 text-[#00897B] cursor-pointer"
                             />
-                            <span className="text-xs sm:text-sm">{opt.optionText}</span>
+                            <div className="text-xs sm:text-sm leading-relaxed flex-1">
+                                <RichContentRenderer content={opt.optionText} />
+                            </div>
                         </label>
                     );
                 })}
@@ -541,7 +578,9 @@ function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange)
                                 onChange={e => handleCheckboxChange(q.id, opt.id, e.target.checked)}
                                 className="w-4 h-4 text-[#00897B] rounded cursor-pointer"
                             />
-                            <span className="text-xs sm:text-sm">{opt.optionText}</span>
+                            <div className="text-xs sm:text-sm leading-relaxed flex-1">
+                                <RichContentRenderer content={opt.optionText} />
+                            </div>
                         </label>
                     );
                 })}

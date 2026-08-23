@@ -1,6 +1,6 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.formup.my.id';
 
-const getToken = () => localStorage.getItem('token');
+export const getToken = () => localStorage.getItem('token') || sessionStorage.getItem('token');
 
 const authHeaders = () => {
     const headers = { 'Content-Type': 'application/json' };
@@ -262,7 +262,37 @@ export const updateResponseStatus = async (responseId, statusId) => {
     return parseResponse(res);
 };
 
-export const exportUrl = (formId) => `${API_BASE_URL}/api/forms/${formId}/responses/export`;
+export const exportUrl = (formId) => {
+    const token = getToken();
+    return `${API_BASE_URL}/api/forms/${formId}/responses/export${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+};
+
+export const exportFormResponses = async (formId) => {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/responses/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!res.ok) {
+        let msg = 'Gagal mengekspor data respons';
+        try {
+            const err = await res.json();
+            msg = err.message || msg;
+        } catch {}
+        return { ok: false, message: msg };
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `responses-form-${formId}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    return { ok: true };
+};
 
 // ── Feedback Endpoints ────────────────────────────────────────────────────────
 export const submitFeedback = async (formId, { reason, description }) => {
@@ -338,7 +368,7 @@ export const adminActivateUser = async (id) => {
     return parseResponse(res);
 };
 export const adminDeleteUser = async (id) => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, { method: 'DELETE', headers: authHeaders() });
+    const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}/delete`, { method: 'DELETE', headers: authHeaders() });
     return parseResponse(res);
 };
 export const adminTakedownForm = async (id) => {
@@ -367,13 +397,40 @@ export const adminRestoreFormFromFeedback = async (id) => {
 };
 
 // ── Session Helpers ───────────────────────────────────────────────────────────
-export const saveSession = (authData) => {
-    if (authData.token) localStorage.setItem('token', authData.token);
-    if (authData.user) localStorage.setItem('user', JSON.stringify(authData.user));
+export const saveSession = (authData, rememberMe = true) => {
+    const storage = rememberMe ? localStorage : sessionStorage;
+    const altStorage = rememberMe ? sessionStorage : localStorage;
+    altStorage.removeItem('token');
+    altStorage.removeItem('user');
+
+    if (authData.token) storage.setItem('token', authData.token);
+    if (authData.user) storage.setItem('user', JSON.stringify(authData.user));
+    if (rememberMe) {
+        localStorage.setItem('rememberMe', 'true');
+    } else {
+        localStorage.removeItem('rememberMe');
+    }
 };
-export const clearSession = () => { localStorage.removeItem('token'); localStorage.removeItem('user'); };
-export const isAuthenticated = () => !!localStorage.getItem('token');
-export const getLocalUser = () => { try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; } };
+
+export const clearSession = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('rememberMe');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+};
+
+export const isAuthenticated = () => !!getToken();
+
+export const getLocalUser = () => {
+    try {
+        const u = localStorage.getItem('user') || sessionStorage.getItem('user');
+        return u ? JSON.parse(u) : {};
+    } catch {
+        return {};
+    }
+};
+
 export const assetUrl = (path, fallback = '') => {
     if (!path) return fallback;
     if (path.startsWith('http')) return path;

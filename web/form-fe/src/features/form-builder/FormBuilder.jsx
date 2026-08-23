@@ -16,6 +16,7 @@ import {
 import RichContentRenderer from '../../utils/RichContentRenderer';
 import SummernoteEditor from '../../components/ui/SummernoteEditor';
 import MathAndCodeModal from '../../components/ui/MathAndCodeModal';
+import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.formup.my.id';
 const FRONTEND_BASE_URL = import.meta.env.VITE_FRONTEND_URL || 'https://formup.my.id';
@@ -59,6 +60,7 @@ export default function FormBuilder() {
     const [importLoading, setImportLoading] = useState(false);
     const [dragIndex, setDragIndex] = useState(null);
     const [copiedLink, setCopiedLink] = useState(false);
+    const [lightboxImage, setLightboxImage] = useState(null);
 
     // Modal state for Code & KaTeX Math insertion (for Question or Option)
     const [modalOpen, setModalOpen] = useState(false);
@@ -689,7 +691,13 @@ export default function FormBuilder() {
                                                 {/* Image attachment */}
                                                 {q.questionImage ? (
                                                     <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
-                                                        <img src={assetUrl(q.questionImage)} alt="Soal" className="h-12 w-20 object-cover rounded-lg" />
+                                                        <img
+                                                            src={assetUrl(q.questionImage)}
+                                                            alt="Soal"
+                                                            className="h-12 w-20 object-cover rounded-lg cursor-zoom-in hover:opacity-90 transition-opacity"
+                                                            onClick={() => setLightboxImage({ src: assetUrl(q.questionImage), alt: 'Gambar Soal' })}
+                                                            title="Klik untuk memperbesar gambar"
+                                                        />
                                                         <div className="flex flex-col gap-1">
                                                             <label className="text-[11px] font-bold text-[#00897B] dark:text-teal-400 cursor-pointer hover:underline">
                                                                 Ganti Gambar
@@ -1017,6 +1025,14 @@ export default function FormBuilder() {
                 mode={modalMode}
                 onClose={() => setModalOpen(false)}
                 onInsert={handleInsertFromModal}
+            />
+
+            {/* Lightbox Modal */}
+            <ImageLightboxModal
+                isOpen={!!lightboxImage}
+                src={lightboxImage?.src}
+                alt={lightboxImage?.alt}
+                onClose={() => setLightboxImage(null)}
             />
         </div>
     );
