@@ -19,7 +19,7 @@ Share URL: {host}/f/abc123   (FormsController share & QR)
 Web / Mobile (client):
   step 1  GET  /api/public/forms/abc123                    → info form + requirement (TANPA soal)
   step 2  POST /api/public/forms/abc123/questions          → body {token?, name?}; validasi; balas soal
-  step 3  POST /api/public/forms/abc123/responses          → submit; balas {responseId, guestToken}
+  step 3  POST /api/public/forms/abc123/responses          → submit; balas {responseId}
   step 4  GET  /api/public/forms/abc123/responses/{id}?token=... → hasil (nilai, benar/salah)
 ```
 
@@ -73,7 +73,7 @@ Meneruskan ke `ResponseSubmission.SaveAsync`. Body `SubmitResponseRequest`:
 {
   "token": "abc123",
   "respondentName": "Guest Name",
-  "guestToken": "kode-unik-dari-client",
+  
   "answers": [ { "questionId": 1, "optionId": 2 } ]
 }
 ```
@@ -83,16 +83,16 @@ Perilaku `SaveAsync`:
 - `requiresLogin` → tanpa JWT ditolak 401.
 - `FormToken` → `body.token` harus cocok.
 - `oneResponse = true` → user login dicek via `respondentId`; **guest dicek via `guestToken`** yang sama (client harus mengirim `guestToken` yang persisten, mis. localStorage). Jika sudah pernah submit → `400 You have already submitted a response`.
-- Guest otomatis diberi `guestToken` (GUID) bila tidak mengirim; **dikembalikan di respons** supaya client bisa ambil hasil:
+- Respons submit mengembalikan `responseId` — simpan untuk mengambil hasil:
 ```json
-{ "status": 201, "message": "Response submitted", "data": { "responseId": 1, "guestToken": "..." } }
+{ "status": 201, "message": "Response submitted", "data": { "responseId": 1 } }
 ```
-(`guestToken` `null` untuk user login.)
+
 
 ### 3.4 `GET forms/{formLink}/responses/{responseId}` — Lihat Hasil
 
 Ambil hasil respons milik **responden itu sendiri**:
-- Guest: wajib `?token=<guestToken>` yang cocok dengan `response.guest_token`.
+- Guest: respons guest bisa dibuka siapa pun yang menyimpan link + responseId (tanpa token).
 - User login: JWT; hanya pemilik respons (`respondent_id`) yang boleh lihat. User lain → 401.
 - Form tidak ditemukan → 404; respons tidak ada → 404; token salah → 401.
 
@@ -123,11 +123,11 @@ Struktur: `{ responseId, formId, formTitle, showScore, score, correctCount, wron
 1. Login → buat + publish form berisi 1 essay ber-`correctAnswer` + 1 multiple-choice ber-`isCorrect`, `showScore = true`.
 2. `GET api/public/forms/{formLink}` → hanya meta, `questions` tidak ada, ada `requiresLogin`/`openFormTime`/`closeFormTime`.
 3. `POST .../questions` tanpa token (form ber-token) → 401; dengan token benar → 200, `correctAnswer` null.
-4. `POST .../responses` sebagai guest → 201 + `guestToken`.
-5. `GET .../responses/{id}?token=<guestToken>` → score 100, tiap soal tampil `correctAnswer` + `isCorrect`.
+4. `POST .../responses` sebagai guest  201 + responseId.
+5. `GET .../responses/{id}`  score 100, tiap soal tampil `correctAnswer` + `isCorrect`.
 6. Set `showScore = false` → hasil tanpa grading.
 7. `openFormTime` di masa depan → GET 403 `Form belum dibuka`; `closeFormTime` lewat → 403 `Form sudah ditutup`.
-8. `oneResponse = true`, submit kedua dengan `guestToken` sama → 400.
+8. `oneResponse = true`, submit kedua oleh user sama  400.
 9. `dotnet build` → 0 error.
 
 ## 8. Out of Scope (YAGNI)
