@@ -179,20 +179,46 @@ export default function FormBuilder() {
             setForm(prev => ({ ...prev, formLink: settings.customFormLink }));
         }
 
+        const parsedTimer = parseInt(settings.timerDuration, 10);
+        const timerValue = !isNaN(parsedTimer) && parsedTimer > 0 ? parsedTimer * 60 : null;
+
         const res = await updateFormSettings(id, {
-            formTypeId: parseInt(settings.formTypeId),
-            showScore: settings.showScore,
-            randomizeQuestions: settings.randomizeQuestions,
-            oneResponse: settings.oneResponse,
-            requiredLogin: settings.requiredLogin,
-            formToken: settings.formToken.trim() || null,
-            timerDuration: settings.timerDuration ? parseInt(settings.timerDuration) * 60 : null,
+            formTypeId: parseInt(settings.formTypeId, 10) || 1,
+            showScore: !!settings.showScore,
+            randomizeQuestions: !!settings.randomizeQuestions,
+            oneResponse: !!settings.oneResponse,
+            requiredLogin: !!settings.requiredLogin,
+            formToken: settings.formToken ? settings.formToken.trim() : null,
+            timerDuration: timerValue,
             openFormTime: settings.openFormTime ? new Date(settings.openFormTime).toISOString() : null,
             closeFormTime: settings.closeFormTime ? new Date(settings.closeFormTime).toISOString() : null,
         });
 
         setSaving(false);
-        showToast(res.ok ? 'Pengaturan formulir berhasil disimpan!' : (res.message || 'Gagal menyimpan pengaturan'), res.ok ? 'success' : 'error');
+
+        if (res.ok) {
+            const refreshed = await getFormById(id);
+            if (refreshed.ok && refreshed.data) {
+                const f = refreshed.data;
+                setForm(f);
+                const s = f.settings || {};
+                setSettings({
+                    formTypeId: s.formTypeId ?? 1,
+                    showScore: s.showScore ?? false,
+                    randomizeQuestions: s.randomizeQuestions ?? false,
+                    oneResponse: s.oneResponse ?? false,
+                    requiredLogin: s.requiredLogin ?? false,
+                    formToken: s.formToken ?? '',
+                    timerDuration: s.timerDuration ? Math.round(s.timerDuration / 60) : '',
+                    openFormTime: s.openFormTime ? s.openFormTime.slice(0, 16) : '',
+                    closeFormTime: s.closeFormTime ? s.closeFormTime.slice(0, 16) : '',
+                    customFormLink: f.formLink || '',
+                });
+            }
+            showToast('Pengaturan formulir berhasil disimpan!');
+        } else {
+            showToast(res.message || 'Gagal menyimpan pengaturan', 'error');
+        }
     };
 
     const handleTogglePublish = async () => {
@@ -769,12 +795,15 @@ export default function FormBuilder() {
                                                 </label>
                                                 {q.typeId === 5 ? (
                                                     <select
-                                                        value={q.correctAnswer || 'True'}
+                                                        value={(() => {
+                                                            const v = q.correctAnswer || 'Benar';
+                                                            return (v === 'True' || v === 'true') ? 'Benar' : (v === 'False' || v === 'false') ? 'Salah' : v;
+                                                        })()}
                                                         onChange={e => updateQuestion(idx, 'correctAnswer', e.target.value)}
                                                         className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#00897B] bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
                                                     >
-                                                        <option value="True">Benar (True)</option>
-                                                        <option value="False">Salah (False)</option>
+                                                        <option value="Benar">Benar</option>
+                                                        <option value="Salah">Salah</option>
                                                     </select>
                                                 ) : (
                                                     <input
@@ -899,6 +928,18 @@ export default function FormBuilder() {
                                             <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{label}</span>
                                         </label>
                                     ))}
+                                </div>
+
+                                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveSettings}
+                                        disabled={saving}
+                                        className="px-5 py-2.5 bg-[#00897B] hover:bg-[#00796B] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                                    >
+                                        <Save size={14} />
+                                        <span>{saving ? 'Menyimpan...' : 'Simpan Pengaturan'}</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>

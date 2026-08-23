@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
     CheckCircle2, Award, Home, RotateCcw, AlertTriangle,
     Send, Loader2, MessageSquare, Check, X
@@ -13,6 +13,7 @@ import RichContentRenderer from '../../utils/RichContentRenderer';
 export default function FormResultPage() {
     const { formLink, responseId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
 
     const [form, setForm] = useState(null);
     const [result, setResult] = useState(null);
@@ -31,12 +32,16 @@ export default function FormResultPage() {
     useEffect(() => {
         const load = async () => {
             setLoading(true);
-            const [formRes, detailRes] = await Promise.all([
-                getPublicFormByLink(formLink),
-                getPublicResponseResult(formLink, responseId)
-            ]);
 
+            // Fetch form info always (needed for title, showScore, feedback, etc.)
+            const formRes = await getPublicFormByLink(formLink);
             if (formRes.ok) setForm(formRes.data);
+
+            // guestToken passed from submit via router state
+            const guestToken = location.state?.guestToken || null;
+
+            // Fetch result — guestToken allows guest users to see their result
+            const detailRes = await getPublicResponseResult(formLink, responseId, guestToken);
             if (detailRes.ok && detailRes.data) {
                 setResult(detailRes.data);
             }

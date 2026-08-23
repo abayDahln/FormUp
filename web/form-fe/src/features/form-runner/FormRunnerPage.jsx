@@ -159,29 +159,55 @@ export default function FormRunnerPage() {
         setError('');
 
         const formattedAnswers = Object.entries(answers).map(([questionId, value]) => {
-            const q = questions.find(item => item.id === parseInt(questionId));
+            const q = questions.find(item => item.id === parseInt(questionId, 10));
             if (!q) return null;
 
             if (q.typeId === 2) {
-                return { questionId: q.id, optionId: value ? parseInt(value) : null };
+                const parsed = parseInt(value, 10);
+                return {
+                    questionId: q.id,
+                    optionId: !isNaN(parsed) && parsed > 0 ? parsed : null,
+                };
             }
+
             if (q.typeId === 3) {
-                return { questionId: q.id, optionIds: Array.isArray(value) ? value.map(v => parseInt(v)) : [] };
+                const ids = Array.isArray(value) ? value.map(v => parseInt(v, 10)).filter(id => !isNaN(id) && id > 0) : [];
+                return { questionId: q.id, optionIds: ids };
             }
-            return { questionId: q.id, answerText: String(value || '') };
+
+            if (q.typeId === 5) {
+                // Live backend hanya terima "Benar" atau "Salah" (case-sensitive, huruf besar B/S)
+                const strVal = String(value || '').trim();
+                const normalizedVal = (strVal.toLowerCase() === 'benar' || strVal.toLowerCase() === 'true') ? 'Benar' : 'Salah';
+                return {
+                    questionId: q.id,
+                    answerValue: normalizedVal,
+                };
+            }
+
+            return {
+                questionId: q.id,
+                answerValue: String(value || ''),
+                answerText: String(value || '')
+            };
         }).filter(Boolean);
 
         const payload = {
+            token: tokenInput ? tokenInput.trim() : null,
             respondentName: respondentName.trim() || 'Anonim',
             answers: formattedAnswers,
         };
 
         const res = await submitPublicFormResponse(formLink, payload);
-        const responseId = res.data?.responseId || res.data?.id || (typeof res.data === 'number' || typeof res.data === 'string' ? res.data : null);
+        const responseData = res.data;
+        const responseId = responseData?.responseId || responseData?.id || (typeof responseData === 'number' || typeof responseData === 'string' ? responseData : null);
+        const guestToken = responseData?.guestToken || null;
 
         if (res.ok && responseId) {
-            // Instantly navigate to result & answer review page
-            navigate(`/f/${formLink}/result/${responseId}`);
+            // Pass guestToken via router state so FormResultPage can fetch result
+            navigate(`/f/${formLink}/result/${responseId}`, {
+                state: { guestToken }
+            });
         } else {
             setSubmitting(false);
             setError(res.message || 'Gagal mengirimkan respons formulir.');
@@ -535,25 +561,24 @@ function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange)
         );
     }
 
-    // 5: True / False
+    // 5: True / False — menyimpan "Benar"/"Salah" sesuai kontrak live API
     if (q.typeId === 5) {
         return (
             <div className="grid grid-cols-2 gap-3 max-w-sm">
-                {['True', 'False'].map((choice) => {
-                    const labelText = choice === 'True' ? 'Benar (True)' : 'Salah (False)';
-                    const isSelected = val === choice;
+                {[{ value: 'Benar', label: 'Benar' }, { value: 'Salah', label: 'Salah' }].map((choice) => {
+                    const isSelected = String(val) === choice.value;
                     return (
                         <button
-                            key={choice}
+                            key={choice.value}
                             type="button"
-                            onClick={() => handleAnswerChange(q.id, choice)}
+                            onClick={() => handleAnswerChange(q.id, choice.value)}
                             className={`py-3 px-4 rounded-2xl border text-xs font-bold transition-all cursor-pointer ${
                                 isSelected
                                     ? 'border-[#00897B] bg-[#00897B] text-white shadow-xs'
                                     : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50'
                             }`}
                         >
-                            {labelText}
+                            {choice.label}
                         </button>
                     );
                 })}
