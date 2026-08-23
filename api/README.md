@@ -189,7 +189,7 @@ dotnet ef migrations remove
 
 Dokumentasi lengkap tersedia di folder [`documentation/`](./documentation/):
 
-- **[API Endpoints](./documentation/api_endpoints.md)** — daftar semua endpoint dengan request/response
+- **[API Endpoints](./documentation/api_endpoints.md)** — index endpoint, detail per grup di [`documentation/endpoints/`](./documentation/endpoints/)
 - **[Autentikasi](./documentation/api_authentication.md)** — register + OTP, login, refresh, lupa password
 - **[Data Models](./documentation/data_models.md)** — struktur data dan skema database
 - **[Status Codes](./documentation/api_status_code.md)** — penjelasan HTTP status codes
