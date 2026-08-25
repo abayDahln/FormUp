@@ -53,6 +53,42 @@ public static class FileValidation
         return null;
     }
 
+    /// <summary>
+    /// Bedakan dokumen Office dari ISI arsip, bukan nama file:
+    /// ZIP berisi folder word/ = .docx, xl/ = .xlsx;
+    /// signature OLE2 (legacy binary) = .xls.
+    /// Stream harus diposisikan di awal; posisi stream tidak dijamin setelah panggilan ini.
+    /// </summary>
+    public static string? DetectOfficeExt(Stream s)
+    {
+        var sig = ReadBytes(s, 8);
+        if (sig == null) return null;
+
+        // Legacy .xls: OLE2 Compound Document
+        if (sig.Length >= 4 && sig[0] == 0xD0 && sig[1] == 0xCF && sig[2] == 0x11 && sig[3] == 0xE0)
+            return ".xls";
+
+        if (!(sig.Length >= 4 && sig[0] == 0x50 && sig[1] == 0x4B && sig[2] == 0x03 && sig[3] == 0x04))
+            return null;
+
+        try
+        {
+            using var zip = new System.IO.Compression.ZipArchive(s, System.IO.Compression.ZipArchiveMode.Read, leaveOpen: true);
+            foreach (var entry in zip.Entries)
+            {
+                var path = entry.FullName.ToLowerInvariant();
+                if (path.StartsWith("word/")) return ".docx";
+                if (path.StartsWith("xl/")) return ".xlsx";
+            }
+        }
+        catch
+        {
+            return null;
+        }
+
+        return null;
+    }
+
     private static byte[]? ReadBytes(Stream s, int count)
     {
         var buffer = new byte[count];

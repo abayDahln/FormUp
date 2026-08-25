@@ -363,32 +363,45 @@ public class QuestionsController : ControllerBase
 
         using var stream = new MemoryStream();
         await file.CopyToAsync(stream);
-        stream.Position = 0;
 
+        // Deteksi tipe dari ISI file — nama file sering tidak andal
+        // (Google Drive bisa menyimpan "soal" tanpa ekstensi atau "soal.docx.docx").
+        stream.Position = 0;
         var contentExt = FileValidation.DetectImportExt(stream);
         var originalExt = Path.GetExtension(file.FileName).ToLowerInvariant();
         string ext;
-        if (contentExt == null)
+        if (contentExt == ".pdf")
         {
-            if (originalExt != ".csv")
-                return (new BadRequestObjectResult(new ApiResponse<object>(400, "Only .xlsx, .xls, .csv, .pdf, and .docx files are allowed")), null);
-            ext = ".csv";
+            ext = ".pdf";
         }
         else if (contentExt == ".zip")
         {
-            if (originalExt is not (".xlsx" or ".xls" or ".docx"))
-                return (new BadRequestObjectResult(new ApiResponse<object>(400, "Only .xlsx, .xls, .csv, .pdf, and .docx files are allowed")), null);
-            ext = originalExt;
+            // ZIP = docx/xlsx. Bedakan dari struktur arsip, bukan nama file.
+            stream.Position = 0;
+            ext = FileValidation.DetectOfficeExt(stream) ?? "";
+            if (ext == "")
+            {
+                ext = originalExt is ".xlsx" or ".xls" or ".docx" ? originalExt : "";
+                if (ext == "")
+                    return (new BadRequestObjectResult(new ApiResponse<object>(400,
+                        "Isi file bukan dokumen Word/Excel yang valid.")), null);
+            }
+        }
+        else if (originalExt == ".csv")
+        {
+            ext = ".csv";
         }
         else
         {
-            ext = contentExt;
+            return (new BadRequestObjectResult(new ApiResponse<object>(400,
+                "Only .xlsx, .xls, .csv, .pdf, and .docx files are allowed")), null);
         }
 
         List<ImportRow> rows;
 
         try
         {
+            stream.Position = 0; // penting: deteksi signature menggeser posisi stream
             rows = ext switch
             {
                 ".csv" => ParseCsv(stream),
@@ -443,8 +456,14 @@ public class QuestionsController : ControllerBase
             .Where(r => !invalidKeys.Contains(r.RowNumber))
             .ToList();
 
+        // Nomor soal hasil impor lanjut setelah semua soal yang sudah ada
+        var existingMax = await _db.Questions
+            .Where(q => q.FormId == formId && q.DeletedAt == null)
+            .MaxAsync(q => (int?)q.QuestionOrder) ?? 0;
+
         var blocked = await _db.Responses.AnyAsync(r => r.FormId == formId);
 
+        var nextAuto = existingMax;
         return Ok(new ApiResponse<object>(200, "Preview ready", new
         {
             preview = true,
@@ -453,10 +472,12 @@ public class QuestionsController : ControllerBase
             totalQuestions = validRows.Count,
             skippedCount = rows.Count - validRows.Count,
             canImport = !blocked && validRows.Count > 0,
+            startNumber = existingMax + 1,
             errors = errors.Select(e => new { rowNumber = e.RowNumber, field = e.Field, message = e.Message }).ToList(),
             questions = validRows.Take(100).Select((r, i) => new
             {
-                order = i + 1,
+                // Proyeksi nomor final: kolom `order` file di-offset setelah soal lama
+                order = r.Order.HasValue ? existingMax + r.Order.Value : ++nextAuto,
                 rowNumber = r.RowNumber,
                 question = r.Question,
                 typeId = r.TypeId,
@@ -530,9 +551,12 @@ public class QuestionsController : ControllerBase
                 {
                     FormId = formId,
                     TypeId = row.TypeId,
-                    Question1 = row.Question,
+                    // Question1 sudah divalidasi non-kosong oleh ValidateImportRows
+                    Question1 = row.Question!,
                     QuestionFormat = RichTextValidation.Text,
-                    QuestionOrder = row.Order ?? ++maxOrder,
+                    // Kolom `order` file bersifat relatif: di-offset setelah
+                    // soal yang sudah ada agar tidak menimpa nomor lama.
+                    QuestionOrder = row.Order.HasValue ? maxOrder + row.Order.Value : ++maxOrder,
                     IsRequired = row.IsRequired,
                     CorrectAnswer = row.CorrectAnswer,
                     RandomizeOptions = row.RandomizeOptions,
@@ -551,13 +575,14 @@ public class QuestionsController : ControllerBase
                 }
 
                 _db.Questions.Add(question);
-                await _db.SaveChangesAsync();
 
                 if (row.Options.Count > 0)
                 {
+                    // Pakai navigation property (bukan QuestionId) supaya EF Core
+                    // mengisi FK otomatis setelah Id soal ter-generate saat SaveChanges.
                     var options = row.Options.Select((opt, i) => new OptionQuestion
                     {
-                        QuestionId = question.Id,
+                        Question = question,
                         OptionText = opt,
                         OptionOrder = i + 1,
                         CreatedAt = JakartaTime.Now,
@@ -565,6 +590,8 @@ public class QuestionsController : ControllerBase
 
                     _db.OptionQuestions.AddRange(options);
                 }
+
+                await _db.SaveChangesAsync();
 
                 result.TotalImported++;
             }
@@ -963,8 +990,11 @@ public class QuestionsController : ControllerBase
         return rows;
     }
 
-/// Satu potongan konten dokumen: baris teks atau gambar (urut sesuai dokumen)
-private sealed record ImportDocEntry(string? Text, byte[]? ImageBytes, string? ImageExt);
+/// Satu potongan konten dokumen: baris teks atau gambar (urut sesuai dokumen).
+/// IsSubItem = baris dari daftar bernomor yang "restart" (sub-enumerasi di
+/// dalam stem soal, contoh "1. Perkembangan humanisme... 2. Adanya ...")
+/// — harus menempel ke teks soal, bukan dianggap soal/opsi baru.
+private sealed record ImportDocEntry(string? Text, byte[]? ImageBytes, string? ImageExt, bool IsSubItem = false);
 
 private static readonly System.Text.RegularExpressions.Regex ImportQuestionStartRegex = new(@"^(\d{1,3})[\.\):]\s*(.*)$");
 
@@ -980,6 +1010,16 @@ private static readonly System.Text.RegularExpressions.Regex ImportOptionRegex =
 private static readonly System.Text.RegularExpressions.Regex ImportInlineOptionSplit = new(@"(?<=[a-z0-9….\)\?!])([A-E])(?:\.|\s{2,})");
 private static readonly System.Text.RegularExpressions.Regex ImportJunkDigitsRegex = new(@"^\d{9,}$");
 
+/// State penomoran docx selama satu file diekstrak.
+private sealed class DocxNumberingState
+{
+    public Dictionary<(int NumId, int Ilvl), int> Counters = new();
+    /// <summary>Daftar desimal yang terdeteksi RESTART → semua itemnya sub-enumerasi.</summary>
+    public HashSet<(int NumId, int Ilvl)> SubListKeys = new();
+    /// <summary>Nomor soal (desimal) terakhir yang dianggap level utama.</summary>
+    public int LastMainDecimal;
+}
+
 private static List<ImportDocEntry> ParseDocxEntries(Stream stream)
 {
     var entries = new List<ImportDocEntry>();
@@ -989,13 +1029,21 @@ private static List<ImportDocEntry> ParseDocxEntries(Stream stream)
     var body = main?.Document?.Body;
     if (main == null || body == null) return entries;
 
+    // Word auto-numbering: nomor/huruf daftar TIDAK ada di InnerText karena
+    // dirender dari numbering.xml. Sintesis ulang labelnya agar parser bisa
+    // membedakan soal bernomor ("34."), opsi berhuruf ("a."), dan sub-item.
+    var numbering = main.NumberingDefinitionsPart?.Numbering;
+    var state = new DocxNumberingState();
+
     foreach (var para in body.Descendants<Paragraph>())
     {
+        var (prefix, isSubItem) = ResolveNumberingPrefix(para, numbering, state);
+
         // Teks paragraf lebih dulu (baris bernomor menandai awal soal),
         // lalu gambar yang tertanam — persamaan/figure sering berupa gambar.
-        var text = para.InnerText.Trim();
+        var text = $"{prefix}{para.InnerText}".Trim();
         if (text.Length > 0)
-            entries.Add(new ImportDocEntry(text, null, null));
+            entries.Add(new ImportDocEntry(text, null, null, isSubItem));
 
         foreach (var blip in para.Descendants<DocumentFormat.OpenXml.Drawing.Blip>())
         {
@@ -1024,6 +1072,119 @@ private static List<ImportDocEntry> ParseDocxEntries(Stream stream)
     }
 
     return entries;
+}
+
+/// <summary>
+/// Sintesis label penomoran Word untuk satu paragraf.
+/// - Format desimal yang berlanjut → prefix "N." (soal baru).
+/// - Desimal yang RESTART / daftar baru setelah soal-soal → sub-enumerasi
+///   di dalam stem soal (tanpa prefix + flag IsSubItem).
+/// - Huruf/romawi → prefix "a." / "i." (opsi jawaban).
+/// - Bullet / tanpa nomor → tidak ada prefix.
+/// </summary>
+private static (string Prefix, bool IsSubItem) ResolveNumberingPrefix(
+    Paragraph para, DocumentFormat.OpenXml.Wordprocessing.Numbering? numbering,
+    DocxNumberingState state)
+{
+    // Reset sub-list tracking at the start of each new question so that
+    // sub-items from a previous question don't bleed into the next one.
+    state.SubListKeys.Clear();
+
+    var counters = state.Counters;
+    var numPr = para.ParagraphProperties?.GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.NumberingProperties>();
+    var numIdVal = numPr?.GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.NumberingId>()?.Val;
+    if (numIdVal == null || numbering == null) return ("", false);
+
+    var numId = numIdVal.Value;
+    var ilvl = numPr!.GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.NumberingLevelReference>()?.Val?.Value ?? 0;
+
+    var num = numbering.Elements<DocumentFormat.OpenXml.Wordprocessing.NumberingInstance>()
+        .FirstOrDefault(n => n.NumberID?.Value == numId);
+    var abstractNumId = num?.AbstractNumId?.Val;
+    if (abstractNumId == null) return ("", false);
+
+    var abs = numbering.Elements<DocumentFormat.OpenXml.Wordprocessing.AbstractNum>()
+        .FirstOrDefault(a => a.AbstractNumberId?.Value == abstractNumId);
+    var lvl = abs?.Elements<DocumentFormat.OpenXml.Wordprocessing.Level>()
+        .FirstOrDefault(l => l.LevelIndex?.Value == ilvl);
+    // Nama format: "decimal", "lowerLetter", "upperLetter", "bullet", dll.
+    var fmtStr = lvl?.NumberingFormat?.Val?.ToString()?.ToLowerInvariant() ?? "";
+    if (fmtStr is "" or "bullet" or "none") return ("", false);
+
+    // Nilai awal: startOverride pada instance > start pada level > 1
+    var start = lvl?.StartNumberingValue?.Val?.Value ?? 1;
+    var ov = num?.Elements<DocumentFormat.OpenXml.Wordprocessing.LevelOverride>()
+        .FirstOrDefault(o => o.LevelIndex?.Value == ilvl);
+    if (ov?.StartOverrideNumberingValue?.Val != null)
+        start = ov.StartOverrideNumberingValue.Val.Value;
+
+    var key = (numId, ilvl);
+    var hadPrevious = counters.ContainsKey(key);
+    // Level di atas naik → reset counter level lebih dalam pada numId yang sama
+    foreach (var deeper in counters.Keys.Where(k => k.NumId == numId && k.Ilvl > ilvl).ToList())
+        counters.Remove(deeper);
+
+    var next = hadPrevious ? counters[key] + 1 : start;
+    counters[key] = next;
+
+    string label;
+
+    if (fmtStr != "decimal")
+    {
+        // Huruf / romawi → opsi jawaban
+        label = fmtStr switch
+        {
+            "lowerletter" => ToLetterSequence(next, false),
+            "upperletter" => ToLetterSequence(next, true),
+            "lowerroman" => ToRoman(next).ToLowerInvariant(),
+            "upperroman" => ToRoman(next),
+            _ => next.ToString(),
+        };
+        return ($"{label}. ", false);
+    }
+
+    // Desimal: soal baru ATAU enumerasi di dalam stem soal.
+    // Soal utama selalu MONOTONIK naik (35 → 37, meski ada celah karena soal
+    // di antaranya memakai nomor literal). Enumerasi stem selalu restart ke
+    // angka kecil (1, 2, ...) — itu yang ditandai sebagai sub-item.
+    var knownSubList = state.SubListKeys.Contains(key);
+
+    var monotonic = next > state.LastMainDecimal;
+
+    if (knownSubList || (!monotonic && state.LastMainDecimal > 0))
+    {
+        state.SubListKeys.Add(key);
+        return ("", true);
+    }
+
+    state.LastMainDecimal = next;
+    // Jangan hapus SubListKeys di sini — akan di-clear di awal fungsi selanjutnya.
+    return ($"{next}. ", false);
+}
+
+private static string ToLetterSequence(int n, bool upper)
+{
+    var letters = "";
+    while (n > 0)
+    {
+        n--;
+        letters = (char)((upper ? 'A' : 'a') + n % 26) + letters;
+        n /= 26;
+    }
+    return letters;
+}
+
+private static string ToRoman(int n)
+{
+    var map = new[] { (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"), (100, "C"),
+        (90, "XC"), (50, "L"), (40, "XL"), (10, "X"), (9, "IX"),
+        (5, "V"), (4, "IV"), (1, "I") };
+    var result = "";
+    foreach (var (v, sym) in map)
+    {
+        while (n >= v) { result += sym; n -= v; }
+    }
+    return result;
 }
 
 private static string? ExtFromContentType(string contentType) =>
@@ -1160,13 +1321,14 @@ private static List<ImportDocEntry> ParsePdfEntries(Stream stream)
             pendingImageExt = null;
         }
 
-        void NewRow(string question)
+        void NewRow(string question, int typeId = 2)
         {
             if (current != null && !string.IsNullOrWhiteSpace(current.Question))
                 rows.Add(current);
 
             current = new ImportRow { RowNumber = ++rowNum };
             current.Question = question.Trim();
+            current.TypeId = typeId;
             AttachPending(current);
             inUnletteredRun = false;
         }
@@ -1211,6 +1373,25 @@ private static List<ImportDocEntry> ParsePdfEntries(Stream stream)
             }
 
             var line = entry.Text?.Trim() ?? "";
+
+            // Sub-enumerasi di dalam stem soal ("1. Perkembangan humanisme...")
+            // — menempel ke teks soal yang sedang berjalan.
+            if (entry.IsSubItem)
+            {
+                rowNum++;
+                if (current != null)
+                {
+                    current.Question = $"{current.Question} {line}".Trim();
+                }
+                else
+                {
+                    preambleRow ??= new ImportRow { RowNumber = ++rowNum };
+                    preambleRow.Question = $"{preambleRow.Question} {line}".Trim();
+                    current = preambleRow;
+                }
+                continue;
+            }
+
             rowNum++;
             var lower = line.ToLowerInvariant();
 
@@ -1219,7 +1400,7 @@ private static List<ImportDocEntry> ParsePdfEntries(Stream stream)
             {
                 sawNumberedQuestion = true;
                 preambleRow = null;
-                NewRow(line[9..].Trim());
+                NewRow(line[9..].Trim(), 2);
                 continue;
             }
             if (current != null && lower.StartsWith("type_id:") &&
@@ -1264,7 +1445,7 @@ private static List<ImportDocEntry> ParsePdfEntries(Stream stream)
                     preambleRow = null;
                 }
                 sawNumberedQuestion = true;
-                NewRow(qm.Groups[2].Value);
+                NewRow(qm.Groups[2].Value, 2);
                 continue;
             }
 
@@ -1283,8 +1464,9 @@ private static List<ImportDocEntry> ParsePdfEntries(Stream stream)
                 var endsSentence = line.EndsWith('.') || line.EndsWith('…') ||
                                    line.EndsWith('?') || line.EndsWith(':') ||
                                    line.EndsWith('!');
-                var questionEnded = current.Question.Length > 0 &&
-                                    current.Question[^1] is '.' or '…' or '?' or ':' or '!';
+                var stem = current.Question ?? "";
+                var questionEnded = stem.Length > 0 &&
+                                    stem[^1] is '.' or '…' or '?' or ':' or '!';
 
                 // Opsi tanpa huruf: mulai run jika pertanyaan sudah selesai dan
                 // minimal 2 baris pendek berturut-turut mengikuti.
@@ -1308,7 +1490,7 @@ private static List<ImportDocEntry> ParsePdfEntries(Stream stream)
                 // dokumen tanpa penomoran.
                 if (current.Options.Count > 0 && endsSentence && line.Length >= 30)
                 {
-                    NewRow(line);
+                    NewRow(line, 2);
                 }
                 else
                 {

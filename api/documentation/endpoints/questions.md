@@ -295,7 +295,9 @@ Impor terdiri dari **2 langkah terpisah**:
 
 - `errors` berisi daftar kesalahan format per baris (`rowNumber`, `field`, `message`) — baris ini akan dilewati saat impor.
 - `blocked = true` → form sudah punya respons, impor ditolak.
+- `startNumber` = nomor pertama hasil impor; **nomor soal impor selalu lanjut setelah semua soal yang sudah ada** di form (kolom `order` pada file bersifat relatif dan di-offset).
 - `image` berisi data URI base64 (`data:image/png;base64,...`) dari gambar yang terekstrak dokumen — bisa langsung ditampilkan client tanpa request tambahan. `null` jika gambar >1,5 MB atau tidak ada.
+- Tipe file dideteksi dari **isi file**, bukan nama/ekstensi — file dari Google Drive bernama `soal` (tanpa ekstensi) atau `soal.docx.docx` tetap terbaca dengan benar.
 - Jika seluruh baris tidak valid atau header kolom tidak sesuai → `400` dengan pesan spesifik (mis. kolom `question` tidak ditemukan).
 
 ### 7b. Save Import (simpan ke database)
