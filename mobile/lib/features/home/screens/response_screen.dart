@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/search_field.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/router/app_router.dart';
@@ -120,38 +121,10 @@ class _ResponseScreenState extends State<ResponseScreen> {
           const SizedBox(height: 14),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: TextField(
+            child: AppSearchField(
               controller: _searchController,
               onChanged: _onSearchChanged,
-              decoration: InputDecoration(
-                hintText: 'Cari respons...',
-                hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
-                prefixIcon: const Icon(Icons.search,
-                    color: Colors.black54, size: 20),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.close,
-                            color: Colors.black54, size: 18),
-                        onPressed: () {
-                          _searchController.clear();
-                          _onSearchChanged('');
-                        },
-                      )
-                    : null,
-                isDense: true,
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(7.5),
-                  borderSide: const BorderSide(color: Color(0xFF6E7979)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(7.5),
-                  borderSide: const BorderSide(color: kAuthPrimary),
-                ),
-              ),
+              hint: 'Cari respons...',
             ),
           ),
           const SizedBox(height: 14),

@@ -236,22 +236,20 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      // FAB tambah form: hanya tampil di tab Form Saja, posisi kanan bawah dengan jarak navbar
+      // FAB tambah form: hanya tampil di tab Form Saya, melayang kanan bawah
+      // (endFloat = punya lapisan klik sendiri, tidak menembus widget di belakang)
       floatingActionButton: _currentIndex == 1
-          ? Transform.translate(
-              offset: const Offset(-4, -48), // naik 24px untuk tambah jarak ke navbar
-              child: FloatingActionButton(
-                onPressed: () {
-                  AppRouter.of(context).push(AppPage.formMaker);
-                },
-                backgroundColor: kPrimary,
-                elevation: 1,
-                shape: const CircleBorder(),
-                child: const Icon(Icons.add, color: Colors.white, size: 28),
-              ),
+          ? FloatingActionButton(
+              onPressed: () {
+                AppRouter.of(context).push(AppPage.formMaker);
+              },
+              backgroundColor: kPrimary,
+              elevation: 1,
+              shape: const CircleBorder(),
+              child: const Icon(Icons.add, color: Colors.white, size: 28),
             )
           : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.endDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 

@@ -710,7 +710,7 @@ class _ImportSoalButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = !importing && !disabled;
-    return OutlinedButton.icon(
+    return ElevatedButton.icon(
       onPressed: enabled ? onPressed : null,
       icon: importing
           ? const SizedBox(
@@ -723,16 +723,22 @@ class _ImportSoalButton extends StatelessWidget {
         importing ? "Mengimpor..." : "Impor Soal",
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontFamily: kFontBold,
+        ),
       ),
-      style: OutlinedButton.styleFrom(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        disabledBackgroundColor: Colors.white.withOpacity(0.6),
         side: BorderSide(
-          color: enabled ? Colors.black38 : Colors.black12,
+          color: enabled ? kAuthPrimary : kAuthPrimary.withOpacity(0.4),
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
         ),
         padding: const EdgeInsets.symmetric(vertical: 14),
-        foregroundColor: Colors.black54,
+        foregroundColor: kAuthPrimary,
       ),
     );
   }

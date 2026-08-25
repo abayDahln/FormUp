@@ -9,17 +9,25 @@ class AddQuestionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
+    return ElevatedButton.icon(
       onPressed: onPressed,
-      icon: const Icon(Icons.add, color: kAuthPrimary),
+      icon: const Icon(Icons.add, color: Colors.white, size: 20),
       label: const Text(
         "Tambah Pertanyaan",
-        style: TextStyle(color: kAuthPrimary),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontFamily: kFontBold,
+        ),
       ),
-      style: OutlinedButton.styleFrom(
-        side: const BorderSide(color: kAuthPrimary),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: kAuthPrimary,
+        foregroundColor: Colors.white,
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
         ),
         padding: const EdgeInsets.symmetric(vertical: 14),
       ),

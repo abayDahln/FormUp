@@ -6,6 +6,7 @@ import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/admin_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/search_field.dart';
 import 'package:form_up/features/home/widgets/response_tab_switcher.dart';
 
 enum _AdminTab { users, forms, feedback }
@@ -92,37 +93,10 @@ class _AdminSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return AppSearchField(
       controller: controller,
       onChanged: onChanged,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
-        prefixIcon:
-            const Icon(Icons.search, color: Colors.black54, size: 20),
-        suffixIcon: controller.text.isNotEmpty
-            ? IconButton(
-                icon: const Icon(Icons.close, color: Colors.black54, size: 18),
-                onPressed: () {
-                  controller.clear();
-                  onChanged('');
-                },
-              )
-            : null,
-        isDense: true,
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(7.5),
-          borderSide: const BorderSide(color: Color(0xFF6E7979)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(7.5),
-          borderSide: const BorderSide(color: kAuthPrimary),
-        ),
-      ),
+      hint: hint,
     );
   }
 }
