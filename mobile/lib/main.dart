@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_quill/flutter_quill.dart';
@@ -9,8 +10,13 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // ponytail: isOptional, jalan tanpa .env
   await dotenv.load(fileName: '.env', isOptional: true);
-  // Restore sesi login
-  final session = await AuthService.restoreSession();
+  // Restore sesi login — jangan sampai error storage membuat app gagal boot
+  AuthResult? session;
+  try {
+    session = await AuthService.restoreSession();
+  } catch (e) {
+    if (kDebugMode) debugPrint('[Auth] restoreSession gagal: $e');
+  }
   final isLoggedIn = session != null;
 
   final delegate = AppRouterDelegate(

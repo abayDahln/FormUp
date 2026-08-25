@@ -615,21 +615,6 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
             color: Colors.black87,
           ),
         ),
-        actions: [
-          if (widget.formId != null)
-            IconButton(
-              tooltip: 'Impor soal dari file',
-              icon: _importing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.upload_file_outlined,
-                      color: kAuthPrimary),
-              onPressed: _importing ? null : _importSoal,
-            ),
-        ],
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
           onPressed: () async {
@@ -670,7 +655,22 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                           const SizedBox(height: 12),
                         ],
                       const SizedBox(height: 8),
-                      AddQuestionButton(onPressed: _addQuestion),
+                      // 1 baris 2 kolom: tambah pertanyaan + impor soal
+                      Row(
+                        children: [
+                          Expanded(
+                            child: AddQuestionButton(onPressed: _addQuestion),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _ImportSoalButton(
+                              importing: _importing,
+                              disabled: widget.formId == null || _saving,
+                              onPressed: _importSoal,
+                            ),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 20),
                       AuthPrimaryButton(
                         label: _saving ? "Menyimpan..." : "Simpan Soal",
@@ -691,6 +691,49 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
               ),
             ),
           ),
+    );
+  }
+}
+
+/// Tombol impor soal dari file — sejajar dengan tombol tambah pertanyaan.
+class _ImportSoalButton extends StatelessWidget {
+  final bool importing;
+  final bool disabled;
+  final VoidCallback onPressed;
+
+  const _ImportSoalButton({
+    required this.importing,
+    required this.disabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = !importing && !disabled;
+    return OutlinedButton.icon(
+      onPressed: enabled ? onPressed : null,
+      icon: importing
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.upload_file_outlined, size: 20),
+      label: Text(
+        importing ? "Mengimpor..." : "Impor Soal",
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(
+          color: enabled ? Colors.black38 : Colors.black12,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        foregroundColor: Colors.black54,
+      ),
     );
   }
 }

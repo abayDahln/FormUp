@@ -176,9 +176,8 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               _buildHomeTab(),
               if (_visitedTabs.contains(1)) const FormScreen() else const SizedBox.shrink(),
-              const SizedBox.shrink(),
-              if (_visitedTabs.contains(3)) const ResponseScreen() else const SizedBox.shrink(),
-              if (_visitedTabs.contains(4))
+              if (_visitedTabs.contains(2)) const ResponseScreen() else const SizedBox.shrink(),
+              if (_visitedTabs.contains(3))
                 ProfileScreen(username: widget.username)
               else
                 const SizedBox.shrink(),
@@ -225,10 +224,6 @@ class _HomeScreenState extends State<HomeScreen> {
               label: 'Form',
             ),
             BottomNavigationBarItem(
-              icon: SizedBox.shrink(),
-              label: '',
-            ),
-            BottomNavigationBarItem(
               icon: Icon(Icons.bar_chart_outlined),
               activeIcon: Icon(Icons.bar_chart),
               label: 'Respons',
@@ -241,16 +236,22 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          AppRouter.of(context).push(AppPage.formMaker);
-        },
-        backgroundColor: kPrimary,
-        elevation: 1,
-        shape: const CircleBorder(),
-        child: const Icon(Icons.add, color: Colors.white, size: 28),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // FAB tambah form: hanya tampil di tab Form Saja, posisi kanan bawah dengan jarak navbar
+      floatingActionButton: _currentIndex == 1
+          ? Transform.translate(
+              offset: const Offset(-4, -48), // naik 24px untuk tambah jarak ke navbar
+              child: FloatingActionButton(
+                onPressed: () {
+                  AppRouter.of(context).push(AppPage.formMaker);
+                },
+                backgroundColor: kPrimary,
+                elevation: 1,
+                shape: const CircleBorder(),
+                child: const Icon(Icons.add, color: Colors.white, size: 28),
+              ),
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endDocked,
     );
   }
 

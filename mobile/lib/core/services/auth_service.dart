@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -142,13 +143,21 @@ class AuthService {
   }
 
   /// Ambil sesi tersimpan
-  static Future<AuthResult?> restoreSession() async {    final prefs = await SharedPreferences.getInstance();
+  static Future<AuthResult?> restoreSession() async {
+    final prefs = await SharedPreferences.getInstance();
     _rememberMe = prefs.getBool(_kRemember) ?? true;
     final savedToken = prefs.getString(_kToken);
+    if (kDebugMode) {
+      debugPrint('[Auth] restoreSession: rememberMe=$_rememberMe, '
+          'token=${savedToken == null ? "tidak ada" : "ada"}');
+    }
     if (savedToken == null || savedToken.isEmpty) return null;
     token = savedToken;
     _email = prefs.getString(_kEmail) ?? '';
     _role = prefs.getString(_kRole) ?? 'USER';
+    if (kDebugMode) {
+      debugPrint('[Auth] sesi dipulihkan untuk ${_email ?? "?"}');
+    }
     return AuthResult(
       token: savedToken,
       fullname: prefs.getString(_kFullname) ?? '',
