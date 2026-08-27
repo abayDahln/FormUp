@@ -91,7 +91,7 @@ class AuthService {
 
   static String? _email;
   static String? _role;
-  static bool _rememberMe = true;
+  static bool _rememberMe = false;
 
   static String? get email => _email;
 
@@ -145,7 +145,7 @@ class AuthService {
   /// Ambil sesi tersimpan
   static Future<AuthResult?> restoreSession() async {
     final prefs = await SharedPreferences.getInstance();
-    _rememberMe = prefs.getBool(_kRemember) ?? true;
+    _rememberMe = prefs.getBool(_kRemember) ?? false;
     final savedToken = prefs.getString(_kToken);
     if (kDebugMode) {
       debugPrint('[Auth] restoreSession: rememberMe=$_rememberMe, '
@@ -283,8 +283,10 @@ class AuthService {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       if (response.statusCode < 200 || response.statusCode >= 300) return false;
       token = (json['data'] as Map<String, dynamic>)['token'] as String;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kToken, token!);
+      if (_rememberMe) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_kToken, token!);
+      }
       return true;
     } catch (_) {
       return false;
@@ -384,6 +386,7 @@ class AuthService {
     String? fullname,
     String? username,
   }) async {
+    if (!_rememberMe) return;
     final prefs = await SharedPreferences.getInstance();
     if (fullname != null && fullname.isNotEmpty) {
       await prefs.setString(_kFullname, fullname);
@@ -398,12 +401,14 @@ class AuthService {
     token = null;
     _email = null;
     _role = null;
+    _rememberMe = false;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kToken);
     await prefs.remove(_kFullname);
     await prefs.remove(_kUsername);
     await prefs.remove(_kEmail);
     await prefs.remove(_kRole);
+    await prefs.remove(_kRemember);
   }
 
   static Future<Map<String, dynamic>> post(
