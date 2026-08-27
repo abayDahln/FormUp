@@ -7,18 +7,14 @@ import 'package:form_up/core/widgets/rich_editor.dart';
 /// Step hasil pengerjaan: skor, pembahasan, dan aksi lanjutan
 class RunnerResultView extends StatelessWidget {
   final PublicFormResult result;
-  final bool canRetry;
   final bool isLoggedIn;
-  final VoidCallback onRetry;
   final VoidCallback onReset;
   final VoidCallback onFeedback;
 
   const RunnerResultView({
     super.key,
     required this.result,
-    required this.canRetry,
     required this.isLoggedIn,
-    required this.onRetry,
     required this.onReset,
     required this.onFeedback,
   });
@@ -67,14 +63,6 @@ class RunnerResultView extends StatelessWidget {
               const SizedBox(height: 12),
             ],
           const SizedBox(height: 8),
-          if (canRetry) ...[
-            AuthPrimaryButton(
-              label: "Kerjakan Ulang",
-              showArrow: false,
-              onPressed: onRetry,
-            ),
-            const SizedBox(height: 10),
-          ],
           OutlinedButton.icon(
             onPressed: onReset,
             icon: const Icon(Icons.refresh, size: 18, color: kAuthPrimary),

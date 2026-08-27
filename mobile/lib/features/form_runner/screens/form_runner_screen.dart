@@ -4,15 +4,12 @@ import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form_runner/controllers/form_runner_controller.dart';
-import 'package:form_up/features/form_runner/widgets/feedback_sheet.dart';
 import 'package:form_up/features/form_runner/widgets/runner_code_step.dart';
 import 'package:form_up/features/form_runner/widgets/runner_exit_dialog.dart';
 import 'package:form_up/features/form_runner/widgets/runner_fill_step.dart';
-import 'package:form_up/features/form_runner/widgets/runner_result_view.dart';
 import 'package:form_up/features/form_runner/widgets/runner_screen_shell.dart';
-import 'package:form_up/features/form_runner/widgets/runner_submitted_dialog.dart';
 
-/// Alur: kode → token → jawaban → hasil
+/// Alur: kode → token → jawaban → kembali ke screen awal form
 class FormRunnerView extends StatefulWidget {
   final String? initialCode;
   final String? initialToken;
@@ -42,7 +39,7 @@ class FormRunnerScreen extends StatefulWidget {
   State<FormRunnerScreen> createState() => _FormRunnerScreenState();
 }
 
-enum _RunnerStep { code, fill, result }
+enum _RunnerStep { code, fill }
 
 class _FormRunnerScreenState extends State<FormRunnerScreen> {
   final GlobalKey<FormRunnerViewState> _viewKey =
@@ -125,6 +122,49 @@ class FormRunnerViewState extends State<FormRunnerView> {
     await _autoSubmit();
   }
 
+  Future<bool> _confirmManualSubmit() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Kirim Jawaban?',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: Colors.black87,
+          ),
+        ),
+        content: const Text(
+          'Yakin ingin mengumpulkan jawaban sekarang?',
+          style: TextStyle(fontSize: 14, color: Colors.black54),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text(
+              'Batal',
+              style: TextStyle(color: Colors.black54),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kAuthPrimary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Kirim'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
   Future<void> _submitCode() async {
     if (_loading) return;
     final code = _c.codeController.text.trim();
@@ -178,56 +218,11 @@ class FormRunnerViewState extends State<FormRunnerView> {
     }
   }
 
-  /// Auto submit saat waktu habis: field kosong dibiarkan kosong (tidak dianggap
-  /// error), lalu tampilkan dialog konfirmasi bahwa jawaban sudah terkirim.
+  /// Auto submit saat waktu habis: jawaban dikirim langsung lalu kembali ke
+  /// screen awal form.
   Future<void> _autoSubmit() async {
     if (_submitting) return;
-    setState(() => _submitting = true);
-    try {
-      final answers = _c.store.collectAutoAnswers(_c.questions);
-      final responseId = await _c.submitAnswers(answers);
-      if (!mounted) return;
-
-      // Hasil hanya untuk user login
-      if (_isLoggedIn) {
-        final result = await _c.fetchResult(responseId);
-        if (!mounted) return;
-        setState(() {
-          _c.result = result;
-          _step = _RunnerStep.result;
-          _errorQuestionIds.clear();
-        });
-      }
-
-      // Konfirmasi jawaban sudah terkirim (Kembali / Lihat Respons)
-      await _handleSubmittedAction(
-        message: 'Waktu pengerjaan telah habis, jawaban Anda sudah terkirim.',
-      );
-    } catch (e) {
-      if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
-  }
-
-  /// Tampilkan dialog konfirmasi terkirim lalu proses aksinya.
-  Future<void> _handleSubmittedAction({String message = 'Jawaban Anda sudah terkirim.'}) async {
-    final action = await showRunnerSubmittedDialog(
-      context,
-      message: message,
-      viewResponse: _isLoggedIn,
-    );
-    if (!mounted) return;
-    if (action == 'back') {
-      if (_isLoggedIn) {
-        final router = AppRouter.of(context);
-        router.goHome(router.username);
-      } else {
-        AppRouter.of(context).pop();
-      }
-    }
-    // action 'result' atau dismiss → tetap di halaman hasil (sudah di-set di atas).
+    await _submitInternal(returnToStartScreen: true);
   }
 
   /// Scroll ke soal belum dijawab pertama dan fokus ke field esai-nya (jika ada).
@@ -259,6 +254,12 @@ class FormRunnerViewState extends State<FormRunnerView> {
 
   /// Submit jawaban. Mengembalikan true bila berhasil, false bila gagal/validasi.
   Future<bool> _submit() async {
+    return _submitInternal(returnToStartScreen: false);
+  }
+
+  Future<bool> _submitInternal({
+    required bool returnToStartScreen,
+  }) async {
     if (_submitting) return false;
     final firstUnanswered = _c.store.firstUnansweredIndex(_c.questions);
     if (firstUnanswered != null) {
@@ -279,25 +280,11 @@ class FormRunnerViewState extends State<FormRunnerView> {
 
     setState(() => _submitting = true);
     try {
-      final responseId = await _c.submitAnswers(answers);
-
+      await _c.submitAnswers(answers);
       if (!mounted) return false;
-
-      // Hasil hanya untuk user login
-      if (!_isLoggedIn) {
-        showAuthToast(context, "Jawaban berhasil dikirim");
-        await _reset();
-        return true;
+      if (returnToStartScreen) {
+        AppRouter.of(context).pop();
       }
-
-      final result = await _c.fetchResult(responseId);
-      if (!mounted) return false;
-      setState(() {
-        _c.result = result;
-        _step = _RunnerStep.result;
-        _errorQuestionIds.clear();
-      });
-      await _handleSubmittedAction();
       return true;
     } catch (e) {
       if (!mounted) return false;
@@ -308,18 +295,23 @@ class FormRunnerViewState extends State<FormRunnerView> {
     }
   }
 
-  Future<void> _reset() async {
-    setState(() {
-      _step = _RunnerStep.code;
-      _errorQuestionIds.clear();
-      _c.clearForRestart();
-    });
-  }
+  Future<void> _submitWithConfirmation() async {
+    if (_submitting) return;
+    final firstUnanswered = _c.store.firstUnansweredIndex(_c.questions);
+    if (firstUnanswered != null) {
+      setState(() {
+        _errorQuestionIds
+          ..clear()
+          ..addAll(_c.store.unansweredIds(_c.questions));
+      });
+      _scrollToUnanswered(firstUnanswered);
+      showAuthToast(context, "Pertanyaan wajib belum dijawab", isError: true);
+      return;
+    }
 
-  /// Kerjakan ulang form
-  void _retry() {
-    _c.retryInit();
-    setState(() => _step = _RunnerStep.fill);
+    final confirmed = await _confirmManualSubmit();
+    if (!confirmed || !mounted) return;
+    await _submitInternal(returnToStartScreen: true);
   }
 
   @override
@@ -346,20 +338,12 @@ class FormRunnerViewState extends State<FormRunnerView> {
           currentQuestion: _c.currentQuestion,
           submitting: _submitting,
           errorQuestionIds: _errorQuestionIds,
-          onSubmit: _submit,
+          onSubmit: _submitWithConfirmation,
           onNext: _next,
           onPrevious: () => setState(() => _c.currentQuestion--),
           onAnswerChanged: (qid) =>
               setState(() => _errorQuestionIds.remove(qid)),
           onPickDateTime: _pickDateTime,
-        ),
-      _RunnerStep.result => RunnerResultView(
-          result: _c.result!,
-          canRetry: _c.info?.oneResponse != true,
-          isLoggedIn: _isLoggedIn,
-          onRetry: _retry,
-          onReset: _reset,
-          onFeedback: () => _openFeedback(_c.result!.formId),
         ),
     };
   }
@@ -395,12 +379,5 @@ class FormRunnerViewState extends State<FormRunnerView> {
           DateTime(date.year, date.month, date.day, time.hour, time.minute);
       _errorQuestionIds.remove(questionId);
     });
-  }
-
-  Future<void> _openFeedback(int formId) async {
-    final submitted = await showFeedbackSheet(context, formId: formId);
-    if (submitted == true && mounted) {
-      showAuthToast(context, 'Feedback terkirim. Terima kasih!');
-    }
   }
 }

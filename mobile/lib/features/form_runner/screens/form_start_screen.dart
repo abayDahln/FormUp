@@ -22,6 +22,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
   bool _loading = true;
   String? _error;
   PublicFormInfo? _formInfo;
+  List<MyAttempt> _myAttempts = [];
   bool _validatingToken = false;
   String? _tokenError;
 
@@ -64,14 +65,35 @@ class _FormStartScreenState extends State<FormStartScreen> {
 
       setState(() {
         _formInfo = info;
-        _loading = false;
       });
+
+      await _loadCompletionState();
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = AuthService.errorMessage(e);
         _loading = false;
       });
+      return;
+    }
+
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _loadCompletionState() async {
+    if (!mounted) return;
+    if (AuthService.token == null || _formInfo == null) {
+      setState(() => _myAttempts = []);
+      return;
+    }
+
+    try {
+      final attempts = await PublicFormService.getMyAttempts(widget.formLink);
+      if (!mounted) return;
+      setState(() => _myAttempts = attempts);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _myAttempts = []);
     }
   }
 
@@ -141,12 +163,15 @@ class _FormStartScreenState extends State<FormStartScreen> {
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            onPressed: () {
+            onPressed: () async {
+              final router = AppRouter.of(this.context);
               Navigator.of(context).pop();
-              AppRouter.of(this.context).push(AppPage.formRunner, {
+              await router.push(AppPage.formRunner, {
                 'code': widget.formLink,
                 'token': _tokenController.text.trim(),
               });
+              if (!mounted) return;
+              await _loadCompletionState();
             },
             child: const Text("Ya, Mulai"),
           ),
@@ -244,14 +269,57 @@ class _FormStartScreenState extends State<FormStartScreen> {
             ),
           ],
 
-          const SizedBox(height: 24),
+          if (_myAttempts.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE3F4E8),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle_outline,
+                        size: 18,
+                        color: Color(0xFF2E7D32),
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Anda sudah selesai mengerjakan form ini.",
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF2E7D32),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  AuthPrimaryButton(
+                    label: "Lihat Respon",
+                    onPressed: _openResponseHistory,
+                  ),
+                ],
+              ),
+            ),
+          ],
 
-          // Tombol Mulai
-          AuthPrimaryButton(
-            label: "Mulai Mengerjakan",
-            loading: _validatingToken,
-            onPressed: _validatingToken ? null : _startForm,
-          ),
+          if (!(info.oneResponse && _myAttempts.isNotEmpty)) ...[
+            const SizedBox(height: 24),
+
+            // Tombol Mulai
+            AuthPrimaryButton(
+              label: "Mulai Mengerjakan",
+              loading: _validatingToken,
+              onPressed: _validatingToken ? null : _startForm,
+            ),
+          ],
 
           const SizedBox(height: 12),
           const Text(
@@ -262,5 +330,14 @@ class _FormStartScreenState extends State<FormStartScreen> {
         ],
       ),
     );
+  }
+
+  void _openResponseHistory() {
+    final info = _formInfo;
+    if (info == null) return;
+    AppRouter.of(context).push(AppPage.historyFormDetail, {
+      'formLink': widget.formLink,
+      'formTitle': info.title,
+    });
   }
 }
