@@ -12,6 +12,7 @@ import 'package:form_up/features/profile/screens/profile_screen.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
+import 'package:form_up/core/services/public_form_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final String username;
@@ -33,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _loading = true;
   String? _loadError;
   final _codeController = TextEditingController();
+  bool _validatingCode = false;
 
   @override
   void initState() {
@@ -77,13 +79,28 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _start() {
+  void _start() async {
+    if (_validatingCode) return;
     final code = _codeController.text.trim();
     if (code.isEmpty) {
       showAuthToast(context, "Masukkan kode form terlebih dahulu", isError: true);
       return;
     }
-    AppRouter.of(context).push(AppPage.formStart, {'formLink': code});
+    setState(() => _validatingCode = true);
+    try {
+      final info = await PublicFormService.getFormInfo(code);
+      if (!mounted) return;
+      if (info.isOwner) {
+        showAuthToast(context, "Anda tidak dapat mengisi form yang Anda buat sendiri", isError: true);
+        return;
+      }
+      AppRouter.of(context).push(AppPage.formStart, {'formLink': code});
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _validatingCode = false);
+    }
   }
 
   void _openScanner() {
@@ -120,6 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
               codeController: _codeController,
               onStart: _start,
               onOpenScanner: _openScanner,
+              loading: _validatingCode,
             ),
             const SizedBox(height: 25),
 

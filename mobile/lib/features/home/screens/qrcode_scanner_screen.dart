@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
-import 'package:form_up/core/router/app_router.dart';
+import 'package:form_up/core/services/public_form_service.dart';
+import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/features/form_runner/screens/form_start_screen.dart'; // sesuaikan path
 
-/// Screen scan QR code untuk masuk form.
-/// Hanya menerima link format https://formup.my.id/f/{formLink}
 class QrcodeScannerScreen extends StatefulWidget {
   const QrcodeScannerScreen({super.key});
 
@@ -13,8 +13,13 @@ class QrcodeScannerScreen extends StatefulWidget {
 }
 
 class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
-  final MobileScannerController _controller = MobileScannerController();
-  bool _handled = false;
+  final MobileScannerController _controller = MobileScannerController(
+    detectionSpeed: DetectionSpeed.noDuplicates,
+    formats: const [BarcodeFormat.qrCode],
+  );
+
+  bool _isProcessing = false;
+  String? _errorMessage;
 
   static final _validUrl = RegExp(
     r'^https://formup\.my\.id/f/(.+)$',
@@ -22,40 +27,119 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
   );
 
   @override
+  void initState() {
+    super.initState();
+    _isProcessing = false;
+    _errorMessage = null;
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
-  
-
-  /// Ekstrak formLink dari URL. Null bila format tidak sesuai.
   String? _extractFormLink(String? raw) {
     if (raw == null || raw.isEmpty) return null;
     final trimmed = raw.trim();
-    // Bersihkan trailing slash (mis. /f/kode/)
     final m = _validUrl.firstMatch(trimmed);
-    if (m == null) return null;
-    final link = m.group(1)!.replaceAll(RegExp(r'/+$'), '');
-    return link.isEmpty ? null : link;
+    if (m != null) {
+      final link = m.group(1)!.replaceAll(RegExp(r'/+$'), '');
+      return link.isEmpty ? null : link;
+    }
+    if (RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(trimmed)) {
+      return trimmed;
+    }
+    return null;
   }
 
-  void _onDetect(BarcodeCapture capture) {
-    if (_handled) return;
-    final raw = capture.barcodes.isNotEmpty
-        ? capture.barcodes.first.rawValue
-        : null;
-    final formLink = _extractFormLink(raw);
-    if (formLink == null) return; // link tidak valid, biarkan tetap scan
-
-    _handled = true;
+  void _showErrorToast(String message) {
     _controller.stop();
+    setState(() => _errorMessage = message);
 
-    // Langsung arahkan ke Screen Awal Form milik form tsb
-    AppRouter.of(context).push(AppPage.formStart, {'formLink': formLink});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.red.shade800,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Scan Ulang',
+          textColor: Colors.white,
+          onPressed: _rescan,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
 
-    
-    // Navigator.of(context).pop();
+  Future<void> _rescan() async {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    setState(() {
+      _errorMessage = null;
+      _isProcessing = false;
+    });
+    try {
+      await _controller.start();
+    } catch (_) {
+      if (!mounted) return;
+      _showErrorToast('Tidak dapat mengaktifkan kamera. Periksa izin kamera.');
+    }
+  }
+
+  void _onDetect(BarcodeCapture capture) async {
+    if (_isProcessing || _errorMessage != null) return;
+
+    final raw = capture.barcodes.isNotEmpty ? capture.barcodes.first.rawValue : null;
+    final formLink = _extractFormLink(raw);
+
+    if (raw != null && raw.trim().isNotEmpty && formLink == null) {
+      _showErrorToast('QR tidak valid.\nPastikan kode berisi link FormUp.');
+      return;
+    }
+
+    if (formLink == null) return;
+
+    await _controller.stop();
+    if (!mounted) return;
+
+    setState(() => _isProcessing = true);
+
+    try {
+      final info = await PublicFormService.getFormInfo(formLink);
+      if (!mounted) return;
+
+      if (info.isOwner) {
+        setState(() => _isProcessing = false);
+        _showErrorToast('Anda tidak dapat mengisi form yang Anda buat sendiri.');
+        return;
+      }
+
+      // PERBAIKAN: Gunakan push dengan removeRoute untuk menghapus scanner
+      // Tapi biarkan beranda tetap di stack
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => FormStartScreen(formLink: formLink),
+        ),
+        (route) => false, // Hapus semua route sebelumnya
+      );
+      
+      // Atau alternatif jika ingin mempertahankan beranda:
+      // Navigator.of(context).pop(); // tutup scanner
+      // Navigator.of(context).push(MaterialPageRoute(...)); // lalu push form
+      
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      _showErrorToast(AuthService.errorMessage(e));
+    }
   }
 
   @override
@@ -68,8 +152,15 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         title: const Text(
-          "Scan Kode",
+          'Scan Kode',
           style: TextStyle(fontFamily: kFontBold, color: Colors.white),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+          onPressed: () {
+            // Kembali ke beranda atau halaman sebelumnya
+            Navigator.of(context).pop();
+          },
         ),
       ),
       body: Stack(
@@ -79,13 +170,12 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
             onDetect: _onDetect,
             errorBuilder: (context, error) => const Center(
               child: Text(
-                "Tidak dapat mengakses kamera. Pastikan izin kamera diberikan.",
+                'Tidak dapat mengakses kamera.\nPastikan izin kamera diberikan.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white),
               ),
             ),
           ),
-          // Overlay frame pemindai
           Center(
             child: Container(
               width: 240,
@@ -107,12 +197,19 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
-                "Arahkan kamera ke QR code berisi link form\nformat: https://formup.my.id/f/{kode}",
+                'Arahkan kamera ke QR code berisi link form\nformat: https://formup.my.id/f/{kode}',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white, fontSize: 13),
               ),
             ),
           ),
+          if (_isProcessing)
+            Container(
+              color: Colors.black45,
+              child: const Center(
+                child: CircularProgressIndicator(color: kAuthPrimary),
+              ),
+            ),
         ],
       ),
     );

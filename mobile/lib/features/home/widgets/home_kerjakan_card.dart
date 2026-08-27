@@ -6,12 +6,14 @@ class HomeKerjakanCard extends StatelessWidget {
   final TextEditingController codeController;
   final VoidCallback onStart;
   final VoidCallback onOpenScanner;
+  final bool loading;
 
   const HomeKerjakanCard({
     super.key,
     required this.codeController,
     required this.onStart,
     required this.onOpenScanner,
+    this.loading = false,
   });
 
   @override
@@ -42,6 +44,7 @@ class HomeKerjakanCard extends StatelessWidget {
           const SizedBox(height: 12),
           TextField(
             controller: codeController,
+            enabled: !loading,
             style: const TextStyle(color: Colors.black87),
             cursorColor: kAuthPrimary,
             decoration: InputDecoration(
@@ -49,7 +52,7 @@ class HomeKerjakanCard extends StatelessWidget {
               hintStyle: const TextStyle(color: kAuthText),
               prefixIcon: const Icon(Icons.link, color: kAuthText),
               suffixIcon: IconButton(
-                onPressed: onOpenScanner,
+                onPressed: loading ? null : onOpenScanner,
                 tooltip: 'Scan QR Code',
                 icon: const Icon(Icons.qr_code_scanner, color: kAuthPrimary),
               ),
@@ -75,13 +78,14 @@ class HomeKerjakanCard extends StatelessWidget {
                 ),
               ),
             ),
-            onSubmitted: (_) => onStart(),
+            onSubmitted: (_) => loading ? null : onStart(),
           ),
           const SizedBox(height: 12),
           AuthPrimaryButton(
             label: "Masuk Form",
             showArrow: false,
-            onPressed: onStart,
+            loading: loading,
+            onPressed: loading ? null : onStart,
           ),
         ],
       ),
