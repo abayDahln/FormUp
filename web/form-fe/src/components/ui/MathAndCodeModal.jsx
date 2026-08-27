@@ -4,6 +4,7 @@ import RichContentRenderer from '../../utils/RichContentRenderer';
 
 export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
     const [mathInput, setMathInput] = useState('\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}');
+    const [mathFormat, setMathFormat] = useState('inline'); // 'inline' or 'block'
     const [codeLanguage, setCodeLanguage] = useState('javascript');
     const [codeInput, setCodeInput] = useState('function calculateSum(a, b) {\n    return a + b;\n}');
 
@@ -13,7 +14,11 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
         if (mode === 'math') {
             const formula = mathInput.trim();
             if (formula) {
-                onInsert(`<p>$$${formula}$$</p><p><br></p>`);
+                if (mathFormat === 'inline') {
+                    onInsert(`$${formula}$ `);
+                } else {
+                    onInsert(`<p>$$${formula}$$</p><p><br></p>`);
+                }
             }
         } else if (mode === 'code') {
             const code = codeInput.trim();
@@ -56,6 +61,34 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
                 {/* Mode: MATH */}
                 {mode === 'math' && (
                     <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Format Penempatan Rumus:</label>
+                            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                                <button
+                                    type="button"
+                                    onClick={() => setMathFormat('inline')}
+                                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                                        mathFormat === 'inline'
+                                            ? 'bg-white dark:bg-slate-700 text-[#00897B] dark:text-teal-400 shadow-2xs'
+                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                                    }`}
+                                >
+                                    Inline ($teks samping$)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setMathFormat('block')}
+                                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                                        mathFormat === 'block'
+                                            ? 'bg-white dark:bg-slate-700 text-[#00897B] dark:text-teal-400 shadow-2xs'
+                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                                    }`}
+                                >
+                                    Blok Baris ($$tengah$$)
+                                </button>
+                            </div>
+                        </div>
+
                         <div>
                             <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">Simbol Cepat LaTeX:</label>
                             <div className="flex flex-wrap gap-1.5">

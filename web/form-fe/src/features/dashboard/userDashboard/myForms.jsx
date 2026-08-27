@@ -1,13 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../../components/layout/Sidebar';
 import Topbar from '../../../components/layout/Topbar';
 import ConfirmModal from '../../../components/ui/ConfirmModal'; // 1. Import Modal dari UI
 import {
     Plus, MoreVertical, MessageSquare, Calendar,
-    Edit3, Eye, Trash2, CheckCircle2, FileText
+    Edit3, Eye, Trash2, CheckCircle2, FileText,
+    ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { getMyForms, deleteForm, clearSession, assetUrl, createForm } from '../../../services/apiService';
+import useDebounce from '../../../hooks/useDebounce';
+
+const ITEMS_PER_PAGE = 7; // 7 form cards + 1 create card = 8 cards on page 1
 
 const MyForms = () => {
     const navigate = useNavigate();
@@ -17,6 +21,8 @@ const MyForms = () => {
     const [openMenuId, setOpenMenuId] = useState(null);
     const [actionLoading, setActionLoading] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const debouncedSearch = useDebounce(searchQuery, 350);
+    const [currentPage, setCurrentPage] = useState(1);
     const [creatingForm, setCreatingForm] = useState(false);
     const menuRef = useRef(null);
 
@@ -127,22 +133,35 @@ const MyForms = () => {
     const draftForms = myForms.filter(f => f.status?.toLowerCase() === 'draft');
     const totalResponses = myForms.reduce((acc, f) => acc + (f.responseCount ?? 0), 0);
 
-    const filteredForms = myForms.filter((form) => {
-        const s = form.status?.toLowerCase() ?? 'draft';
-        if (activeTab === 'Published' && s !== 'published') return false;
-        if (activeTab === 'Draft' && s !== 'draft') return false;
+    const filteredForms = useMemo(() => {
+        return myForms.filter((form) => {
+            const s = form.status?.toLowerCase() ?? 'draft';
+            if (activeTab === 'Published' && s !== 'published') return false;
+            if (activeTab === 'Draft' && s !== 'draft') return false;
 
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            return (
-                (form.title && form.title.toLowerCase().includes(q)) ||
-                (form.description && form.description.toLowerCase().includes(q)) ||
-                (form.status && form.status.toLowerCase().includes(q))
-            );
-        }
+            if (debouncedSearch.trim()) {
+                const q = debouncedSearch.toLowerCase();
+                return (
+                    (form.title && form.title.toLowerCase().includes(q)) ||
+                    (form.description && form.description.toLowerCase().includes(q)) ||
+                    (form.status && form.status.toLowerCase().includes(q))
+                );
+            }
 
-        return true;
-    });
+            return true;
+        });
+    }, [myForms, activeTab, debouncedSearch]);
+
+    // Reset to page 1 on search or tab switch
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeTab, debouncedSearch]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredForms.length / ITEMS_PER_PAGE));
+    const pagedForms = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredForms.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredForms, currentPage]);
 
     const tabs = [
         { id: 'All', label: `Semua (${myForms.length})` },
@@ -229,10 +248,10 @@ const MyForms = () => {
                             </div>
                         ) : filteredForms.length === 0 ? (
                             <div className="col-span-full py-16 text-center text-slate-400 dark:text-slate-500 text-sm font-medium">
-                                {searchQuery ? `Tidak ada formulir yang cocok dengan "${searchQuery}".` : 'Belum ada formulir pada tab ini.'}
+                                {debouncedSearch ? `Tidak ada formulir yang cocok dengan "${debouncedSearch}".` : 'Belum ada formulir pada tab ini.'}
                             </div>
                         ) : (
-                            filteredForms.map((form) => {
+                            pagedForms.map((form) => {
                                 const status = typeof form.status === 'string' ? form.status : 'draft';
                                 const isPublished = status.toLowerCase() === 'published';
                                 const responseCount = form.responseCount ?? 0;
@@ -323,6 +342,46 @@ const MyForms = () => {
                             })
                         )}
                     </div>
+
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200/80 dark:border-slate-800">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                Menampilkan halaman <span className="font-bold text-slate-900 dark:text-white">{currentPage}</span> dari <span className="font-bold text-slate-900 dark:text-white">{totalPages}</span> (total {filteredForms.length} formulir)
+                            </p>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                    title="Halaman Sebelumnya"
+                                >
+                                    <ChevronLeft size={16} />
+                                </button>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setCurrentPage(pageNum)}
+                                        className={`w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                            currentPage === pageNum
+                                                ? 'bg-[#00897B] text-white shadow-xs'
+                                                : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                        }`}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                ))}
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                    title="Halaman Selanjutnya"
+                                >
+                                    <ChevronRight size={16} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                 </main>
             </div>

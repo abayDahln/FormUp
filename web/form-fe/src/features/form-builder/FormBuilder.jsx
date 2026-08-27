@@ -14,7 +14,7 @@ import {
     templateDownloadUrl
 } from '../../services/apiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
-import SummernoteEditor from '../../components/ui/SummernoteEditor';
+import BlockQuestionEditor from '../../components/ui/BlockQuestionEditor';
 import MathAndCodeModal from '../../components/ui/MathAndCodeModal';
 import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
 
@@ -58,7 +58,6 @@ export default function FormBuilder() {
     const [qrBlobUrl, setQrBlobUrl] = useState(null);
     const [toast, setToast] = useState(null);
     const [importLoading, setImportLoading] = useState(false);
-    const [dragIndex, setDragIndex] = useState(null);
     const [copiedLink, setCopiedLink] = useState(false);
     const [lightboxImage, setLightboxImage] = useState(null);
 
@@ -365,21 +364,6 @@ export default function FormBuilder() {
         });
     };
 
-    // Drag and Drop reordering
-    const handleDragStart = (idx) => setDragIndex(idx);
-    const handleDragOver = (e, idx) => {
-        e.preventDefault();
-        if (dragIndex === null || dragIndex === idx) return;
-        setQuestions(prev => {
-            const arr = [...prev];
-            const dragged = arr[dragIndex];
-            arr.splice(dragIndex, 1);
-            arr.splice(idx, 0, dragged);
-            return arr;
-        });
-        setDragIndex(idx);
-    };
-
     const updateQuestion = (idx, field, value) =>
         setQuestions(prev => prev.map((q, i) => i === idx ? { ...q, [field]: value } : q));
 
@@ -580,40 +564,17 @@ export default function FormBuilder() {
                                 {questions.map((q, idx) => (
                                     <div
                                         key={q._id || idx}
-                                        draggable
-                                        onDragStart={() => handleDragStart(idx)}
-                                        onDragOver={e => handleDragOver(e, idx)}
                                         className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all"
                                     >
                                         {/* Card Header Controls */}
                                         <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
                                             <div className="flex items-center gap-2">
-                                                <div className="cursor-grab text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400">
-                                                    <GripVertical size={18} />
-                                                </div>
-                                                <span className="text-xs font-extrabold text-slate-400 dark:text-slate-500">Soal #{idx + 1}</span>
+                                                <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
+                                                    Soal #{idx + 1}
+                                                </span>
                                             </div>
 
                                             <div className="flex items-center gap-1">
-                                                {/* Formula & Code helper buttons for Question */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openInsertModal(idx, 'math', 'question')}
-                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-all cursor-pointer"
-                                                    title="Sisipkan Rumus Matematika Kompleks (KaTeX)"
-                                                >
-                                                    <Calculator size={13} className="text-[#00897B] dark:text-teal-400" />
-                                                    <span className="hidden sm:inline">Rumus</span>
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openInsertModal(idx, 'code', 'question')}
-                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-all cursor-pointer"
-                                                    title="Sisipkan Kode Block (StackOverflow Style)"
-                                                >
-                                                    <Code size={13} className="text-teal-600 dark:text-teal-400" />
-                                                    <span className="hidden sm:inline">Kode</span>
-                                                </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => togglePreview(idx)}
@@ -625,35 +586,98 @@ export default function FormBuilder() {
 
                                                 <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
 
-                                                <button onClick={() => moveQuestion(idx, -1)} disabled={idx === 0} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-30 cursor-pointer">
+                                                <button onClick={() => moveQuestion(idx, -1)} disabled={idx === 0} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-30 cursor-pointer" title="Pindah Naik">
                                                     <ChevronUp size={16} />
                                                 </button>
-                                                <button onClick={() => moveQuestion(idx, 1)} disabled={idx === questions.length - 1} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-30 cursor-pointer">
+                                                <button onClick={() => moveQuestion(idx, 1)} disabled={idx === questions.length - 1} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-30 cursor-pointer" title="Pindah Turun">
                                                     <ChevronDown size={16} />
                                                 </button>
-                                                <button onClick={() => handleDeleteQuestion(idx)} className="p-1 text-red-400 hover:text-red-600 cursor-pointer">
+                                                <button onClick={() => handleDeleteQuestion(idx)} className="p-1 text-red-400 hover:text-red-600 cursor-pointer" title="Hapus Soal">
                                                     <Trash2 size={16} />
                                                 </button>
                                             </div>
                                         </div>
 
-                                        {/* Question Text Editor (Summernote) */}
+                                        {/* Media Attachments at the TOP of the Question */}
+                                        <div className="pb-3 border-b border-slate-100 dark:border-slate-800 space-y-2">
+                                            <div className="flex flex-wrap items-center gap-3">
+                                                {/* Image attachment */}
+                                                {q.questionImage ? (
+                                                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
+                                                        <img
+                                                            src={assetUrl(q.questionImage)}
+                                                            alt="Soal"
+                                                            className="h-14 w-24 object-cover rounded-lg cursor-zoom-in hover:opacity-90 transition-opacity"
+                                                            onClick={() => setLightboxImage({ src: assetUrl(q.questionImage), alt: 'Gambar Soal' })}
+                                                            title="Klik untuk memperbesar gambar"
+                                                        />
+                                                        <div className="flex flex-col gap-1">
+                                                            <label className="text-[11px] font-bold text-[#00897B] dark:text-teal-400 cursor-pointer hover:underline">
+                                                                Ganti Gambar
+                                                                <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionImage(idx, e.target.files[0])} />
+                                                            </label>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveQuestionImage(idx)}
+                                                                className="text-[10px] font-bold text-red-500 hover:underline flex items-center gap-1 cursor-pointer"
+                                                            >
+                                                                <X size={11} /> Hapus Gambar
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <label className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer hover:border-[#00897B] hover:text-[#00897B] transition-all">
+                                                        <Image size={13} /> Tambah Gambar Soal
+                                                        <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionImage(idx, e.target.files[0])} />
+                                                    </label>
+                                                )}
+
+                                                {/* Audio attachment */}
+                                                {q.questionAudio ? (
+                                                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
+                                                        <audio controls src={assetUrl(q.questionAudio)} className="h-8 max-w-[200px]" />
+                                                        <div className="flex flex-col gap-1">
+                                                            <label className="text-[11px] font-bold text-[#00897B] dark:text-teal-400 cursor-pointer hover:underline">
+                                                                Ganti Audio
+                                                                <input type="file" accept="audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionAudio(idx, e.target.files[0])} />
+                                                            </label>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveQuestionAudio(idx)}
+                                                                className="text-[10px] font-bold text-red-500 hover:underline flex items-center gap-1 cursor-pointer"
+                                                            >
+                                                                <X size={11} /> Hapus Audio
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <label className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer hover:border-[#00897B] hover:text-[#00897B] transition-all">
+                                                        <Music size={13} /> Tambah Audio Soal
+                                                        <input type="file" accept="audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionAudio(idx, e.target.files[0])} />
+                                                    </label>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Question Block Editor (Modular Notion-style) */}
                                         <div className="space-y-2">
-                                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Pertanyaan Soal</label>
-                                            <SummernoteEditor
+                                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Isi Pertanyaan Soal</label>
+                                            <BlockQuestionEditor
                                                 value={q.question || ''}
                                                 onChange={(newHtml) => updateQuestion(idx, 'question', newHtml)}
-                                                placeholder="Tuliskan pertanyaan soal..."
+                                                placeholder="Tuliskan teks pertanyaan soal, kode program, atau rumus..."
                                             />
                                         </div>
 
-                                        {/* Live Preview Box (Toggled) */}
+                                        {/* Live Preview Box with Word Wrap Fix */}
                                         {previewVisibility[idx] && (
-                                            <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700 space-y-2">
+                                            <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700 space-y-2 overflow-hidden">
                                                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                                                    <span>Single Live Preview</span>
+                                                    <span>Live Preview</span>
                                                 </div>
-                                                <RichContentRenderer content={q.question} format={q.questionFormat} className="text-sm font-semibold text-slate-800 dark:text-slate-100" />
+                                                <div className="break-words break-all [overflow-wrap:anywhere]">
+                                                    <RichContentRenderer content={q.question} format={q.questionFormat} className="text-sm font-semibold text-slate-800 dark:text-slate-100" />
+                                                </div>
                                             </div>
                                         )}
 
@@ -682,67 +706,6 @@ export default function FormBuilder() {
                                                     />
                                                     Soal Wajib Diisi
                                                 </label>
-                                            </div>
-                                        </div>
-
-                                        {/* Media Attachments (Image & Audio + Text together) */}
-                                        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                                            <div className="flex flex-wrap items-center gap-3">
-                                                {/* Image attachment */}
-                                                {q.questionImage ? (
-                                                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
-                                                        <img
-                                                            src={assetUrl(q.questionImage)}
-                                                            alt="Soal"
-                                                            className="h-12 w-20 object-cover rounded-lg cursor-zoom-in hover:opacity-90 transition-opacity"
-                                                            onClick={() => setLightboxImage({ src: assetUrl(q.questionImage), alt: 'Gambar Soal' })}
-                                                            title="Klik untuk memperbesar gambar"
-                                                        />
-                                                        <div className="flex flex-col gap-1">
-                                                            <label className="text-[11px] font-bold text-[#00897B] dark:text-teal-400 cursor-pointer hover:underline">
-                                                                Ganti Gambar
-                                                                <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionImage(idx, e.target.files[0])} />
-                                                            </label>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleRemoveQuestionImage(idx)}
-                                                                className="text-[10px] font-bold text-red-500 hover:underline flex items-center gap-1 cursor-pointer"
-                                                            >
-                                                                <X size={11} /> Hapus Gambar
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <label className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer hover:border-[#00897B] hover:text-[#00897B] transition-all">
-                                                        <Image size={13} /> Tambah Gambar
-                                                        <input type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionImage(idx, e.target.files[0])} />
-                                                    </label>
-                                                )}
-
-                                                {/* Audio attachment */}
-                                                {q.questionAudio ? (
-                                                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
-                                                        <audio controls src={assetUrl(q.questionAudio)} className="h-8 max-w-[200px]" />
-                                                        <div className="flex flex-col gap-1">
-                                                            <label className="text-[11px] font-bold text-[#00897B] dark:text-teal-400 cursor-pointer hover:underline">
-                                                                Ganti Audio
-                                                                <input type="file" accept="audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionAudio(idx, e.target.files[0])} />
-                                                            </label>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleRemoveQuestionAudio(idx)}
-                                                                className="text-[10px] font-bold text-red-500 hover:underline flex items-center gap-1 cursor-pointer"
-                                                            >
-                                                                <X size={11} /> Hapus Audio
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <label className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer hover:border-[#00897B] hover:text-[#00897B] transition-all">
-                                                        <Music size={13} /> Tambah Audio
-                                                        <input type="file" accept="audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleUploadQuestionAudio(idx, e.target.files[0])} />
-                                                    </label>
-                                                )}
                                             </div>
                                         </div>
 

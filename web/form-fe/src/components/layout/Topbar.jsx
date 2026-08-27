@@ -6,6 +6,7 @@ import {
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getLocalUser, assetUrl } from '../../services/apiService';
+import useDebounce from '../../hooks/useDebounce';
 
 export default function Topbar({ 
     searchQuery = '', 
@@ -14,7 +15,8 @@ export default function Topbar({
 }) {
     const navigate = useNavigate();
     const [user] = useState(() => getLocalUser());
-    const [internalSearch, setInternalSearch] = useState('');
+    const [internalSearch, setInternalSearch] = useState(searchQuery || '');
+    const debouncedSearch = useDebounce(internalSearch, 300);
 
     const [isDark, setIsDark] = useState(() => {
         return localStorage.getItem('theme') === 'dark';
@@ -32,15 +34,17 @@ export default function Topbar({
         }
     }, [isDark]);
 
-    const handleInputChange = (e) => {
-        const value = e.target.value;
-        setInternalSearch(value);
+    useEffect(() => {
         if (onSearchChange) {
-            onSearchChange(value);
+            onSearchChange(debouncedSearch);
         }
+    }, [debouncedSearch, onSearchChange]);
+
+    const handleInputChange = (e) => {
+        setInternalSearch(e.target.value);
     };
 
-    const currentValue = onSearchChange ? searchQuery : internalSearch;
+    const currentValue = internalSearch;
 
     return (
         <header className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors">

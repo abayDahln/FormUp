@@ -3,7 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { 
     ArrowLeft, Download, Eye, X, BarChart2, Loader2, 
     MessageSquare, AlertTriangle, CheckCircle2, XCircle, 
-    MinusCircle, ChevronLeft, ChevronRight, TrendingUp, Calendar, Maximize2
+    MinusCircle, ChevronLeft, ChevronRight, TrendingUp, Calendar, Maximize2,
+    Sliders, Edit2, RotateCcw, Check, Save
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import {
@@ -44,6 +45,22 @@ export default function FormResponsesPage() {
 
     // Review Answers Modal
     const [selectedRespondent, setSelectedRespondent] = useState(null);
+
+    // Score Overrides (Local/Persistent per Form ID)
+    const [scoreOverrides, setScoreOverrides] = useState(() => {
+        try {
+            const saved = localStorage.getItem(`formup_scores_${id}`);
+            return saved ? JSON.parse(saved) : {};
+        } catch {
+            return {};
+        }
+    });
+
+    const [editingScoreId, setEditingScoreId] = useState(null);
+    const [inlineScoreInput, setInlineScoreInput] = useState('');
+    const [bulkModalOpen, setBulkModalOpen] = useState(false);
+    const [bulkType, setBulkType] = useState('bonus'); // 'bonus' | 'scale' | 'min'
+    const [bulkValue, setBulkValue] = useState(10);
 
     useEffect(() => {
         const load = async () => {
@@ -158,25 +175,145 @@ export default function FormResponsesPage() {
         }
     };
 
-    // Merge respondent data from analytics with response list
-    const respondentsList = useMemo(() => {
-        const analyticsRespondents = analytics?.respondents || [];
-        if (analyticsRespondents.length > 0) return analyticsRespondents;
+    const persistOverrides = (newOverrides) => {
+        setScoreOverrides(newOverrides);
+        try {
+            localStorage.setItem(`formup_scores_${id}`, JSON.stringify(newOverrides));
+        } catch (e) {
+            console.error('Error saving score overrides:', e);
+        }
+    };
 
-        // Fallback to responses if analytics is empty
-        return responses.map(r => ({
-            responseId: r.id,
-            respondentName: r.respondentName,
-            submittedAt: r.submittedAt,
-            status: r.status,
-            answeredCount: 0,
-            totalQuestions: 0,
-            correctCount: 0,
-            wrongCount: 0,
-            score: null,
-            answers: []
-        }));
-    }, [analytics, responses]);
+    const handleSaveIndividualScore = (responseId, newScore) => {
+        const parsed = Math.max(0, Math.min(100, parseFloat(newScore) || 0));
+        const updated = {
+            ...scoreOverrides,
+            [responseId]: {
+                ...(scoreOverrides[responseId] || {}),
+                score: parsed,
+                isCustom: true
+            }
+        };
+        persistOverrides(updated);
+        setEditingScoreId(null);
+        showToast(`Skor responden #${responseId} diperbarui menjadi ${parsed}%`);
+    };
+
+    const handleToggleQuestionCorrect = (responseId, questionId, currentIsCorrect) => {
+        const nextIsCorrect = currentIsCorrect === true ? false : true;
+        const respOverride = scoreOverrides[responseId] || {};
+        const qOverrides = { ...(respOverride.questionOverrides || {}) };
+        qOverrides[questionId] = nextIsCorrect;
+
+        const respondent = respondentsList.find(r => r.responseId === responseId);
+        const answers = respondent?.answers || [];
+        const scorableCount = respondent?.scorableQuestions || answers.length || 1;
+        let newCorrectCount = 0;
+        answers.forEach(a => {
+            const isCorr = qOverrides[a.questionId] !== undefined ? qOverrides[a.questionId] : a.isCorrect;
+            if (isCorr === true) newCorrectCount++;
+        });
+
+        const newCalculatedScore = Math.min(100, Math.round((newCorrectCount / scorableCount) * 100 * 10) / 10);
+
+        const updated = {
+            ...scoreOverrides,
+            [responseId]: {
+                ...respOverride,
+                score: newCalculatedScore,
+                correctCount: newCorrectCount,
+                questionOverrides: qOverrides,
+                isCustom: true
+            }
+        };
+        persistOverrides(updated);
+        
+        if (selectedRespondent && selectedRespondent.responseId === responseId) {
+            setSelectedRespondent(prev => ({
+                ...prev,
+                score: newCalculatedScore,
+                correctCount: newCorrectCount,
+                answers: prev.answers.map(a => a.questionId === questionId ? { ...a, isCorrect: nextIsCorrect } : a)
+            }));
+        }
+
+        showToast(`Status soal #${questionId} diubah menjadi ${nextIsCorrect ? 'Benar' : 'Salah'}`);
+    };
+
+    const handleApplyBulkScore = (type, val) => {
+        const updated = { ...scoreOverrides };
+        const numVal = parseFloat(val) || 0;
+
+        respondentsList.forEach(r => {
+            const baseScore = r.baseScore ?? r.score ?? 0;
+            let newScore = baseScore;
+
+            if (type === 'bonus') {
+                newScore = Math.min(100, Math.max(0, baseScore + numVal));
+            } else if (type === 'scale') {
+                newScore = Math.min(100, Math.max(0, Math.round(baseScore * (numVal / 100) * 10) / 10));
+            } else if (type === 'min') {
+                newScore = Math.max(baseScore, numVal);
+            }
+
+            updated[r.responseId] = {
+                ...(updated[r.responseId] || {}),
+                score: Math.round(newScore * 10) / 10,
+                isCustom: true
+            };
+        });
+
+        persistOverrides(updated);
+        setBulkModalOpen(false);
+        showToast(`Penyesuaian skor massal (${type}) berhasil diterapkan ke semua responden!`);
+    };
+
+    const handleResetAllScores = () => {
+        persistOverrides({});
+        setBulkModalOpen(false);
+        showToast('Semua skor telah dikembalikan ke perhitungan sistem.');
+    };
+
+    // Merge respondent data from analytics with response list and apply score overrides
+    const respondentsList = useMemo(() => {
+        const rawList = analytics?.respondents && analytics.respondents.length > 0
+            ? analytics.respondents
+            : responses.map(r => ({
+                responseId: r.id,
+                respondentName: r.respondentName,
+                submittedAt: r.submittedAt,
+                status: r.status,
+                answeredCount: 0,
+                totalQuestions: 0,
+                correctCount: 0,
+                wrongCount: 0,
+                score: null,
+                answers: []
+            }));
+
+        return rawList.map(r => {
+            const override = scoreOverrides[r.responseId];
+            if (!override) return { ...r, baseScore: r.score };
+
+            const effectiveScore = override.score !== undefined ? override.score : r.score;
+            const effectiveCorrect = override.correctCount !== undefined ? override.correctCount : r.correctCount;
+            const qOverrides = override.questionOverrides || {};
+
+            const effectiveAnswers = (r.answers || []).map(a => ({
+                ...a,
+                isCorrect: qOverrides[a.questionId] !== undefined ? qOverrides[a.questionId] : a.isCorrect
+            }));
+
+            return {
+                ...r,
+                baseScore: r.score,
+                score: effectiveScore,
+                correctCount: effectiveCorrect,
+                answers: effectiveAnswers,
+                isCustomScore: !!override.isCustom
+            };
+        });
+    }, [analytics, responses, scoreOverrides]);
 
     // Trend calculations
     const trendData = useMemo(() => {
@@ -368,9 +505,24 @@ export default function FormResponsesPage() {
                                 </div>
                             ) : (
                                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-sm">
-                                    <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                                        <h2 className="text-sm font-bold text-slate-900 dark:text-white">Daftar Respons Masuk</h2>
-                                        <span className="text-xs font-bold text-slate-400 dark:text-slate-500">{respondentsList.length} Total Respons</span>
+                                    <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <h2 className="text-sm font-bold text-slate-900 dark:text-white">Daftar Respons Masuk</h2>
+                                            <span className="text-xs font-bold text-slate-400 dark:text-slate-500">{respondentsList.length} Total Respons</span>
+                                        </div>
+
+                                        {respondentsList.length > 0 && (
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setBulkModalOpen(true)}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 text-[#00897B] dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/60 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                                                    title="Ubah skor seluruh responden secara massal (bonus, skala, dll)"
+                                                >
+                                                    <Sliders size={13} /> Penyesuaian Skor Massal
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="overflow-x-auto w-full">
@@ -393,6 +545,7 @@ export default function FormResponsesPage() {
                                                     const scorable = r.scorableQuestions ?? 0;
                                                     const correct = r.correctCount ?? 0;
                                                     const wrong = r.wrongCount != null ? r.wrongCount : Math.max(scorable - correct, 0);
+                                                    const isEditing = editingScoreId === r.responseId;
 
                                                     return (
                                                         <tr key={r.responseId || i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
@@ -411,16 +564,62 @@ export default function FormResponsesPage() {
                                                                 {wrong}
                                                             </td>
                                                             <td className="py-3.5 px-4">
-                                                                {r.score != null ? (
-                                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                                                                        r.score >= 70
-                                                                            ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400'
-                                                                            : 'bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-400'
-                                                                    }`}>
-                                                                        {r.score}%
-                                                                    </span>
+                                                                {isEditing ? (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            max="100"
+                                                                            step="0.5"
+                                                                            value={inlineScoreInput}
+                                                                            onChange={e => setInlineScoreInput(e.target.value)}
+                                                                            className="w-16 px-2 py-1 bg-white dark:bg-slate-800 border border-[#00897B] rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none"
+                                                                            autoFocus
+                                                                            onKeyDown={e => e.key === 'Enter' && handleSaveIndividualScore(r.responseId, inlineScoreInput)}
+                                                                        />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleSaveIndividualScore(r.responseId, inlineScoreInput)}
+                                                                            className="p-1 bg-[#00897B] text-white rounded-lg hover:bg-[#00796B] cursor-pointer"
+                                                                            title="Simpan Skor"
+                                                                        >
+                                                                            <Check size={12} />
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setEditingScoreId(null)}
+                                                                            className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                                                            title="Batal"
+                                                                        >
+                                                                            <X size={12} />
+                                                                        </button>
+                                                                    </div>
                                                                 ) : (
-                                                                    <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">N/A</span>
+                                                                    <div className="flex items-center gap-1.5 group">
+                                                                        {r.score != null ? (
+                                                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                                                                r.score >= 70
+                                                                                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400'
+                                                                                    : 'bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-400'
+                                                                            }`}>
+                                                                                {r.score}%
+                                                                                {r.isCustomScore && <span className="ml-1 text-[9px] opacity-75 font-normal">*edit</span>}
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">N/A</span>
+                                                                        )}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setEditingScoreId(r.responseId);
+                                                                                setInlineScoreInput(r.score != null ? String(r.score) : '100');
+                                                                            }}
+                                                                            className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-[#00897B] rounded transition-opacity cursor-pointer"
+                                                                            title="Ubah Nilai Responden"
+                                                                        >
+                                                                            <Edit2 size={12} />
+                                                                        </button>
+                                                                    </div>
                                                                 )}
                                                             </td>
                                                             <td className="py-3.5 px-4">
@@ -441,7 +640,6 @@ export default function FormResponsesPage() {
                                                             <td className="py-3.5 px-4 text-right">
                                                                 <button
                                                                     onClick={async () => {
-                                                                        // Use analytics answers if present, else fetch /result for detailed scored view
                                                                         if (r.answers && r.answers.length > 0) {
                                                                             setSelectedRespondent(r);
                                                                         } else {
@@ -537,35 +735,50 @@ export default function FormResponsesPage() {
                             </button>
                         </div>
 
-                        {/* Summary Bar */}
-                        <div className="px-6 py-3.5 bg-slate-100/60 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center gap-3">
-                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-1.5 shadow-xs">
-                                <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Skor</p>
-                                <p className="text-base font-extrabold text-slate-900 dark:text-white">
-                                    {selectedRespondent.score != null ? `${selectedRespondent.score}%` : 'N/A'}
-                                </p>
-                            </div>
-                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-1.5 shadow-xs">
-                                <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Dijawab</p>
-                                <p className="text-base font-extrabold text-slate-900 dark:text-white">
-                                    {selectedRespondent.answeredCount}/{selectedRespondent.totalQuestions}
-                                </p>
-                            </div>
-                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-1.5 shadow-xs">
-                                <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Benar</p>
-                                <p className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">
-                                    {selectedRespondent.correctCount ?? 0}
-                                </p>
-                            </div>
-                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-1.5 shadow-xs">
-                                <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Waktu Submit</p>
-                                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-1">
-                                    {formatDate(selectedRespondent.submittedAt)}
-                                </p>
+                        {/* Summary Bar with Editable Score */}
+                        <div className="px-6 py-3.5 bg-slate-100/60 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-1.5 shadow-xs">
+                                    <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Skor Total</p>
+                                    <div className="flex items-center gap-1.5">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            step="0.5"
+                                            value={selectedRespondent.score != null ? selectedRespondent.score : ''}
+                                            onChange={e => {
+                                                const val = parseFloat(e.target.value) || 0;
+                                                setSelectedRespondent(prev => ({ ...prev, score: val }));
+                                            }}
+                                            onBlur={e => handleSaveIndividualScore(selectedRespondent.responseId, e.target.value)}
+                                            className="w-16 text-base font-extrabold text-slate-900 dark:text-white bg-transparent border-b border-slate-300 dark:border-slate-600 focus:border-[#00897B] outline-none"
+                                        />
+                                        <span className="text-xs font-bold text-slate-500">%</span>
+                                    </div>
+                                </div>
+                                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-1.5 shadow-xs">
+                                    <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Dijawab</p>
+                                    <p className="text-base font-extrabold text-slate-900 dark:text-white">
+                                        {selectedRespondent.answeredCount}/{selectedRespondent.totalQuestions}
+                                    </p>
+                                </div>
+                                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-1.5 shadow-xs">
+                                    <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Benar</p>
+                                    <p className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">
+                                        {selectedRespondent.correctCount ?? 0}
+                                    </p>
+                                </div>
+                                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-1.5 shadow-xs">
+                                    <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Waktu Submit</p>
+                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-1">
+                                        {formatDate(selectedRespondent.submittedAt)}
+                                    </p>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Answers */}
+                        {/* Answers List */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-4">
                             {(selectedRespondent.answers || []).map((answer, index) => {
                                 const status = getAnswerStatus(answer);
@@ -581,7 +794,7 @@ export default function FormResponsesPage() {
                                                     {index + 1}
                                                 </span>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-semibold text-slate-900 dark:text-white leading-relaxed">
+                                                    <div className="text-sm font-semibold text-slate-900 dark:text-white leading-relaxed break-words">
                                                         <RichContentRenderer content={answer.question} />
                                                     </div>
                                                     {answer.questionImage && (
@@ -603,9 +816,39 @@ export default function FormResponsesPage() {
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-bold ${status.className}`}>
-                                                {status.icon}
-                                                <span>{status.label}</span>
+
+                                            {/* Status Badge & Per-question Score Correction Controls */}
+                                            <div className="shrink-0 flex items-center gap-2">
+                                                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-bold ${status.className}`}>
+                                                    {status.icon}
+                                                    <span>{status.label}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleToggleQuestionCorrect(selectedRespondent.responseId, answer.questionId, false)}
+                                                        className={`px-2 py-1 text-[11px] font-bold rounded cursor-pointer transition-all ${
+                                                            answer.isCorrect === true
+                                                                ? 'bg-emerald-500 text-white shadow-2xs'
+                                                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                        }`}
+                                                        title="Koreksi: Tandai Benar"
+                                                    >
+                                                        Benar
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleToggleQuestionCorrect(selectedRespondent.responseId, answer.questionId, true)}
+                                                        className={`px-2 py-1 text-[11px] font-bold rounded cursor-pointer transition-all ${
+                                                            answer.isCorrect === false
+                                                                ? 'bg-red-500 text-white shadow-2xs'
+                                                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                        }`}
+                                                        title="Koreksi: Tandai Salah"
+                                                    >
+                                                        Salah
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -672,6 +915,131 @@ export default function FormResponsesPage() {
                             >
                                 Selanjutnya <ChevronRight size={15} />
                             </button>
+                        </div>
+
+                    </div>
+                </div>
+            )}
+
+            {/* ── BULK SCORE ADJUSTMENT MODAL ── */}
+            {bulkModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div
+                        className="absolute inset-0 bg-black/50 backdrop-blur-xs"
+                        onClick={() => setBulkModalOpen(false)}
+                    />
+
+                    <div className="relative bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150 font-sans">
+                        
+                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 rounded-xl">
+                                    <Sliders size={18} />
+                                </div>
+                                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                                    Penyesuaian Skor Massal
+                                </h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setBulkModalOpen(false)}
+                                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg cursor-pointer"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                            Pilih metode penyesuaian skor untuk diterapkan ke semua {respondentsList.length} responden:
+                        </p>
+
+                        <div className="space-y-3">
+                            <label className="flex items-start gap-3 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 cursor-pointer hover:border-[#00897B] transition-colors">
+                                <input
+                                    type="radio"
+                                    name="bulkType"
+                                    value="bonus"
+                                    checked={bulkType === 'bonus'}
+                                    onChange={() => setBulkType('bonus')}
+                                    className="mt-0.5 text-[#00897B] cursor-pointer"
+                                />
+                                <div className="flex-1 text-xs">
+                                    <p className="font-bold text-slate-900 dark:text-white">Tambah Nilai Bonus</p>
+                                    <p className="text-slate-500 dark:text-slate-400">Tambahkan poin tetap ke nilai setiap responden (maksimal 100).</p>
+                                </div>
+                            </label>
+
+                            <label className="flex items-start gap-3 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 cursor-pointer hover:border-[#00897B] transition-colors">
+                                <input
+                                    type="radio"
+                                    name="bulkType"
+                                    value="scale"
+                                    checked={bulkType === 'scale'}
+                                    onChange={() => setBulkType('scale')}
+                                    className="mt-0.5 text-[#00897B] cursor-pointer"
+                                />
+                                <div className="flex-1 text-xs">
+                                    <p className="font-bold text-slate-900 dark:text-white">Kalikan Persentase Skala (Kurva)</p>
+                                    <p className="text-slate-500 dark:text-slate-400">Kalikan nilai saat ini dengan persentase tertentu (misal: 110% = 1.1x).</p>
+                                </div>
+                            </label>
+
+                            <label className="flex items-start gap-3 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 cursor-pointer hover:border-[#00897B] transition-colors">
+                                <input
+                                    type="radio"
+                                    name="bulkType"
+                                    value="min"
+                                    checked={bulkType === 'min'}
+                                    onChange={() => setBulkType('min')}
+                                    className="mt-0.5 text-[#00897B] cursor-pointer"
+                                />
+                                <div className="flex-1 text-xs">
+                                    <p className="font-bold text-slate-900 dark:text-white">Batas Skor Minimum (Threshold)</p>
+                                    <p className="text-slate-500 dark:text-slate-400">Semua responden yang mendapat nilai di bawah batas akan dinaikkan ke batas ini.</p>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
+                                {bulkType === 'bonus' ? 'Jumlah Poin Bonus (+):' : bulkType === 'scale' ? 'Faktor Persentase (%):' : 'Batas Skor Minimum:'}
+                            </label>
+                            <input
+                                type="number"
+                                step="1"
+                                min="0"
+                                max="200"
+                                value={bulkValue}
+                                onChange={e => setBulkValue(parseFloat(e.target.value) || 0)}
+                                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#00897B]"
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <button
+                                type="button"
+                                onClick={handleResetAllScores}
+                                className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-red-500 transition-colors cursor-pointer"
+                            >
+                                <RotateCcw size={13} /> Reset Semua
+                            </button>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setBulkModalOpen(false)}
+                                    className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleApplyBulkScore(bulkType, bulkValue)}
+                                    className="px-5 py-2 bg-[#00897B] hover:bg-[#00796B] text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
+                                >
+                                    Terapkan Massal
+                                </button>
+                            </div>
                         </div>
 
                     </div>

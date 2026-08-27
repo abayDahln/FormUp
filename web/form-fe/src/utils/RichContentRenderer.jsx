@@ -50,14 +50,14 @@ export default function RichContentRenderer({ content, format = 'text', classNam
         const processedHtml = processHtmlContent(rawStr);
         return (
             <div 
-                className={`rich-text-content leading-relaxed ${className}`}
+                className={`rich-text-content leading-relaxed break-words break-all [overflow-wrap:anywhere] ${className}`}
                 dangerouslySetInnerHTML={{ __html: processedHtml }}
             />
         );
     }
 
     return (
-        <div className={`rich-text-content leading-relaxed ${className}`}>
+        <div className={`rich-text-content leading-relaxed break-words break-all [overflow-wrap:anywhere] ${className}`}>
             {parseMixedText(rawStr)}
         </div>
     );

@@ -5,6 +5,7 @@ import { login, saveSession } from '../../services/apiService';
 const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [rememberMe, setRememberMe] = useState(true);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [scale, setScale] = useState(() => {
@@ -37,8 +38,8 @@ const Login = () => {
             const result = await login(email, password);
 
             if (result.ok && result.data?.token) {
-                // Simpan token + data user ke localStorage
-                saveSession(result.data);
+                // Simpan token + data user sesuai pilihan Remember Me
+                saveSession(result.data, rememberMe);
                 navigate('/dashboard');
             } else {
                 setError(result.message || 'Email atau password salah.');
@@ -153,15 +154,16 @@ const Login = () => {
                                     />
                                 </div>
 
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="w-full mt-6 py-3.5 px-6 bg-[#14a098] hover:bg-[#118b84] active:scale-[0.98] text-white font-bold rounded-full shadow-[0_6px_20px_rgba(20,160,152,0.3)] transition-all duration-200 text-[15px] tracking-wide disabled:opacity-60 disabled:cursor-not-allowed"
-                                >
-                                    {loading ? 'Signing in...' : 'Login'}
-                                </button>
-
-                                <div className="text-right">
+                                <div className="flex items-center justify-between pt-1">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={rememberMe}
+                                            onChange={(e) => setRememberMe(e.target.checked)}
+                                            className="w-4 h-4 rounded text-[#14a098] focus:ring-[#14a098] cursor-pointer"
+                                        />
+                                        <span className="text-[12px] font-bold text-gray-700">Ingat Saya</span>
+                                    </label>
                                     <Link
                                         to="/forgot-password"
                                         className="text-[12px] font-bold text-gray-600 hover:text-[#14a098] transition-colors"
@@ -169,6 +171,14 @@ const Login = () => {
                                         Lupa password?
                                     </Link>
                                 </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full mt-4 py-3.5 px-6 bg-[#14a098] hover:bg-[#118b84] active:scale-[0.98] text-white font-bold rounded-full shadow-[0_6px_20px_rgba(20,160,152,0.3)] transition-all duration-200 text-[15px] tracking-wide disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                                >
+                                    {loading ? 'Signing in...' : 'Login'}
+                                </button>
                             </form>
 
                             <div className="mt-5 text-center flex flex-col items-center gap-0.5">

@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Clock, Lock, ArrowRight, ArrowLeft,
-    AlertCircle, Send, Loader2, Maximize2
+    AlertCircle, Send, Loader2, Maximize2,
+    Sun, Moon
 } from 'lucide-react';
 import {
     getPublicFormByLink, getPublicFormQuestions, submitPublicFormResponse,
@@ -37,6 +38,28 @@ export default function FormRunnerPage() {
     // Timer
     const [timeLeft, setTimeLeft] = useState(null);
     const timerRef = useRef(null);
+
+    // Dark mode toggle for Form Runner
+    const [isDarkMode, setIsDarkMode] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return document.documentElement.classList.contains('dark') || localStorage.getItem('theme') === 'dark';
+        }
+        return false;
+    });
+
+    const toggleDarkMode = () => {
+        setIsDarkMode(prev => {
+            const next = !prev;
+            if (next) {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            }
+            return next;
+        });
+    };
 
     const currentUser = getLocalUser();
 
@@ -286,24 +309,36 @@ export default function FormRunnerPage() {
         <div className="min-h-screen bg-[#F4F8F7] dark:bg-slate-950 font-sans antialiased text-slate-800 dark:text-slate-100 py-8 px-4 sm:px-6 transition-colors">
             <div className="max-w-3xl mx-auto space-y-6">
 
-                {/* Floating Timer if enabled */}
-                {timeLeft !== null && (
-                    <div className="sticky top-4 z-30 flex justify-end">
-                        <div className={`px-4 py-2 rounded-2xl shadow-lg border backdrop-blur-md flex items-center gap-2 font-mono font-bold text-sm ${
+                {/* Top Bar: Floating Timer and Dark Mode Toggle */}
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={toggleDarkMode}
+                            className="p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-xs transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+                            title={isDarkMode ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'}
+                        >
+                            {isDarkMode ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-teal-600" />}
+                            <span>{isDarkMode ? 'Mode Terang' : 'Mode Gelap'}</span>
+                        </button>
+                    </div>
+
+                    {timeLeft !== null && (
+                        <div className={`px-4 py-2 rounded-2xl shadow-lg border backdrop-blur-md flex items-center gap-2 font-mono font-bold text-xs sm:text-sm ${
                             timeLeft <= 60 
                                 ? 'bg-red-500/90 text-white border-red-400 animate-pulse' 
                                 : 'bg-slate-900/90 dark:bg-slate-800/90 text-teal-400 border-slate-700'
                         }`}>
-                            <Clock size={16} />
-                            <span>Waktu Tersisa: {formatTimer(timeLeft)}</span>
+                            <Clock size={15} />
+                            <span>Waktu: {formatTimer(timeLeft)}</span>
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
 
                 {/* Form Banner & Header */}
                 <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-sm">
                     {form?.bannerImage && (
-                        <div className="w-full h-48 sm:h-56 relative bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center justify-center border-b border-slate-100 dark:border-slate-800">
+                        <div className="w-full h-44 sm:h-56 relative bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center justify-center border-b border-slate-100 dark:border-slate-800">
                             <img
                                 src={assetUrl(form.bannerImage)}
                                 alt={form.title}
@@ -312,13 +347,13 @@ export default function FormRunnerPage() {
                         </div>
                     )}
 
-                    <div className="p-6 sm:p-8 space-y-4">
+                    <div className="p-5 sm:p-8 space-y-4">
                         <div className="space-y-1">
-                            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight break-words">
                                 {form?.title || 'Formulir'}
                             </h1>
                             {form?.description && (
-                                <div className="pt-2 text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
+                                <div className="pt-2 text-slate-600 dark:text-slate-300 text-sm leading-relaxed break-words break-all [overflow-wrap:anywhere]">
                                     <RichContentRenderer content={form.description} />
                                 </div>
                             )}
@@ -334,7 +369,7 @@ export default function FormRunnerPage() {
                                 value={respondentName}
                                 onChange={e => setRespondentName(e.target.value)}
                                 placeholder="Masukkan nama lengkap Anda..."
-                                className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]"
+                                className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]"
                             />
                         </div>
                     </div>
@@ -350,7 +385,7 @@ export default function FormRunnerPage() {
                 {/* ── QUESTION LIST / STEPPER ── */}
                 {isStepLayout && currentQ ? (
                     // Step-by-step view
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 sm:p-8 shadow-sm space-y-6">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-5 sm:p-8 shadow-sm space-y-6">
                         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                             <span className="text-xs font-bold text-[#00897B] dark:text-teal-400 bg-teal-50 dark:bg-teal-950/60 px-3 py-1 rounded-full">
                                 Soal {currentStep + 1} dari {totalSteps}
@@ -363,17 +398,13 @@ export default function FormRunnerPage() {
                         </div>
 
                         <div className="space-y-4">
-                            <div className="text-base font-bold text-slate-900 dark:text-white leading-relaxed">
-                                <RichContentRenderer content={currentQ.question} />
-                            </div>
-
-                            {/* Media if present */}
+                            {/* Media at TOP of Question */}
                             {currentQ.questionImage && (
-                                <div className="my-2 max-w-md relative group/img overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs">
+                                <div className="my-2 w-full max-w-2xl relative group/img overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs mx-auto">
                                     <img
                                         src={assetUrl(currentQ.questionImage)}
                                         alt="Gambar Soal"
-                                        className="max-h-64 w-auto max-w-full rounded-xl object-contain mx-auto cursor-zoom-in transition-transform group-hover/img:scale-[1.01]"
+                                        className="max-h-96 sm:max-h-[440px] w-auto max-w-full rounded-xl object-contain mx-auto cursor-zoom-in transition-transform group-hover/img:scale-[1.01]"
                                         onClick={() => setLightboxImage({ src: assetUrl(currentQ.questionImage), alt: 'Gambar Soal' })}
                                     />
                                     <button
@@ -386,10 +417,15 @@ export default function FormRunnerPage() {
                                 </div>
                             )}
                             {currentQ.questionAudio && (
-                                <div className="my-2 max-w-sm w-full bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs">
+                                <div className="my-2 max-w-md w-full bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs">
                                     <audio controls src={assetUrl(currentQ.questionAudio)} className="w-full h-8 rounded-xl outline-none" />
                                 </div>
                             )}
+
+                            {/* Question Text */}
+                            <div className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-relaxed break-words break-all [overflow-wrap:anywhere]">
+                                <RichContentRenderer content={currentQ.question} />
+                            </div>
 
                             {/* Options rendering */}
                             <div className="pt-2">
@@ -433,17 +469,12 @@ export default function FormRunnerPage() {
                         {questions.map((q, idx) => (
                             <div
                                 key={q.id || idx}
-                                className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 sm:p-8 shadow-sm space-y-4"
+                                className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-5 sm:p-8 shadow-sm space-y-4"
                             >
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="flex items-start gap-3">
-                                        <span className="shrink-0 w-7 h-7 flex items-center justify-center rounded-xl bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 text-xs font-bold">
-                                            {idx + 1}
-                                        </span>
-                                        <div className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-relaxed">
-                                            <RichContentRenderer content={q.question} />
-                                        </div>
-                                    </div>
+                                <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                                    <span className="shrink-0 w-7 h-7 flex items-center justify-center rounded-xl bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 text-xs font-bold">
+                                        {idx + 1}
+                                    </span>
                                     {q.isRequired && (
                                         <span className="shrink-0 text-[11px] font-extrabold text-red-500 bg-red-50 dark:bg-red-950/60 px-2 py-0.5 rounded-md">
                                             Wajib
@@ -451,12 +482,13 @@ export default function FormRunnerPage() {
                                     )}
                                 </div>
 
+                                {/* Media at TOP of Question */}
                                 {q.questionImage && (
-                                    <div className="my-2 max-w-md relative group/img overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs sm:ml-10">
+                                    <div className="my-2 w-full max-w-2xl relative group/img overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs mx-auto">
                                         <img
                                             src={assetUrl(q.questionImage)}
                                             alt="Gambar Soal"
-                                            className="max-h-64 w-auto max-w-full rounded-xl object-contain mx-auto cursor-zoom-in transition-transform group-hover/img:scale-[1.01]"
+                                            className="max-h-96 sm:max-h-[440px] w-auto max-w-full rounded-xl object-contain mx-auto cursor-zoom-in transition-transform group-hover/img:scale-[1.01]"
                                             onClick={() => setLightboxImage({ src: assetUrl(q.questionImage), alt: 'Gambar Soal' })}
                                         />
                                         <button
@@ -469,12 +501,17 @@ export default function FormRunnerPage() {
                                     </div>
                                 )}
                                 {q.questionAudio && (
-                                    <div className="my-2 max-w-sm w-full bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs sm:ml-10">
+                                    <div className="my-2 max-w-md w-full bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs">
                                         <audio controls src={assetUrl(q.questionAudio)} className="w-full h-8 rounded-xl outline-none" />
                                     </div>
                                 )}
 
-                                <div className="pl-0 sm:pl-10 pt-2">
+                                {/* Question Text */}
+                                <div className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-relaxed break-words break-all [overflow-wrap:anywhere]">
+                                    <RichContentRenderer content={q.question} />
+                                </div>
+
+                                <div className="pt-2">
                                     {renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange)}
                                 </div>
                             </div>
@@ -484,7 +521,7 @@ export default function FormRunnerPage() {
                             <button
                                 type="submit"
                                 disabled={submitting}
-                                className="px-8 py-3.5 bg-[#00897B] hover:bg-[#00796B] active:scale-[0.99] text-white font-bold rounded-2xl shadow-md transition-all text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                                className="w-full sm:w-auto px-8 py-3.5 bg-[#00897B] hover:bg-[#00796B] active:scale-[0.99] text-white font-bold rounded-2xl shadow-md transition-all text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                             >
                                 <Send size={16} />
                                 <span>{submitting ? 'Mengirimkan Respons...' : 'Kirim Respons Formulir'}</span>

@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-    Users, FileText, Trash2, ArrowLeft, Shield,
-    Search
+import { 
+    Users, FileText, Trash2, Ban, CheckCircle, 
+    Search, ShieldAlert, ArrowLeft, Loader2, MessageSquare, AlertTriangle, Eye, X
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import {
-    adminGetUsers, adminGetForms,
-    adminDeleteUser, adminDeleteForm, clearSession, getLocalUser
+    adminGetUsers, adminGetForms, adminDeleteUser, adminDeleteForm,
+    adminBanUser, adminActivateUser, adminGetFeedback, adminTakedownFormFromFeedback,
+    adminGetUserDetail, adminGetFormDetail, adminRestoreFormFromFeedback,
+    clearSession, getLocalUser
 } from '../../services/apiService';
+import useDebounce from '../../hooks/useDebounce';
 
 export default function AdminDashboardPage() {
     const navigate = useNavigate();
@@ -18,6 +21,7 @@ export default function AdminDashboardPage() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('users');
     const [searchQuery, setSearchQuery] = useState('');
+    const debouncedSearch = useDebounce(searchQuery, 300);
     const [toast, setToast] = useState(null);
 
     useEffect(() => {
@@ -69,8 +73,8 @@ export default function AdminDashboardPage() {
     };
 
     const filteredUsers = users.filter(u => {
-        if (!searchQuery.trim()) return true;
-        const q = searchQuery.toLowerCase();
+        if (!debouncedSearch.trim()) return true;
+        const q = debouncedSearch.toLowerCase();
         return (
             (u.fullname && u.fullname.toLowerCase().includes(q)) ||
             (u.username && u.username.toLowerCase().includes(q)) ||
@@ -79,8 +83,8 @@ export default function AdminDashboardPage() {
     });
 
     const filteredForms = forms.filter(f => {
-        if (!searchQuery.trim()) return true;
-        const q = searchQuery.toLowerCase();
+        if (!debouncedSearch.trim()) return true;
+        const q = debouncedSearch.toLowerCase();
         return (
             (f.title && f.title.toLowerCase().includes(q)) ||
             (f.formLink && f.formLink.toLowerCase().includes(q)) ||

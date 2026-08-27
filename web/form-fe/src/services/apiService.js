@@ -403,8 +403,20 @@ export const saveSession = (authData, rememberMe = true) => {
     altStorage.removeItem('token');
     altStorage.removeItem('user');
 
-    if (authData.token) storage.setItem('token', authData.token);
-    if (authData.user) storage.setItem('user', JSON.stringify(authData.user));
+    if (authData.token) {
+        storage.setItem('token', authData.token);
+        // Set cookie with appropriate expiration
+        const maxAge = rememberMe ? 60 * 60 * 24 * 30 : ''; // 30 days or session
+        const cookieStr = `formup_token=${authData.token}; path=/; SameSite=Lax${maxAge ? `; max-age=${maxAge}` : ''}`;
+        if (typeof document !== 'undefined') {
+            document.cookie = cookieStr;
+        }
+    }
+
+    if (authData.user) {
+        storage.setItem('user', JSON.stringify(authData.user));
+    }
+
     if (rememberMe) {
         localStorage.setItem('rememberMe', 'true');
     } else {
@@ -418,6 +430,9 @@ export const clearSession = () => {
     localStorage.removeItem('rememberMe');
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
+    if (typeof document !== 'undefined') {
+        document.cookie = 'formup_token=; path=/; max-age=0';
+    }
 };
 
 export const isAuthenticated = () => !!getToken();
