@@ -26,11 +26,14 @@ public class PublicFormsController : ControllerBase
     {
         var form = await ResolveFormAsync(formLink);
         if (form == null)
-            return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
+            return NotFound(new ApiResponse<object>(404, "Form tidak ditemukan"));
 
         var isOwner = User.Identity?.IsAuthenticated == true
             && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid)
             && form.UserId == uid;
+
+        var questionCount = await _db.Questions
+            .CountAsync(q => q.FormId == form.Id && q.DeletedAt == null);
 
         return Ok(new ApiResponse<object>(200, "OK", new PublicFormDetails
         {
@@ -49,6 +52,7 @@ public class PublicFormsController : ControllerBase
             RandomizeQuestions = form.FormSetting?.RandomizeQuestions,
             OpenFormTime = form.FormSetting?.OpenFormTime,
             CloseFormTime = form.FormSetting?.CloseFormTime,
+            QuestionCount = questionCount,
         }));
     }
 
@@ -59,7 +63,7 @@ public class PublicFormsController : ControllerBase
     {
         var form = await ResolveFormAsync(formLink);
         if (form == null)
-            return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
+            return NotFound(new ApiResponse<object>(404, "Form tidak ditemukan"));
 
         var accessError = CheckAccess(form, request.Token);
         if (accessError != null)

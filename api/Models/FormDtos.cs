@@ -88,6 +88,7 @@ public class PublicFormDetails
     public bool? RandomizeQuestions { get; set; }
     public DateTime? OpenFormTime { get; set; }
     public DateTime? CloseFormTime { get; set; }
+    public int QuestionCount { get; set; }
 }
 
 public class PublicQuestionsRequest
