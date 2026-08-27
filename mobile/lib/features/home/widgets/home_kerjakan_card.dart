@@ -42,44 +42,79 @@ class HomeKerjakanCard extends StatelessWidget {
             style: TextStyle(fontSize: 12, color: Colors.black54),
           ),
           const SizedBox(height: 12),
-          TextField(
-            controller: codeController,
-            enabled: !loading,
-            style: const TextStyle(color: Colors.black87),
-            cursorColor: kAuthPrimary,
-            decoration: InputDecoration(
-              hintText: "Kode form",
-              hintStyle: const TextStyle(color: kAuthText),
-              prefixIcon: const Icon(Icons.link, color: kAuthText),
-              suffixIcon: IconButton(
-                onPressed: loading ? null : onOpenScanner,
-                tooltip: 'Scan QR Code',
-                icon: const Icon(Icons.qr_code_scanner, color: kAuthPrimary),
-              ),
-              filled: true,
-              fillColor: const Color(0xFFF0F4F4),
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: 14,
-                horizontal: 16,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: kAuthText),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: kAuthText),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(
-                  color: kAuthPrimary,
-                  width: 1.5,
+
+          // ── Row: TextField (kiri) + Scan Button (kanan) ──
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Field kode form
+              Expanded(
+                child: TextField(
+                  controller: codeController,
+                  enabled: !loading,
+                  style: const TextStyle(color: Colors.black87),
+                  cursorColor: kAuthPrimary,
+                  decoration: InputDecoration(
+                    hintText: "Kode form",
+                    hintStyle: const TextStyle(color: kAuthText),
+                    prefixIcon: const Icon(Icons.link, color: kAuthText),
+                    filled: true,
+                    fillColor: const Color(0xFFF0F4F4),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 16,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: kAuthText),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: kAuthText),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: kAuthPrimary,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                  onSubmitted: (_) => loading ? null : onStart(),
                 ),
               ),
-            ),
-            onSubmitted: (_) => loading ? null : onStart(),
+
+              const SizedBox(width: 8),
+
+              // Tombol scan QR (warna sama dengan field, tidak kontras)
+              SizedBox(
+                height: 48,
+                width: 48,
+                child: Material(
+                  color: const Color(0xFFF0F4F4), 
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: const BorderSide(color: kAuthText),
+                  ),
+                  child: InkWell( 
+                    onTap: loading
+                        ? null
+                        : () {
+                            FocusScope.of(context).unfocus();
+                            onOpenScanner();
+                          },
+                    borderRadius: BorderRadius.circular(8),
+                    
+                    child: const Icon(
+                      Icons.qr_code_scanner,
+                      color: kAuthPrimary, // Warna icon tetap primary
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
+
           const SizedBox(height: 12),
           AuthPrimaryButton(
             label: "Masuk Form",

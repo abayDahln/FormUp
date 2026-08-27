@@ -3,7 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
-import 'package:form_up/features/form_runner/screens/form_start_screen.dart'; // sesuaikan path
+import 'package:form_up/core/router/app_router.dart';
 
 class QrcodeScannerScreen extends StatefulWidget {
   const QrcodeScannerScreen({super.key});
@@ -35,6 +35,7 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
 
   @override
   void dispose() {
+    ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
     _controller.dispose();
     super.dispose();
   }
@@ -57,7 +58,9 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
     _controller.stop();
     setState(() => _errorMessage = message);
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
       SnackBar(
         content: Row(
           children: [
@@ -69,7 +72,7 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
         backgroundColor: Colors.red.shade800,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 5),
+        duration: const Duration(seconds: 3),
         action: SnackBarAction(
           label: 'Scan Ulang',
           textColor: Colors.white,
@@ -81,7 +84,7 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
   }
 
   Future<void> _rescan() async {
-    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
     setState(() {
       _errorMessage = null;
       _isProcessing = false;
@@ -122,18 +125,11 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
         return;
       }
 
-      // PERBAIKAN: Gunakan push dengan removeRoute untuk menghapus scanner
-      // Tapi biarkan beranda tetap di stack
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (_) => FormStartScreen(formLink: formLink),
-        ),
-        (route) => false, // Hapus semua route sebelumnya
+      ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
+      AppRouter.of(context).replaceTop(
+        AppPage.formStart,
+        {'formLink': formLink},
       );
-      
-      // Atau alternatif jika ingin mempertahankan beranda:
-      // Navigator.of(context).pop(); // tutup scanner
-      // Navigator.of(context).push(MaterialPageRoute(...)); // lalu push form
       
     } catch (e) {
       if (!mounted) return;
@@ -159,7 +155,8 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
           onPressed: () {
             // Kembali ke beranda atau halaman sebelumnya
-            Navigator.of(context).pop();
+            ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
+            AppRouter.of(context).pop();
           },
         ),
       ),

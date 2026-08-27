@@ -45,44 +45,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kAuthBg,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        shape: const Border(
+          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
+          onPressed: () => AppRouter.of(context).pop(),
+        ),
+        title: const Text(
+          'Pengaturan',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: Colors.black87,
+          ),
+        ),
+      ),
       body: AuthBackground(
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
+            padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xCCBDC9C8)),
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
-                        onPressed: () => AppRouter.of(context).pop(),
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Pengaturan',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: kFontBold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Pengaturan aplikasi Anda.',
-                  style: TextStyle(fontSize: 13, color: Colors.black54),
-                ),
                 const SizedBox(height: 24),
 
                 _sectionLabel('Dukungan'),
