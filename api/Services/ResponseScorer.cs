@@ -7,6 +7,17 @@ public static class ResponseScorer
     public static int CountScorable(List<Question> questions) =>
         questions.Count(q => !string.IsNullOrEmpty(q.CorrectAnswer) || q.OptionQuestions.Any(o => o.IsCorrect == true));
 
+    public static int CountRequiredScorable(List<Question> questions) =>
+        questions.Count(q => q.IsRequired == true && (!string.IsNullOrEmpty(q.CorrectAnswer) || q.OptionQuestions.Any(o => o.IsCorrect == true)));
+
+    public static int GetScoringDivisor(List<Question> questions)
+    {
+        var requiredScorable = CountRequiredScorable(questions);
+        if (requiredScorable > 0) return requiredScorable;
+        var allScorable = CountScorable(questions);
+        return allScorable > 0 ? allScorable : 0;
+    }
+
     public static string? GetAnswerText(RespondentAnswer? answer, Question question)
     {
         if (answer == null) return null;
@@ -84,8 +95,9 @@ public static class ResponseScorer
             });
         }
 
-        double? score = showScore && scorable > 0
-            ? Math.Round((double)correctCount / scorable * 100, 1)
+        var scoringDivisor = GetScoringDivisor(questions);
+        double? score = showScore && scoringDivisor > 0
+            ? Math.Min(100.0, Math.Round((double)correctCount / scoringDivisor * 100, 1))
             : null;
 
         return new ResponseResult

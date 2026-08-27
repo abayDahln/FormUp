@@ -82,7 +82,8 @@ public class AnalyticsController : ControllerBase
             .Select(r => (r.ResponseId, r.QuestionId, r.OptionId, r.AnswerValue))
             .ToList();
 
-        double? averageScore = ComputeAverageScore(questions, scorableQuestions, answerRows);
+        var scoringDivisor = ResponseScorer.GetScoringDivisor(questions);
+        double? averageScore = ComputeAverageScore(questions, scoringDivisor, answerRows);
 
         var respondents = new List<RespondentAnalytics>();
 
@@ -119,8 +120,8 @@ public class AnalyticsController : ControllerBase
                 });
             }
 
-            double? score = scorableQuestions > 0
-                ? Math.Round((double)correctCount / scorableQuestions * 100, 1)
+            double? score = scoringDivisor > 0
+                ? Math.Min(100.0, Math.Round((double)correctCount / scoringDivisor * 100, 1))
                 : null;
 
             respondents.Add(new RespondentAnalytics
@@ -131,7 +132,7 @@ public class AnalyticsController : ControllerBase
                 AnsweredCount = answeredCount,
                 TotalQuestions = totalQuestions,
                 CorrectCount = correctCount,
-                ScorableQuestions = scorableQuestions,
+                ScorableQuestions = scoringDivisor > 0 ? scoringDivisor : scorableQuestions,
                 Score = score,
                 Answers = answers,
             });
@@ -202,7 +203,7 @@ public class AnalyticsController : ControllerBase
                 }
             }
 
-            scores.Add(Math.Round((double)correctCount / scorableQuestions * 100, 1));
+            scores.Add(Math.Min(100.0, Math.Round((double)correctCount / scorableQuestions * 100, 1)));
         }
 
         return scores.Count > 0 ? Math.Round(scores.Average(), 1) : null;
