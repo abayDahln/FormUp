@@ -27,6 +27,8 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
     super.dispose();
   }
 
+  
+
   /// Ekstrak formLink dari URL. Null bila format tidak sesuai.
   String? _extractFormLink(String? raw) {
     if (raw == null || raw.isEmpty) return null;
@@ -51,7 +53,9 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
 
     // Langsung arahkan ke Screen Awal Form milik form tsb
     AppRouter.of(context).push(AppPage.formStart, {'formLink': formLink});
-    Navigator.of(context).pop();
+
+    
+    // Navigator.of(context).pop();
   }
 
   @override
