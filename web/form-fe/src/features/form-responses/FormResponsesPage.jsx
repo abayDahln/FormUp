@@ -59,8 +59,12 @@ export default function FormResponsesPage() {
     const [editingScoreId, setEditingScoreId] = useState(null);
     const [inlineScoreInput, setInlineScoreInput] = useState('');
     const [bulkModalOpen, setBulkModalOpen] = useState(false);
-    const [bulkType, setBulkType] = useState('bonus'); // 'bonus' | 'scale' | 'min'
-    const [bulkValue, setBulkValue] = useState(10);
+    const [bulkType, setBulkType] = useState('min'); // 'min' | 'bonus' | 'scale' | 'set_fixed'
+    const [bulkValue, setBulkValue] = useState(75);
+    const [bulkFilter, setBulkFilter] = useState('all'); // 'all' | 'below' | 'range'
+    const [filterThreshold, setFilterThreshold] = useState(75);
+    const [filterRangeMin, setFilterRangeMin] = useState(0);
+    const [filterRangeMax, setFilterRangeMax] = useState(70);
 
     useEffect(() => {
         const load = async () => {
@@ -122,16 +126,75 @@ export default function FormResponsesPage() {
         setTimeout(() => setToast(null), 3000);
     };
 
-    const handleExport = async (formId) => {
+    const handleExport = (formId) => {
         if (!formId || exporting) return;
         setExporting(true);
         try {
-            const res = await exportFormResponses(formId);
-            if (!res.ok) {
-                showToast(res.message || 'Gagal mengekspor CSV.', 'error');
-            } else {
-                showToast('File CSV berhasil diunduh');
+            if (!respondentsList || respondentsList.length === 0) {
+                showToast('Belum ada data respons untuk diekspor.', 'error');
+                setExporting(false);
+                return;
             }
+
+            // Extract unique question titles
+            const questionMap = new Map();
+            respondentsList.forEach(r => {
+                (r.answers || []).forEach(a => {
+                    if (a.questionId && !questionMap.has(a.questionId)) {
+                        questionMap.set(a.questionId, a.question || `Soal #${a.questionId}`);
+                    }
+                });
+            });
+
+            const escapeCsv = (val) => {
+                if (val === null || val === undefined) return '""';
+                const str = String(val).replace(/<[^>]*>/g, '').trim();
+                return `"${str.replace(/"/g, '""')}"`;
+            };
+
+            const headerRow = [
+                'ID Respons',
+                'Nama Responden',
+                'Waktu Submit',
+                'Status',
+                'Soal Dijawab',
+                'Benar',
+                'Salah',
+                'Skor Akhir (%)',
+                ...Array.from(questionMap.values())
+            ];
+
+            const rows = respondentsList.map(r => {
+                const answerByQ = new Map((r.answers || []).map(a => [a.questionId, a.answerText || a.answerValue || a.optionText || '']));
+                const scorable = r.scorableQuestions ?? 0;
+                const correct = r.correctCount ?? 0;
+                const wrong = r.wrongCount != null ? r.wrongCount : Math.max(scorable - correct, 0);
+
+                return [
+                    r.responseId,
+                    r.respondentName || 'Anonim',
+                    formatDate(r.submittedAt),
+                    r.status || 'new',
+                    `${r.answeredCount ?? 0}/${r.totalQuestions ?? 0}`,
+                    correct,
+                    wrong,
+                    r.score != null ? `${r.score}%` : 'N/A',
+                    ...Array.from(questionMap.keys()).map(qId => answerByQ.get(qId) || '')
+                ].map(escapeCsv).join(',');
+            });
+
+            const csvContent = '\uFEFF' + [headerRow.map(escapeCsv).join(','), ...rows].join('\r\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `respons-formulir-${form?.title ? form.title.replace(/\s+/g, '_') : formId}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            showToast('File CSV (lengkap dengan pembaruan nilai) berhasil diunduh!');
         } catch (err) {
             console.error(err);
             showToast('Terjadi kesalahan saat mengekspor CSV.', 'error');
@@ -240,32 +303,56 @@ export default function FormResponsesPage() {
         showToast(`Status soal #${questionId} diubah menjadi ${nextIsCorrect ? 'Benar' : 'Salah'}`);
     };
 
-    const handleApplyBulkScore = (type, val) => {
-        const updated = { ...scoreOverrides };
-        const numVal = parseFloat(val) || 0;
-
-        respondentsList.forEach(r => {
-            const baseScore = r.baseScore ?? r.score ?? 0;
-            let newScore = baseScore;
-
-            if (type === 'bonus') {
-                newScore = Math.min(100, Math.max(0, baseScore + numVal));
-            } else if (type === 'scale') {
-                newScore = Math.min(100, Math.max(0, Math.round(baseScore * (numVal / 100) * 10) / 10));
-            } else if (type === 'min') {
-                newScore = Math.max(baseScore, numVal);
+    // Preview adjustments before applying
+    const previewAdjustments = useMemo(() => {
+        return respondentsList.map(r => {
+            const current = r.score != null ? r.score : 0;
+            let meetsFilter = true;
+            if (bulkFilter === 'below') {
+                meetsFilter = current < filterThreshold;
+            } else if (bulkFilter === 'range') {
+                meetsFilter = current >= filterRangeMin && current <= filterRangeMax;
             }
 
-            updated[r.responseId] = {
-                ...(updated[r.responseId] || {}),
-                score: Math.round(newScore * 10) / 10,
-                isCustom: true
+            let projected = current;
+            if (meetsFilter) {
+                if (bulkType === 'min') {
+                    projected = Math.max(current, bulkValue);
+                } else if (bulkType === 'bonus') {
+                    projected = Math.min(100, Math.max(0, current + bulkValue));
+                } else if (bulkType === 'scale') {
+                    projected = Math.min(100, Math.max(0, Math.round(current * (bulkValue / 100) * 10) / 10));
+                } else if (bulkType === 'set_fixed') {
+                    projected = Math.min(100, Math.max(0, bulkValue));
+                }
+            }
+
+            return {
+                ...r,
+                currentScore: current,
+                projectedScore: Math.round(projected * 10) / 10,
+                diff: Math.round((projected - current) * 10) / 10,
+                meetsFilter
             };
+        });
+    }, [respondentsList, bulkType, bulkFilter, filterThreshold, filterRangeMin, filterRangeMax, bulkValue]);
+
+    const handleApplyBulkScore = () => {
+        const updated = { ...scoreOverrides };
+
+        previewAdjustments.forEach(item => {
+            if (item.meetsFilter) {
+                updated[item.responseId] = {
+                    ...(updated[item.responseId] || {}),
+                    score: item.projectedScore,
+                    isCustom: true
+                };
+            }
         });
 
         persistOverrides(updated);
         setBulkModalOpen(false);
-        showToast(`Penyesuaian skor massal (${type}) berhasil diterapkan ke semua responden!`);
+        showToast('Penyesuaian skor massal berhasil diterapkan!');
     };
 
     const handleResetAllScores = () => {
@@ -929,16 +1016,22 @@ export default function FormResponsesPage() {
                         onClick={() => setBulkModalOpen(false)}
                     />
 
-                    <div className="relative bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150 font-sans">
+                    <div className="relative bg-white dark:bg-slate-900 w-full max-w-xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 flex flex-col animate-in fade-in zoom-in-95 duration-150 font-sans">
                         
-                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                        {/* Header */}
+                        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-slate-800/50">
                             <div className="flex items-center gap-2.5">
                                 <div className="p-2 bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 rounded-xl">
                                     <Sliders size={18} />
                                 </div>
-                                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                                    Penyesuaian Skor Massal
-                                </h3>
+                                <div>
+                                    <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                                        Penyesuaian Skor Massal
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                                        Sesuaikan nilai responden dengan filter dan aturan fleksibel
+                                    </p>
+                                </div>
                             </div>
                             <button
                                 type="button"
@@ -949,77 +1042,257 @@ export default function FormResponsesPage() {
                             </button>
                         </div>
 
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                            Pilih metode penyesuaian skor untuk diterapkan ke semua {respondentsList.length} responden:
-                        </p>
-
-                        <div className="space-y-3">
-                            <label className="flex items-start gap-3 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 cursor-pointer hover:border-[#00897B] transition-colors">
-                                <input
-                                    type="radio"
-                                    name="bulkType"
-                                    value="bonus"
-                                    checked={bulkType === 'bonus'}
-                                    onChange={() => setBulkType('bonus')}
-                                    className="mt-0.5 text-[#00897B] cursor-pointer"
-                                />
-                                <div className="flex-1 text-xs">
-                                    <p className="font-bold text-slate-900 dark:text-white">Tambah Nilai Bonus</p>
-                                    <p className="text-slate-500 dark:text-slate-400">Tambahkan poin tetap ke nilai setiap responden (maksimal 100).</p>
+                        {/* Body */}
+                        <div className="p-5 overflow-y-auto space-y-5 flex-1">
+                            
+                            {/* 1. Target Filter */}
+                            <div>
+                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">
+                                    1. Target Responden yang Disesuaikan:
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setBulkFilter('all')}
+                                        className={`p-2.5 rounded-xl border text-xs font-bold text-center cursor-pointer transition-all ${
+                                            bulkFilter === 'all'
+                                                ? 'bg-teal-50 dark:bg-teal-950/60 border-[#00897B] text-[#00897B] dark:text-teal-400 shadow-2xs'
+                                                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                        }`}
+                                    >
+                                        Semua Responden
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setBulkFilter('below')}
+                                        className={`p-2.5 rounded-xl border text-xs font-bold text-center cursor-pointer transition-all ${
+                                            bulkFilter === 'below'
+                                                ? 'bg-teal-50 dark:bg-teal-950/60 border-[#00897B] text-[#00897B] dark:text-teal-400 shadow-2xs'
+                                                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                        }`}
+                                    >
+                                        Nilai di Bawah Batas
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setBulkFilter('range')}
+                                        className={`p-2.5 rounded-xl border text-xs font-bold text-center cursor-pointer transition-all ${
+                                            bulkFilter === 'range'
+                                                ? 'bg-teal-50 dark:bg-teal-950/60 border-[#00897B] text-[#00897B] dark:text-teal-400 shadow-2xs'
+                                                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                        }`}
+                                    >
+                                        Rentang Nilai Tertentu
+                                    </button>
                                 </div>
-                            </label>
 
-                            <label className="flex items-start gap-3 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 cursor-pointer hover:border-[#00897B] transition-colors">
-                                <input
-                                    type="radio"
-                                    name="bulkType"
-                                    value="scale"
-                                    checked={bulkType === 'scale'}
-                                    onChange={() => setBulkType('scale')}
-                                    className="mt-0.5 text-[#00897B] cursor-pointer"
-                                />
-                                <div className="flex-1 text-xs">
-                                    <p className="font-bold text-slate-900 dark:text-white">Kalikan Persentase Skala (Kurva)</p>
-                                    <p className="text-slate-500 dark:text-slate-400">Kalikan nilai saat ini dengan persentase tertentu (misal: 110% = 1.1x).</p>
-                                </div>
-                            </label>
+                                {bulkFilter === 'below' && (
+                                    <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 text-xs">
+                                        <span className="font-medium text-slate-600 dark:text-slate-300">Hanya sesuaikan responden dengan nilai di bawah:</span>
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={filterThreshold}
+                                                onChange={e => setFilterThreshold(parseFloat(e.target.value) || 0)}
+                                                className="w-16 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-center font-bold"
+                                            />
+                                            <span className="font-bold text-slate-500">%</span>
+                                        </div>
+                                    </div>
+                                )}
 
-                            <label className="flex items-start gap-3 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 cursor-pointer hover:border-[#00897B] transition-colors">
-                                <input
-                                    type="radio"
-                                    name="bulkType"
-                                    value="min"
-                                    checked={bulkType === 'min'}
-                                    onChange={() => setBulkType('min')}
-                                    className="mt-0.5 text-[#00897B] cursor-pointer"
-                                />
-                                <div className="flex-1 text-xs">
-                                    <p className="font-bold text-slate-900 dark:text-white">Batas Skor Minimum (Threshold)</p>
-                                    <p className="text-slate-500 dark:text-slate-400">Semua responden yang mendapat nilai di bawah batas akan dinaikkan ke batas ini.</p>
+                                {bulkFilter === 'range' && (
+                                    <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 text-xs">
+                                        <span className="font-medium text-slate-600 dark:text-slate-300">Hanya sesuaikan responden dengan nilai antara:</span>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={filterRangeMin}
+                                                onChange={e => setFilterRangeMin(parseFloat(e.target.value) || 0)}
+                                                className="w-14 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-center font-bold"
+                                            />
+                                            <span className="text-slate-400">s/d</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={filterRangeMax}
+                                                onChange={e => setFilterRangeMax(parseFloat(e.target.value) || 0)}
+                                                className="w-14 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-center font-bold"
+                                            />
+                                            <span className="font-bold text-slate-500">%</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 2. Adjustment Method */}
+                            <div>
+                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">
+                                    2. Metode Penyesuaian Nilai:
+                                </label>
+                                <div className="space-y-2">
+                                    <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${
+                                        bulkType === 'min'
+                                            ? 'border-[#00897B] bg-teal-50/40 dark:bg-teal-950/40'
+                                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                                    }`}>
+                                        <input
+                                            type="radio"
+                                            name="bulkType"
+                                            value="min"
+                                            checked={bulkType === 'min'}
+                                            onChange={() => { setBulkType('min'); setBulkValue(75); }}
+                                            className="mt-0.5 text-[#00897B] cursor-pointer"
+                                        />
+                                        <div className="flex-1 text-xs">
+                                            <p className="font-bold text-slate-900 dark:text-white">Batas Skor Minimum (Threshold)</p>
+                                            <p className="text-slate-500 dark:text-slate-400">Nilai di bawah batas dinaikkan ke batas. Nilai yang sudah di atas batas tetap aman dan tidak akan turun.</p>
+                                        </div>
+                                    </label>
+
+                                    <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${
+                                        bulkType === 'bonus'
+                                            ? 'border-[#00897B] bg-teal-50/40 dark:bg-teal-950/40'
+                                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                                    }`}>
+                                        <input
+                                            type="radio"
+                                            name="bulkType"
+                                            value="bonus"
+                                            checked={bulkType === 'bonus'}
+                                            onChange={() => { setBulkType('bonus'); setBulkValue(10); }}
+                                            className="mt-0.5 text-[#00897B] cursor-pointer"
+                                        />
+                                        <div className="flex-1 text-xs">
+                                            <p className="font-bold text-slate-900 dark:text-white">Tambah Nilai Bonus (+ Poin)</p>
+                                            <p className="text-slate-500 dark:text-slate-400">Tambahkan poin tetap ke setiap responden yang memenuhi kriteria (maksimal 100).</p>
+                                        </div>
+                                    </label>
+
+                                    <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${
+                                        bulkType === 'scale'
+                                            ? 'border-[#00897B] bg-teal-50/40 dark:bg-teal-950/40'
+                                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                                    }`}>
+                                        <input
+                                            type="radio"
+                                            name="bulkType"
+                                            value="scale"
+                                            checked={bulkType === 'scale'}
+                                            onChange={() => { setBulkType('scale'); setBulkValue(110); }}
+                                            className="mt-0.5 text-[#00897B] cursor-pointer"
+                                        />
+                                        <div className="flex-1 text-xs">
+                                            <p className="font-bold text-slate-900 dark:text-white">Kalikan Kurva Skala Persentase (x %)</p>
+                                            <p className="text-slate-500 dark:text-slate-400">Kalikan nilai saat ini dengan persentase tertentu (misal: 110% = nilai x 1.1).</p>
+                                        </div>
+                                    </label>
+
+                                    <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${
+                                        bulkType === 'set_fixed'
+                                            ? 'border-[#00897B] bg-teal-50/40 dark:bg-teal-950/40'
+                                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                                    }`}>
+                                        <input
+                                            type="radio"
+                                            name="bulkType"
+                                            value="set_fixed"
+                                            checked={bulkType === 'set_fixed'}
+                                            onChange={() => { setBulkType('set_fixed'); setBulkValue(80); }}
+                                            className="mt-0.5 text-[#00897B] cursor-pointer"
+                                        />
+                                        <div className="flex-1 text-xs">
+                                            <p className="font-bold text-slate-900 dark:text-white">Tetapkan Nilai Rata (= Nilai Tetap)</p>
+                                            <p className="text-slate-500 dark:text-slate-400">Ubah seluruh nilai responden yang memenuhi kriteria langsung menjadi nilai ini.</p>
+                                        </div>
+                                    </label>
                                 </div>
-                            </label>
+                            </div>
+
+                            {/* 3. Parameter Value Input */}
+                            <div>
+                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
+                                    {bulkType === 'min' ? 'Batas Nilai Minimum Target:' : bulkType === 'bonus' ? 'Jumlah Poin Bonus Tambahan (+):' : bulkType === 'scale' ? 'Faktor Skala Persentase (%):' : 'Nilai Tetap yang Diterapkan:'}
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        step={bulkType === 'scale' ? '5' : '1'}
+                                        min="0"
+                                        max={bulkType === 'scale' ? '200' : '100'}
+                                        value={bulkValue}
+                                        onChange={e => setBulkValue(parseFloat(e.target.value) || 0)}
+                                        className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#00897B]"
+                                    />
+                                    <span className="text-xs font-bold text-slate-500">
+                                        {bulkType === 'scale' ? '%' : 'poin'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* 4. Live Preview Section */}
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                        Live Preview Perubahan Nilai:
+                                    </label>
+                                    <span className="text-[11px] font-bold text-teal-600 dark:text-teal-400">
+                                        {previewAdjustments.filter(p => p.meetsFilter && p.diff !== 0).length} dari {previewAdjustments.length} responden terpengaruh
+                                    </span>
+                                </div>
+
+                                <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden max-h-44 overflow-y-auto">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="bg-slate-100 dark:bg-slate-800 text-slate-500 font-bold sticky top-0">
+                                            <tr>
+                                                <th className="py-2 px-3">Responden</th>
+                                                <th className="py-2 px-3 text-center">Skor Saat Ini</th>
+                                                <th className="py-2 px-3 text-center">Skor Baru</th>
+                                                <th className="py-2 px-3 text-right">Perubahan</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {previewAdjustments.map((item, idx) => (
+                                                <tr key={item.responseId || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                                    <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200">
+                                                        {item.respondentName || 'Anonim'}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-center font-bold text-slate-600 dark:text-slate-300">
+                                                        {item.currentScore}%
+                                                    </td>
+                                                    <td className="py-2 px-3 text-center font-extrabold text-slate-900 dark:text-white">
+                                                        {item.projectedScore}%
+                                                    </td>
+                                                    <td className="py-2 px-3 text-right font-bold">
+                                                        {item.diff > 0 ? (
+                                                            <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">+{item.diff}%</span>
+                                                        ) : item.diff < 0 ? (
+                                                            <span className="text-red-500 dark:text-red-400 font-extrabold">{item.diff}%</span>
+                                                        ) : (
+                                                            <span className="text-slate-400 font-normal">Tetap</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
                         </div>
 
-                        <div>
-                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
-                                {bulkType === 'bonus' ? 'Jumlah Poin Bonus (+):' : bulkType === 'scale' ? 'Faktor Persentase (%):' : 'Batas Skor Minimum:'}
-                            </label>
-                            <input
-                                type="number"
-                                step="1"
-                                min="0"
-                                max="200"
-                                value={bulkValue}
-                                onChange={e => setBulkValue(parseFloat(e.target.value) || 0)}
-                                className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#00897B]"
-                            />
-                        </div>
-
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                        {/* Footer */}
+                        <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-slate-800/50">
                             <button
                                 type="button"
                                 onClick={handleResetAllScores}
-                                className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-red-500 transition-colors cursor-pointer"
+                                className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-red-500 transition-colors cursor-pointer"
+                                title="Kembalikan semua nilai ke perhitungan asli sistem"
                             >
                                 <RotateCcw size={13} /> Reset Semua
                             </button>
@@ -1034,10 +1307,10 @@ export default function FormResponsesPage() {
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => handleApplyBulkScore(bulkType, bulkValue)}
+                                    onClick={handleApplyBulkScore}
                                     className="px-5 py-2 bg-[#00897B] hover:bg-[#00796B] text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
                                 >
-                                    Terapkan Massal
+                                    Terapkan Perubahan
                                 </button>
                             </div>
                         </div>

@@ -108,7 +108,7 @@ public static class ResponseScorer
             ShowScore = showScore,
             Score = score,
             CorrectCount = showScore ? correctCount : 0,
-            WrongCount = showScore ? answeredCount - correctCount : 0,
+            WrongCount = showScore ? answers.Count(a => a.IsCorrect == false) : 0,
             TotalQuestions = questions.Count,
             ScorableQuestions = scorable,
             AnsweredCount = answeredCount,

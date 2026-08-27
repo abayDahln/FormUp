@@ -1,9 +1,33 @@
 import { useState, useEffect, useRef } from 'react';
 import {
     Code, Calculator, Plus, Trash2, ChevronUp, ChevronDown,
-    Type, Sparkles, Copy, Check, Eye, EyeOff
+    Type, Sparkles, Bold, Italic, Underline, Strikethrough,
+    AlignLeft, AlignCenter, AlignRight, AlignJustify,
+    List, ListOrdered, Quote, Link as LinkIcon, RemoveFormatting,
+    Palette, Highlighter
 } from 'lucide-react';
 import RichContentRenderer from '../../utils/RichContentRenderer';
+
+const TEXT_COLORS = [
+    { name: 'Default', value: 'inherit', class: 'bg-slate-800 dark:bg-slate-200' },
+    { name: 'Hitam', value: '#1e293b', class: 'bg-slate-800' },
+    { name: 'Merah', value: '#ef4444', class: 'bg-red-500' },
+    { name: 'Hijau', value: '#10b981', class: 'bg-emerald-500' },
+    { name: 'Teal', value: '#00897b', class: 'bg-[#00897b]' },
+    { name: 'Biru', value: '#3b82f6', class: 'bg-blue-500' },
+    { name: 'Ungu', value: '#8b5cf6', class: 'bg-purple-500' },
+    { name: 'Oranye', value: '#f97316', class: 'bg-orange-500' },
+];
+
+const HIGHLIGHT_COLORS = [
+    { name: 'None', value: 'transparent', class: 'bg-transparent border border-slate-300' },
+    { name: 'Kuning', value: '#fef08a', class: 'bg-yellow-200' },
+    { name: 'Hijau', value: '#bbf7d0', class: 'bg-green-200' },
+    { name: 'Biru', value: '#bfdbfe', class: 'bg-blue-200' },
+    { name: 'Pink', value: '#fbcfe8', class: 'bg-pink-200' },
+    { name: 'Oranye', value: '#fed7aa', class: 'bg-orange-200' },
+    { name: 'Ungu', value: '#e9d5ff', class: 'bg-purple-200' },
+];
 
 /**
  * Parse an HTML or Markdown string into structured content blocks
@@ -14,32 +38,23 @@ function parseStringToBlocks(rawStr) {
     }
 
     const blocks = [];
-    let text = rawStr.trim();
+    const text = rawStr.trim();
 
-    // Check if HTML formatted with <pre><code> or <p>$$...$$</p>
-    const codeHtmlRegex = /<pre><code(?: class="language-([a-zA-Z0-9_#-]+)")?>([\s\S]*?)<\/code><\/pre>/gi;
-    const mathBlockRegex = /<p>\$\$([\s\S]*?)\$\$<\/p>|\$\$([\s\S]*?)\$\$/g;
+    // Combined regex for code blocks, standalone math blocks
+    const combinedRegex = /<pre><code(?: class="language-([a-zA-Z0-9_#-]+)")?>([\s\S]*?)<\/code><\/pre>|```([a-zA-Z0-9_#-]*)\n([\s\S]*?)```|<p>\$\$([\s\S]*?)\$\$<\/p>|\$\$([\s\S]+?)\$\$/gi;
 
-    // Split text by code blocks first
-    const parts = [];
     let lastIndex = 0;
     let match;
-
-    const combinedRegex = /<pre><code(?: class="language-([a-zA-Z0-9_#-]+)")?>([\s\S]*?)<\/code><\/pre>|```([a-zA-Z0-9_#-]*)\n([\s\S]*?)```|<p>\$\$([\s\S]*?)\$\$<\/p>|\$\$([\s\S]+?)\$\$/gi;
 
     while ((match = combinedRegex.exec(text)) !== null) {
         if (match.index > lastIndex) {
             const beforeText = text.substring(lastIndex, match.index).trim();
             if (beforeText) {
-                // Strip wrapping <p>...</p> tags cleanly for editor
-                const cleanText = beforeText.replace(/^<p>/i, '').replace(/<\/p>$/i, '').trim();
-                if (cleanText) {
-                    blocks.push({
-                        id: `b_${Date.now()}_${blocks.length}`,
-                        type: 'text',
-                        content: cleanText
-                    });
-                }
+                blocks.push({
+                    id: `b_${Date.now()}_${blocks.length}`,
+                    type: 'text',
+                    content: beforeText
+                });
             }
         }
 
@@ -67,14 +82,11 @@ function parseStringToBlocks(rawStr) {
     if (lastIndex < text.length) {
         const remaining = text.substring(lastIndex).trim();
         if (remaining) {
-            const cleanText = remaining.replace(/^<p>/i, '').replace(/<\/p>$/i, '').trim();
-            if (cleanText) {
-                blocks.push({
-                    id: `b_${Date.now()}_${blocks.length}`,
-                    type: 'text',
-                    content: cleanText
-                });
-            }
+            blocks.push({
+                id: `b_${Date.now()}_${blocks.length}`,
+                type: 'text',
+                content: remaining
+            });
         }
     }
 
@@ -82,7 +94,7 @@ function parseStringToBlocks(rawStr) {
 }
 
 /**
- * Serialize structured blocks back to standard HTML/Markdown string
+ * Serialize structured blocks back to standard HTML string
  */
 function serializeBlocksToString(blocks) {
     if (!blocks || blocks.length === 0) return '';
@@ -96,18 +108,19 @@ function serializeBlocksToString(blocks) {
             const formula = b.content ? b.content.trim() : '';
             return `<p>$$${formula}$$</p>`;
         }
-        // Text block: support inline KaTeX $formula$ and paragraphs
-        const txt = b.content || '';
-        return `<p>${txt}</p>`;
+        return b.content || '';
     }).join('\n');
 }
 
 export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tuliskan isi pertanyaan...' }) {
     const [blocks, setBlocks] = useState(() => parseStringToBlocks(value));
     const [activeBlockId, setActiveBlockId] = useState(null);
+    const [colorPickerOpen, setColorPickerOpen] = useState(null);
+    const [highlightPickerOpen, setHighlightPickerOpen] = useState(null);
+    const textareaRefs = useRef({});
     const lastEmittedValueRef = useRef(value);
 
-    // Sync external value changes (e.g. template import, form load)
+    // Sync external value changes
     useEffect(() => {
         if (value !== lastEmittedValueRef.current) {
             lastEmittedValueRef.current = value;
@@ -149,7 +162,6 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
 
     const handleDeleteBlock = (id) => {
         if (blocks.length <= 1) {
-            // If only 1 block, clear its content instead of removing
             updateBlocksAndEmit([{ id: `b_${Date.now()}_0`, type: 'text', content: '' }]);
             return;
         }
@@ -165,40 +177,136 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
         updateBlocksAndEmit(next);
     };
 
-    const handleInsertInlineMath = (blockId) => {
+    // WYSIWYG Formatting Helpers for Textarea Selection
+    const applyFormatting = (blockId, formatType, payload = null) => {
+        const textarea = textareaRefs.current[blockId];
         const block = blocks.find(b => b.id === blockId);
-        if (!block || block.type !== 'text') return;
-        const insertFormula = '$x^2 + y^2 = r^2$';
-        const newContent = block.content ? `${block.content} ${insertFormula}` : insertFormula;
+        if (!block) return;
+
+        const currentText = block.content || '';
+        let start = 0;
+        let end = currentText.length;
+
+        if (textarea) {
+            start = textarea.selectionStart;
+            end = textarea.selectionEnd;
+        }
+
+        const hasSelection = start !== end;
+        const selectedText = hasSelection ? currentText.substring(start, end) : '';
+        const fallbackText = selectedText || 'teks';
+
+        let replacement = '';
+
+        switch (formatType) {
+            case 'bold':
+                replacement = `<b>${fallbackText}</b>`;
+                break;
+            case 'italic':
+                replacement = `<i>${fallbackText}</i>`;
+                break;
+            case 'underline':
+                replacement = `<u>${fallbackText}</u>`;
+                break;
+            case 'strike':
+                replacement = `<s>${fallbackText}</s>`;
+                break;
+            case 'color':
+                replacement = payload === 'inherit' 
+                    ? fallbackText 
+                    : `<span style="color: ${payload}">${fallbackText}</span>`;
+                break;
+            case 'highlight':
+                replacement = payload === 'transparent'
+                    ? fallbackText
+                    : `<mark style="background-color: ${payload}; padding: 0 4px; border-radius: 4px;">${fallbackText}</mark>`;
+                break;
+            case 'h2':
+                replacement = `<h2>${fallbackText}</h2>`;
+                break;
+            case 'h3':
+                replacement = `<h3>${fallbackText}</h3>`;
+                break;
+            case 'small':
+                replacement = `<small>${fallbackText}</small>`;
+                break;
+            case 'align':
+                replacement = `<div style="text-align: ${payload};">${fallbackText}</div>`;
+                break;
+            case 'ul':
+                if (hasSelection) {
+                    const items = selectedText.split('\n').filter(Boolean);
+                    replacement = `<ul>\n${items.map(it => `  <li>${it}</li>`).join('\n')}\n</ul>`;
+                } else {
+                    replacement = `<ul>\n  <li>Poin 1</li>\n  <li>Poin 2</li>\n</ul>`;
+                }
+                break;
+            case 'ol':
+                if (hasSelection) {
+                    const items = selectedText.split('\n').filter(Boolean);
+                    replacement = `<ol>\n${items.map(it => `  <li>${it}</li>`).join('\n')}\n</ol>`;
+                } else {
+                    replacement = `<ol>\n  <li>Langkah 1</li>\n  <li>Langkah 2</li>\n</ol>`;
+                }
+                break;
+            case 'quote':
+                replacement = `<blockquote>${fallbackText}</blockquote>`;
+                break;
+            case 'code':
+                replacement = `<code>${fallbackText}</code>`;
+                break;
+            case 'math':
+                replacement = `$${fallbackText || 'x^2 + y^2 = r^2'}$`;
+                break;
+            case 'link': {
+                const url = window.prompt('Masukkan alamat URL tautan (contoh: https://google.com):', 'https://');
+                if (!url) return;
+                replacement = `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #00897b; text-decoration: underline;">${fallbackText || url}</a>`;
+                break;
+            }
+            case 'clear':
+                replacement = fallbackText.replace(/<[^>]*>/g, '');
+                break;
+            default:
+                return;
+        }
+
+        const newContent = currentText.substring(0, start) + replacement + currentText.substring(end);
         handleUpdateBlock(blockId, 'content', newContent);
+
+        setColorPickerOpen(null);
+        setHighlightPickerOpen(null);
+
+        setTimeout(() => {
+            if (textarea) {
+                textarea.focus();
+                textarea.setSelectionRange(start + replacement.length, start + replacement.length);
+            }
+        }, 50);
     };
 
     return (
-        <div className="border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-900/50 p-3 sm:p-4 space-y-3 font-sans">
+        <div className="border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-900/50 p-3 sm:p-4 space-y-3 font-sans transition-colors">
             
             {/* Quick Add Toolbar */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-200/80 dark:border-slate-800">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                    <Sparkles size={12} className="text-[#00897B] dark:text-teal-400" />
-                    Blok Konten Soal
-                </span>
+            <div className="flex flex-wrap items-center justify-end gap-2 pb-2.5 border-b border-slate-200/80 dark:border-slate-800">
 
                 <div className="flex flex-wrap items-center gap-1.5">
                     <button
                         type="button"
                         onClick={() => handleAddBlock('text')}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xs transition-all cursor-pointer"
-                        title="Tambah Paragraf Teks"
+                        title="Tambah Blok Teks Bebas / WYSIWYG"
                     >
                         <Type size={13} className="text-teal-600 dark:text-teal-400" />
-                        <span>+ Teks</span>
+                        <span>+ Teks WYSIWYG</span>
                     </button>
 
                     <button
                         type="button"
                         onClick={() => handleAddBlock('code')}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xs transition-all cursor-pointer"
-                        title="Tambah Blok Kode Terisolasi"
+                        title="Tambah Blok Kode Terisolasi (Syntax Highlighted)"
                     >
                         <Code size={13} className="text-amber-500" />
                         <span>+ Blok Kode</span>
@@ -208,7 +316,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                         type="button"
                         onClick={() => handleAddBlock('math')}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xs transition-all cursor-pointer"
-                        title="Tambah Blok Rumus KaTeX"
+                        title="Tambah Blok Rumus Matematika (KaTeX)"
                     >
                         <Calculator size={13} className="text-[#00897B] dark:text-teal-400" />
                         <span>+ Rumus KaTeX</span>
@@ -217,16 +325,16 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
             </div>
 
             {/* Blocks List */}
-            <div className="space-y-3">
+            <div className="space-y-3.5">
                 {blocks.map((block, idx) => (
                     <div
                         key={block.id}
                         onClick={() => setActiveBlockId(block.id)}
                         className={`relative rounded-2xl border transition-all ${
                             activeBlockId === block.id
-                                ? 'border-[#00897B] dark:border-teal-500 ring-2 ring-teal-500/20 bg-white dark:bg-slate-800 shadow-xs'
+                                ? 'border-[#00897B] dark:border-teal-500 ring-2 ring-teal-500/20 bg-white dark:bg-slate-800 shadow-sm'
                                 : 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-600'
-                        } p-3.5 space-y-2.5`}
+                        } p-3.5 space-y-3`}
                     >
                         {/* Block Header Controls */}
                         <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-2 text-xs">
@@ -236,9 +344,9 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                         ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
                                         : block.type === 'math'
                                         ? 'bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 border border-teal-200 dark:border-teal-800'
-                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold'
                                 }`}>
-                                    {block.type === 'code' ? 'Blok Kode' : block.type === 'math' ? 'Rumus KaTeX' : 'Teks Bebas'}
+                                    {block.type === 'code' ? 'Blok Kode' : block.type === 'math' ? 'Rumus KaTeX' : `Blok Teks #${idx + 1}`}
                                 </span>
 
                                 {block.type === 'code' && (
@@ -261,17 +369,6 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                             </div>
 
                             <div className="flex items-center gap-1">
-                                {block.type === 'text' && (
-                                    <button
-                                        type="button"
-                                        onClick={() => handleInsertInlineMath(block.id)}
-                                        className="text-[11px] font-bold text-[#00897B] dark:text-teal-400 hover:underline px-2 py-0.5 rounded cursor-pointer"
-                                        title="Sisipkan Rumus Inline ($rumus$) di samping teks"
-                                    >
-                                        + Inline $Rumus$
-                                    </button>
-                                )}
-
                                 <button
                                     type="button"
                                     onClick={() => handleMoveBlock(idx, -1)}
@@ -301,25 +398,239 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                             </div>
                         </div>
 
-                        {/* Block Content Editor */}
+                        {/* ── 1. TEXT BLOCK WITH FULL WYSIWYG FORMATTING TOOLBAR ── */}
                         {block.type === 'text' && (
-                            <div className="space-y-1.5">
+                            <div className="space-y-2">
+                                
+                                {/* Rich Formatting Toolbar */}
+                                <div className="flex flex-wrap items-center gap-1 p-1.5 bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300">
+                                    
+                                    {/* Text Styles */}
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'bold')}
+                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                                        title="Tebal (Bold)"
+                                    >
+                                        <Bold size={13} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'italic')}
+                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                                        title="Miring (Italic)"
+                                    >
+                                        <Italic size={13} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'underline')}
+                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                                        title="Garis Bawah (Underline)"
+                                    >
+                                        <Underline size={13} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'strike')}
+                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                                        title="Coret (Strikethrough)"
+                                    >
+                                        <Strikethrough size={13} />
+                                    </button>
+
+                                    <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-0.5" />
+
+                                    {/* Colors & Highlights */}
+                                    <div className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setColorPickerOpen(colorPickerOpen === block.id ? null : block.id);
+                                                setHighlightPickerOpen(null);
+                                            }}
+                                            className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 text-teal-600 dark:text-teal-400 transition-colors flex items-center gap-0.5 cursor-pointer"
+                                            title="Warna Font Teks"
+                                        >
+                                            <Palette size={13} />
+                                        </button>
+
+                                        {colorPickerOpen === block.id && (
+                                            <div className="absolute top-full left-0 mt-1 z-30 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl flex gap-1.5 animate-in fade-in zoom-in-95 duration-100">
+                                                {TEXT_COLORS.map(c => (
+                                                    <button
+                                                        key={c.name}
+                                                        type="button"
+                                                        onClick={() => applyFormatting(block.id, 'color', c.value)}
+                                                        className={`w-5 h-5 rounded-full ${c.class} hover:scale-110 transition-transform cursor-pointer shadow-xs`}
+                                                        title={c.name}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setHighlightPickerOpen(highlightPickerOpen === block.id ? null : block.id);
+                                                setColorPickerOpen(null);
+                                            }}
+                                            className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 text-amber-500 transition-colors flex items-center gap-0.5 cursor-pointer"
+                                            title="Warna Sorot (Highlight Background)"
+                                        >
+                                            <Highlighter size={13} />
+                                        </button>
+
+                                        {highlightPickerOpen === block.id && (
+                                            <div className="absolute top-full left-0 mt-1 z-30 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl flex gap-1.5 animate-in fade-in zoom-in-95 duration-100">
+                                                {HIGHLIGHT_COLORS.map(h => (
+                                                    <button
+                                                        key={h.name}
+                                                        type="button"
+                                                        onClick={() => applyFormatting(block.id, 'highlight', h.value)}
+                                                        className={`w-5 h-5 rounded-full ${h.class} hover:scale-110 transition-transform cursor-pointer shadow-xs`}
+                                                        title={h.name}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-0.5" />
+
+                                    {/* Font Size & Headings */}
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'h2')}
+                                        className="px-1.5 py-1 text-[11px] font-extrabold rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        title="Judul Besar (H2)"
+                                    >
+                                        H2
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'h3')}
+                                        className="px-1.5 py-1 text-[11px] font-extrabold rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        title="Judul Sedang (H3)"
+                                    >
+                                        H3
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'small')}
+                                        className="px-1.5 py-1 text-[10px] font-semibold rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        title="Teks Kecil"
+                                    >
+                                        Kecil
+                                    </button>
+
+                                    <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-0.5" />
+
+                                    {/* Text Alignment */}
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'align', 'left')}
+                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        title="Rata Kiri"
+                                    >
+                                        <AlignLeft size={13} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'align', 'center')}
+                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        title="Rata Tengah"
+                                    >
+                                        <AlignCenter size={13} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'align', 'right')}
+                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        title="Rata Kanan"
+                                    >
+                                        <AlignRight size={13} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'align', 'justify')}
+                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        title="Rata Kiri Kanan (Justify)"
+                                    >
+                                        <AlignJustify size={13} />
+                                    </button>
+
+                                    <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-0.5" />
+
+                                    {/* Lists & Inserts */}
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'ul')}
+                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        title="Daftar Poin (Bullet List)"
+                                    >
+                                        <List size={13} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'ol')}
+                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        title="Daftar Nomor (Numbered List)"
+                                    >
+                                        <ListOrdered size={13} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'quote')}
+                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        title="Kutipan (Blockquote)"
+                                    >
+                                        <Quote size={13} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'link')}
+                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        title="Sisipkan Tautan URL"
+                                    >
+                                        <LinkIcon size={13} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'math')}
+                                        className="px-2 py-1 text-[11px] font-bold text-[#00897B] dark:text-teal-400 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                        title="Sisipkan Rumus Inline ($rumus$)"
+                                    >
+                                        $Rumus$
+                                    </button>
+
+                                    <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-0.5" />
+
+                                    <button
+                                        type="button"
+                                        onClick={() => applyFormatting(block.id, 'clear')}
+                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                                        title="Hapus Format (Clear Formatting)"
+                                    >
+                                        <RemoveFormatting size={13} />
+                                    </button>
+                                </div>
+
+                                {/* Textarea Input */}
                                 <textarea
+                                    ref={el => textareaRefs.current[block.id] = el}
                                     rows={3}
                                     value={block.content || ''}
                                     onChange={e => handleUpdateBlock(block.id, 'content', e.target.value)}
                                     placeholder={placeholder}
-                                    className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white bg-slate-50/50 dark:bg-slate-900/60 focus:outline-none focus:ring-2 focus:ring-[#00897B] resize-y"
+                                    className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00897B] dark:focus:ring-teal-400 resize-y leading-relaxed transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                 />
-                                {block.content && block.content.includes('$') && (
-                                    <div className="px-3 py-2 bg-teal-50/50 dark:bg-teal-950/30 border border-teal-100 dark:border-teal-900 rounded-xl">
-                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5">Pratinjau Inline Math:</p>
-                                        <RichContentRenderer content={block.content} className="text-xs font-semibold" />
-                                    </div>
-                                )}
                             </div>
                         )}
 
+                        {/* ── 2. CODE BLOCK (ISOLATED) ── */}
                         {block.type === 'code' && (
                             <div className="space-y-2">
                                 <div className="relative rounded-xl overflow-hidden bg-slate-950 border border-slate-800">
@@ -332,8 +643,8 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                         spellCheck={false}
                                     />
                                 </div>
-                                <div className="flex items-center justify-between text-[11px] text-slate-400">
-                                    <span>Teks sebelum & sesudah blok kode ini terpisah secara aman.</span>
+                                <div className="flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
+                                    <span>Teks sebelum & sesudah blok kode ini terpisah secara aman tanpa tertelan.</span>
                                     <button
                                         type="button"
                                         onClick={() => handleAddBlock('text', idx)}
@@ -345,6 +656,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                             </div>
                         )}
 
+                        {/* ── 3. MATH BLOCK (KATEX) ── */}
                         {block.type === 'math' && (
                             <div className="space-y-2">
                                 <div className="flex flex-wrap gap-1">

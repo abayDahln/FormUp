@@ -35,7 +35,8 @@ const newQuestion = (order) => ({
     question: '',
     typeId: 2,
     questionOrder: order,
-    isRequired: false,
+    isRequired: true,
+    isScorable: true,
     correctAnswer: '',
     options: [{ optionText: '', isCorrect: false }, { optionText: '', isCorrect: false }],
     questionImage: null,
@@ -114,11 +115,18 @@ export default function FormBuilder() {
             }
 
             if (qRes.ok && Array.isArray(qRes.data) && qRes.data.length > 0) {
-                setQuestions(qRes.data.map((q, i) => ({
-                    ...q,
-                    _id: `q_${q.id}`,
-                    options: q.options || [],
-                })));
+                setQuestions(qRes.data.map((q, i) => {
+                    const hasCorrectOption = (q.options || []).some(o => o.isCorrect === true);
+                    const hasCorrectAnswer = !!(q.correctAnswer && q.correctAnswer.trim());
+                    const isScorable = q.isScorable !== undefined ? q.isScorable : (hasCorrectOption || hasCorrectAnswer);
+
+                    return {
+                        ...q,
+                        _id: `q_${q.id}`,
+                        isScorable: isScorable,
+                        options: q.options || [],
+                    };
+                }));
             } else {
                 setQuestions([newQuestion(1)]);
             }
@@ -130,20 +138,23 @@ export default function FormBuilder() {
 
     const handleSaveQuestions = async () => {
         setSaving(true);
-        const payloadQuestions = questions.map((q, i) => ({
-            typeId: parseInt(q.typeId),
-            question: q.question || '',
-            questionFormat: q.questionFormat || 'text',
-            questionOrder: i + 1,
-            isRequired: q.isRequired,
-            correctAnswer: q.correctAnswer || null,
-            questionImage: q.questionImage || null,
-            questionAudio: q.questionAudio || null,
-            options: (q.options || []).map(opt => ({
-                optionText: opt.optionText || '',
-                isCorrect: !!opt.isCorrect,
-            })),
-        }));
+        const payloadQuestions = questions.map((q, i) => {
+            const scorable = q.isScorable !== false;
+            return {
+                typeId: parseInt(q.typeId),
+                question: q.question || '',
+                questionFormat: q.questionFormat || 'text',
+                questionOrder: i + 1,
+                isRequired: !!q.isRequired,
+                correctAnswer: scorable ? (q.correctAnswer || null) : null,
+                questionImage: q.questionImage || null,
+                questionAudio: q.questionAudio || null,
+                options: (q.options || []).map(opt => ({
+                    optionText: opt.optionText || '',
+                    isCorrect: scorable ? !!opt.isCorrect : false,
+                })),
+            };
+        });
 
         const res = await saveQuestions(id, payloadQuestions);
         setSaving(false);
@@ -155,13 +166,12 @@ export default function FormBuilder() {
                 setQuestions(qRes.data.map((q, i) => ({
                     ...q,
                     _id: questions[i]?._id || `q_${q.id}`,
+                    isScorable: questions[i]?.isScorable ?? ((q.options || []).some(o => o.isCorrect === true) || !!(q.correctAnswer && q.correctAnswer.trim())),
                     options: q.options || [],
                 })));
             }
-            return true;
         } else {
-            showToast(res.message || 'Gagal menyimpan soal', 'error');
-            return false;
+            showToast(res.message || 'Gagal menyimpan soal.', 'error');
         }
     };
 
@@ -473,9 +483,9 @@ export default function FormBuilder() {
                 {/* Sub-Header Tabs */}
                 <div className="flex border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 px-6">
                     {[
-                        { key: 'questions', label: '📝 Pertanyaan & Soal' },
-                        { key: 'settings', label: '⚙️ Pengaturan & Aturan' },
-                        { key: 'share', label: '🔗 Bagikan & Kode QR' },
+                        { key: 'questions', label: 'Pertanyaan & Soal' },
+                        { key: 'settings', label: 'Pengaturan & Aturan' },
+                        { key: 'share', label: 'Bagikan & Kode QR' },
                     ].map(t => (
                         <button
                             key={t.key}
@@ -511,7 +521,7 @@ export default function FormBuilder() {
 
                                 <div>
                                     <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">Deskripsi Formulir</label>
-                                    <SummernoteEditor
+                                    <BlockQuestionEditor
                                         value={form?.description || ''}
                                         onChange={(newHtml) => setForm(f => ({ ...f, description: newHtml }))}
                                         placeholder="Tuliskan petunjuk atau deskripsi umum formulir..."
@@ -696,39 +706,65 @@ export default function FormBuilder() {
                                                 </select>
                                             </div>
 
-                                            <div className="flex items-center justify-end pt-5">
+                                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-end gap-4 pt-1 sm:pt-5">
                                                 <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
                                                     <input
                                                         type="checkbox"
-                                                        checked={q.isRequired}
+                                                        checked={q.isScorable !== false}
+                                                        onChange={e => updateQuestion(idx, 'isScorable', e.target.checked)}
+                                                        className="w-4 h-4 text-[#00897B] rounded cursor-pointer"
+                                                    />
+                                                    <span>Hitung ke Skor (Dinilai)</span>
+                                                </label>
+
+                                                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!q.isRequired}
                                                         onChange={e => updateQuestion(idx, 'isRequired', e.target.checked)}
                                                         className="w-4 h-4 text-[#00897B] rounded cursor-pointer"
                                                     />
-                                                    Soal Wajib Diisi
+                                                    <span>Soal Wajib Diisi</span>
                                                 </label>
                                             </div>
                                         </div>
+
+                                        {/* Non-Scorable Notice */}
+                                        {q.isScorable === false ? (
+                                            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-xl flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                                <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+                                                <span>Soal ini <b>Tidak Dinilai</b> (digunakan untuk pengumpulan data seperti Nama, Email, NIM, atau survei umum). Tidak memerlukan kunci jawaban dan tidak memengaruhi skor.</span>
+                                            </div>
+                                        ) : null}
 
                                         {/* Choices Options (with Formula & Code insertion for Options!) */}
                                         {needsOptions(q.typeId) && (
                                             <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                                                 <div className="flex items-center justify-between">
                                                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Pilihan Jawaban:</label>
-                                                    <span className="text-[11px] text-slate-400 dark:text-slate-500">Centang kotak untuk menandai jawaban benar</span>
+                                                    {q.isScorable !== false && (
+                                                        <span className="text-[11px] text-slate-400 dark:text-slate-500">Centang kotak untuk menandai jawaban benar</span>
+                                                    )}
                                                 </div>
                                                 {q.options.map((opt, oIdx) => (
                                                     <div key={oIdx} className="space-y-1">
                                                         <div className="flex items-center gap-2">
-                                                            <label className="flex items-center gap-1 cursor-pointer">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={opt.isCorrect}
-                                                                    onChange={e => updateOption(idx, oIdx, 'isCorrect', e.target.checked)}
-                                                                    className="w-4 h-4 text-[#00897B] rounded shrink-0 cursor-pointer"
-                                                                    title="Tandai sebagai jawaban benar"
-                                                                />
-                                                                {opt.isCorrect && <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">✓ Benar</span>}
-                                                            </label>
+                                                            {q.isScorable !== false ? (
+                                                                <label className="flex items-center gap-1 cursor-pointer">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={opt.isCorrect}
+                                                                        onChange={e => updateOption(idx, oIdx, 'isCorrect', e.target.checked)}
+                                                                        className="w-4 h-4 text-[#00897B] rounded shrink-0 cursor-pointer"
+                                                                        title="Tandai sebagai jawaban benar"
+                                                                    />
+                                                                    {opt.isCorrect && <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">✓ Benar</span>}
+                                                                </label>
+                                                            ) : (
+                                                                <span className="w-5 h-5 flex items-center justify-center text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 rounded-full shrink-0">
+                                                                    {String.fromCharCode(65 + oIdx)}
+                                                                </span>
+                                                            )}
 
                                                             <div className="flex-1 flex items-center gap-1">
                                                                 <input
@@ -774,8 +810,8 @@ export default function FormBuilder() {
                                             </div>
                                         )}
 
-                                        {/* Answer Key for Essay / Date / True-False */}
-                                        {[1, 4, 5].includes(q.typeId) && (
+                                        {/* Answer Key for Essay / Date / True-False (Only if isScorable !== false) */}
+                                        {q.isScorable !== false && [1, 4, 5].includes(q.typeId) && (
                                             <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                                                 <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">
                                                     Jawaban Benar yang Diharapkan (untuk penilaian otomatis & skor):
