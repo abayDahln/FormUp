@@ -82,8 +82,9 @@ public class AnalyticsController : ControllerBase
             .Select(r => (r.ResponseId, r.QuestionId, r.OptionId, r.AnswerValue))
             .ToList();
 
+        var hasCustomPoints = questions.Any(q => q.Points.HasValue && q.Points.Value > 0 && (!string.IsNullOrEmpty(q.CorrectAnswer) || q.OptionQuestions.Any(o => o.IsCorrect == true)));
         var scoringDivisor = ResponseScorer.GetScoringDivisor(questions);
-        double? averageScore = ComputeAverageScore(questions, scoringDivisor, answerRows);
+        double? averageScore = ComputeAverageScore(questions, scoringDivisor, hasCustomPoints, answerRows);
 
         var respondents = new List<RespondentAnalytics>();
 
@@ -120,9 +121,24 @@ public class AnalyticsController : ControllerBase
                 });
             }
 
-            double? score = scoringDivisor > 0
-                ? Math.Min(100.0, Math.Round((double)correctCount / scoringDivisor * 100, 1))
-                : null;
+            double? score = null;
+            if (hasCustomPoints)
+            {
+                double earned = 0;
+                foreach (var q in questions)
+                {
+                    var answer = response.RespondentAnswers.FirstOrDefault(a => a.QuestionId == q.Id);
+                    if (ResponseScorer.IsAnswerCorrect(answer, q) == true)
+                    {
+                        earned += (q.Points ?? 1);
+                    }
+                }
+                score = Math.Round(earned, 1);
+            }
+            else if (scoringDivisor > 0)
+            {
+                score = Math.Min(100.0, Math.Round((double)correctCount / scoringDivisor * 100, 1));
+            }
 
             respondents.Add(new RespondentAnalytics
             {
@@ -169,15 +185,18 @@ public class AnalyticsController : ControllerBase
     private static double? ComputeAverageScore(
         List<Question> questions,
         int scorableQuestions,
+        bool hasCustomPoints,
         List<(int ResponseId, int QuestionId, int? OptionId, string? AnswerValue)> answerRows)
     {
-        if (scorableQuestions == 0)
+        if (scorableQuestions == 0 && !hasCustomPoints)
             return null;
 
         var correctByText = new Dictionary<int, string>();
         var correctOptionByQuestion = new Dictionary<int, int>();
+        var pointsByQuestion = new Dictionary<int, int>();
         foreach (var q in questions)
         {
+            pointsByQuestion[q.Id] = q.Points ?? 1;
             var option = q.OptionQuestions.FirstOrDefault(o => o.IsCorrect == true);
             if (option != null)
                 correctOptionByQuestion[q.Id] = option.Id;
@@ -189,21 +208,34 @@ public class AnalyticsController : ControllerBase
         foreach (var group in answerRows.GroupBy(a => a.ResponseId))
         {
             var correctCount = 0;
+            double earnedPoints = 0;
             foreach (var row in group)
             {
+                var isCorr = false;
                 if (correctOptionByQuestion.TryGetValue(row.QuestionId, out var correctId))
                 {
-                    if (row.OptionId == correctId)
-                        correctCount++;
+                    if (row.OptionId == correctId) isCorr = true;
                 }
                 else if (correctByText.TryGetValue(row.QuestionId, out var key))
                 {
-                    if (string.Equals(row.AnswerValue?.Trim(), key, StringComparison.OrdinalIgnoreCase))
-                        correctCount++;
+                    if (string.Equals(row.AnswerValue?.Trim(), key, StringComparison.OrdinalIgnoreCase)) isCorr = true;
+                }
+
+                if (isCorr)
+                {
+                    correctCount++;
+                    earnedPoints += pointsByQuestion.TryGetValue(row.QuestionId, out var pt) ? pt : 1;
                 }
             }
 
-            scores.Add(Math.Min(100.0, Math.Round((double)correctCount / scorableQuestions * 100, 1)));
+            if (hasCustomPoints)
+            {
+                scores.Add(Math.Round(earnedPoints, 1));
+            }
+            else if (scorableQuestions > 0)
+            {
+                scores.Add(Math.Min(100.0, Math.Round((double)correctCount / scorableQuestions * 100, 1)));
+            }
         }
 
         return scores.Count > 0 ? Math.Round(scores.Average(), 1) : null;

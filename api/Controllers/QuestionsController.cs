@@ -204,10 +204,8 @@ public class QuestionsController : ControllerBase
 
             foreach (var item in request.Questions)
             {
-                if (string.IsNullOrWhiteSpace(item.Question))
-                    continue;
-
-                if (!RichTextValidation.TryValidate(item.Question, out var formatError))
+                var questionText = item.Question ?? "";
+                if (!string.IsNullOrWhiteSpace(questionText) && !RichTextValidation.TryValidate(questionText, out var formatError))
                     return BadRequest(new ApiResponse<object>(400, formatError ?? "Konten pertanyaan tidak valid"));
 
                 Question question;
@@ -215,14 +213,15 @@ public class QuestionsController : ControllerBase
                 {
                     question = existing;
                     question.TypeId = item.TypeId;
-                    question.Question1 = item.Question;
-                    question.QuestionFormat = RichTextValidation.FormatOf(item.Question);
+                    question.Question1 = questionText;
+                    question.QuestionFormat = RichTextValidation.FormatOf(questionText);
                     question.QuestionOrder = item.QuestionOrder ?? question.QuestionOrder;
                     question.QuestionImage = item.QuestionImage;
                     question.QuestionAudio = item.QuestionAudio;
                     question.IsRequired = item.IsRequired ?? false;
                     question.CorrectAnswer = item.CorrectAnswer;
                     question.RandomizeOptions = item.RandomizeOptions ?? false;
+                    question.Points = item.Points;
                     question.UpdatedAt = JakartaTime.Now;
                 }
                 else
@@ -231,14 +230,15 @@ public class QuestionsController : ControllerBase
                     {
                         FormId = formId,
                         TypeId = item.TypeId,
-                        Question1 = item.Question,
-                        QuestionFormat = RichTextValidation.FormatOf(item.Question),
+                        Question1 = questionText,
+                        QuestionFormat = RichTextValidation.FormatOf(questionText),
                         QuestionOrder = item.QuestionOrder ?? ++nextOrder,
                         QuestionImage = item.QuestionImage,
                         QuestionAudio = item.QuestionAudio,
                         IsRequired = item.IsRequired ?? false,
                         CorrectAnswer = item.CorrectAnswer,
                         RandomizeOptions = item.RandomizeOptions ?? false,
+                        Points = item.Points,
                         CreatedAt = JakartaTime.Now,
                     };
 
@@ -580,12 +580,32 @@ public class QuestionsController : ControllerBase
                 {
                     // Pakai navigation property (bukan QuestionId) supaya EF Core
                     // mengisi FK otomatis setelah Id soal ter-generate saat SaveChanges.
-                    var options = row.Options.Select((opt, i) => new OptionQuestion
+                    var options = row.Options.Select((opt, i) =>
                     {
-                        Question = question,
-                        OptionText = opt,
-                        OptionOrder = i + 1,
-                        CreatedAt = JakartaTime.Now,
+                        var cleanOpt = opt.Trim();
+                        var isCorrect = false;
+                        if (!string.IsNullOrWhiteSpace(row.CorrectAnswer))
+                        {
+                            var ca = row.CorrectAnswer.Trim();
+                            if (string.Equals(cleanOpt, ca, StringComparison.OrdinalIgnoreCase))
+                                isCorrect = true;
+                            else if (cleanOpt.Length > 3 && (cleanOpt[1] == '.' || cleanOpt[1] == ')') &&
+                                     string.Equals(cleanOpt[2..].Trim(), ca, StringComparison.OrdinalIgnoreCase))
+                                isCorrect = true;
+                            else if (ca.Length >= 1 && char.ToUpper(ca[0]) >= 'A' && char.ToUpper(ca[0]) - 'A' == i)
+                                isCorrect = true;
+                            else if (int.TryParse(ca, out var num) && num == i + 1)
+                                isCorrect = true;
+                        }
+
+                        return new OptionQuestion
+                        {
+                            Question = question,
+                            OptionText = cleanOpt,
+                            OptionOrder = i + 1,
+                            IsCorrect = isCorrect,
+                            CreatedAt = JakartaTime.Now,
+                        };
                     }).ToList();
 
                     _db.OptionQuestions.AddRange(options);
@@ -797,6 +817,7 @@ public class QuestionsController : ControllerBase
         IsRequired = q.IsRequired,
         CorrectAnswer = q.CorrectAnswer,
         RandomizeOptions = q.RandomizeOptions,
+        Points = q.Points,
         Options = (q.OptionQuestions ?? []).OrderBy(o => o.OptionOrder).Select(o => new OptionResponse
         {
             Id = o.Id,
@@ -866,6 +887,30 @@ public class QuestionsController : ControllerBase
         return errors;
     }
 
+    private static int ResolveTypeId(string? val, int optionsCount)
+    {
+        if (!string.IsNullOrWhiteSpace(val))
+        {
+            var clean = val.Trim().ToLowerInvariant().Replace("_", " ").Replace("-", " ");
+            if (int.TryParse(clean, out var id) && id >= 1 && id <= 5)
+                return id;
+            if (clean.Contains("essay") || clean.Contains("esai") || clean.Contains("text") || clean.Contains("teks"))
+                return 1;
+            if (clean.Contains("pilihan ganda") || clean.Contains("multiple choice") || clean.Contains("pg") || clean.Contains("pilihan") || clean.Contains("option"))
+                return 2;
+            if (clean.Contains("checkbox") || clean.Contains("centang") || clean.Contains("kotak"))
+                return 3;
+            if (clean.Contains("date") || clean.Contains("waktu") || clean.Contains("tanggal"))
+                return 4;
+            if (clean.Contains("true") || clean.Contains("benar") || clean.Contains("salah") || clean.Contains("false"))
+                return 5;
+        }
+        return optionsCount > 0 ? 2 : 1;
+    }
+
+    private static string NormalizeKey(string k) =>
+        System.Text.RegularExpressions.Regex.Replace(k.ToLowerInvariant(), @"[^a-z0-9]", "");
+
     private static List<ImportRow> ParseExcel(Stream stream)
     {
         using var workbook = new XLWorkbook(stream);
@@ -876,53 +921,97 @@ public class QuestionsController : ControllerBase
         var colMap = new Dictionary<string, int>();
         foreach (var cell in headerRow.CellsUsed())
         {
-            var key = cell.GetString().Trim().ToLowerInvariant();
-            colMap[key] = cell.Address.ColumnNumber;
+            var raw = cell.GetString().Trim();
+            if (string.IsNullOrEmpty(raw)) continue;
+            var norm = NormalizeKey(raw);
+            colMap[norm] = cell.Address.ColumnNumber;
         }
+
+        int FindCol(params string[] aliases)
+        {
+            foreach (var a in aliases)
+            {
+                var norm = NormalizeKey(a);
+                if (colMap.TryGetValue(norm, out var col)) return col;
+            }
+            return 0;
+        }
+
+        var qCol = FindCol("question", "pertanyaan", "soal", "teksoal", "q");
+        var tCol = FindCol("type_id", "type", "tipe", "tipesoal", "jenissoal", "jenis");
+        var oCol = FindCol("order", "no", "nomor", "urutan");
+        var rCol = FindCol("is_required", "required", "wajib", "wajibdiisi");
+        var randCol = FindCol("randomize_options", "acakpilihan", "acakopsi", "acak");
+        var caCol = FindCol("correct_answer", "jawabanbenar", "kuncijawaban", "kunci", "answer");
+        var optCol = FindCol("options", "pilihan", "opsi", "pilihanjawaban", "opsijawaban");
+
+        var optACol = FindCol("option_a", "pilihan_a", "opsi_a", "a");
+        var optBCol = FindCol("option_b", "pilihan_b", "opsi_b", "b");
+        var optCCol = FindCol("option_c", "pilihan_c", "opsi_c", "c");
+        var optDCol = FindCol("option_d", "pilihan_d", "opsi_d", "d");
+        var optECol = FindCol("option_e", "pilihan_e", "opsi_e", "e");
 
         foreach (var row in sheet.RowsUsed().Skip(1))
         {
             var importRow = new ImportRow { RowNumber = row.RowNumber() };
 
-            if (colMap.TryGetValue("question", out var qCol))
+            if (qCol > 0)
                 importRow.Question = row.Cell(qCol).GetString().Trim();
 
-            if (colMap.TryGetValue("type_id", out var tCol))
-            {
-                var val = row.Cell(tCol).GetString().Trim();
-                if (int.TryParse(val, out var typeId))
-                    importRow.TypeId = typeId;
-            }
+            string? typeRaw = null;
+            if (tCol > 0)
+                typeRaw = row.Cell(tCol).GetString().Trim();
 
-            if (colMap.TryGetValue("order", out var oCol))
+            if (oCol > 0)
             {
                 var val = row.Cell(oCol).GetString().Trim();
                 if (int.TryParse(val, out var order))
                     importRow.Order = order;
             }
 
-            if (colMap.TryGetValue("is_required", out var rCol))
+            if (rCol > 0)
             {
                 var val = row.Cell(rCol).GetString().Trim().ToLowerInvariant();
-                importRow.IsRequired = val is "true" or "1" or "yes";
+                importRow.IsRequired = val is "true" or "1" or "yes" or "ya";
             }
 
-            if (colMap.TryGetValue("randomize_options", out var randCol))
+            if (randCol > 0)
             {
                 var val = row.Cell(randCol).GetString().Trim().ToLowerInvariant();
-                importRow.RandomizeOptions = val is "true" or "1" or "yes";
+                importRow.RandomizeOptions = val is "true" or "1" or "yes" or "ya";
             }
 
-            if (colMap.TryGetValue("correct_answer", out var caCol))
+            if (caCol > 0)
                 importRow.CorrectAnswer = row.Cell(caCol).GetString().Trim();
 
-            if (colMap.TryGetValue("options", out var optCol))
+            if (optCol > 0)
             {
                 var raw = row.Cell(optCol).GetString().Trim();
-                importRow.Options = raw.Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
+                if (!string.IsNullOrEmpty(raw))
+                {
+                    importRow.Options = raw.Split(new[] { '|', '\n', ';' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
+                }
             }
 
-            rows.Add(importRow);
+            // Also check individual option columns if options column is empty
+            if (importRow.Options.Count == 0)
+            {
+                var extraOpts = new List<string>();
+                foreach (var colIdx in new[] { optACol, optBCol, optCCol, optDCol, optECol })
+                {
+                    if (colIdx > 0)
+                    {
+                        var optText = row.Cell(colIdx).GetString().Trim();
+                        if (!string.IsNullOrEmpty(optText)) extraOpts.Add(optText);
+                    }
+                }
+                if (extraOpts.Count > 0) importRow.Options = extraOpts;
+            }
+
+            importRow.TypeId = ResolveTypeId(typeRaw, importRow.Options.Count);
+
+            if (!string.IsNullOrWhiteSpace(importRow.Question) || importRow.Options.Count > 0)
+                rows.Add(importRow);
         }
 
         return rows;
@@ -936,8 +1025,37 @@ public class QuestionsController : ControllerBase
         var headerLine = reader.ReadLine();
         if (headerLine == null) return rows;
 
-        var headers = headerLine.Split(',').Select(h => h.Trim().ToLowerInvariant()).ToList();
-        var colMap = headers.Select((h, i) => new { h, i }).ToDictionary(x => x.h, x => x.i);
+        var rawHeaders = ParseCsvLine(headerLine);
+        var colMap = new Dictionary<string, int>();
+        for (var i = 0; i < rawHeaders.Count; i++)
+        {
+            var norm = NormalizeKey(rawHeaders[i]);
+            if (!string.IsNullOrEmpty(norm)) colMap[norm] = i;
+        }
+
+        int FindIdx(params string[] aliases)
+        {
+            foreach (var a in aliases)
+            {
+                var norm = NormalizeKey(a);
+                if (colMap.TryGetValue(norm, out var idx)) return idx;
+            }
+            return -1;
+        }
+
+        var qIdx = FindIdx("question", "pertanyaan", "soal", "teksoal", "q");
+        var tIdx = FindIdx("type_id", "type", "tipe", "tipesoal", "jenissoal", "jenis");
+        var oIdx = FindIdx("order", "no", "nomor", "urutan");
+        var rIdx = FindIdx("is_required", "required", "wajib", "wajibdiisi");
+        var randIdx = FindIdx("randomize_options", "acakpilihan", "acakopsi", "acak");
+        var caIdx = FindIdx("correct_answer", "jawabanbenar", "kuncijawaban", "kunci", "answer");
+        var optIdx = FindIdx("options", "pilihan", "opsi", "pilihanjawaban", "opsijawaban");
+
+        var optAIdx = FindIdx("option_a", "pilihan_a", "opsi_a", "a");
+        var optBIdx = FindIdx("option_b", "pilihan_b", "opsi_b", "b");
+        var optCIdx = FindIdx("option_c", "pilihan_c", "opsi_c", "c");
+        var optDIdx = FindIdx("option_d", "pilihan_d", "opsi_d", "d");
+        var optEIdx = FindIdx("option_e", "pilihan_e", "opsi_e", "e");
 
         var lineNum = 1;
         while (!reader.EndOfStream)
@@ -949,42 +1067,61 @@ public class QuestionsController : ControllerBase
             var values = ParseCsvLine(line);
             var importRow = new ImportRow { RowNumber = lineNum };
 
-            if (colMap.TryGetValue("question", out var qIdx) && qIdx < values.Count)
+            if (qIdx >= 0 && qIdx < values.Count)
                 importRow.Question = values[qIdx].Trim();
 
-            if (colMap.TryGetValue("type_id", out var tIdx) && tIdx < values.Count)
-            {
-                if (int.TryParse(values[tIdx].Trim(), out var typeId))
-                    importRow.TypeId = typeId;
-            }
+            string? typeRaw = null;
+            if (tIdx >= 0 && tIdx < values.Count)
+                typeRaw = values[tIdx].Trim();
 
-            if (colMap.TryGetValue("order", out var oIdx) && oIdx < values.Count)
+            if (oIdx >= 0 && oIdx < values.Count)
             {
                 if (int.TryParse(values[oIdx].Trim(), out var order))
                     importRow.Order = order;
             }
 
-            if (colMap.TryGetValue("is_required", out var rIdx) && rIdx < values.Count)
+            if (rIdx >= 0 && rIdx < values.Count)
             {
                 var val = values[rIdx].Trim().ToLowerInvariant();
-                importRow.IsRequired = val is "true" or "1" or "yes";
+                importRow.IsRequired = val is "true" or "1" or "yes" or "ya";
             }
 
-            if (colMap.TryGetValue("randomize_options", out var randIdx) && randIdx < values.Count)
+            if (randIdx >= 0 && randIdx < values.Count)
             {
                 var val = values[randIdx].Trim().ToLowerInvariant();
-                importRow.RandomizeOptions = val is "true" or "1" or "yes";
+                importRow.RandomizeOptions = val is "true" or "1" or "yes" or "ya";
             }
 
-            if (colMap.TryGetValue("correct_answer", out var caIdx) && caIdx < values.Count)
+            if (caIdx >= 0 && caIdx < values.Count)
                 importRow.CorrectAnswer = values[caIdx].Trim();
 
-            if (colMap.TryGetValue("options", out var optIdx) && optIdx < values.Count)
+            if (optIdx >= 0 && optIdx < values.Count)
             {
-                importRow.Options = values[optIdx].Trim().Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
+                var raw = values[optIdx].Trim();
+                if (!string.IsNullOrEmpty(raw))
+                {
+                    importRow.Options = raw.Split(new[] { '|', '\n', ';' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
+                }
             }
 
-            rows.Add(importRow);
+            if (importRow.Options.Count == 0)
+            {
+                var extraOpts = new List<string>();
+                foreach (var idx in new[] { optAIdx, optBIdx, optCIdx, optDIdx, optEIdx })
+                {
+                    if (idx >= 0 && idx < values.Count)
+                    {
+                        var optText = values[idx].Trim();
+                        if (!string.IsNullOrEmpty(optText)) extraOpts.Add(optText);
+                    }
+                }
+                if (extraOpts.Count > 0) importRow.Options = extraOpts;
+            }
+
+            importRow.TypeId = ResolveTypeId(typeRaw, importRow.Options.Count);
+
+            if (!string.IsNullOrWhiteSpace(importRow.Question) || importRow.Options.Count > 0)
+                rows.Add(importRow);
         }
 
         return rows;

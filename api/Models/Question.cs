@@ -26,7 +26,7 @@ public partial class Question
     public string? CorrectAnswer { get; set; }
 
     public bool? RandomizeOptions { get; set; }
-
+    public int? Points { get; set; }
     public DateTime? CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }

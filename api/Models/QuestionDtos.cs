@@ -19,6 +19,7 @@ public class QuestionResponse
     public bool? IsRequired { get; set; }
     public string? CorrectAnswer { get; set; }
     public bool? RandomizeOptions { get; set; }
+    public int? Points { get; set; }
     public List<OptionResponse> Options { get; set; } = new();
     public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
@@ -50,6 +51,7 @@ public class QuestionItem
     public bool? IsRequired { get; set; }
     public string? CorrectAnswer { get; set; }
     public bool? RandomizeOptions { get; set; }
+    public int? Points { get; set; }
     public List<CreateOptionRequest>? Options { get; set; }
 }
 

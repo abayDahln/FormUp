@@ -238,6 +238,7 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.RandomizeOptions)
                 .HasDefaultValue(false)
                 .HasColumnName("randomize_options");
+            entity.Property(e => e.Points).HasColumnName("points");
             entity.Property(e => e.TypeId).HasColumnName("type_id");
             entity.Property(e => e.UpdatedAt)
                 .HasColumnType("datetime")

@@ -130,6 +130,31 @@ public class FormsController : ControllerBase
         return Ok(new ApiResponse<object>(200, "Form deleted"));
     }
 
+    [HttpPost("bulk-delete")]
+    public async Task<ActionResult<ApiResponse<object>>> BulkDelete([FromBody] BulkDeleteFormsRequest request)
+    {
+        var user = await GetCurrentUser();
+        if (user == null)
+            return Unauthorized(new ApiResponse<object>(401, "User not found"));
+
+        if (request.FormIds == null || request.FormIds.Count == 0)
+            return BadRequest(new ApiResponse<object>(400, "No form IDs provided"));
+
+        var forms = await _db.Forms
+            .Where(f => request.FormIds.Contains(f.Id) && f.UserId == user.Id && f.DeletedAt == null)
+            .ToListAsync();
+
+        var now = JakartaTime.Now;
+        foreach (var form in forms)
+        {
+            form.DeletedAt = now;
+            form.UpdatedAt = now;
+        }
+
+        await _db.SaveChangesAsync();
+        return Ok(new ApiResponse<object>(200, $"{forms.Count} forms deleted"));
+    }
+
     [HttpPut("{id}")]
     public async Task<ActionResult<ApiResponse<object>>> Update(int id, [FromBody] UpdateFormRequest request)
     {

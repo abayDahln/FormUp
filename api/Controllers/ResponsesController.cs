@@ -314,8 +314,14 @@ public class ResponsesController : ControllerBase
             writer.WriteLine($",{r.Status?.Status ?? "unknown"}");
         }
 
-        var csvBytes = System.Text.Encoding.UTF8.GetBytes(writer.ToString());
-        return File(csvBytes, "text/csv", $"responses-form-{formId}.csv");
+        var csvText = writer.ToString();
+        var preamble = System.Text.Encoding.UTF8.GetPreamble();
+        var textBytes = System.Text.Encoding.UTF8.GetBytes(csvText);
+        var csvBytes = new byte[preamble.Length + textBytes.Length];
+        Buffer.BlockCopy(preamble, 0, csvBytes, 0, preamble.Length);
+        Buffer.BlockCopy(textBytes, 0, csvBytes, preamble.Length, textBytes.Length);
+
+        return File(csvBytes, "text/csv; charset=utf-8", $"responses-form-{formId}.csv");
     }
 
     private async Task<User?> GetCurrentUser()
@@ -329,9 +335,10 @@ public class ResponsesController : ControllerBase
 
     private static string EscapeCsv(string? value)
     {
-        if (string.IsNullOrEmpty(value)) return "";
-        if (value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
-            return $"\"{value.Replace("\"", "\"\"")}\"";
-        return value;
+        if (string.IsNullOrEmpty(value)) return "\"\"";
+        // Strip HTML tags and clean up internal line breaks
+        var clean = System.Text.RegularExpressions.Regex.Replace(value, "<.*?>", string.Empty);
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"[\r\n]+", " ").Trim();
+        return $"\"{clean.Replace("\"", "\"\"")}\"";
     }
 }

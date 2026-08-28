@@ -95,10 +95,32 @@ public static class ResponseScorer
             });
         }
 
-        var scoringDivisor = GetScoringDivisor(questions);
-        double? score = showScore && scoringDivisor > 0
-            ? Math.Min(100.0, Math.Round((double)correctCount / scoringDivisor * 100, 1))
-            : null;
+        var hasCustomPoints = questions.Any(q => q.Points.HasValue && q.Points.Value > 0 && (!string.IsNullOrEmpty(q.CorrectAnswer) || q.OptionQuestions.Any(o => o.IsCorrect == true)));
+
+        double? score = null;
+        if (showScore)
+        {
+            if (hasCustomPoints)
+            {
+                double earnedPoints = 0;
+                foreach (var q in questions)
+                {
+                    var ansRow = response.RespondentAnswers.FirstOrDefault(a => a.QuestionId == q.Id);
+                    if (IsAnswerCorrect(ansRow, q) == true)
+                    {
+                        earnedPoints += (q.Points ?? 1);
+                    }
+                }
+                score = Math.Round(earnedPoints, 1);
+            }
+            else
+            {
+                var scoringDivisor = GetScoringDivisor(questions);
+                score = scoringDivisor > 0
+                    ? Math.Min(100.0, Math.Round((double)correctCount / scoringDivisor * 100, 1))
+                    : null;
+            }
+        }
 
         return new ResponseResult
         {

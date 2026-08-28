@@ -26,11 +26,28 @@ public class PublicFormsController : ControllerBase
     {
         var form = await ResolveFormAsync(formLink);
         if (form == null)
-            return NotFound(new ApiResponse<object>(404, "Form tidak ditemukan"));
+            return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
 
         var isOwner = User.Identity?.IsAuthenticated == true
             && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid)
             && form.UserId == uid;
+
+        var alreadySubmitted = false;
+        int? previousResponseId = null;
+
+        if (form.FormSetting?.OneResponse == true && User.Identity?.IsAuthenticated == true && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var currentUid))
+        {
+            var prevResponse = await _db.Responses
+                .Where(r => r.FormId == form.Id && r.RespondentId == currentUid)
+                .OrderByDescending(r => r.SubmittedAt)
+                .FirstOrDefaultAsync();
+
+            if (prevResponse != null)
+            {
+                alreadySubmitted = true;
+                previousResponseId = prevResponse.Id;
+            }
+        }
 
         var questionCount = await _db.Questions
             .CountAsync(q => q.FormId == form.Id && q.DeletedAt == null);
@@ -45,6 +62,8 @@ public class PublicFormsController : ControllerBase
             RequiresToken = !string.IsNullOrEmpty(form.FormSetting?.FormToken),
             RequiresLogin = form.FormSetting?.RequiredLogin == true,
             OneResponse = form.FormSetting?.OneResponse == true,
+            AlreadySubmitted = alreadySubmitted,
+            PreviousResponseId = previousResponseId,
             IsOwner = isOwner,
             FormTypeId = form.FormSetting?.FormTypeId,
             ShowScore = form.FormSetting?.ShowScore,
@@ -63,9 +82,9 @@ public class PublicFormsController : ControllerBase
     {
         var form = await ResolveFormAsync(formLink);
         if (form == null)
-            return NotFound(new ApiResponse<object>(404, "Form tidak ditemukan"));
+            return NotFound(new ApiResponse<object>(404, "Form not found or unavailable"));
 
-        var accessError = CheckAccess(form, request.Token);
+        var accessError = await CheckAccessAsync(form, request.Token);
         if (accessError != null)
             return accessError;
 
@@ -183,7 +202,7 @@ public class PublicFormsController : ControllerBase
         return Ok(new ApiResponse<object>(200, "OK", attempts));
     }
 
-    private ActionResult? CheckAccess(Form form, string? token)
+    private async Task<ActionResult?> CheckAccessAsync(Form form, string? token)
     {
         if (User.Identity?.IsAuthenticated == true
             && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid)
@@ -192,6 +211,13 @@ public class PublicFormsController : ControllerBase
 
         if (form.FormSetting?.RequiredLogin == true && User.Identity?.IsAuthenticated != true)
             return Unauthorized(new ApiResponse<object>(401, "Login required to access this form"));
+
+        if (form.FormSetting?.OneResponse == true && User.Identity?.IsAuthenticated == true && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var currentUid))
+        {
+            var alreadySubmitted = await _db.Responses.AnyAsync(r => r.FormId == form.Id && r.RespondentId == currentUid);
+            if (alreadySubmitted)
+                return BadRequest(new ApiResponse<object>(400, "Anda sudah pernah mengerjakan formulir ini (hanya 1 kali pengerjaan)"));
+        }
 
         if (!string.IsNullOrEmpty(form.FormSetting?.FormToken))
         {
@@ -243,6 +269,7 @@ public class PublicFormsController : ControllerBase
             IsRequired = q.IsRequired,
             CorrectAnswer = null,
             RandomizeOptions = q.RandomizeOptions,
+            Points = q.Points,
             Options = options.Select(o => new OptionResponse
             {
                 Id = o.Id,

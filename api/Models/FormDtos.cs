@@ -17,6 +17,11 @@ public class CreateFormRequest
     public string? BannerImage { get; set; }
 }
 
+public class BulkDeleteFormsRequest
+{
+    public List<int> FormIds { get; set; } = new();
+}
+
 public class FormResponse
 {
     public int Id { get; set; }
@@ -72,24 +77,26 @@ public class UpdateFormSettingsRequest
 }
 
 public class PublicFormDetails
-{
-    public int Id { get; set; }
-    public string Title { get; set; } = null!;
-    public string? Description { get; set; }
-    public string? DescriptionFormat { get; set; }
-    public string? BannerImage { get; set; }
-    public bool RequiresToken { get; set; }
-    public bool RequiresLogin { get; set; }
-    public bool OneResponse { get; set; }
-    public bool IsOwner { get; set; }
-    public int? FormTypeId { get; set; }
-    public bool? ShowScore { get; set; }
-    public int? TimerDuration { get; set; }
-    public bool? RandomizeQuestions { get; set; }
-    public DateTime? OpenFormTime { get; set; }
-    public DateTime? CloseFormTime { get; set; }
-    public int QuestionCount { get; set; }
-}
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = null!;
+        public string? Description { get; set; }
+        public string? DescriptionFormat { get; set; }
+        public string? BannerImage { get; set; }
+        public bool RequiresToken { get; set; }
+        public bool RequiresLogin { get; set; }
+        public bool OneResponse { get; set; }
+        public bool AlreadySubmitted { get; set; }
+        public int? PreviousResponseId { get; set; }
+        public bool IsOwner { get; set; }
+        public int? FormTypeId { get; set; }
+        public bool? ShowScore { get; set; }
+        public int? TimerDuration { get; set; }
+        public bool? RandomizeQuestions { get; set; }
+        public DateTime? OpenFormTime { get; set; }
+        public DateTime? CloseFormTime { get; set; }
+        public int QuestionCount { get; set; }
+    }
 
 public class PublicQuestionsRequest
 {

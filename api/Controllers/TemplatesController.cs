@@ -29,10 +29,10 @@ public class TemplatesController : ControllerBase
     private IActionResult DownloadCsv()
     {
         var csv = "question,type_id,order,is_required,randomize_options,correct_answer,options" + Environment.NewLine +
-                  "Apa warna langit?,1,1,TRUE,FALSE,,Biru|Hijau|Merah" + Environment.NewLine +
-                  "Siapa presiden pertama RI?,1,2,TRUE,FALSE,Soekarno,Soekarno|Hatta|Suharto" + Environment.NewLine +
-                  "2+2 berapa?,3,3,TRUE,FALSE,4," + Environment.NewLine +
-                  "Jelaskan dampak pemanasan global,4,4,FALSE,FALSE,,";
+                  "Apa warna langit?,2,1,TRUE,FALSE,Biru,Biru|Hijau|Merah" + Environment.NewLine +
+                  "Siapa presiden pertama RI?,2,2,TRUE,FALSE,Soekarno,Soekarno|Hatta|Suharto" + Environment.NewLine +
+                  "2+2 berapa?,1,3,TRUE,FALSE,4," + Environment.NewLine +
+                  "Jelaskan dampak pemanasan global,1,4,FALSE,FALSE,,";
 
         return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", "import-questions-template.csv");
     }
@@ -51,15 +51,15 @@ public class TemplatesController : ControllerBase
         sheet.Cell(1, 7).Value = "options";
 
         sheet.Cell(2, 1).Value = "Apa warna langit?";
-        sheet.Cell(2, 2).Value = 1;
+        sheet.Cell(2, 2).Value = 2;
         sheet.Cell(2, 3).Value = 1;
         sheet.Cell(2, 4).Value = "TRUE";
         sheet.Cell(2, 5).Value = "FALSE";
-        sheet.Cell(2, 6).Value = "";
+        sheet.Cell(2, 6).Value = "Biru";
         sheet.Cell(2, 7).Value = "Biru|Hijau|Merah";
 
         sheet.Cell(3, 1).Value = "Siapa presiden pertama RI?";
-        sheet.Cell(3, 2).Value = 1;
+        sheet.Cell(3, 2).Value = 2;
         sheet.Cell(3, 3).Value = 2;
         sheet.Cell(3, 4).Value = "TRUE";
         sheet.Cell(3, 5).Value = "FALSE";
@@ -67,7 +67,7 @@ public class TemplatesController : ControllerBase
         sheet.Cell(3, 7).Value = "Soekarno|Hatta|Suharto";
 
         sheet.Cell(4, 1).Value = "2+2 berapa?";
-        sheet.Cell(4, 2).Value = 3;
+        sheet.Cell(4, 2).Value = 1;
         sheet.Cell(4, 3).Value = 3;
         sheet.Cell(4, 4).Value = "TRUE";
         sheet.Cell(4, 5).Value = "FALSE";
@@ -75,7 +75,7 @@ public class TemplatesController : ControllerBase
         sheet.Cell(4, 7).Value = "";
 
         sheet.Cell(5, 1).Value = "Jelaskan dampak pemanasan global";
-        sheet.Cell(5, 2).Value = 4;
+        sheet.Cell(5, 2).Value = 1;
         sheet.Cell(5, 3).Value = 4;
         sheet.Cell(5, 4).Value = "FALSE";
         sheet.Cell(5, 5).Value = "FALSE";
@@ -102,22 +102,23 @@ public class TemplatesController : ControllerBase
         {
             "Question: Apa warna langit?",
             "Options: Biru | Hijau | Merah",
-            "Type ID: 1",
+            "Type ID: 2",
             "Is Required: true",
+            "Correct Answer: Biru",
             "",
             "Question: Siapa presiden pertama RI?",
             "Options: Soekarno | Hatta | Suharto",
-            "Type ID: 1",
+            "Type ID: 2",
             "Is Required: true",
             "Correct Answer: Soekarno",
             "",
             "Question: 2+2 berapa?",
-            "Type ID: 3",
+            "Type ID: 1",
             "Is Required: true",
             "Correct Answer: 4",
             "",
             "Question: Jelaskan dampak pemanasan global",
-            "Type ID: 4",
+            "Type ID: 1",
         };
 
         foreach (var line in lines)
