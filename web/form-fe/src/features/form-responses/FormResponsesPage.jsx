@@ -126,6 +126,56 @@ export default function FormResponsesPage() {
         setTimeout(() => setToast(null), 3000);
     };
 
+    const persistOverrides = (newOverrides) => {
+        setScoreOverrides(newOverrides);
+        try {
+            localStorage.setItem(`formup_scores_${id}`, JSON.stringify(newOverrides));
+        } catch (e) {
+            console.error('Error saving score overrides:', e);
+        }
+    };
+
+    // Merge respondent data from analytics with response list and apply score overrides
+    const respondentsList = useMemo(() => {
+        const rawList = analytics?.respondents && analytics.respondents.length > 0
+            ? analytics.respondents
+            : (responses || []).map(r => ({
+                responseId: r.id,
+                respondentName: r.respondentName,
+                submittedAt: r.submittedAt,
+                status: r.status,
+                answeredCount: 0,
+                totalQuestions: 0,
+                correctCount: 0,
+                wrongCount: 0,
+                score: null,
+                answers: []
+            }));
+
+        return rawList.map(r => {
+            const override = scoreOverrides[r.responseId];
+            if (!override) return { ...r, baseScore: r.score };
+
+            const effectiveScore = override.score !== undefined ? override.score : r.score;
+            const effectiveCorrect = override.correctCount !== undefined ? override.correctCount : r.correctCount;
+            const qOverrides = override.questionOverrides || {};
+
+            const effectiveAnswers = (r.answers || []).map(a => ({
+                ...a,
+                isCorrect: qOverrides[a.questionId] !== undefined ? qOverrides[a.questionId] : a.isCorrect
+            }));
+
+            return {
+                ...r,
+                baseScore: r.score,
+                score: effectiveScore,
+                correctCount: effectiveCorrect,
+                answers: effectiveAnswers,
+                isCustomScore: !!override.isCustom
+            };
+        });
+    }, [analytics, responses, scoreOverrides]);
+
     const handleExport = (formId) => {
         if (!formId || exporting) return;
         setExporting(true);
@@ -141,14 +191,21 @@ export default function FormResponsesPage() {
             respondentsList.forEach(r => {
                 (r.answers || []).forEach(a => {
                     if (a.questionId && !questionMap.has(a.questionId)) {
-                        questionMap.set(a.questionId, a.question || `Soal #${a.questionId}`);
+                        const cleanTitle = (a.question || `Soal #${a.questionId}`)
+                            .replace(/<[^>]*>/g, '')
+                            .replace(/\s+/g, ' ')
+                            .trim();
+                        questionMap.set(a.questionId, cleanTitle);
                     }
                 });
             });
 
             const escapeCsv = (val) => {
                 if (val === null || val === undefined) return '""';
-                const str = String(val).replace(/<[^>]*>/g, '').trim();
+                const str = String(val)
+                    .replace(/<[^>]*>/g, '')
+                    .replace(/[\r\n]+/g, ' ')
+                    .trim();
                 return `"${str.replace(/"/g, '""')}"`;
             };
 
@@ -235,15 +292,6 @@ export default function FormResponsesPage() {
             case 'rejected': 
             case 'ditolak': return 'bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-400';
             default: return 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
-        }
-    };
-
-    const persistOverrides = (newOverrides) => {
-        setScoreOverrides(newOverrides);
-        try {
-            localStorage.setItem(`formup_scores_${id}`, JSON.stringify(newOverrides));
-        } catch (e) {
-            console.error('Error saving score overrides:', e);
         }
     };
 
@@ -360,47 +408,6 @@ export default function FormResponsesPage() {
         setBulkModalOpen(false);
         showToast('Semua skor telah dikembalikan ke perhitungan sistem.');
     };
-
-    // Merge respondent data from analytics with response list and apply score overrides
-    const respondentsList = useMemo(() => {
-        const rawList = analytics?.respondents && analytics.respondents.length > 0
-            ? analytics.respondents
-            : responses.map(r => ({
-                responseId: r.id,
-                respondentName: r.respondentName,
-                submittedAt: r.submittedAt,
-                status: r.status,
-                answeredCount: 0,
-                totalQuestions: 0,
-                correctCount: 0,
-                wrongCount: 0,
-                score: null,
-                answers: []
-            }));
-
-        return rawList.map(r => {
-            const override = scoreOverrides[r.responseId];
-            if (!override) return { ...r, baseScore: r.score };
-
-            const effectiveScore = override.score !== undefined ? override.score : r.score;
-            const effectiveCorrect = override.correctCount !== undefined ? override.correctCount : r.correctCount;
-            const qOverrides = override.questionOverrides || {};
-
-            const effectiveAnswers = (r.answers || []).map(a => ({
-                ...a,
-                isCorrect: qOverrides[a.questionId] !== undefined ? qOverrides[a.questionId] : a.isCorrect
-            }));
-
-            return {
-                ...r,
-                baseScore: r.score,
-                score: effectiveScore,
-                correctCount: effectiveCorrect,
-                answers: effectiveAnswers,
-                isCustomScore: !!override.isCustom
-            };
-        });
-    }, [analytics, responses, scoreOverrides]);
 
     // Trend calculations
     const trendData = useMemo(() => {

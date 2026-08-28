@@ -9,7 +9,7 @@ import {
     Shield,
 } from 'lucide-react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { getLocalUser } from '../../services/apiService';
+import { getLocalUser, clearSession } from '../../services/apiService';
 
 export default function Sidebar() {
     const navigate = useNavigate();
@@ -17,9 +17,8 @@ export default function Sidebar() {
     const user = getLocalUser();
 
     const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        navigate('/login');
+        clearSession();
+        navigate('/login', { replace: true });
     };
 
     const menuItems = [

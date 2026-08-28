@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { login, saveSession } from '../../services/apiService';
+import { login, saveSession, isAuthenticated } from '../../services/apiService';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -15,6 +15,12 @@ const Login = () => {
         return 1;
     });
     const navigate = useNavigate();
+
+    useEffect(() => {
+        if (isAuthenticated()) {
+            navigate('/dashboard', { replace: true });
+        }
+    }, [navigate]);
 
     useEffect(() => {
         const handleResize = () => {

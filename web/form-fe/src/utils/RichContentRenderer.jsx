@@ -125,7 +125,7 @@ function processHtmlContent(htmlStr) {
                 <div class="flex items-center justify-between px-4 py-2 bg-slate-950/80 border-b border-slate-800 text-slate-400 text-[11px] font-semibold">
                     <span class="uppercase tracking-wider font-bold text-teal-400">${language}</span>
                 </div>
-                <div class="p-4 overflow-x-auto font-mono text-slate-200 text-xs leading-relaxed flex gap-4">
+                <div class="p-4 max-h-96 overflow-y-auto overflow-x-auto font-mono text-slate-200 text-xs leading-relaxed flex gap-4">
                     <div class="select-none text-slate-600 text-right pr-2 border-r border-slate-800 font-mono text-xs">
                         ${lines.map((_, i) => `<div>${i + 1}</div>`).join('')}
                     </div>
@@ -236,7 +236,7 @@ export function CodeBlock({ code, language = 'code' }) {
                 </button>
             </div>
 
-            <div className="p-4 overflow-x-auto leading-relaxed flex gap-4">
+            <div className="p-4 max-h-96 overflow-y-auto overflow-x-auto leading-relaxed flex gap-4">
                 <div className="select-none text-slate-600 text-right pr-2 border-r border-slate-800 font-mono text-xs">
                     {lines.map((_, i) => (
                         <div key={i}>{i + 1}</div>

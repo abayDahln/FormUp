@@ -1,6 +1,21 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.formup.my.id';
 
-export const getToken = () => localStorage.getItem('token') || sessionStorage.getItem('token');
+export const getToken = () => {
+    if (typeof window === 'undefined') return null;
+    const local = localStorage.getItem('token');
+    if (local) return local;
+    const session = sessionStorage.getItem('token');
+    if (session) return session;
+
+    if (typeof document !== 'undefined') {
+        const match = document.cookie.match(/(?:^|;\s*)formup_token=([^;]+)/);
+        if (match && match[1]) {
+            localStorage.setItem('token', match[1]);
+            return match[1];
+        }
+    }
+    return null;
+};
 
 const authHeaders = () => {
     const headers = { 'Content-Type': 'application/json' };
@@ -141,6 +156,15 @@ export const updateForm = async (id, payload) => {
 
 export const deleteForm = async (id) => {
     const res = await fetch(`${API_BASE_URL}/api/forms/${id}`, { method: 'DELETE', headers: authHeaders() });
+    return parseResponse(res);
+};
+
+export const bulkDeleteForms = async (formIds) => {
+    const res = await fetch(`${API_BASE_URL}/api/forms/bulk-delete`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ formIds }),
+    });
     return parseResponse(res);
 };
 
@@ -431,7 +455,9 @@ export const clearSession = () => {
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
     if (typeof document !== 'undefined') {
-        document.cookie = 'formup_token=; path=/; max-age=0';
+        document.cookie = 'formup_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+        document.cookie = 'formup_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        document.cookie = 'formup_token=; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     }
 };
 

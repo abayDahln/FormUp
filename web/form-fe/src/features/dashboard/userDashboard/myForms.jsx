@@ -2,13 +2,13 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../../components/layout/Sidebar';
 import Topbar from '../../../components/layout/Topbar';
-import ConfirmModal from '../../../components/ui/ConfirmModal'; // 1. Import Modal dari UI
+import ConfirmModal from '../../../components/ui/ConfirmModal';
 import {
     Plus, MoreVertical, MessageSquare, Calendar,
     Edit3, Eye, Trash2, CheckCircle2, FileText,
-    ChevronLeft, ChevronRight
+    ChevronLeft, ChevronRight, Square, CheckSquare
 } from 'lucide-react';
-import { getMyForms, deleteForm, clearSession, assetUrl, createForm } from '../../../services/apiService';
+import { getMyForms, deleteForm, clearSession, assetUrl, createForm, bulkDeleteForms } from '../../../services/apiService';
 import useDebounce from '../../../hooks/useDebounce';
 
 const ITEMS_PER_PAGE = 7; // 7 form cards + 1 create card = 8 cards on page 1
@@ -26,7 +26,10 @@ const MyForms = () => {
     const [creatingForm, setCreatingForm] = useState(false);
     const menuRef = useRef(null);
 
-    // 2. State untuk mengontrol Pop-up Konfirmasi
+    // Multi-select state
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [selectMode, setSelectMode] = useState(false);
+
     const [confirmModal, setConfirmModal] = useState({
         isOpen: false,
         title: '',
@@ -34,6 +37,7 @@ const MyForms = () => {
         variant: 'danger',
         confirmText: 'Ya, Hapus',
         formId: null,
+        isBulk: false,
     });
 
     useEffect(() => {
@@ -97,7 +101,35 @@ const MyForms = () => {
         }
     };
 
-    // 3. Pemicu munculnya pop-up konfirmasi hapus
+    const toggleSelect = (id) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.size === pagedForms.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(pagedForms.map(f => f.id)));
+        }
+    };
+
+    const triggerBulkDelete = () => {
+        if (selectedIds.size === 0) return;
+        setConfirmModal({
+            isOpen: true,
+            title: `Hapus ${selectedIds.size} Formulir?`,
+            message: `Apakah Anda yakin ingin menghapus ${selectedIds.size} formulir yang dipilih? Tindakan ini tidak dapat dibatalkan.`,
+            variant: 'danger',
+            confirmText: `Hapus ${selectedIds.size} Formulir`,
+            formId: null,
+            isBulk: true,
+        });
+    };
+
     const triggerDelete = (formId) => {
         setOpenMenuId(null);
         setConfirmModal({
@@ -107,25 +139,43 @@ const MyForms = () => {
             variant: 'danger',
             confirmText: 'Ya, Hapus',
             formId: formId,
+            isBulk: false,
         });
     };
 
-    // 4. Eksekusi hapus setelah pengguna menekan tombol "Ya, Hapus" di modal
     const executeDelete = async () => {
-        const formId = confirmModal.formId;
-        if (!formId) return;
-
-        setActionLoading(formId);
-        try {
-            const result = await deleteForm(formId);
-            if (result.ok) {
-                setMyForms(prev => prev.filter(f => f.id !== formId));
+        if (confirmModal.isBulk) {
+            const ids = [...selectedIds];
+            setActionLoading('bulk');
+            try {
+                const result = await bulkDeleteForms(ids);
+                if (result.ok) {
+                    setMyForms(prev => prev.filter(f => !ids.includes(f.id)));
+                    setSelectedIds(new Set());
+                    setSelectMode(false);
+                }
+            } catch (err) {
+                console.error('Bulk delete error:', err);
+            } finally {
+                setActionLoading(null);
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
             }
-        } catch (err) {
-            console.error('Delete form error:', err);
-        } finally {
-            setActionLoading(null);
-            setConfirmModal(prev => ({ ...prev, isOpen: false, formId: null }));
+        } else {
+            const formId = confirmModal.formId;
+            if (!formId) return;
+            setActionLoading(formId);
+            try {
+                const result = await deleteForm(formId);
+                if (result.ok) {
+                    setMyForms(prev => prev.filter(f => f.id !== formId));
+                    setSelectedIds(prev => { const n = new Set(prev); n.delete(formId); return n; });
+                }
+            } catch (err) {
+                console.error('Delete form error:', err);
+            } finally {
+                setActionLoading(null);
+                setConfirmModal(prev => ({ ...prev, isOpen: false, formId: null }));
+            }
         }
     };
 
@@ -226,6 +276,38 @@ const MyForms = () => {
                         </div>
                     </div>
 
+                    {/* Bulk-select action bar */}
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => { setSelectMode(m => !m); setSelectedIds(new Set()); }}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${selectMode ? 'bg-[#00897B] text-white border-[#00897B]' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-[#00897B] hover:text-[#00897B]'}`}
+                        >
+                            {selectMode ? <CheckSquare size={13} /> : <Square size={13} />}
+                            {selectMode ? 'Batalkan Pilihan' : 'Pilih Formulir'}
+                        </button>
+
+                        {selectMode && pagedForms.length > 0 && (
+                            <button
+                                onClick={toggleSelectAll}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-[#00897B] hover:text-[#00897B] transition-all cursor-pointer"
+                            >
+                                {selectedIds.size === pagedForms.length ? <CheckSquare size={13} /> : <Square size={13} />}
+                                {selectedIds.size === pagedForms.length ? 'Batalkan Semua' : 'Pilih Semua'}
+                            </button>
+                        )}
+
+                        {selectMode && selectedIds.size > 0 && (
+                            <button
+                                onClick={triggerBulkDelete}
+                                disabled={actionLoading === 'bulk'}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white border border-red-600 transition-all cursor-pointer disabled:opacity-60"
+                            >
+                                <Trash2 size={13} />
+                                Hapus Terpilih ({selectedIds.size})
+                            </button>
+                        )}
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" ref={menuRef}>
                         <div
                             onClick={handleCreateNewForm}
@@ -260,10 +342,13 @@ const MyForms = () => {
                                     ? new Date(form.createdAt).toLocaleDateString('id-ID', { month: 'short', day: 'numeric', year: 'numeric' })
                                     : 'Baru saja';
 
+                                const isSelected = selectedIds.has(form.id);
+
                                 return (
                                     <div
                                         key={form.id}
-                                        className={`bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between group ${isActing ? 'opacity-60 pointer-events-none' : ''}`}
+                                        onClick={() => selectMode && toggleSelect(form.id)}
+                                        className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between group ${isActing ? 'opacity-60 pointer-events-none' : ''} ${selectMode ? 'cursor-pointer' : ''} ${isSelected ? 'border-[#00897B] ring-2 ring-[#00897B]/30' : 'border-slate-200/80 dark:border-slate-800'}`}
                                     >
                                         <div className="h-36 bg-slate-100 dark:bg-slate-800/80 relative p-4 flex items-start justify-between border-b border-slate-100 dark:border-slate-800 overflow-hidden">
                                             {form.bannerImage ? (
@@ -278,7 +363,17 @@ const MyForms = () => {
                                                 </div>
                                             )}
 
-                                            <span className={`relative z-10 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shadow-xs ${
+                                            {/* Select checkbox overlay */}
+                                            {selectMode && (
+                                                <div className="absolute top-2 left-2 z-20" onClick={e => { e.stopPropagation(); toggleSelect(form.id); }}>
+                                                    {isSelected
+                                                        ? <CheckSquare size={20} className="text-[#00897B] bg-white rounded" />
+                                                        : <Square size={20} className="text-slate-400 bg-white/80 rounded" />
+                                                    }
+                                                </div>
+                                            )}
+
+                                            <span className={`relative z-10 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shadow-xs ${selectMode ? 'ml-6' : ''} ${
                                                 isPublished 
                                                     ? 'bg-teal-600 text-white' 
                                                     : 'bg-slate-800/90 text-white backdrop-blur-xs'

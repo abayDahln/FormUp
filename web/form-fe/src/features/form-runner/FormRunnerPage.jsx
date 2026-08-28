@@ -85,6 +85,13 @@ export default function FormRunnerPage() {
                     setRespondentName(currentUser.fullname);
                 }
 
+                // Check single attempt lock early
+                const localSub = localStorage.getItem(`formup_submitted_${formLink}`);
+                if (f.oneResponse && (f.alreadySubmitted || localSub)) {
+                    setLoading(false);
+                    return;
+                }
+
                 // If form does not require a token, fetch questions directly
                 if (!f.requiresToken) {
                     setTokenUnlocked(true);
@@ -230,6 +237,11 @@ export default function FormRunnerPage() {
         const guestToken = responseData?.guestToken || null;
 
         if (res.ok && responseId) {
+            // Record local submission for guest/browser single attempt guard
+            try {
+                localStorage.setItem(`formup_submitted_${formLink}`, String(responseId));
+            } catch {}
+
             // Pass guestToken via router state so FormResultPage can fetch result
             navigate(`/f/${formLink}/result/${responseId}`, {
                 state: { guestToken }
@@ -248,6 +260,46 @@ export default function FormRunnerPage() {
             </div>
         </div>
     );
+
+    // Single Attempt Locked Screen
+    const localSubmittedId = typeof window !== 'undefined' ? localStorage.getItem(`formup_submitted_${formLink}`) : null;
+    if (form && form.oneResponse && (form.alreadySubmitted || localSubmittedId)) {
+        const previousId = form.previousResponseId || localSubmittedId;
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-[#F4F8F7] dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-5 shadow-xl">
+                    <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/60 text-amber-500 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
+                        <Lock size={30} />
+                    </div>
+                    <div className="space-y-2">
+                        <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">Formulir Terkunci</h2>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                            Anda sudah pernah mengerjakan formulir <b>{form.title}</b>. Pembuat formulir membatasi pengisian hanya <b>1 kali pengerjaan</b> per responden.
+                        </p>
+                    </div>
+
+                    <div className="pt-2 flex flex-col gap-2.5">
+                        {previousId && form.showScore && (
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/f/${formLink}/result/${previousId}`)}
+                                className="w-full py-3 bg-[#00897B] hover:bg-[#00796B] text-white font-bold rounded-xl text-xs shadow-sm transition-all cursor-pointer"
+                            >
+                                Lihat Hasil Pengerjaan Sebelumnya
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => navigate(currentUser?.id ? '/dashboard' : '/login')}
+                            className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                        >
+                            Kembali ke {currentUser?.id ? 'Dashboard' : 'Halaman Utama'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (error && !form) return (
         <div className="min-h-screen flex items-center justify-center bg-[#F4F8F7] dark:bg-slate-950 p-4">

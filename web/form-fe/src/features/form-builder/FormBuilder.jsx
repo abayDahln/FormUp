@@ -37,6 +37,7 @@ const newQuestion = (order) => ({
     questionOrder: order,
     isRequired: true,
     isScorable: true,
+    points: null,
     correctAnswer: '',
     options: [{ optionText: '', isCorrect: false }, { optionText: '', isCorrect: false }],
     questionImage: null,
@@ -141,12 +142,14 @@ export default function FormBuilder() {
         const payloadQuestions = questions.map((q, i) => {
             const scorable = q.isScorable !== false;
             return {
+                id: q.id ?? undefined,
                 typeId: parseInt(q.typeId),
                 question: q.question || '',
                 questionFormat: q.questionFormat || 'text',
                 questionOrder: i + 1,
                 isRequired: !!q.isRequired,
                 correctAnswer: scorable ? (q.correctAnswer || null) : null,
+                points: scorable && q.points ? parseInt(q.points, 10) : null,
                 questionImage: q.questionImage || null,
                 questionAudio: q.questionAudio || null,
                 options: (q.options || []).map(opt => ({
@@ -167,11 +170,14 @@ export default function FormBuilder() {
                     ...q,
                     _id: questions[i]?._id || `q_${q.id}`,
                     isScorable: questions[i]?.isScorable ?? ((q.options || []).some(o => o.isCorrect === true) || !!(q.correctAnswer && q.correctAnswer.trim())),
+                    points: q.points ?? null,
                     options: q.options || [],
                 })));
             }
+            return true;
         } else {
             showToast(res.message || 'Gagal menyimpan soal.', 'error');
+            return false;
         }
     };
 
@@ -728,6 +734,23 @@ export default function FormBuilder() {
                                                 </label>
                                             </div>
                                         </div>
+
+                                        {/* Points input — visible only when scorable */}
+                                        {q.isScorable !== false && (
+                                            <div className="flex items-center gap-3">
+                                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">Poin Soal</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="1"
+                                                    placeholder="Kosongi = bobot sama rata"
+                                                    value={q.points ?? ''}
+                                                    onChange={e => updateQuestion(idx, 'points', e.target.value === '' ? null : parseInt(e.target.value, 10))}
+                                                    className="w-40 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00897B]"
+                                                />
+                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 italic">opsional — biarkan kosong untuk bobot sama rata</span>
+                                            </div>
+                                        )}
 
                                         {/* Non-Scorable Notice */}
                                         {q.isScorable === false ? (
