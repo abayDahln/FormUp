@@ -561,7 +561,7 @@ export default function FormBuilder() {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">Unduh template:</span>
-                                        {['csv', 'xlsx', 'docx'].map(fmt => (
+                                        {['csv', 'xlsx', 'docx (Under Development)'].map(fmt => (
                                             <a
                                                 key={fmt}
                                                 href={templateDownloadUrl(fmt)}
