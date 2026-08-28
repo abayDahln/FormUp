@@ -32,12 +32,10 @@ class _ResponseTabSwitcherState extends State<ResponseTabSwitcher>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _slideAnimation;
-  late int _previousIndex;
 
   @override
   void initState() {
     super.initState();
-    _previousIndex = widget.activeIndex;
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -55,7 +53,6 @@ class _ResponseTabSwitcherState extends State<ResponseTabSwitcher>
   void didUpdateWidget(ResponseTabSwitcher oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.activeIndex != widget.activeIndex) {
-      _previousIndex = oldWidget.activeIndex;
       _slideAnimation = Tween<double>(
         begin: oldWidget.activeIndex.toDouble(),
         end: widget.activeIndex.toDouble(),
