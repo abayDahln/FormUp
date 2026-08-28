@@ -283,7 +283,7 @@ class _StatCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: softShadow(),
+        boxShadow: elevationShadow(ShadowLevel.low),
       ),
       child: Column(
         children: [
@@ -328,52 +328,58 @@ class _QuickActionTile extends StatelessWidget {
     required this.onTap,
   });
 
-  @override
+@override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(kRadius),
-      elevation: 0,
-      child: InkWell(
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(kRadius),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(11),
-                decoration: BoxDecoration(
-                  color: kPrimarySoft,
-                  borderRadius: BorderRadius.circular(12),
+        boxShadow: elevationShadow(ShadowLevel.subtle),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(kRadius),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(kRadius),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(11),
+                  decoration: BoxDecoration(
+                    color: kPrimarySoft,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: kAuthPrimary, size: 21),
                 ),
-                child: Icon(icon, color: kAuthPrimary, size: 21),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
                         color: Colors.black87,
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                          fontSize: 12, color: Colors.black54),
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                            fontSize: 12, color: Colors.black54),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-            ],
+                const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+              ],
+            ),
           ),
         ),
       ),
@@ -483,7 +489,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(kRadius),
-                boxShadow: softShadow(),
+                boxShadow: elevationShadow(ShadowLevel.low),
               ),
               child: Column(
                 children: [
@@ -549,7 +555,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(kRadius),
-                boxShadow: softShadow(),
+                boxShadow: elevationShadow(ShadowLevel.low),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -567,7 +573,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(18),
-                boxShadow: softShadow(),
+                boxShadow: elevationShadow(ShadowLevel.low),
               ),
               child: Material(
                 type: MaterialType.transparency,

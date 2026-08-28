@@ -9,26 +9,35 @@ import 'package:form_up/core/theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // ponytail: isOptional, jalan tanpa .env
   await dotenv.load(fileName: '.env', isOptional: true);
   NetworkStatus.configure(apiBaseUrl);
   await NetworkStatus.refresh();
-  // Restore sesi login — jangan sampai error storage membuat app gagal boot
+  
+  bool isLoggedIn = false;
   AuthResult? session;
+  
   try {
     session = await AuthService.restoreSession();
+    if (session != null) {
+      isLoggedIn = await AuthService.verifyToken();
+      if (!isLoggedIn) {
+        await AuthService.logout();
+        session = null;
+      }
+    }
   } catch (e) {
-    if (kDebugMode) debugPrint('[Auth] restoreSession gagal: $e');
+    debugPrint('[Auth] restoreSession gagal: $e');
   }
-  final isLoggedIn = session != null;
 
-  final delegate = AppRouterDelegate(
-    // Admin langsung masuk Admin Panel, user biasa ke Home
-    initial: isLoggedIn
-        ? (AuthService.role == 'ADMIN' ? AppPage.adminPanel : AppPage.home)
-        : AppPage.login,
-  );
-  if (isLoggedIn) {
+  final initialPage = isLoggedIn
+      ? (AuthService.role == 'ADMIN' ? AppPage.adminPanel : AppPage.home)
+      : AppPage.login;
+
+  debugPrint('[Auth] isLoggedIn=$isLoggedIn, initialPage=$initialPage');
+
+  final delegate = AppRouterDelegate(initial: initialPage);
+  
+  if (isLoggedIn && session != null) {
     final name = session.fullname.isNotEmpty ? session.fullname : session.username;
     delegate.setUsername(name);
   }
@@ -45,6 +54,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 🔧 FIX: AppRouter wrapper HARUS tetap ada
     return AppRouter(
       delegate: delegate,
       child: MaterialApp.router(
@@ -58,5 +68,3 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
-

@@ -41,6 +41,18 @@ ThemeData buildFormUpTheme() {
     scaffoldBackgroundColor: kBg,
     fontFamily: 'Inter',
 
+    // Card theme dengan shadow konsisten
+    cardTheme: CardThemeData(
+      color: Colors.white,
+      elevation: 0,
+      shadowColor: Colors.black.withValues(alpha: 0.06),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(kRadiusLg),
+      ),
+      margin: EdgeInsets.zero,
+    ),
+
     // AppBar putih dengan garis bawah — gaya semua screen
     appBarTheme: const AppBarTheme(
       backgroundColor: Colors.white,
@@ -57,9 +69,12 @@ ThemeData buildFormUpTheme() {
       ),
     ),
 
-    // Dialog putih rounded
+    // Dialog putih rounded dengan shadow
     dialogTheme: DialogThemeData(
       backgroundColor: Colors.white,
+      elevation: 0,
+      shadowColor: Colors.black.withValues(alpha: 0.1),
+      surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(kRadiusLg)),
       ),
@@ -70,6 +85,18 @@ ThemeData buildFormUpTheme() {
         color: Colors.black87,
       ),
       contentTextStyle: const TextStyle(fontSize: 14, color: Colors.black54),
+    ),
+
+    // Bottom sheet theme dengan shadow
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      shadowColor: Colors.black.withValues(alpha: 0.1),
+      surfaceTintColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      modalBackgroundColor: Colors.white,
     ),
 
     // Tombol
@@ -85,6 +112,8 @@ ThemeData buildFormUpTheme() {
           fontWeight: FontWeight.bold,
           fontFamily: kFontBold,
         ),
+        elevation: 0,
+        shadowColor: kPrimary.withValues(alpha: 0.25),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -99,6 +128,7 @@ ThemeData buildFormUpTheme() {
           fontWeight: FontWeight.bold,
           fontFamily: kFontBold,
         ),
+        elevation: 0,
       ),
     ),
     textButtonTheme: TextButtonThemeData(
@@ -113,6 +143,7 @@ ThemeData buildFormUpTheme() {
       style: FilledButton.styleFrom(
         backgroundColor: kPrimarySoft,
         shape: const StadiumBorder(),
+        elevation: 0,
       ),
     ),
 
@@ -123,13 +154,58 @@ ThemeData buildFormUpTheme() {
       backgroundColor: Colors.white,
       selectedItemColor: kPrimary,
       unselectedItemColor: Colors.grey,
+      elevation: 8,
     ),
 
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((states) =>
-          states.contains(WidgetState.selected) ? Colors.white : null),
+            states.contains(WidgetState.selected) ? Colors.white : null),
       trackColor: WidgetStateProperty.resolveWith((states) =>
-          states.contains(WidgetState.selected) ? kPrimary : null),
+            states.contains(WidgetState.selected) ? kPrimary : null),
+    ),
+
+    // Floating action button dengan shadow
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: kPrimary,
+      foregroundColor: Colors.white,
+      elevation: 4,
+      focusElevation: 6,
+      hoverElevation: 6,
+      highlightElevation: 8,
+      shape: const CircleBorder(),
+    ),
+
+    // Menu/theme untuk dropdown, popup menu
+    popupMenuTheme: PopupMenuThemeData(
+      color: Colors.white,
+      elevation: 8,
+      shadowColor: Colors.black.withValues(alpha: 0.1),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(kRadiusMd),
+      ),
+    ),
+
+    // Tooltip theme
+    tooltipTheme: TooltipThemeData(
+      decoration: BoxDecoration(
+        color: Colors.black87,
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        boxShadow: elevationShadow(ShadowLevel.high),
+      ),
+      textStyle: const TextStyle(color: Colors.white, fontSize: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    ),
+
+    // SnackBar theme
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: Colors.black87,
+      contentTextStyle: const TextStyle(color: Colors.white, fontSize: 14),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(kRadiusMd),
+      ),
+      elevation: 6,
     ),
   );
 }

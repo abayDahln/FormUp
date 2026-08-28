@@ -99,7 +99,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 20),
 
-            if (_loading)
+if (_loading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 60),
                 child: Center(child: CircularProgressIndicator()),
@@ -110,7 +110,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(kRadius),
-                  boxShadow: softShadow(),
+                  boxShadow: elevationShadow(ShadowLevel.low),
                 ),
                 child: Column(
                   children: [
@@ -139,33 +139,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: const TextStyle(fontSize: 13, color: kAuthPrimary),
                       ),
                     ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              Row(
-                children: [
-                  Expanded(child: _MiniStat(label: 'Form Saya', value: '${stats.totalForms}')),
-                  const SizedBox(width: 10),
-                  Expanded(child: _MiniStat(label: 'Form Dikerjakan', value: '${stats.totalResponses}')),
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(kRadius),
-                ),
-                child: Column(
-                  children: [
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _MiniStat(label: 'Form Saya', value: '${stats.totalForms}'),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: Colors.black12,
+                        ),
+                        Expanded(
+                          child: _MiniStat(label: 'Form Dikerjakan', value: '${stats.totalResponses}'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    const Divider(height: 1, color: Colors.black12),
+                    const SizedBox(height: 8),
                     _MenuTile(
                       icon: Icons.person_outline,
                       label: 'Edit Profil',
                       onTap: _openEditProfile,
                     ),
+                    const SizedBox(height: 8),
                     const Divider(height: 1, indent: 52, color: Colors.black12),
+                    const SizedBox(height: 8),
                     _MenuTile(
                       icon: Icons.lock_outline,
                       label: 'Ubah Kata Sandi',
@@ -249,31 +249,23 @@ class _MiniStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(kRadius),
-        boxShadow: softShadow(),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              fontFamily: kFontBold,
-              color: kAuthPrimary,
-            ),
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: kAuthPrimary,
           ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 12, color: Colors.black54),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: Colors.black54),
+        ),
+      ],
     );
   }
 }
@@ -287,16 +279,31 @@ class _MenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      type: MaterialType.transparency,
-      child: ListTile(
-        leading: Icon(icon, color: kAuthPrimary, size: 22),
-        title: Text(
-          label,
-          style: const TextStyle(fontSize: 15, color: Colors.black87),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: kPrimarySoft,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: kAuthPrimary, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(fontSize: 15, color: Colors.black87),
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+          ],
         ),
-        trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-        onTap: onTap,
       ),
     );
   }

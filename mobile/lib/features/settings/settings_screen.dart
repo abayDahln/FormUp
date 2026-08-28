@@ -134,7 +134,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: softShadow(),
+        boxShadow: elevationShadow(ShadowLevel.low),
       ),
       child: Material(
         type: MaterialType.transparency,

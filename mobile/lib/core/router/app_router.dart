@@ -93,6 +93,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   final List<AppRoute> _stack = <AppRoute>[];
   final Map<AppPage, Completer<void>> _popCompleters = {};
   String _username = '';
+  bool _initialSet = false;
 
   /// Stack guard back: screen push/pop guard di init/dispose. popRoute()
   /// meminta izin dari guard paling atas (screen paling atas). false = batalkan.
@@ -116,6 +117,8 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
 
   AppRouterDelegate({AppPage initial = AppPage.login}) {
     _stack.add(AppRoute(initial));
+    _initialSet = true;
+    debugPrint('[Router] Initial stack: $_stack');
   }
 
   /// Nama tampilan di Home
@@ -184,6 +187,17 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   @override
   Future<void> setNewRoutePath(AppRoute configuration) async {
     _completeAllPending();
+    
+    // 🔧 FIX: Jika initial sudah di-set dan user sudah login, jangan override ke login
+    if (_initialSet && 
+        configuration.page == AppPage.login && 
+        _stack.isNotEmpty &&
+        _stack.first.page != AppPage.login &&
+        AuthService.token != null) {
+      debugPrint('[Router] Ignoring login override, user already logged in');
+      return;
+    }
+    
     // Deep link form butuh login
     if (configuration.page == AppPage.formRunner &&
         configuration.args['code'] is String &&
@@ -195,9 +209,8 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
       notifyListeners();
       return;
     }
-    // Sesi dari deep link (root bukan login/home) → back fallback ke beranda.
-    _viaDeepLink =
-        configuration.page != AppPage.login && configuration.page != AppPage.home;
+    
+    _viaDeepLink = configuration.page != AppPage.login && configuration.page != AppPage.home;
     _stack
       ..clear()
       ..add(configuration);

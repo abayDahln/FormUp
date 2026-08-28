@@ -16,7 +16,17 @@ const kAuthHint = Color(0xFF4A6363);
 
 const kFontBold = 'PlusJakartaSans';
 
-/// Bayangan kartu seragam
+/// Shadow elevation levels untuk konsistensi di seluruh app
+enum ShadowLevel {
+  none,
+  subtle,    // level 1 - very light
+  low,       // level 2 - cards
+  medium,    // level 3 - elevated cards, bottom sheets
+  high,      // level 4 - modals, FAB
+  highest,   // level 5 - dialogs, dropdowns
+}
+
+/// Bayangan kartu seragam dengan level elevasi
 List<BoxShadow> softShadow({
   double alpha = 0.05,
   Offset offset = const Offset(0, 4),
@@ -29,6 +39,45 @@ List<BoxShadow> softShadow({
       offset: offset,
     ),
   ];
+}
+
+/// Bayangan berdasarkan level elevasi
+List<BoxShadow> elevationShadow(ShadowLevel level) {
+  switch (level) {
+    case ShadowLevel.none:
+      return [];
+    case ShadowLevel.subtle:
+      return softShadow(alpha: 0.03, offset: const Offset(0, 1), blur: 3);
+    case ShadowLevel.low:
+      return softShadow(alpha: 0.05, offset: const Offset(0, 2), blur: 8);
+    case ShadowLevel.medium:
+      return softShadow(alpha: 0.06, offset: const Offset(0, 4), blur: 12);
+    case ShadowLevel.high:
+      return softShadow(alpha: 0.08, offset: const Offset(0, 8), blur: 20);
+    case ShadowLevel.highest:
+      return softShadow(alpha: 0.1, offset: const Offset(0, 12), blur: 28);
+  }
+}
+
+/// Bayangan untuk tombol (primary, outline, dll)
+List<BoxShadow> buttonShadow({
+  Color? color,
+  ShadowLevel level = ShadowLevel.low,
+}) {
+  final base = elevationShadow(level);
+  if (color == null) return base;
+  return [
+    BoxShadow(
+      color: color.withValues(alpha: 0.25),
+      blurRadius: base.first.blurRadius,
+      offset: base.first.offset,
+    ),
+  ];
+}
+
+/// Bayangan untuk Card (Material)
+List<BoxShadow> cardShadow(ShadowLevel level) {
+  return elevationShadow(level);
 }
 
 /// Gaya lencana status form
@@ -74,8 +123,8 @@ class AuthBackground extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomRight,
                 colors: [
-                  kAuthPrimary.withOpacity(0.4),
-                  const Color(0xFFD9D9D9).withOpacity(0.0),
+                  kAuthPrimary.withValues(alpha: 0.4),
+                  const Color(0xFFD9D9D9).withValues(alpha: 0.0),
                 ],
               ),
             ),
@@ -275,7 +324,7 @@ class AuthPrimaryButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(pill ? 26 : 8),
         boxShadow: [
           BoxShadow(
-            color: kAuthPrimary.withOpacity(0.25),
+            color: kAuthPrimary.withValues(alpha: 0.25),
             offset: const Offset(0, 4),
             blurRadius: 7.5,
           ),
@@ -290,7 +339,7 @@ class AuthPrimaryButton extends StatelessWidget {
             backgroundColor: kAuthPrimary,
             foregroundColor: Colors.white,
             elevation: 0,
-            disabledBackgroundColor: kAuthPrimary.withOpacity(0.7),
+            disabledBackgroundColor: kAuthPrimary.withValues(alpha: 0.7),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(pill ? 26 : 8),
             ),
@@ -405,7 +454,7 @@ class AuthBottomPill extends StatelessWidget {
       width: double.infinity,
       height: 56,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.74),
+        color: Colors.white.withValues(alpha: 0.74),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(color: kBorderColor),
         boxShadow: softShadow(),

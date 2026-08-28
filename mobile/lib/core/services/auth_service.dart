@@ -199,7 +199,29 @@ class AuthService {
     _scheduleSessionRefresh();
   }
 
+    /// Verifikasi token masih valid dengan hit endpoint /auth/verify atau /me
+  static Future<bool> verifyToken() async {
+    if (token == null || token!.isEmpty) return false;
+    
+    try {
+      // Gunakan endpoint yang ringan untuk cek token
+      await _send('GET', '/auth/verify', null, auth: true);
+      return true;
+    } on ApiException catch (e) {
+      if (e.message.contains('Sesi Anda telah berakhir') || 
+          e.message.contains('unauthorized')) {
+        return false;
+      }
+      // Error lain (network), anggap token masih valid jangan logout
+      return true;
+    } catch (e) {
+      // Network error, jangan logout user
+      return true;
+    }
+  }
+
   /// Ambil sesi tersimpan
+    /// Ambil sesi tersimpan
   static Future<AuthResult?> restoreSession() async {
     final prefs = await SharedPreferences.getInstance();
     _rememberMe = prefs.getBool(_kRemember) ?? true;
@@ -230,26 +252,17 @@ class AuthService {
       if (kDebugMode) debugPrint('[Auth] Parsed expiresAt: $parsedExpiresAt');
     }
 
-    // Jika expiresAt tidak valid/parse gagal, anggap expired tapi jangan logout
-    if (parsedExpiresAt == null || _nowUtc().isAfter(parsedExpiresAt)) {
-      if (kDebugMode) debugPrint('[Auth] Token expired or invalid expiresAt, keeping session for auto-refresh');
-      _expiresAt = parsedExpiresAt;
-      await NetworkStatus.refresh();
-      if (NetworkStatus.isOnline) {
-        unawaited(_refresh()); // fire-and-forget
-      }
-      _scheduleSessionRefresh();
-    } else {
-      _expiresAt = parsedExpiresAt;
-      _scheduleSessionRefresh();
-    }
+    _expiresAt = parsedExpiresAt;
+    _scheduleSessionRefresh();
 
     if (kDebugMode) {
       debugPrint('[Auth] Session restored for ${_email ?? "?"}');
     }
+    
+    // 🔧 FIX: Selalu return AuthResult jika token ada, validasi di main.dart
     return AuthResult(
-      token: token ?? savedToken,
-      expiresAt: _expiresAt ?? _nowUtc().add(const Duration(days: 14)), // fallback panjang
+      token: token!,
+      expiresAt: _expiresAt ?? _nowUtc().add(const Duration(days: 14)),
       fullname: prefs.getString(_kFullname) ?? '',
       username: prefs.getString(_kUsername) ?? '',
       email: _email!,

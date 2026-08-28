@@ -206,13 +206,7 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -3),
-            ),
-          ],
+          boxShadow: elevationShadow(ShadowLevel.medium),
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,

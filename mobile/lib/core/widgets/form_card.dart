@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/auth_widgets.dart'
+    show kRadius, kAuthPrimary, kPrimarySoft, kFontBold, formStatusStyle, elevationShadow, ShadowLevel, showAuthToast;
 import 'package:form_up/core/widgets/form_share_sheet.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/router/app_router.dart';
@@ -22,15 +23,21 @@ class FormCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = formStatusStyle(form.status);
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(kRadius),
-      child: InkWell(
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(kRadius),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+        boxShadow: elevationShadow(ShadowLevel.low),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(kRadius),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(kRadius),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(11),
@@ -120,6 +127,7 @@ class FormCard extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -145,31 +153,40 @@ Future<void> showFormQuickActions(
   if (_quickActionsOpen) return;
   _quickActionsOpen = true;
   final style = formStatusStyle(form.status);
-  await showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (sheetContext) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 8),
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.black12,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+  try {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      elevation: 0,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: elevationShadow(ShadowLevel.high),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-            child: Row(
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 8),
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.black12,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+                child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
@@ -326,11 +343,16 @@ Future<void> showFormQuickActions(
               },
             ),
           ),
-          const SizedBox(height: 8),
-        ],
+const SizedBox(height: 8),
+            ],
+          ),
+        ),
       ),
     ),
-  ).whenComplete(() => _quickActionsOpen = false);
+  );
+  } finally {
+    _quickActionsOpen = false;
+  }
 }
 
 Widget _sheetAction({
