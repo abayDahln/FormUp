@@ -14,7 +14,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _loading = false;
-  bool _rememberMe = AuthService.rememberMe;
 
   @override
   void dispose() {
@@ -62,125 +61,84 @@ class _LoginScreenState extends State<LoginScreen> {
         child: AuthBackground(
           child: SafeArea(
             child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         AuthCard(
-                           child: Column(
-                             crossAxisAlignment: CrossAxisAlignment.stretch,
-                             children: [
-                               const AuthTitle(
-                                 title: "Masuk",
-                                 subtitle:
-                                     "Masuk untuk mengelola formulir Anda",
-                               ),
-                               const SizedBox(height: 24),
-                               AuthTextField(
-                                controller: _emailController,
-                                hint: "Email",
-                                label: "Email",
-                                icon: Icons.email_outlined,
-                                keyboardType: TextInputType.emailAddress,
-                              ),
-                              const SizedBox(height: 17),
-                              AuthTextField(
-                                controller: _passwordController,
-                                hint: "Kata Sandi",
-                                label: "Kata Sandi",
-                                icon: Icons.lock_outline,
-                                obscure: true,
-                              ),
-                              const SizedBox(height: 12),
-                              // Ingat saya: sesi tetap tersimpan sampai
-                              // token kedaluwarsa
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() => _rememberMe = !_rememberMe);
-                                  AuthService.setRememberMe(_rememberMe);
-                                },
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 19,
-                                      height: 19,
-                                      decoration: BoxDecoration(
-                                        color: _rememberMe
-                                            ? kAuthPrimary
-                                            : Colors.white,
-                                        borderRadius:
-                                            BorderRadius.circular(5.5),
-                                        border:
-                                            Border.all(color: kAuthText),
-                                      ),
-                                      child: _rememberMe
-                                          ? const Icon(Icons.check,
-                                              size: 14, color: Colors.white)
-                                          : null,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Text(
-                                      "Ingat saya",
-                                      style: TextStyle(
-                                        color: Colors.black54,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          AuthCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const AuthTitle(
+                                  title: "Masuk",
+                                  subtitle: "Masuk untuk mengelola formulir Anda",
                                 ),
-                              ),
-                              const SizedBox(height: 16),
-                              AuthPrimaryButton(
-                                label: "Masuk",
-                                loading: _loading,
-                                onPressed: _login,
-                              ),
-                              const SizedBox(height: 18),
-                              Center(
-                                child: GestureDetector(
-                                  onTap: () {
-                                    AppRouter.of(context)
-                                        .push(AppPage.forgotPassword);
-                                  },
-                                  child: const Text(
-                                    "Lupa Kata Sandi?",
-                                    style: TextStyle(
-                                      color: kAuthPrimary,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      fontFamily: kFontBold,
+                                const SizedBox(height: 24),
+                                AuthTextField(
+                                  controller: _emailController,
+                                  hint: "Email",
+                                  label: "Email",
+                                  icon: Icons.email_outlined,
+                                  keyboardType: TextInputType.emailAddress,
+                                ),
+                                const SizedBox(height: 17),
+                                AuthTextField(
+                                  controller: _passwordController,
+                                  hint: "Kata Sandi",
+                                  label: "Kata Sandi",
+                                  icon: Icons.lock_outline,
+                                  obscure: true,
+                                ),
+                                const SizedBox(height: 20),
+                                AuthPrimaryButton(
+                                  label: "Masuk",
+                                  loading: _loading,
+                                  onPressed: _login,
+                                ),
+                                const SizedBox(height: 18),
+                                Center(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      AppRouter.of(context).push(AppPage.forgotPassword);
+                                    },
+                                    child: const Text(
+                                      "Lupa Kata Sandi?",
+                                      style: TextStyle(
+                                        color: kAuthPrimary,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        fontFamily: kFontBold,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 18),
-                              AuthInlineLink(
-                                question: "Pengguna baru? ",
-                                link: "Daftar",
-                                onTap: () {
-                                  AppRouter.of(context).push(AppPage.register);
-                                },
-                              ),
-                            ],
+                                const SizedBox(height: 18),
+                                AuthInlineLink(
+                                  question: "Pengguna baru? ",
+                                  link: "Daftar",
+                                  onTap: () {
+                                    AppRouter.of(context).push(AppPage.register);
+                                  },
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
-      ),
       ),
     );
   }
 }
-

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/services/admin_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -142,7 +143,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                               radius: 34,
                               backgroundColor: kPrimarySoft,
                               backgroundImage: (u.profileImage ?? '').isNotEmpty
-                                  ? NetworkImage(u.profileImage!)
+                                  ? CachedNetworkImageProvider(u.profileImage!)
                                   : null,
                               child: (u.profileImage ?? '').isEmpty
                                   ? Text(

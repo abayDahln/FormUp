@@ -16,36 +16,6 @@ class FormStartStatusInfo extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        if (oneResponse) ...[
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE3F4E8),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    size: 16,
-                    color: Color(0xFF2E7D32),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "Hanya 1x kesempatan",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF2E7D32),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
         if (oneResponse && requiresLogin) const SizedBox(width: 8),
         if (requiresLogin) ...[
           Expanded(

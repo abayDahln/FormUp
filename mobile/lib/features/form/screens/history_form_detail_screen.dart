@@ -4,6 +4,7 @@ import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/router/app_router.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 
 /// Detail riwayat satu form: info lengkap form + daftar attempt pengerjaan
 class HistoryFormDetailScreen extends StatefulWidget {
@@ -150,11 +151,10 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
           if ((_info?.bannerImage ?? '').isNotEmpty)
             AspectRatio(
               aspectRatio: 3,
-              child: Image.network(
-                _resolveUrl(_info!.bannerImage!),
-                width: double.infinity,
+              child: CachedRemoteImage(
+                url: _resolveUrl(_info!.bannerImage!),
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                errorWidget: const SizedBox.shrink(),
               ),
             ),
           Padding(

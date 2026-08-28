@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 
 /// Gambar soal
 class QuestionImage extends StatelessWidget {
@@ -16,10 +17,10 @@ class QuestionImage extends StatelessWidget {
         width: double.infinity,
         constraints: const BoxConstraints(maxHeight: 220),
         color: kPrimarySoft,
-        child: Image.network(
-          profileImageUrl(url),
+        child: CachedRemoteImage(
+          url: profileImageUrl(url),
           fit: BoxFit.contain,
-          errorBuilder: (_, _, _) => const SizedBox(
+          errorWidget: const SizedBox(
             height: 140,
             child: Center(
               child: Icon(

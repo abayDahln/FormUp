@@ -1,3 +1,4 @@
+import 'package:form_up/core/cache/api_cache.dart';
 import 'auth_service.dart';
 
 /// Info form publik
@@ -233,10 +234,18 @@ class MyAttempt {
 }
 
 class PublicFormService {
+  static String get _scope => AuthService.cacheScope;
+
   /// GET /public/forms/{formLink}
   static Future<PublicFormInfo> getFormInfo(String formLink) async {
-    final json = await AuthService.get('/public/forms/$formLink');
-    return PublicFormInfo.fromJson(json['data'] as Map<String, dynamic>);
+    return ApiCache.get(
+      'publicForms:info:$_scope:$formLink',
+      const Duration(seconds: 45),
+      () async {
+        final json = await AuthService.get('/public/forms/$formLink');
+        return PublicFormInfo.fromJson(json['data'] as Map<String, dynamic>);
+      },
+    );
   }
 
   /// POST /public/forms/{formLink}/questions
@@ -244,14 +253,21 @@ class PublicFormService {
     String formLink, {
     String? token,
   }) async {
-    final json = await AuthService.post('/public/forms/$formLink/questions', {
-      if (token != null && token.isNotEmpty) 'token': token,
-    });
-    final data = json['data'] as Map<String, dynamic>;
-    return [
-      for (final q in data['questions'] as List<dynamic>? ?? [])
-        PublicQuestion.fromJson(q as Map<String, dynamic>),
-    ];
+    final cacheKey = 'publicForms:questions:$_scope:$formLink:${token ?? ''}';
+    return ApiCache.get(
+      cacheKey,
+      const Duration(seconds: 120),
+      () async {
+        final json = await AuthService.post('/public/forms/$formLink/questions', {
+          if (token != null && token.isNotEmpty) 'token': token,
+        });
+        final data = json['data'] as Map<String, dynamic>;
+        return [
+          for (final q in data['questions'] as List<dynamic>? ?? [])
+            PublicQuestion.fromJson(q as Map<String, dynamic>),
+        ];
+      },
+    );
   }
 
   /// POST /public/forms/{formLink}/responses
@@ -267,6 +283,8 @@ class PublicFormService {
         'respondentName': respondentName.trim(),
       'answers': answers,
     });
+    ApiCache.invalidatePrefix('publicForms:');
+    ApiCache.invalidatePrefix('http:get:');
     return json['data'] as Map<String, dynamic>;
   }
 
@@ -275,17 +293,30 @@ class PublicFormService {
     String formLink,
     int responseId,
   ) async {
-    final json =
-        await AuthService.get('/public/forms/$formLink/responses/$responseId');
-    return PublicFormResult.fromJson(json['data'] as Map<String, dynamic>);
+    return ApiCache.get(
+      'publicForms:result:$_scope:$formLink:$responseId',
+      const Duration(seconds: 30),
+      () async {
+        final json = await AuthService.get(
+          '/public/forms/$formLink/responses/$responseId',
+        );
+        return PublicFormResult.fromJson(json['data'] as Map<String, dynamic>);
+      },
+    );
   }
 
   /// GET .../my-responses — semua attempt user pada satu form
   static Future<List<MyAttempt>> getMyAttempts(String formLink) async {
-    final json = await AuthService.get('/public/forms/$formLink/my-responses');
-    return [
-      for (final a in json['data'] as List<dynamic>? ?? [])
-        MyAttempt.fromJson(a as Map<String, dynamic>),
-    ];
+    return ApiCache.get(
+      'publicForms:attempts:$_scope:$formLink',
+      const Duration(seconds: 20),
+      () async {
+        final json = await AuthService.get('/public/forms/$formLink/my-responses');
+        return [
+          for (final a in json['data'] as List<dynamic>? ?? [])
+            MyAttempt.fromJson(a as Map<String, dynamic>),
+        ];
+      },
+    );
   }
 }

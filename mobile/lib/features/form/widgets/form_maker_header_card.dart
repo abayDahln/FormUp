@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/theme.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 
@@ -144,25 +145,24 @@ class FormMakerHeaderCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFF6E7979)),
           ),
-          child: hasImage
-              ? (newBanner != null
-                    ? Image.memory(
-                        newBanner!,
-                        fit: BoxFit.cover,
+              child: hasImage
+                  ? (newBanner != null
+                      ? Image.memory(
+                          newBanner!,
+                          fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => const Center(
                           child: Icon(Icons.broken_image_outlined,
                               size: 32, color: Colors.grey),
                         ),
                       )
-                    : Image.network(
-                        profileImageUrl(bannerImage),
-                        fit: BoxFit.cover,
-                        cacheWidth: 800,
-                        errorBuilder: (_, _, _) => const Center(
-                          child: Icon(Icons.broken_image_outlined,
-                              size: 32, color: Colors.grey),
-                        ),
-                      ))
+                      : CachedRemoteImage(
+                          url: profileImageUrl(bannerImage),
+                          fit: BoxFit.cover,
+                          errorWidget: const Center(
+                            child: Icon(Icons.broken_image_outlined,
+                                size: 32, color: Colors.grey),
+                          ),
+                        ))
               : const Center(
                   child: Icon(
                     Icons.image_outlined,

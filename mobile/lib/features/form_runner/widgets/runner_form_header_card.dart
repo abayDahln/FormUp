@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/features/form_runner/controllers/runner_answer_store.dart';
 
@@ -34,11 +35,10 @@ class RunnerFormHeaderCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               child: AspectRatio(
                 aspectRatio: 16 / 7,
-                child: Image.network(
-                  profileImageUrl(info.bannerImage),
+                child: CachedRemoteImage(
+                  url: profileImageUrl(info.bannerImage),
                   fit: BoxFit.cover,
-                  width: double.infinity,
-                  errorBuilder: (_, _, _) => Container(
+                  errorWidget: Container(
                     color: kPrimarySoft,
                     child: const Icon(
                       Icons.image_outlined,

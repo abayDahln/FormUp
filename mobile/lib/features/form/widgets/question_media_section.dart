@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 
 /// Isi section "Media": pratinjau gambar/audio + tombol tambah/ganti/hapus
 class QuestionMediaSection extends StatelessWidget {
@@ -49,13 +50,12 @@ class QuestionMediaSection extends StatelessWidget {
         ] else if (q.questionImage != null) ...[
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: Image.network(
-              profileImageUrl(q.questionImage),
+            child: CachedRemoteImage(
+              url: profileImageUrl(q.questionImage),
               height: 120,
               width: double.infinity,
               fit: BoxFit.cover,
-              cacheWidth: 800,
-              errorBuilder: (_, _, _) => Container(
+              errorWidget: Container(
                 height: 120,
                 alignment: Alignment.center,
                 color: const Color(0xFFF0F4F4),

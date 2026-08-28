@@ -320,13 +320,6 @@ class _FormStartScreenState extends State<FormStartScreen> {
               onPressed: _validatingToken ? null : _startForm,
             ),
           ],
-
-          const SizedBox(height: 12),
-          const Text(
-            "Pastikan Anda menjawab semua pertanyaan dengan benar sebelum mengirim.",
-            style: TextStyle(fontSize: 12, color: Colors.black45),
-            textAlign: TextAlign.center,
-          ),
         ],
       ),
     );

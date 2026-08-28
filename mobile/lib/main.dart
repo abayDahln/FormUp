@@ -4,12 +4,15 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // ponytail: isOptional, jalan tanpa .env
   await dotenv.load(fileName: '.env', isOptional: true);
+  NetworkStatus.configure(apiBaseUrl);
+  await NetworkStatus.refresh();
   // Restore sesi login — jangan sampai error storage membuat app gagal boot
   AuthResult? session;
   try {

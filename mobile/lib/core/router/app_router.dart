@@ -230,20 +230,30 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
     return completer.future;
   }
 
-void pop([Object? result]) {
-  if (_stack.length > 1) {
-    final removed = _stack.removeLast();
-    _popCompleters.remove(removed.page)?.complete();
-    notifyListeners();
-  } else if (_viaDeepLink) {
-    // Root dari deep link → fallback ke halaman root sesuai role
-    _viaDeepLink = false;
-    _stack
-      ..clear()
-      ..add(AppRoute(_rootPage));
+  /// Ganti halaman paling atas tanpa mempertahankan route sebelumnya.
+  void replaceTop(AppPage page, [Map<String, dynamic> args = const {}]) {
+    if (_stack.isNotEmpty) {
+      final removed = _stack.removeLast();
+      _popCompleters.remove(removed.page)?.complete();
+    }
+    _stack.add(AppRoute(page, args));
     notifyListeners();
   }
-}
+
+  void pop([Object? result]) {
+    if (_stack.length > 1) {
+      final removed = _stack.removeLast();
+      _popCompleters.remove(removed.page)?.complete();
+      notifyListeners();
+    } else if (_viaDeepLink) {
+      // Root dari deep link → fallback ke halaman root sesuai role
+      _viaDeepLink = false;
+      _stack
+        ..clear()
+        ..add(AppRoute(_rootPage));
+      notifyListeners();
+    }
+  }
 
   /// Reset ke Login
   void resetToLogin() {

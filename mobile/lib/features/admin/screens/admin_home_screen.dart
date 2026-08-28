@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/admin_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -491,7 +492,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
                     backgroundColor: kPrimarySoft,
                     backgroundImage:
                         (_profile?.profileImage ?? '').isNotEmpty
-                            ? NetworkImage(_profile!.profileImage!)
+                            ? CachedNetworkImageProvider(_profile!.profileImage!)
                             : null,
                     child: (_profile?.profileImage ?? '').isEmpty
                         ? Text(

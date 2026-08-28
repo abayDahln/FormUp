@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 
 /// Kartu header detail form: banner, judul, badge status, info
@@ -24,22 +25,18 @@ class FormDetailHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (form.bannerImage != null && form.bannerImage!.trim().isNotEmpty) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: AspectRatio(
-                aspectRatio: 16 / 7,
-                child: Image.network(
-                  profileImageUrl(form.bannerImage),
-                  fit: BoxFit.cover,
+            AspectRatio(
+              aspectRatio: 16 / 7,
+              child: CachedRemoteImage(
+                url: profileImageUrl(form.bannerImage),
+                fit: BoxFit.cover,
+                errorWidget: Container(
                   width: double.infinity,
-                  errorBuilder: (_, _, _) => Container(
-                    width: double.infinity,
-                    color: const Color(0xFFF0F4F4),
-                    child: const Icon(
-                      Icons.broken_image_outlined,
-                      size: 32,
-                      color: Colors.grey,
-                    ),
+                  color: const Color(0xFFF0F4F4),
+                  child: const Icon(
+                    Icons.broken_image_outlined,
+                    size: 32,
+                    color: Colors.grey,
                   ),
                 ),
               ),

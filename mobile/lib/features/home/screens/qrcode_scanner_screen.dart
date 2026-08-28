@@ -35,7 +35,6 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
 
   @override
   void dispose() {
-    ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
     _controller.dispose();
     super.dispose();
   }

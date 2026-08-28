@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 
 /// Kartu banner form pada halaman awal pengerjaan
 class FormStartBannerCard extends StatelessWidget {
@@ -19,11 +20,10 @@ class FormStartBannerCard extends StatelessWidget {
       ),
       child: AspectRatio(
         aspectRatio: 16 / 7,
-        child: Image.network(
-          profileImageUrl(bannerImage),
+        child: CachedRemoteImage(
+          url: profileImageUrl(bannerImage),
           fit: BoxFit.cover,
-          width: double.infinity,
-          errorBuilder: (_, _, _) => Container(
+          errorWidget: Container(
             color: kPrimarySoft,
             child: const Icon(
               Icons.image_outlined,

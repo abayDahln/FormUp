@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 
 /// Avatar profil dengan tombol kamera untuk memilih gambar
@@ -62,11 +63,10 @@ class ProfileAvatar extends StatelessWidget {
     }
     final path = currentImagePath;
     if (path != null && path.isNotEmpty) {
-      return Image.network(
-        profileImageUrl(path),
+      return CachedRemoteImage(
+        url: profileImageUrl(path),
         fit: BoxFit.cover,
-        cacheWidth: 300,
-        errorBuilder: (_, _, _) => _avatarFallback(),
+        errorWidget: _avatarFallback(),
       );
     }
     return _avatarFallback();

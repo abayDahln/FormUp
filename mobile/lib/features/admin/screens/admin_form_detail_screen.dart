@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/services/admin_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -157,12 +158,10 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen> {
                             if ((f.bannerImage ?? '').isNotEmpty)
                               AspectRatio(
                                 aspectRatio: 3,
-                                child: Image.network(
-                                  _resolveUrl(f.bannerImage!),
-                                  width: double.infinity,
+                                child: CachedRemoteImage(
+                                  url: _resolveUrl(f.bannerImage!),
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) =>
-                                      const SizedBox.shrink(),
+                                  errorWidget: const SizedBox.shrink(),
                                 ),
                               ),
                             Padding(

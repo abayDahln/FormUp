@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/user_service.dart';
@@ -222,10 +223,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       );
     }
-    return Image.network(
-      profileImageUrl(path),
+    return Image(
+      image: CachedNetworkImageProvider(profileImageUrl(path)),
       fit: BoxFit.cover,
-      cacheWidth: 300,
       errorBuilder: (_, _, _) => Center(
         child: Text(
           _initial,

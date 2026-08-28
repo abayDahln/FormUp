@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:form_up/core/cache/api_cache.dart';
 import 'auth_service.dart';
 import 'public_form_service.dart' show MyAttempt, PublicFormResult;
 
@@ -335,6 +336,14 @@ class PagedResult<T> {
 
 /// Klien forms & questions
 class FormService {
+  static String get _scope => AuthService.cacheScope;
+
+  static void _invalidateCaches() {
+    ApiCache.invalidatePrefix('forms:');
+    ApiCache.invalidatePrefix('publicForms:');
+    ApiCache.invalidatePrefix('http:get:');
+  }
+
   /// POST /forms
   static Future<int> createForm({
     required String title,
@@ -344,23 +353,36 @@ class FormService {
       'title': title,
       'description': description,
     });
+    _invalidateCaches();
     final data = json['data'] as Map<String, dynamic>;
     return data['id'] as int;
   }
 
   /// GET /forms/{id}
   static Future<Map<String, dynamic>> getForm(int id) async {
-    final json = await AuthService.get('/forms/$id');
-    return json['data'] as Map<String, dynamic>;
+    return ApiCache.get(
+      'forms:detail:$_scope:$id',
+      const Duration(seconds: 30),
+      () async {
+        final json = await AuthService.get('/forms/$id');
+        return json['data'] as Map<String, dynamic>;
+      },
+    );
   }
 
   /// GET /forms
   static Future<List<FormData>> getMyForms() async {
-    final json = await AuthService.get('/forms');
-    return [
-      for (final f in json['data'] as List<dynamic>? ?? [])
-        FormData.fromJson(f as Map<String, dynamic>),
-    ];
+    return ApiCache.get(
+      'forms:list:$_scope:${formsVersion.value}',
+      const Duration(seconds: 20),
+      () async {
+        final json = await AuthService.get('/forms');
+        return [
+          for (final f in json['data'] as List<dynamic>? ?? [])
+            FormData.fromJson(f as Map<String, dynamic>),
+        ];
+      },
+    );
   }
 
   /// PUT /forms/{id}
@@ -372,24 +394,33 @@ class FormService {
     String? bannerImage,
   }) async {
     await AuthService.put('/forms/$id', {
-      'title': ?title,
-      'description': ?description,
-      'formLink': ?formLink,
-      'bannerImage': ?bannerImage,
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (formLink != null) 'formLink': formLink,
+      if (bannerImage != null) 'bannerImage': bannerImage,
     });
+    _invalidateCaches();
   }
 
   /// PATCH /forms/{id}/settings
-  static Future<void> updateSettings(int id, Map<String, dynamic> settings) =>
-      AuthService.patch('/forms/$id/settings', settings);
+  static Future<void> updateSettings(int id, Map<String, dynamic> settings) async {
+    await AuthService.patch('/forms/$id/settings', settings);
+    _invalidateCaches();
+  }
 
   /// GET /forms/{id}/questions
   static Future<List<QuestionData>> getQuestions(int formId) async {
-    final json = await AuthService.get('/forms/$formId/questions');
-    return [
-      for (final q in json['data'] as List<dynamic>? ?? [])
-        QuestionData.fromJson(q as Map<String, dynamic>),
-    ];
+    return ApiCache.get(
+      'forms:questions:$_scope:$formId:${formsVersion.value}',
+      const Duration(seconds: 60),
+      () async {
+        final json = await AuthService.get('/forms/$formId/questions');
+        return [
+          for (final q in json['data'] as List<dynamic>? ?? [])
+            QuestionData.fromJson(q as Map<String, dynamic>),
+        ];
+      },
+    );
   }
 
   /// POST /forms/{id}/questions
@@ -401,6 +432,7 @@ class FormService {
     final json = await AuthService.post('/forms/$formId/questions', {
       'questions': questions,
     });
+    _invalidateCaches();
     return [
       for (final q in json['data'] as List<dynamic>? ?? [])
         (q as Map<String, dynamic>),
@@ -416,6 +448,7 @@ class FormService {
     final json = await AuthService.put('/forms/$formId/questions', {
       'questions': questions,
     });
+    _invalidateCaches();
     return [
       for (final q in json['data'] as List<dynamic>? ?? [])
         (q as Map<String, dynamic>),
@@ -425,18 +458,28 @@ class FormService {
   /// POST /forms/{id}/publish
   static Future<void> publish(int formId) async {
     await AuthService.post('/forms/$formId/publish', {});
+    _invalidateCaches();
   }
 
   /// DELETE /forms/{id}
-  static Future<void> deleteForm(int id) => AuthService.delete('/forms/$id');
+  static Future<void> deleteForm(int id) async {
+    await AuthService.delete('/forms/$id');
+    _invalidateCaches();
+  }
 
   /// GET /users/me/responses
   static Future<List<MyResponseItem>> getMyResponses() async {
-    final json = await AuthService.get('/users/me/responses');
-    return [
-      for (final r in json['data'] as List<dynamic>? ?? [])
-        MyResponseItem.fromJson(r as Map<String, dynamic>),
-    ];
+    return ApiCache.get(
+      'forms:myResponses:$_scope:${formsVersion.value}',
+      const Duration(seconds: 20),
+      () async {
+        final json = await AuthService.get('/users/me/responses');
+        return [
+          for (final r in json['data'] as List<dynamic>? ?? [])
+            MyResponseItem.fromJson(r as Map<String, dynamic>),
+        ];
+      },
+    );
   }
 
   /// GET /forms/{id}/responses
@@ -448,25 +491,32 @@ class FormService {
     final path = page != null && pageSize != null
         ? '/forms/$formId/responses?page=$page&pageSize=$pageSize'
         : '/forms/$formId/responses';
-    final json = await AuthService.get(path);
-    final data = json['data'];
+    return ApiCache.get(
+      'forms:responses:$_scope:$formId:$path',
+      const Duration(seconds: 15),
+      () async {
+        final json = await AuthService.get(path);
+        final data = json['data'];
 
-    // Backward-compat: tanpa param server mengembalikan array polos.
-    if (data is List) {
-      return PagedResult(
-        items: [
-          for (final r in data) ResponseListItemData.fromJson(r as Map<String, dynamic>),
-        ],
-        total: data.length,
-      );
-    }
-    final map = data as Map<String, dynamic>;
-    return PagedResult(
-      items: [
-        for (final r in map['items'] as List<dynamic>? ?? [])
-          ResponseListItemData.fromJson(r as Map<String, dynamic>),
-      ],
-      total: map['total'] as int? ?? 0,
+        // Backward-compat: tanpa param server mengembalikan array polos.
+        if (data is List) {
+          return PagedResult(
+            items: [
+              for (final r in data)
+                ResponseListItemData.fromJson(r as Map<String, dynamic>),
+            ],
+            total: data.length,
+          );
+        }
+        final map = data as Map<String, dynamic>;
+        return PagedResult(
+          items: [
+            for (final r in map['items'] as List<dynamic>? ?? [])
+              ResponseListItemData.fromJson(r as Map<String, dynamic>),
+          ],
+          total: map['total'] as int? ?? 0,
+        );
+      },
     );
   }
 
@@ -475,8 +525,16 @@ class FormService {
     int formId,
     int responseId,
   ) async {
-    final json = await AuthService.get('/forms/$formId/responses/$responseId');
-    return ResponseDetailData.fromJson(json['data'] as Map<String, dynamic>);
+    return ApiCache.get(
+      'forms:responseDetail:$_scope:$formId:$responseId',
+      const Duration(seconds: 30),
+      () async {
+        final json = await AuthService.get('/forms/$formId/responses/$responseId');
+        return ResponseDetailData.fromJson(
+          json['data'] as Map<String, dynamic>,
+        );
+      },
+    );
   }
 
   /// PUT /responses/{id}/status
@@ -510,8 +568,14 @@ class FormService {
         'search=${Uri.encodeQueryComponent(search.trim())}',
     ];
     final query = params.isEmpty ? '' : '?${params.join('&')}';
-    final json = await AuthService.get('/forms/$formId/analytics$query');
-    return FormAnalytics.fromJson(json['data'] as Map<String, dynamic>);
+    return ApiCache.get(
+      'forms:analytics:$_scope:$formId:$query',
+      const Duration(seconds: 20),
+      () async {
+        final json = await AuthService.get('/forms/$formId/analytics$query');
+        return FormAnalytics.fromJson(json['data'] as Map<String, dynamic>);
+      },
+    );
   }
 
   /// GET /forms/{formId}/responses/{responseId}/result
@@ -520,10 +584,18 @@ class FormService {
     int formId,
     int responseId,
   ) async {
-    final json = await AuthService.get(
-      '/forms/$formId/responses/$responseId/result',
+    return ApiCache.get(
+      'forms:responseResult:$_scope:$formId:$responseId',
+      const Duration(seconds: 30),
+      () async {
+        final json = await AuthService.get(
+          '/forms/$formId/responses/$responseId/result',
+        );
+        return PublicFormResult.fromJson(
+          json['data'] as Map<String, dynamic>,
+        );
+      },
     );
-    return PublicFormResult.fromJson(json['data'] as Map<String, dynamic>);
   }
 
   /// GET /forms/{formId}/responses/{responseId}/attempts
@@ -532,13 +604,19 @@ class FormService {
     int formId,
     int responseId,
   ) async {
-    final json = await AuthService.get(
-      '/forms/$formId/responses/$responseId/attempts',
+    return ApiCache.get(
+      'forms:attempts:$_scope:$formId:$responseId',
+      const Duration(seconds: 30),
+      () async {
+        final json = await AuthService.get(
+          '/forms/$formId/responses/$responseId/attempts',
+        );
+        return [
+          for (final a in json['data'] as List<dynamic>? ?? [])
+            MyAttempt.fromJson(a as Map<String, dynamic>),
+        ];
+      },
     );
-    return [
-      for (final a in json['data'] as List<dynamic>? ?? [])
-        MyAttempt.fromJson(a as Map<String, dynamic>),
-    ];
   }
 
   /// POST /forms/{id}/banner
@@ -599,6 +677,7 @@ class FormService {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(json['message'] as String? ?? 'Terjadi kesalahan.');
     }
+    _invalidateCaches();
     return (json['data'] as Map<String, dynamic>?)?[dataKey] as String? ?? '';
   }
 
@@ -662,6 +741,7 @@ class FormService {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(json['message'] as String? ?? 'Terjadi kesalahan.');
     }
+    _invalidateCaches();
     return json['data'] as Map<String, dynamic>? ?? {};
   }
 

@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:form_up/core/cache/api_cache.dart';
+import 'package:form_up/core/services/network_status.dart';
 
 // ponytail: chain fallback .env, dart-define, default.
 String get apiBaseUrl {
@@ -53,6 +55,7 @@ class _RateLimiter {
 
 class AuthResult {
   final String token;
+  final DateTime expiresAt;
   final String fullname;
   final String username;
   final String email;
@@ -60,6 +63,7 @@ class AuthResult {
 
   AuthResult({
     required this.token,
+    required this.expiresAt,
     required this.fullname,
     required this.username,
     required this.email,
@@ -71,6 +75,7 @@ class AuthResult {
     final user = data['user'] as Map<String, dynamic>;
     return AuthResult(
       token: data['token'] as String,
+      expiresAt: AuthService._parseExpiresAt(data),
       fullname: user['fullname'] as String? ?? '',
       username: user['username'] as String? ?? '',
       email: user['email'] as String? ?? '',
@@ -88,15 +93,22 @@ class AuthService {
 
   // ponytail: token di shared_preferences tetap login.
   static String? token;
+  static DateTime? _expiresAt;
 
   static String? _email;
   static String? _role;
-  static bool _rememberMe = false;
+  static bool _rememberMe = true;
+  static Timer? _sessionTimer;
+  static bool _sessionRefreshInProgress = false;
 
   static String? get email => _email;
+  static DateTime? get expiresAt => _expiresAt;
 
   /// Role user login ('ADMIN' / 'USER')
   static String get role => _role ?? 'USER';
+
+  /// Scope cache per sesi user untuk mencegah data lintas akun ikut terbaca.
+  static String get cacheScope => '${email ?? 'anon'}|$role';
 
   /// Ingat saya: true = sesi tersimpan (auto-login sampai token kedaluwarsa),
   /// false = sesi hanya hidup selama aplikasi terbuka.
@@ -111,65 +123,146 @@ class AuthService {
   static const _kEmail = 'auth_email';
   static const _kRole = 'auth_role';
   static const _kRemember = 'auth_remember';
+  static const _kExpiresAt = 'auth_expires_at';
+  static const _offlineMessage =
+      'Kamu sedang offline. Login dan perubahan data tidak tersedia.';
 
-  /// Simpan pilihan ingat saya
-  static Future<void> setRememberMe(bool value) async {
-    _rememberMe = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kRemember, value);
+  static DateTime _nowUtc() => DateTime.now().toUtc();
+
+  static DateTime _parseExpiresAt(Map<String, dynamic> json) {
+    final raw = json['expiresAt'] ?? json['expires_at'];
+    if (raw is String && raw.isNotEmpty) {
+      return DateTime.tryParse(raw)?.toUtc() ?? _nowUtc();
+    }
+    if (raw is DateTime) return raw.toUtc();
+    return _nowUtc();
   }
 
-  static Future<void> _persistSession(AuthResult result) async {
-    token = result.token;
-    _email = result.email;
-    _role = result.role;
-    final prefs = await SharedPreferences.getInstance();
+  static void _cancelSessionTimer() {
+    _sessionTimer?.cancel();
+    _sessionTimer = null;
+  }
 
-    // Tanpa "ingat saya": sesi hanya di memori, hapus sisa sesi tersimpan.
-    if (!_rememberMe) {
-      await prefs.remove(_kToken);
-      await prefs.remove(_kFullname);
-      await prefs.remove(_kUsername);
-      await prefs.remove(_kEmail);
-      await prefs.remove(_kRole);
+  static void _scheduleSessionRefresh() {
+    _cancelSessionTimer();
+    if (!_rememberMe || token == null || _expiresAt == null) return;
+
+    final delay = _expiresAt!.difference(_nowUtc());
+    if (delay <= Duration.zero) {
+      unawaited(_refreshPersistedSession());
       return;
     }
 
-    await prefs.setString(_kToken, result.token);
-    await prefs.setString(_kFullname, result.fullname);
-    await prefs.setString(_kUsername, result.username);
-    await prefs.setString(_kEmail, result.email);
-    await prefs.setString(_kRole, result.role);
+    _sessionTimer = Timer(delay, () {
+      unawaited(_refreshPersistedSession());
+    });
+  }
+
+  static Future<void> _refreshPersistedSession() async {
+    if (_sessionRefreshInProgress || token == null) return;
+    _sessionRefreshInProgress = true;
+    try {
+      final refreshed = await _refresh();
+      if (refreshed) return;
+      await logout();
+      onSessionExpired?.call();
+    } finally {
+      _sessionRefreshInProgress = false;
+    }
+  }
+
+
+
+  static Future<void> _persistSession(AuthResult result) async {
+    token = result.token;
+    _expiresAt = result.expiresAt;
+    _email = result.email;
+    _role = result.role;
+    _rememberMe = true;
+    final prefs = await SharedPreferences.getInstance();
+
+    try {
+      await prefs.setString(_kToken, result.token);
+      await prefs.setString(_kFullname, result.fullname);
+      await prefs.setString(_kUsername, result.username);
+      await prefs.setString(_kEmail, result.email);
+      await prefs.setString(_kRole, result.role);
+      await prefs.setString(_kExpiresAt, result.expiresAt.toUtc().toIso8601String());
+      await prefs.setBool(_kRemember, true);
+      if (kDebugMode) {
+        debugPrint('[Auth] Session persisted: email=${result.email}, expiresAt=${result.expiresAt}');
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('[Auth] ERROR persisting session: $e');
+      rethrow;
+    }
+    _scheduleSessionRefresh();
   }
 
   /// Ambil sesi tersimpan
   static Future<AuthResult?> restoreSession() async {
     final prefs = await SharedPreferences.getInstance();
-    _rememberMe = prefs.getBool(_kRemember) ?? false;
+    _rememberMe = prefs.getBool(_kRemember) ?? true;
     final savedToken = prefs.getString(_kToken);
+    final savedExpiresAtStr = prefs.getString(_kExpiresAt);
+    final savedEmail = prefs.getString(_kEmail);
+    final savedRole = prefs.getString(_kRole);
+
     if (kDebugMode) {
       debugPrint('[Auth] restoreSession: rememberMe=$_rememberMe, '
-          'token=${savedToken == null ? "tidak ada" : "ada"}');
+          'token=${savedToken == null ? "tidak ada" : "ada"} '
+          'expiresAtStr=${savedExpiresAtStr ?? "null"} '
+          'email=${savedEmail ?? "null"}');
     }
-    if (savedToken == null || savedToken.isEmpty) return null;
+
+    if (savedToken == null || savedToken.isEmpty) {
+      if (kDebugMode) debugPrint('[Auth] No saved token found');
+      return null;
+    }
+
     token = savedToken;
-    _email = prefs.getString(_kEmail) ?? '';
-    _role = prefs.getString(_kRole) ?? 'USER';
+    _email = savedEmail ?? '';
+    _role = savedRole ?? 'USER';
+
+    DateTime? parsedExpiresAt;
+    if (savedExpiresAtStr != null && savedExpiresAtStr.isNotEmpty) {
+      parsedExpiresAt = DateTime.tryParse(savedExpiresAtStr)?.toUtc();
+      if (kDebugMode) debugPrint('[Auth] Parsed expiresAt: $parsedExpiresAt');
+    }
+
+    // Jika expiresAt tidak valid/parse gagal, anggap expired tapi jangan logout
+    if (parsedExpiresAt == null || _nowUtc().isAfter(parsedExpiresAt)) {
+      if (kDebugMode) debugPrint('[Auth] Token expired or invalid expiresAt, keeping session for auto-refresh');
+      _expiresAt = parsedExpiresAt;
+      await NetworkStatus.refresh();
+      if (NetworkStatus.isOnline) {
+        unawaited(_refresh()); // fire-and-forget
+      }
+      _scheduleSessionRefresh();
+    } else {
+      _expiresAt = parsedExpiresAt;
+      _scheduleSessionRefresh();
+    }
+
     if (kDebugMode) {
-      debugPrint('[Auth] sesi dipulihkan untuk ${_email ?? "?"}');
+      debugPrint('[Auth] Session restored for ${_email ?? "?"}');
     }
     return AuthResult(
-      token: savedToken,
+      token: token ?? savedToken,
+      expiresAt: _expiresAt ?? _nowUtc().add(const Duration(days: 14)), // fallback panjang
       fullname: prefs.getString(_kFullname) ?? '',
       username: prefs.getString(_kUsername) ?? '',
-      email: prefs.getString(_kEmail) ?? '',
+      email: _email!,
       role: _role!,
     );
   }
 
   /// Pesan error untuk user
-  static String errorMessage(Object e) =>
-      e is ApiException ? e.message : 'Terjadi kesalahan yang tidak diketahui.';
+  static String errorMessage(Object e) => switch (e) {
+        ApiException(:final message) => message,
+        OfflineCacheException(:final message) => message,
+        _ => 'Terjadi kesalahan yang tidak diketahui.',
+      };
 
   static bool isValidEmail(String email) =>
       RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(email);
@@ -210,6 +303,12 @@ class AuthService {
     Map<String, dynamic>? body,
     Map<String, String> headers,
   ) async {
+    if (NetworkStatus.isOffline) {
+      await NetworkStatus.refresh();
+      if (NetworkStatus.isOffline) {
+        throw const ApiException(_offlineMessage);
+      }
+    }
     var attempt = 0;
     while (true) {
       try {
@@ -220,12 +319,16 @@ class AuthService {
           request.body = jsonEncode(body);
         }
         final streamed = await request.send().timeout(_timeout);
-        return await http.Response.fromStream(streamed);
+        final response = await http.Response.fromStream(streamed);
+        NetworkStatus.markOnline();
+        return response;
       } on TimeoutException {
+        NetworkStatus.markOffline();
         if (attempt >= _maxRetries) {
           throw const ApiException(_connectionMessage);
         }
       } on http.ClientException {
+        NetworkStatus.markOffline();
         if (attempt >= _maxRetries) {
           throw const ApiException(_connectionMessage);
         }
@@ -282,11 +385,18 @@ class AuthService {
       });
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       if (response.statusCode < 200 || response.statusCode >= 300) return false;
-      token = (json['data'] as Map<String, dynamic>)['token'] as String;
-      if (_rememberMe) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_kToken, token!);
+      final data = json['data'] as Map<String, dynamic>;
+      token = data['token'] as String;
+      _expiresAt = _parseExpiresAt(data);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kToken, token!);
+      if (_expiresAt != null) {
+        await prefs.setString(
+          _kExpiresAt,
+          _expiresAt!.toUtc().toIso8601String(),
+        );
       }
+      _scheduleSessionRefresh();
       return true;
     } catch (_) {
       return false;
@@ -398,10 +508,11 @@ class AuthService {
 
   /// Logout client
   static Future<void> logout() async {
+    _cancelSessionTimer();
     token = null;
+    _expiresAt = null;
     _email = null;
     _role = null;
-    _rememberMe = false;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kToken);
     await prefs.remove(_kFullname);
@@ -409,25 +520,38 @@ class AuthService {
     await prefs.remove(_kEmail);
     await prefs.remove(_kRole);
     await prefs.remove(_kRemember);
+    await prefs.remove(_kExpiresAt);
+    await ApiCache.clear();
   }
 
   static Future<Map<String, dynamic>> post(
     String path,
     Map<String, dynamic> body,
-  ) => _send('POST', path, body, auth: true);
+  ) {
+    return _send('POST', path, body, auth: true);
+  }
 
-  static Future<Map<String, dynamic>> get(String path) =>
-      _send('GET', path, null, auth: true);
+  static Future<Map<String, dynamic>> get(String path) {
+    return ApiCache.get(
+      'http:get:${cacheScope}:$path',
+      const Duration(minutes: 30),
+      () => _send('GET', path, null, auth: true),
+    );
+  }
 
   static Future<Map<String, dynamic>> put(
     String path,
     Map<String, dynamic> body,
-  ) => _send('PUT', path, body, auth: true);
+  ) {
+    return _send('PUT', path, body, auth: true);
+  }
 
   static Future<Map<String, dynamic>> patch(
     String path,
     Map<String, dynamic> body,
-  ) => _send('PATCH', path, body, auth: true);
+  ) {
+    return _send('PATCH', path, body, auth: true);
+  }
 
   static Future<Map<String, dynamic>> delete(String path) =>
       _send('DELETE', path, null, auth: true);
