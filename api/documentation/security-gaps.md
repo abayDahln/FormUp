@@ -1,0 +1,22 @@
+# Celah Keamanan API — Catatan Internal (Belum Diperbaiki)
+
+> Dokumen ini **hanya untuk celah di `api/`**. Perubahan API ditunda agar tidak konflik dengan `web/form-fe` yang masih aktif; perbaikan difokuskan ke `mobile/` terlebih dahulu. Jangan expose file ini ke publik.
+
+*Scope audit:* `api/Program.cs`, `api/Controllers/*`, `api/Services/*`, `api/appsettings.json`, `api/Models/*` — dibaca langsung, bukan spekulasi.
+
+| # | Tingkat | Lokasi | Celah | Dampak | Rekomendasi |
+|---|---------|--------|-------|--------|-------------|
+| 1 | **Kritis** | `api/Services/JwtService.cs:74` `ClockSkew=7 days` vs `api/Program.cs:123` `ClockSkew=0` | Refresh memvalidasi token kadaluwarsa hingga 7 hari. Pencuri token lama tetap bisa refresh. | Replay session panjang. | Samakan `ClockSkew=Zero`; pakai refresh-token terpisah (httpOnly, rotating, simpan di DB + blacklist). |
+| 2 | **Kritis** | `api/Controllers/AuthController.cs:45,188` `Random.Shared` untuk OTP 6 digit | PRNG tidak kriptografis, bisa ditebak. Rate-limit hanya 10/menit/IP (`Program.cs:173`), tanpa limit per-email. | Brute-force OTP. | `RandomNumberGenerator.GetInt32`, hash OTP di DB, max 5 coba/email + lockout + CAPTCHA. |
+| 3 | **Kritis** | `api/Services/ResponseSubmission.cs:80` & `api/Controllers/PublicFormsController.cs:215` | `oneResponse=true` hanya dicek untuk user login. Guest (`RespondentId==null`) bisa submit tanpa batas. `guestToken` tidak disimpan/dicek server. | Spam polling, manipulasi skor. | Simpan `guestToken` persisten (cookie/GUID) server-side; tolak guest kedua bila `oneResponse`. |
+| 4 | **Kritis** | `api/Controllers/FormsController.cs:190` `Update(bannerImage=request.BannerImage)` tanpa validasi | Attacker set `bannerImage="../../appsettings.json"` lalu `UploadBanner:285` `File.Delete(oldPath)` via `Path.Combine(...TrimStart('/'))`. | Hapus file sewenang-wenang (path traversal). | Whitelist `^/banner/[0-9a-f\-\.]+\.(jpg\|png\|webp\|gif)$`, tolak `..`, jangan izinkan set `bannerImage` via `PUT`. |
+| 5 | **Tinggi** | `api/Services/RichTextValidation.cs:18` + semua `Question1`/`Description` | Hanya cek `Delta JSON`, HTML mentah (`<script>`, `onerror`, `javascript:`) disimpan. Web template (`web/.../templateForm.jsx:152` `<p><pre>`) dirender tanpa sanitizer. | Stored XSS ke semua responden/admin. | `Ganss.XSS`/HtmlSanitizer di server (allow-list), CSP header, sanitasi di `flutter_html`. |
+| 6 | **Tinggi** | `api/Controllers/QuestionsController.cs:405` + `Services/FileValidation.cs:76` | `MaxImportBytes=5MB` tapi ZIP decompress + `ClosedXML`/`PdfPig` tanpa batas rasio/rows. `Import:548` loop `SaveChanges` per row tanpa limit. | Zip-bomb / OOM / 10k insert DoS. | Batas `rows<=500`, tolak `entry.UncompressedSize>50MB`, `CancellationToken`, streaming parse. |
+| 7 | Tinggi | `api/Controllers/PublicFormsController.cs:146` `GetResult` guest | Guest `RespondentId==null` selalu lolos (`!isOwner && RespondentId!=null` baru 401). Tebak `responseId` bisa lihat jawaban orang. | Enumerasi & kebocoran hasil. | Wajib `guestToken` cocok untuk guest; rate-limit + random `responseId` (GUID). |
+| 8 | Tinggi | `api/appsettings.json:3` `Jwt:Key` default ter-commit | `your-super-secret-key...` di repo, walau `Program.cs:98` tolak runtime tetap buruk supply-chain. | Secret leak. | Kosongkan di repo, wajib via env `JWT_KEY` + `.gitignore`. |
+| 9 | Sedang | `api/Program.cs:249` `UseStaticFiles` + `UseHttpsRedirection` tanpa HSTS | Produksi masih `http://` (mobile `10.0.2.2:5000`), tanpa `UseHsts`. MITM. | Sniff token/file. | Enforce `https`, `UseHsts`, `RequireHttpsMetadata=true` di prod, pin cert mobile. |
+| 10 | Sedang | `api/Controllers/ResponsesController.cs:59` `Export` CSV | `EscapeCsv` strip tag OK, tapi tanpa limit `responses` bisa dump ribuan baris → OOM & leak PII. | Data exfil. | Paginate export, audit log, mask PII. |
+| 11 | Sedang | `api/Program.cs:181` rate-limit `creator 120/min` & `template 10/min/IP` | Per IP → NAT kampus 1 IP = DoS legit; botnet banyak IP lolos. | Bypass. | Kombinasi IP+userId, tambah per-email limit untuk auth. |
+| 12 | Rendah | `api/Services/ErrorHandlingMiddleware.cs:33` + `AuthController.cs:61` | Pesan `Check SMTP configuration` bocorkan infra. | Fingerprint. | Pesan generik `Gagal kirim email` untuk 5xx. |
+
+**Catatan implementasi:** Daftar ini sengaja dipisah agar `web` tidak terdampak. Perbaikan `mobile` poin 7 & 12 sudah dikerjakan; sisanya dijadwalkan setelah migrasi API terpisah.
