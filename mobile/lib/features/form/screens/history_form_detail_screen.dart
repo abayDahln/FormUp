@@ -59,7 +59,7 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: kAppBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -79,7 +79,7 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : AuthBackground(
+          : AuthBackground(plain: true,
               child: SafeArea(
                 child: RefreshIndicator(
                   color: kAuthPrimary,

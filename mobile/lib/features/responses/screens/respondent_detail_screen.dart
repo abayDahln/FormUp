@@ -88,7 +88,7 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
         ? widget.respondentName.trim()
         : 'Responden';
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: kAppBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -114,7 +114,7 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
       ),
       body: _loading && _result == null
           ? const Center(child: CircularProgressIndicator())
-          : AuthBackground(
+          : AuthBackground(plain: true,
               child: SafeArea(
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),

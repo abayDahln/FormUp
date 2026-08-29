@@ -116,7 +116,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen> {
     final f = _form;
     final takenDown = f?.takenDownAt != null;
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: kAppBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,

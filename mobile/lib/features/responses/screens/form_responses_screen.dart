@@ -107,7 +107,7 @@ class _FormResponsesScreenState extends State<FormResponsesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: kAppBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -131,7 +131,7 @@ class _FormResponsesScreenState extends State<FormResponsesScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : AuthBackground(
+          : AuthBackground(plain: true,
               child: SafeArea(
                 child: _responses.isEmpty
                     ? Center(

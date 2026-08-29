@@ -42,31 +42,29 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAuthBg,
-      body: AuthBackground(
-        child: SafeArea(
-          child: IndexedStack(
-            index: _currentIndex,
-            children: [
-              _AdminBerandaTab(
-                name: _name,
-                onOpenManage: () => setState(() {
-                  _visitedTabs.add(1);
-                  _currentIndex = 1;
-                }),
-              ),
-              if (_visitedTabs.contains(1))
-                const AdminPanelContent()
-              else
-                const SizedBox.shrink(),
-              if (_visitedTabs.contains(2))
-                const _AdminProfileTab()
-              else
-                const SizedBox.shrink(),
-            ],
+      backgroundColor: kAppBg,
+      body: SafeArea(
+        child: IndexedStack(
+          index: _currentIndex,
+          children: [
+            _AdminBerandaTab(
+              name: _name,
+              onOpenManage: () => setState(() {
+                _visitedTabs.add(1);
+                _currentIndex = 1;
+              }),
+            ),
+            if (_visitedTabs.contains(1))
+              const AdminPanelContent()
+            else
+              const SizedBox.shrink(),
+            if (_visitedTabs.contains(2))
+              const _AdminProfileTab()
+            else
+              const SizedBox.shrink(),
+          ],
           ),
         ),
-      ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,

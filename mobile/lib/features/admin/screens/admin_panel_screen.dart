@@ -7,9 +7,8 @@ import 'package:form_up/core/services/admin_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/search_field.dart';
-import 'package:form_up/features/home/widgets/response_tab_switcher.dart';
 
-enum _AdminTab { users, forms, feedback }
+
 
 /// Konten tab "Kelola" pada shell admin: kelola user, form, dan feedback.
 /// Ditampilkan di dalam AdminHomeScreen (tanpa Scaffold sendiri).
@@ -21,22 +20,22 @@ class AdminPanelContent extends StatefulWidget {
 }
 
 class _AdminPanelContentState extends State<AdminPanelContent> {
-  _AdminTab _tab = _AdminTab.users;
-
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 15, 20, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Kelola',
-                  style: TextStyle(
+    return DefaultTabController(
+      length: 3,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 15, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Kelola',
+                    style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
@@ -52,30 +51,35 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
             ),
           ),
           const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: ResponseTabSwitcher(
-              items: const [
-                ResponseTabItem(icon: Icons.people_outline, label: 'User'),
-                ResponseTabItem(
-                    icon: Icons.description_outlined, label: 'Form'),
-                ResponseTabItem(icon: Icons.forum_outlined, label: 'Feedback'),
+          const ColoredBox(
+            color: Colors.white,
+            child: TabBar(
+              labelColor: kPrimary,
+              unselectedLabelColor: Colors.grey,
+              indicatorColor: kPrimary,
+              indicatorWeight: 2.5,
+              labelStyle: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 13),
+              unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              tabs: [
+                Tab(text: 'User'),
+                Tab(text: 'Form'),
+                Tab(text: 'Feedback'),
               ],
-              activeIndex: _tab.index,
-              onChanged: (i) => setState(() => _tab = _AdminTab.values[i]),
             ),
           ),
           const SizedBox(height: 14),
-          Expanded(
-            child: switch (_tab) {
-              _AdminTab.users => const _AdminUsersTab(),
-              _AdminTab.forms => const _AdminFormsTab(),
-              _AdminTab.feedback => const _AdminFeedbackTab(),
-            },
+          const Expanded(
+            child: TabBarView(
+              children: [
+                _AdminUsersTab(),
+                _AdminFormsTab(),
+                _AdminFeedbackTab(),
+              ],
+            ),
           ),
         ],
       ),
-    );
+    ));
   }
 }
 
@@ -249,25 +253,16 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: [
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 20),
-                        padding: const EdgeInsets.symmetric(vertical: 36),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
                         child: Column(
                           children: [
-                            const Icon(Icons.person_off_outlined,
-                                color: Colors.grey, size: 36),
+                            const Icon(Icons.person_off_outlined, color: Colors.black38, size: 36),
                             const SizedBox(height: 10),
                             Text(
-                              _query.isEmpty
-                                  ? 'Belum ada user'
-                                  : 'Tidak ada hasil untuk "${_searchController.text}"',
-                              style: const TextStyle(
-                                  fontSize: 13, color: Colors.black54),
+                              _query.isEmpty ? 'Belum ada user' : 'Tidak ada hasil untuk "${_searchController.text}"',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 13, color: Colors.black45),
                             ),
                           ],
                         ),
@@ -481,25 +476,17 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: [
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 20),
-                        padding: const EdgeInsets.symmetric(vertical: 36),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
                         child: Column(
                           children: [
-                            const Icon(Icons.folder_off_outlined,
-                                color: Colors.grey, size: 36),
+                            const Icon(Icons.folder_off_outlined, color: Colors.black38, size: 36),
                             const SizedBox(height: 10),
                             Text(
-                              _query.isEmpty
-                                  ? 'Belum ada form'
+                              _query.isEmpty ? 'Belum ada form'
                                   : 'Tidak ada hasil untuk "${_searchController.text}"',
-                              style: const TextStyle(
-                                  fontSize: 13, color: Colors.black54),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 13, color: Colors.black45),
                             ),
                           ],
                         ),
@@ -512,8 +499,7 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-                        itemCount:
-                            _forms.length + (_totalPages > 1 ? 1 : 0),
+                        itemCount: _forms.length + (_totalPages > 1 ? 1 : 0),
                         separatorBuilder: (_, _) => const SizedBox(height: 12),
                         itemBuilder: (context, i) {
                           if (i >= _forms.length) {
@@ -689,23 +675,14 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
             child: !_loading && _feedbacks.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 20),
-                        padding: const EdgeInsets.symmetric(vertical: 36),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Column(
+                    children: const [
+                      Padding(
+                        padding: EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                        child: Column(
                           children: [
-                            Icon(Icons.forum_outlined,
-                                color: Colors.grey, size: 36),
+                            Icon(Icons.forum_outlined, color: Colors.black38, size: 36),
                             SizedBox(height: 10),
-                            Text('Belum ada feedback',
-                                style: TextStyle(
-                                    fontSize: 13, color: Colors.black54)),
+                            Text('Belum ada feedback', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Colors.black45)),
                           ],
                         ),
                       ),

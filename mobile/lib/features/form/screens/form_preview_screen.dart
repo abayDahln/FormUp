@@ -113,7 +113,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: kAppBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -137,7 +137,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : AuthBackground(
+          : AuthBackground(plain: true,
               child: SafeArea(
                 child: Column(
                   children: [

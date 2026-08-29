@@ -38,7 +38,7 @@ ThemeData buildFormUpTheme() {
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: kBg,
+    scaffoldBackgroundColor: kAppBg,
     fontFamily: 'Inter',
 
     // Card theme dengan shadow konsisten

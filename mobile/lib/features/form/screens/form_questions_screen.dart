@@ -663,7 +663,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: kAppBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -694,7 +694,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : AbsorbPointer(
               absorbing: _saving,
-              child: AuthBackground(
+              child: AuthBackground(plain: true,
                 child: SafeArea(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(22, 4, 22, 24),

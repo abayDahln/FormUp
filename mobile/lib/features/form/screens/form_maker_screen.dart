@@ -183,7 +183,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: kAppBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -216,7 +216,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
               absorbing: _saving,
               child: Stack(
                 children: [
-                AuthBackground(
+                AuthBackground(plain: true,
                   child: SafeArea(
                     child: ValueListenableBuilder<ActiveRichEditor?>(
                       valueListenable: activeRichEditor,

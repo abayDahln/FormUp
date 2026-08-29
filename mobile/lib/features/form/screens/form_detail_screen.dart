@@ -97,7 +97,7 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
   Widget build(BuildContext context) {
     final form = _form;
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: kAppBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,

@@ -13,29 +13,24 @@ class ResponseEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 40),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: Colors.grey, size: 40),
-              const SizedBox(height: 10),
-              Text(
-                message,
-                style: const TextStyle(fontSize: 14, color: Colors.black54),
-              ),
-            ],
-          ),
+    // Dipakai di dalam Expanded/TabBarView — center vertikal & horizontal.
+    // Untuk pull-to-refresh, parent sudah menyediakan scroll; di sini cukup Center.
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.black38, size: 40),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: Colors.black45),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

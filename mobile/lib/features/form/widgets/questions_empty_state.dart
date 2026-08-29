@@ -6,30 +6,21 @@ class QuestionsEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 40),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xCCBDC9C8)),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.quiz_outlined,
-            color: Colors.grey,
-            size: 40,
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'Belum ada pertanyaan.',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.black54,
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.quiz_outlined, color: Colors.black38, size: 40),
+            const SizedBox(height: 10),
+            const Text(
+              'Belum ada pertanyaan.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Colors.black45),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

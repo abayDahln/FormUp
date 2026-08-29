@@ -44,7 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: kAppBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -66,7 +66,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
-      body: AuthBackground(
+      body: AuthBackground(plain: true,
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),

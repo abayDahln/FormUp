@@ -101,7 +101,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     final u = _user;
     final isAdmin = u?.role == 'ADMIN';
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: kAppBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,

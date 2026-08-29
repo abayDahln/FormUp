@@ -4,6 +4,7 @@ import 'package:form_up/core/widgets/app_toast.dart';
 
 // ===== Design system =====
 const kBg = Color(0xFFE2F3F2);
+const kAppBg = Color(0xFFF8F9FA);
 const kPrimary = Color(0xFF2A9D8F);
 const kRadius = 20.0;
 const kBorderColor = Color(0x1FBDC9C8);
@@ -103,11 +104,16 @@ FormStatusStyle formStatusStyle(String status) {
 /// Background mint + gradient
 class AuthBackground extends StatelessWidget {
   final Widget child;
+  /// Jika true, tampil polos #F8F9FA tanpa gradient mint (untuk non-auth screen).
+  final bool plain;
 
-  const AuthBackground({super.key, required this.child});
+  const AuthBackground({super.key, required this.child, this.plain = false});
 
   @override
   Widget build(BuildContext context) {
+    if (plain) {
+      return Container(color: kAppBg, child: child);
+    }
     final size = MediaQuery.of(context).size;
     return Stack(
       children: [

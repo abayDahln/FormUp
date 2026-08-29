@@ -148,7 +148,7 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
     if (_dismissed) return const SizedBox.shrink();
 
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: kAppBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,

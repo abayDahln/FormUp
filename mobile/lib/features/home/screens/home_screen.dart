@@ -188,67 +188,57 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
-      body: AuthBackground(
-        child: SafeArea(
-          child: IndexedStack(
-            index: _currentIndex,
-            children: [
-              _buildHomeTab(),
-              if (_visitedTabs.contains(1)) const FormScreen() else const SizedBox.shrink(),
-              if (_visitedTabs.contains(2)) const ResponseScreen() else const SizedBox.shrink(),
-              if (_visitedTabs.contains(3))
-                ProfileScreen(username: widget.username)
-              else
-                const SizedBox.shrink(),
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: elevationShadow(ShadowLevel.medium),
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) {
-            if (index == _currentIndex) return;
-            setState(() {
-              _visitedTabs.add(index);
-              _currentIndex = index;
-            });
-          },
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: kPrimary,
-          unselectedItemColor: Colors.grey,
-          selectedFontSize: 12,
-          unselectedFontSize: 12,
-          iconSize: 22,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Beranda',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.description_outlined),
-              activeIcon: Icon(Icons.description),
-              label: 'Form',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart_outlined),
-              activeIcon: Icon(Icons.bar_chart),
-              label: 'Respons',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profil',
-            ),
+      backgroundColor: kAppBg,
+      body: SafeArea(
+        child: IndexedStack(
+          index: _currentIndex,
+          children: [
+            _buildHomeTab(),
+            if (_visitedTabs.contains(1)) const FormScreen() else const SizedBox.shrink(),
+            if (_visitedTabs.contains(2)) const ResponseScreen() else const SizedBox.shrink(),
+            if (_visitedTabs.contains(3))
+              ProfileScreen(username: widget.username)
+            else
+              const SizedBox.shrink(),
           ],
         ),
+      ),
+      bottomNavigationBar: NavigationBar(
+        height: 62,
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          if (index == _currentIndex) return;
+          setState(() {
+            _visitedTabs.add(index);
+            _currentIndex = index;
+          });
+        },
+        backgroundColor: Colors.white,
+        indicatorColor: kPrimary.withValues(alpha: 0.15),
+        elevation: 2,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home, color: kPrimary),
+            label: 'Beranda',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.description_outlined),
+            selectedIcon: Icon(Icons.description, color: kPrimary),
+            label: 'Form',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.bar_chart_outlined),
+            selectedIcon: Icon(Icons.bar_chart, color: kPrimary),
+            label: 'Respons',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person, color: kPrimary),
+            label: 'Profil',
+          ),
+        ],
       ),
       // FAB tambah form: hanya tampil di tab Form Saya, melayang kanan bawah
       // (endFloat = punya lapisan klik sendiri, tidak menembus widget di belakang)

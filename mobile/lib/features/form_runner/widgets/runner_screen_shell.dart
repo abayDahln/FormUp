@@ -19,7 +19,7 @@ class RunnerScreenShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: kAppBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -55,7 +55,7 @@ class RunnerScreenShell extends StatelessWidget {
             ),
         ],
       ),
-      body: AuthBackground(
+      body: AuthBackground(plain: true,
         child: SafeArea(child: child),
       ),
     );

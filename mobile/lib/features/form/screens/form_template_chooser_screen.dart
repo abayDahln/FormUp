@@ -191,12 +191,12 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
   Widget build(BuildContext context) {
     final filtered = _filtered;
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: kAppBg,
       appBar: AppBar(
         title: const Text('Pilih Template'),
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new, size: 18), onPressed: () => AppRouter.of(context).pop()),
       ),
-      body: AuthBackground(
+      body: AuthBackground(plain: true,
         child: SafeArea(
           child: CustomScrollView(
             slivers: [

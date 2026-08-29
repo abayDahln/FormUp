@@ -219,7 +219,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: kAppBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -248,7 +248,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
       ),
       body: Stack(
         children: [
-          AuthBackground(
+          AuthBackground(plain: true,
             child: SafeArea(
               child: ValueListenableBuilder<ActiveRichEditor?>(
                 valueListenable: activeRichEditor,
