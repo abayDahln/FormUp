@@ -58,9 +58,16 @@ public class UsersController : ControllerBase
 
         if (request.Birthdate != null)
         {
-            if (!DateOnly.TryParse(request.Birthdate, out var birthdate))
-                return BadRequest(new ApiResponse<object>(400, "Invalid birthdate format (use yyyy-MM-dd)"));
-            user.Birthdate = birthdate;
+            if (string.IsNullOrWhiteSpace(request.Birthdate))
+            {
+                user.Birthdate = null;
+            }
+            else
+            {
+                if (!DateOnly.TryParse(request.Birthdate, out var birthdate))
+                    return BadRequest(new ApiResponse<object>(400, "Invalid birthdate format (use yyyy-MM-dd)"));
+                user.Birthdate = birthdate;
+            }
         }
 
         user.UpdatedAt = JakartaTime.Now;

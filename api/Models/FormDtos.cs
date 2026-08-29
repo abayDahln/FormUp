@@ -56,6 +56,7 @@ public class FormSettingDto
     public int FormTypeId { get; set; }
     public bool? ShowScore { get; set; }
     public bool? RandomizeQuestions { get; set; }
+    public string? FormToken { get; set; }
     public int? TimerDuration { get; set; }
     public bool? OneResponse { get; set; }
     public bool? RequiredLogin { get; set; }
