@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:form_up/core/widgets/auth_widgets.dart';
 
 /// Kartu kosong generik beranda (ikon + pesan)
 class HomeEmptyCard extends StatelessWidget {
