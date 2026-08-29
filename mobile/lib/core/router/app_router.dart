@@ -9,6 +9,7 @@ import 'package:form_up/features/auth/screens/otp_screen.dart';
 import 'package:form_up/features/auth/screens/reset_password_screen.dart';
 import 'package:form_up/features/home/screens/home_screen.dart';
 import 'package:form_up/features/form/screens/form_maker_screen.dart';
+import 'package:form_up/features/form/screens/form_template_chooser_screen.dart';
 import 'package:form_up/features/form_runner/screens/form_runner_screen.dart';
 import 'package:form_up/features/form/screens/form_history_detail_screen.dart';
 import 'package:form_up/features/form/screens/history_form_detail_screen.dart';
@@ -40,6 +41,7 @@ enum AppPage {
   otp,
   resetPassword,
   home,
+  formTemplateChooser,
   formMaker,
   formQuestions,
   formQuestionEdit,
@@ -307,6 +309,8 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
         );
       case AppPage.home:
         return HomeScreen(username: _username);
+      case AppPage.formTemplateChooser:
+        return const FormTemplateChooserScreen();
       case AppPage.formMaker:
         return FormMakerScreen(formId: route.args['formId'] as int?);
       case AppPage.formQuestions:
@@ -409,6 +413,7 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       'otp' => const AppRoute(AppPage.otp),
       'reset-password' => const AppRoute(AppPage.resetPassword),
       'form-maker' => const AppRoute(AppPage.formMaker),
+      'form-template-chooser' => const AppRoute(AppPage.formTemplateChooser),
       'form-questions' => const AppRoute(AppPage.formQuestions),
       'form-question-edit' => const AppRoute(AppPage.formQuestionEdit),
       'form-runner' => const AppRoute(AppPage.formRunner),
@@ -436,6 +441,7 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       AppPage.otp => 'otp',
       AppPage.resetPassword => 'reset-password',
       AppPage.home => 'home',
+      AppPage.formTemplateChooser => 'form-template-chooser',
       AppPage.formMaker => 'form-maker',
       AppPage.formQuestions => 'form-questions',
       AppPage.formQuestionEdit => 'form-question-edit',

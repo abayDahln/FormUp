@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:form_up/core/cache/api_cache.dart';
 import 'package:form_up/core/services/network_status.dart';
+import 'package:form_up/core/utils/action_debouncer.dart';
 
 // ponytail: chain fallback .env, dart-define, default.
 String get apiBaseUrl {
@@ -16,6 +18,9 @@ String get apiBaseUrl {
     defaultValue: 'http://10.0.2.2:5000/api',
   );
 }
+
+/// true bila baseUrl memakai https — produksi wajib https (poin 7).
+bool get isApiSecure => apiBaseUrl.toLowerCase().startsWith('https://');
 
 /// Error API ramah user
 class ApiException implements Exception {
@@ -38,6 +43,8 @@ class _RateLimiter {
   static const int _maxAttempts = 5;
   static const Duration _window = Duration(minutes: 1);
   static final Map<String, List<DateTime>> _hits = {};
+
+  static void clear() => _hits.clear();
 
   static void check(String key) {
     final now = DateTime.now();
@@ -117,6 +124,7 @@ class AuthService {
   /// Callback saat sesi berakhir
   static void Function()? onSessionExpired;
 
+  // Poin 7: token & expiry pindah ke secure storage (encrypted), bukan SharedPreferences.
   static const _kToken = 'auth_token';
   static const _kFullname = 'auth_fullname';
   static const _kUsername = 'auth_username';
@@ -124,6 +132,10 @@ class AuthService {
   static const _kRole = 'auth_role';
   static const _kRemember = 'auth_remember';
   static const _kExpiresAt = 'auth_expires_at';
+  static const FlutterSecureStorage _secure = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+  );
   static const _offlineMessage =
       'Kamu sedang offline. Login dan perubahan data tidak tersedia.';
 
@@ -182,20 +194,30 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
 
     try {
-      await prefs.setString(_kToken, result.token);
+      // Token & expiry di secure storage (poin 7 hardening)
+      await _secure.write(key: _kToken, value: result.token);
+      await _secure.write(key: _kExpiresAt, value: result.expiresAt.toUtc().toIso8601String());
       await prefs.setString(_kFullname, result.fullname);
       await prefs.setString(_kUsername, result.username);
       await prefs.setString(_kEmail, result.email);
       await prefs.setString(_kRole, result.role);
-      await prefs.setString(_kExpiresAt, result.expiresAt.toUtc().toIso8601String());
       await prefs.setBool(_kRemember, true);
+      // Hapus token lama di SharedPreferences (migrasi)
+      await prefs.remove(_kToken);
+      await prefs.remove(_kExpiresAt);
       if (kDebugMode) {
-        debugPrint('[Auth] Session persisted: email=${result.email}, expiresAt=${result.expiresAt}');
+        debugPrint('[Auth] Session persisted (secure): email=${result.email}');
       }
     } catch (e) {
       if (kDebugMode) debugPrint('[Auth] ERROR persisting session: $e');
       rethrow;
     }
+    // Ganti akun → cache lama tidak relevan, paksa online agar fetch tidak
+    // terjebak OfflineCacheException karena scope baru belum ada di disk.
+    await ApiCache.clear();
+    NetworkStatus.reset();
+    AppDebouncer.clear();
+    _RateLimiter.clear();
     _scheduleSessionRefresh();
   }
 
@@ -220,26 +242,34 @@ class AuthService {
     }
   }
 
-  /// Ambil sesi tersimpan
-    /// Ambil sesi tersimpan
+  /// Ambil sesi tersimpan — baca secure storage dulu, fallback SharedPreferences (migrasi).
   static Future<AuthResult?> restoreSession() async {
     final prefs = await SharedPreferences.getInstance();
     _rememberMe = prefs.getBool(_kRemember) ?? true;
-    final savedToken = prefs.getString(_kToken);
-    final savedExpiresAtStr = prefs.getString(_kExpiresAt);
+    var savedToken = await _secure.read(key: _kToken);
+    var savedExpiresAtStr = await _secure.read(key: _kExpiresAt);
+    // Migrasi: token lama masih di SharedPreferences
+    savedToken ??= prefs.getString(_kToken);
+    savedExpiresAtStr ??= prefs.getString(_kExpiresAt);
     final savedEmail = prefs.getString(_kEmail);
     final savedRole = prefs.getString(_kRole);
 
     if (kDebugMode) {
       debugPrint('[Auth] restoreSession: rememberMe=$_rememberMe, '
           'token=${savedToken == null ? "tidak ada" : "ada"} '
-          'expiresAtStr=${savedExpiresAtStr ?? "null"} '
           'email=${savedEmail ?? "null"}');
     }
 
     if (savedToken == null || savedToken.isEmpty) {
       if (kDebugMode) debugPrint('[Auth] No saved token found');
       return null;
+    }
+    // Migrasi sekali jalan ke secure storage
+    if (await _secure.read(key: _kToken) == null) {
+      await _secure.write(key: _kToken, value: savedToken);
+      if (savedExpiresAtStr != null) await _secure.write(key: _kExpiresAt, value: savedExpiresAtStr);
+      await prefs.remove(_kToken);
+      await prefs.remove(_kExpiresAt);
     }
 
     token = savedToken;
@@ -249,17 +279,13 @@ class AuthService {
     DateTime? parsedExpiresAt;
     if (savedExpiresAtStr != null && savedExpiresAtStr.isNotEmpty) {
       parsedExpiresAt = DateTime.tryParse(savedExpiresAtStr)?.toUtc();
-      if (kDebugMode) debugPrint('[Auth] Parsed expiresAt: $parsedExpiresAt');
     }
 
     _expiresAt = parsedExpiresAt;
     _scheduleSessionRefresh();
 
-    if (kDebugMode) {
-      debugPrint('[Auth] Session restored for ${_email ?? "?"}');
-    }
-    
-    // 🔧 FIX: Selalu return AuthResult jika token ada, validasi di main.dart
+    if (kDebugMode) debugPrint('[Auth] Session restored for ${_email ?? "?"}');
+
     return AuthResult(
       token: token!,
       expiresAt: _expiresAt ?? _nowUtc().add(const Duration(days: 14)),
@@ -357,6 +383,11 @@ class AuthService {
     Map<String, dynamic>? body, {
     bool auth = false,
   }) async {
+    // Debounce 300ms per endpoint (konsisten dengan UI) — cegah spam klik ganda.
+    // GET di-cache, jadi hanya mutasi (POST/PUT/PATCH/DELETE) yang di-throttle.
+    if (method != 'GET' && !AppDebouncer.tryAcquire('api:$method:$path')) {
+      throw const ApiException('Terlalu cepat, tunggu sebentar.');
+    }
     final headers = <String, String>{};
     if (auth && token != null) headers['Authorization'] = 'Bearer $token';
 
@@ -401,13 +432,9 @@ class AuthService {
       final data = json['data'] as Map<String, dynamic>;
       token = data['token'] as String;
       _expiresAt = _parseExpiresAt(data);
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kToken, token!);
+      await _secure.write(key: _kToken, value: token!);
       if (_expiresAt != null) {
-        await prefs.setString(
-          _kExpiresAt,
-          _expiresAt!.toUtc().toIso8601String(),
-        );
+        await _secure.write(key: _kExpiresAt, value: _expiresAt!.toUtc().toIso8601String());
       }
       _scheduleSessionRefresh();
       return true;
@@ -519,22 +546,27 @@ class AuthService {
     }
   }
 
-  /// Logout client
+  /// Logout client — hapus secure + prefs + cache + reset flag offline/debounce.
   static Future<void> logout() async {
     _cancelSessionTimer();
     token = null;
     _expiresAt = null;
     _email = null;
     _role = null;
+    await _secure.delete(key: _kToken);
+    await _secure.delete(key: _kExpiresAt);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kToken);
+    await prefs.remove(_kExpiresAt);
     await prefs.remove(_kFullname);
     await prefs.remove(_kUsername);
     await prefs.remove(_kEmail);
     await prefs.remove(_kRole);
     await prefs.remove(_kRemember);
-    await prefs.remove(_kExpiresAt);
     await ApiCache.clear();
+    NetworkStatus.reset();
+    AppDebouncer.clear();
+    _RateLimiter.clear();
   }
 
   static Future<Map<String, dynamic>> post(

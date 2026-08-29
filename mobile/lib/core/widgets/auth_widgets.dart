@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/widgets/app_toast.dart';
 
 // ===== Design system =====
@@ -297,7 +298,7 @@ class _AuthTextFieldState extends State<AuthTextField> {
   }
 }
 
-/// Tombol teal (pill atau rx 8)
+/// Tombol teal (pill atau rx 8) — debounce 300ms otomatis (poin spam-klik).
 class AuthPrimaryButton extends StatelessWidget {
   final String label;
   final bool loading;
@@ -305,6 +306,8 @@ class AuthPrimaryButton extends StatelessWidget {
   final bool showArrow;
   final double? progress;
   final VoidCallback? onPressed;
+  /// Kunci debounce unik; default pakai label (cukup untuk satu tombol per screen).
+  final String? debounceKey;
 
   const AuthPrimaryButton({
     super.key,
@@ -314,7 +317,17 @@ class AuthPrimaryButton extends StatelessWidget {
     this.pill = false,
     this.showArrow = true,
     this.progress,
+    this.debounceKey,
   });
+
+  VoidCallback? get _guardedOnPressed {
+    final cb = onPressed;
+    if (cb == null || loading) return null;
+    return () {
+      if (!AppDebouncer.tryAcquire(debounceKey ?? 'btn:$label')) return;
+      cb();
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -334,7 +347,7 @@ class AuthPrimaryButton extends StatelessWidget {
         width: double.infinity,
         height: height,
         child: ElevatedButton(
-          onPressed: loading ? null : onPressed,
+          onPressed: _guardedOnPressed,
           style: ElevatedButton.styleFrom(
             backgroundColor: kAuthPrimary,
             foregroundColor: Colors.white,

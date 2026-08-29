@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/router/app_router.dart';
@@ -58,6 +59,7 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   Future<void> _verify() async {
+    if (!AppDebouncer.tryAcquire('auth:verify')) return;
     if (_loading) return;
     final otp = _otpController.text.trim();
     if (otp.isEmpty || otp.length < 6) {

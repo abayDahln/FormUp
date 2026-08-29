@@ -67,11 +67,18 @@ class ApiCache {
     return value;
   }
 
+  // Poin 7: jangan persist data sensitif ke disk (SharedPreferences plaintext).
+  static bool _isSensitiveKey(String key) {
+    final k = key.toLowerCase();
+    return k.contains('responses') || k.contains('analytics') || k.contains('attempts') || k.contains('response') || k.contains('admin') || k.contains('users:me');
+  }
+
   static Future<void> _persistValue(
     String key,
     Object? value,
     Duration ttl,
   ) async {
+    if (_isSensitiveKey(key)) return;
     try {
       jsonEncode(value);
     } catch (_) {
@@ -97,21 +104,40 @@ class ApiCache {
     }
 
     if (NetworkStatus.isOffline) {
-      final store = await _readDiskStore();
-      final entry = store[key];
-      if (entry is Map<String, dynamic>) {
-        final value = _decodeDiskValue(entry);
-        if (value != null) {
+      // Coba refresh sekali (mis. setelah ganti akun flag offline masih nyangkut)
+      await NetworkStatus.refresh();
+      if (NetworkStatus.isOffline) {
+        final store = await _readDiskStore();
+        final entry = store[key];
+        if (entry is Map<String, dynamic>) {
+          final value = _decodeDiskValue(entry);
+          if (value != null) {
+            _cache[key] = _ApiCacheEntry<Object?>(
+              value: value,
+              expiresAt: DateTime.now().add(ttl),
+            );
+            return value as T;
+          }
+        }
+        // Disk kosong untuk scope baru (ganti akun) → jangan langsung
+        // gagal offline, coba loader sekali; kalau memang offline akan
+        // jatuh ke catch dan baru lempar OfflineCacheException.
+        try {
+          final attempted = await loader();
+          // Loader sukses berarti jaringan sebenarnya online
+          NetworkStatus.markOnline();
           _cache[key] = _ApiCacheEntry<Object?>(
-            value: value,
+            value: attempted,
             expiresAt: DateTime.now().add(ttl),
           );
-          return value as T;
+          await _persistValue(key, attempted, ttl);
+          return attempted;
+        } catch (_) {
+          throw const OfflineCacheException(
+            'Kamu sedang offline dan data ini belum ada di cache.',
+          );
         }
       }
-      throw const OfflineCacheException(
-        'Kamu sedang offline dan data ini belum ada di cache.',
-      );
     }
 
     final existing = _pending[key];

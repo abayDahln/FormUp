@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/form_card.dart';
 import 'package:form_up/features/home/screens/form_screen.dart';
@@ -80,6 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _start() async {
+    if (!AppDebouncer.tryAcquire('home:start')) return;
     if (_validatingCode) return;
     final code = _codeController.text.trim();
     if (code.isEmpty) {
@@ -253,7 +255,7 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: _currentIndex == 1
           ? FloatingActionButton(
               onPressed: () {
-                AppRouter.of(context).push(AppPage.formMaker);
+                AppRouter.of(context).push(AppPage.formTemplateChooser);
               },
               backgroundColor: kPrimary,
               elevation: 1,

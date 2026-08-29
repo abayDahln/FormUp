@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:form_up/core/utils/action_debouncer.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/models/question_draft.dart';
@@ -48,6 +50,67 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
     }
     return false;
   }
+
+  /// Unduh template impor — paritas dengan web `templateDownloadUrl` (`apiService.js:334`).
+  /// Template di-generate on-the-fly (rate-limit 10/menit), dibagikan via Share sheet.
+  Future<void> _downloadTemplate() async {
+    if (!AppDebouncer.tryAcquire('form:downloadTemplate')) return;
+    final format = await _pickTemplateFormat();
+    if (format == null || !mounted) return;
+    try {
+      final bytes = await FormService.downloadImportTemplate(format);
+      if (!mounted) return;
+      final xfile = XFile.fromData(bytes,
+          name: 'import-questions-template.$format',
+          mimeType: _mimeForTemplate(format));
+      await SharePlus.instance.share(ShareParams(files: [xfile], text: 'Template import soal ($format)'));
+      if (!mounted) return;
+      showAppToast(context, 'Template $format siap dibagikan', title: 'Berhasil');
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    }
+  }
+
+  static String _mimeForTemplate(String f) => switch (f) {
+        'csv' => 'text/csv',
+        'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'pdf' => 'application/pdf',
+        _ => 'application/octet-stream',
+      };
+
+  Future<String?> _pickTemplateFormat() => showModalBottomSheet<String>(
+        context: context,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (ctx) => SafeArea(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const SizedBox(height: 12),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 12),
+            const Text('Pilih format template', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
+            const SizedBox(height: 8),
+            for (final fmt in ['csv', 'xlsx', 'docx', 'pdf'])
+              ListTile(
+                leading: const Icon(Icons.download_outlined, color: kAuthPrimary),
+                title: Text(fmt.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
+                subtitle: Text(_templateDesc(fmt), style: const TextStyle(fontSize: 11, color: Colors.black54)),
+                onTap: () => Navigator.pop(ctx, fmt),
+              ),
+            const SizedBox(height: 8),
+          ]),
+        ),
+      );
+
+  static String _templateDesc(String f) => switch (f) {
+        'csv' => 'question,type_id,order,is_required,... (pipe-separated options)',
+        'xlsx' => 'Sheet Questions — kolom sama dengan CSV',
+        'docx' => 'Question: ... / Options: ... per paragraf',
+        'pdf' => 'Petunjuk + contoh soal (read-only)',
+        _ => '',
+      };
 
   @override
   void initState() {
@@ -130,6 +193,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
   /// Gambar di dalam docx/pdf ikut terekstrak ke soal.
   /// Alur: pilih file → preview (parse & validasi) → konfirmasi → save.
   Future<void> _importSoal() async {
+    if (!AppDebouncer.tryAcquire('form:importSoal')) return;
     if (widget.formId == null || _saving || _importing) return;
 
     final picked = await FilePicker.pickFiles(
@@ -492,6 +556,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
   }
 
   Future<void> _save() async {
+    if (!AppDebouncer.tryAcquire('form:saveQuestions')) return;
     if (_saving) return;
     final error = validateQuestionsList(_questions);
     if (error != null) {
@@ -671,7 +736,19 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 10),
+                      // Unduh template — paritas web `templateDownloadUrl` (csv/xlsx/docx/pdf)
+                      Align(
+                        alignment: Alignment.center,
+                        child: TextButton.icon(
+                          onPressed: _downloadTemplate,
+                          icon: const Icon(Icons.download_outlined, size: 16, color: kAuthPrimary),
+                          label: const Text('Unduh template import',
+                              style: TextStyle(fontSize: 12, color: kAuthPrimary, fontWeight: FontWeight.bold, fontFamily: kFontBold)),
+                          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       AuthPrimaryButton(
                         label: _saving ? "Menyimpan..." : "Simpan Soal",
                         loading: _saving,
@@ -730,9 +807,9 @@ class _ImportSoalButton extends StatelessWidget {
       ),
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.white,
-        disabledBackgroundColor: Colors.white.withOpacity(0.6),
+        disabledBackgroundColor: Colors.white.withValues(alpha: 0.6),
         side: BorderSide(
-          color: enabled ? kAuthPrimary : kAuthPrimary.withOpacity(0.4),
+          color: enabled ? kAuthPrimary : kAuthPrimary.withValues(alpha: 0.4),
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),

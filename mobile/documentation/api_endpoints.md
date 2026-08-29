@@ -863,7 +863,7 @@ Akses:
 
 # Question Endpoints (Sudah Diimplementasikan)
 
-> **Kunci edit:** jika form berstatus `published`, semua endpoint mutasi soal di bawah ditolak `400 Soal tidak dapat diubah karena form sudah dipublish` (mencegah nilai/data tidak konsisten saat responden sedang mengerjakan). Unpublish form dulu untuk mengedit.
+> **Aturan mutasi soal:** soal boleh diedit selama form belum punya respons apa pun — termasuk form berstatus `published`. Jika sudah ada minimal 1 respon, semua mutasi soal ditolak `400 Soal tidak dapat diubah karena form sudah memiliki respons` (menjaga konsistensi data jawaban). Form `published` yang kehabisan soal otomatis kembali ke status `draft`.
 
 ## 1. Daftar Pertanyaan
 
@@ -1102,6 +1102,58 @@ type_id: 1
 
 **Template download:** `GET /api/templates/import-questions?format=csv` (lihat bagian Template Endpoints)
 
+Impor terdiri dari **2 langkah terpisah**:
+
+### 7a. Preview Import (parse & validasi saja, TIDAK menyimpan)
+
+`POST /api/forms/{formId}/questions/import/preview`
+
+**Response 200:**
+```json
+{
+  "status": 200,
+  "message": "Preview ready",
+  "data": {
+    "preview": true,
+    "blocked": false,
+    "totalRows": 5,
+    "totalQuestions": 4,
+    "skippedCount": 1,
+    "canImport": true,
+    "errors": [
+      { "rowNumber": 3, "field": "type_id", "message": "type_id '9' tidak dikenal (1=Essay, 2=Multiple Choice, 3=Checkbox, 4=Date Time, 5=True False)" }
+    ],
+    "questions": [
+      {
+        "order": 1,
+        "rowNumber": 2,
+        "question": "Apa warna langit?",
+        "typeId": 1,
+        "isRequired": true,
+        "optionsCount": 3,
+        "options": ["A. Biru", "B. Hijau", "C. Merah"],
+        "hasCorrectAnswer": false,
+        "hasImage": false,
+        "image": null
+      }
+    ]
+  }
+}
+```
+
+- `errors` berisi daftar kesalahan format per baris (`rowNumber`, `field`, `message`) — baris ini akan dilewati saat impor.
+- `blocked = true` → form sudah punya respons, impor ditolak.
+- `startNumber` = nomor pertama hasil impor; **nomor soal impor selalu lanjut setelah semua soal yang sudah ada** di form (kolom `order` pada file bersifat relatif dan di-offset).
+- `image` berisi data URI base64 (`data:image/png;base64,...`) dari gambar yang terekstrak dokumen — bisa langsung ditampilkan client tanpa request tambahan. `null` jika gambar >1,5 MB atau tidak ada.
+- Tipe file dideteksi dari **isi file**, bukan nama/ekstensi — file dari Google Drive bernama `soal` (tanpa ekstensi) atau `soal.docx.docx` tetap terbaca dengan benar.
+- Jika seluruh baris tidak valid atau header kolom tidak sesuai → `400` dengan pesan spesifik (mis. kolom `question` tidak ditemukan).
+
+### 7b. Save Import (simpan ke database)
+
+`POST /api/forms/{formId}/questions/import`
+
+Panggil setelah user konfirmasi hasil preview.
+
 **Response 200:**
 ```json
 {
@@ -1109,8 +1161,21 @@ type_id: 1
   "message": "3 questions imported",
   "data": {
     "totalImported": 3,
-    "totalSkipped": 0,
-    "errors": []
+    "totalSkipped": 1,
+    "errors": ["Baris 3 (type_id): type_id '9' tidak dikenal (1=Essay, ...)"]
+  }
+}
+```
+
+**Response 400** jika tidak ada satu pun baris valid:
+```json
+{
+  "status": 400,
+  "message": "Tidak ada soal valid yang bisa diimpor dari file",
+  "data": {
+    "totalImported": 0,
+    "totalSkipped": 5,
+    "errors": [ ... ]
   }
 }
 ```

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:form_up/core/cache/api_cache.dart';
+import 'package:form_up/core/utils/action_debouncer.dart';
 import 'auth_service.dart';
 import 'public_form_service.dart' show MyAttempt, PublicFormResult;
 
@@ -661,6 +662,9 @@ class FormService {
     String filename,
     String dataKey,
   ) async {
+    if (!AppDebouncer.tryAcquire('upload:$path')) {
+      throw const ApiException('Terlalu cepat, tunggu sebentar.');
+    }
     final uri = Uri.parse('$apiBaseUrl$path');
     var response = await _upload(uri, bytes, filename);
     if (response.statusCode == 401 &&
@@ -725,6 +729,9 @@ class FormService {
     Uint8List bytes,
     String filename,
   ) async {
+    if (!AppDebouncer.tryAcquire('import:$path')) {
+      throw const ApiException('Terlalu cepat, tunggu sebentar.');
+    }
     final uri = Uri.parse('$apiBaseUrl$path');
     var response = await _upload(uri, bytes, filename);
     if (response.statusCode == 401 &&
@@ -743,6 +750,27 @@ class FormService {
     }
     _invalidateCaches();
     return json['data'] as Map<String, dynamic>? ?? {};
+  }
+
+  /// GET /templates/import-questions?format=csv|xlsx|docx|pdf
+  /// Download template impor soal — tidak perlu auth, di-rate-limit server 10/menit.
+  /// Dipakai mobile agar paritas dengan web `templateDownloadUrl` di `apiService.js:335`.
+  static Future<Uint8List> downloadImportTemplate(String format) async {
+    final f = format.toLowerCase();
+    if (!{'csv', 'xlsx', 'docx', 'pdf'}.contains(f)) {
+      throw const ApiException('Format tidak didukung. Gunakan csv, xlsx, docx, atau pdf.');
+    }
+    final uri = Uri.parse('$apiBaseUrl/templates/import-questions?format=$f');
+    final res = await http.get(uri).timeout(AuthService.timeout);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      String msg = 'Gagal mengunduh template';
+      try {
+        final j = jsonDecode(res.body) as Map<String, dynamic>;
+        msg = j['message'] as String? ?? msg;
+      } catch (_) {}
+      throw ApiException(msg);
+    }
+    return res.bodyBytes;
   }
 
   /// GET /forms/{id}/share

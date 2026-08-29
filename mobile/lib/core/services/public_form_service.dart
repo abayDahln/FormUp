@@ -1,4 +1,5 @@
 import 'package:form_up/core/cache/api_cache.dart';
+import 'package:form_up/core/utils/action_debouncer.dart';
 import 'auth_service.dart';
 
 /// Info form publik
@@ -270,13 +271,16 @@ class PublicFormService {
     );
   }
 
-  /// POST /public/forms/{formLink}/responses
+  /// POST /public/forms/{formLink}/responses — debounce 300ms anti spam submit
   static Future<Map<String, dynamic>> submit(
     String formLink, {
     String? token,
     String? respondentName,
     required List<Map<String, dynamic>> answers,
   }) async {
+    if (!AppDebouncer.tryAcquire('public:submit:$formLink')) {
+      throw const ApiException('Terlalu cepat, tunggu sebentar.');
+    }
     final json = await AuthService.post('/public/forms/$formLink/responses', {
       if (token != null && token.isNotEmpty) 'token': token,
       if (respondentName != null && respondentName.trim().isNotEmpty)

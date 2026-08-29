@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
@@ -88,6 +89,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
   }
 
   Future<void> _save() async {
+    if (!AppDebouncer.tryAcquire('form:saveMaker')) return;
     if (_saving) return;
     final title = _form.titleController.text.trim();
     if (title.isEmpty) {
