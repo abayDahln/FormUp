@@ -25,7 +25,7 @@ class ResponseHistoryGroup {
   }
 }
 
-/// Kartu riwayat tergabung per form (satu kartu = satu form)
+/// Kartu riwayat tergabung per form (legacy – tetap tersedia tapi tidak dipakai di screen respons)
 class ResponseHistoryGroupCard extends StatelessWidget {
   final ResponseHistoryGroup group;
   final VoidCallback onTap;
@@ -38,97 +38,116 @@ class ResponseHistoryGroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(kRadius),
-      elevation: 0,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(kRadius),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(11),
-                    decoration: BoxDecoration(
-                      color: kPrimarySoft,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.description_outlined,
-                      color: kAuthPrimary,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        RichTextView(
-                          text: group.formTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            fontFamily: kFontBold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          'Kode: ${group.formLink}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  const Icon(Icons.schedule, color: Colors.grey, size: 14),
-                  const SizedBox(width: 4),
-                  Text(
-                    _formatTime(group.latest.submittedAt),
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE2F3F2),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      '${group.attempts.length}x dikerjakan',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: kFontBold,
+    return ResponseHistoryTile(group: group, onTap: onTap, showDivider: false);
+  }
+}
+
+/// M3 list tile untuk grup riwayat — dipakai di dalam grouped container dengan Divider
+/// https://m3.material.io/components/divider/overview
+class ResponseHistoryTile extends StatelessWidget {
+  final ResponseHistoryGroup group;
+  final VoidCallback onTap;
+  final bool showDivider;
+
+  const ResponseHistoryTile({
+    super.key,
+    required this.group,
+    required this.onTap,
+    this.showDivider = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(11),
+                      decoration: BoxDecoration(
+                        color: kPrimarySoft,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.description_outlined,
                         color: kAuthPrimary,
+                        size: 22,
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          RichTextView(
+                            text: group.formTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: kFontBold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Kode: ${group.formLink}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    const Icon(Icons.schedule, color: Colors.grey, size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      _formatTime(group.latest.submittedAt),
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE2F3F2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${group.attempts.length}x dikerjakan',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: kFontBold,
+                          color: kAuthPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-      ),
+        if (showDivider) const Divider(height: 1, thickness: 1, color: Color(0xFFE7E8E9)),
+      ],
     );
   }
 }

@@ -194,7 +194,7 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
       backgroundColor: kAppBg,
       appBar: AppBar(
         title: const Text('Pilih Template'),
-        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new, size: 18), onPressed: () => AppRouter.of(context).pop()),
+        leading: IconButton(icon: const Icon(Icons.arrow_back, size: 18), onPressed: () => AppRouter.of(context).pop()),
       ),
       body: AuthBackground(plain: true,
         child: SafeArea(

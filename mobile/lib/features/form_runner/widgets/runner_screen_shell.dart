@@ -28,7 +28,7 @@ class RunnerScreenShell extends StatelessWidget {
           bottom: BorderSide(color: Color(0xCCBDC9C8)),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
           // Lewat popRoute agar back guard (dialog keluar form) tetap jalan.
           onPressed: () => AppRouter.of(context).popRoute(),
         ),

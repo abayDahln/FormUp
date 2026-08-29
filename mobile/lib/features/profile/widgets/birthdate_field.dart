@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/theme.dart';
 
-/// Tile pemilih tanggal lahir
+/// M3 outlined date picker field — selaras dengan AuthTextField
 class BirthdateField extends StatelessWidget {
   final DateTime? birthdate;
   final VoidCallback onPick;
@@ -18,34 +18,26 @@ class BirthdateField extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onPick,
-      borderRadius: BorderRadius.circular(7.5),
-      child: Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF0F4F4),
-          borderRadius: BorderRadius.circular(7.5),
-          border: Border.all(color: kAuthText),
+      borderRadius: BorderRadius.circular(kRadiusSm),
+      child: InputDecorator(
+        decoration: formUpInputDecoration(
+          labelText: 'Tanggal Lahir',
+          hintText: 'Belum diatur',
+          prefixIcon: const Icon(Icons.cake_outlined, size: 20),
+          suffixIcon: birthdate != null
+              ? IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: onClear,
+                  tooltip: 'Hapus',
+                )
+              : null,
         ),
-        child: Row(
-          children: [
-            const Icon(Icons.cake_outlined, color: kAuthText),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                birthdate == null ? 'Belum diatur' : _displayDate(birthdate!),
-                style: TextStyle(
-                  fontSize: 15,
-                  color: birthdate == null ? kAuthHint : Colors.black87,
-                ),
-              ),
-            ),
-            if (birthdate != null)
-              IconButton(
-                icon: const Icon(Icons.close, size: 18, color: kAuthText),
-                onPressed: onClear,
-              ),
-          ],
+        child: Text(
+          birthdate == null ? 'Belum diatur' : _displayDate(birthdate!),
+          style: TextStyle(
+            fontSize: 14,
+            color: birthdate == null ? Colors.black38 : Colors.black87,
+          ),
         ),
       ),
     );

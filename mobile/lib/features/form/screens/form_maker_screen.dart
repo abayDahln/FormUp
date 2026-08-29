@@ -201,7 +201,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () async {
             final allow = await _confirmExit();
             if (!allow) return;

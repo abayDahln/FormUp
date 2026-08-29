@@ -6,7 +6,6 @@ import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/user_service.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/profile/widgets/birthdate_field.dart';
-import 'package:form_up/features/profile/widgets/field_label.dart';
 import 'package:form_up/features/profile/widgets/image_source_sheet.dart';
 import 'package:form_up/features/profile/widgets/profile_avatar.dart';
 
@@ -24,6 +23,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String? _currentImagePath;
   Uint8List? _newImage;
   DateTime? _birthdate;
+  String? _origFullname;
+  String? _origUsername;
+  DateTime? _origBirthdate;
   bool _loading = true;
   bool _saving = false;
 
@@ -45,13 +47,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       final profile = await UserService.getProfile();
       if (!mounted) return;
+      final parsedBirth = profile.birthdate == null || profile.birthdate!.isEmpty ? null : DateTime.tryParse(profile.birthdate!);
       setState(() {
         _fullnameController.text = profile.fullname;
         _usernameController.text = profile.username;
         _email = profile.email;
         _currentImagePath = profile.profileImage;
-        final raw = profile.birthdate;
-        _birthdate = raw == null || raw.isEmpty ? null : DateTime.tryParse(raw);
+        _birthdate = parsedBirth;
+        _origFullname = profile.fullname;
+        _origUsername = profile.username;
+        _origBirthdate = parsedBirth;
       });
     } catch (e) {
       if (!mounted) return;
@@ -96,12 +101,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (_saving) return;
     final fullname = _fullnameController.text.trim();
     final username = _usernameController.text.trim();
-    if (fullname.isEmpty) {
-      showAuthToast(context, 'Nama lengkap wajib diisi', isError: true);
-      return;
+
+    // Validasi hanya untuk field yang berubah
+    String? sendFullname;
+    String? sendUsername;
+    String? sendBirthdate;
+    bool clearBirthdate = false;
+
+    if (fullname != (_origFullname ?? '')) {
+      if (fullname.isEmpty) {
+        showAuthToast(context, 'Nama lengkap wajib diisi', isError: true);
+        return;
+      }
+      sendFullname = fullname;
     }
-    if (username.length < 3) {
-      showAuthToast(context, 'Username minimal 3 karakter', isError: true);
+    if (username != (_origUsername ?? '')) {
+      if (username.isNotEmpty && username.length < 3) {
+        showAuthToast(context, 'Username minimal 3 karakter', isError: true);
+        return;
+      }
+      // username kosong dianggap tidak diubah
+      if (username.isNotEmpty) sendUsername = username;
+    }
+    final origBdStr = _origBirthdate == null ? null : _formatDate(_origBirthdate!);
+    final curBdStr = _birthdate == null ? null : _formatDate(_birthdate!);
+    if (curBdStr != origBdStr) {
+      if (_birthdate == null) {
+        clearBirthdate = _origBirthdate != null;
+      } else {
+        sendBirthdate = curBdStr;
+      }
+    }
+
+    final hasProfileChanges = sendFullname != null || sendUsername != null || sendBirthdate != null || clearBirthdate;
+    if (_newImage == null && !hasProfileChanges) {
+      showAuthToast(context, 'Tidak ada perubahan untuk disimpan', isError: true);
       return;
     }
 
@@ -110,12 +144,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (_newImage != null) {
         await UserService.uploadProfileImage(_newImage!, 'profile.jpg');
       }
-      final updated = await UserService.updateProfile(
-        fullname: fullname,
-        username: username,
-        birthdate: _birthdate == null ? null : _formatDate(_birthdate!),
-      );
-      await AuthService.updateSession(fullname: fullname, username: username);
+      UserProfile? updated;
+      if (hasProfileChanges) {
+        updated = await UserService.updateProfile(
+          fullname: sendFullname,
+          username: sendUsername,
+          birthdate: sendBirthdate,
+          clearBirthdate: clearBirthdate,
+        );
+      } else {
+        updated = await UserService.getProfile();
+      }
+      await AuthService.updateSession(fullname: updated.fullname, username: updated.username);
 
       if (!mounted) return;
       final delegate = AppRouter.of(context);
@@ -148,7 +188,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           bottom: BorderSide(color: Color(0xCCBDC9C8)),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => AppRouter.of(context).pop(),
         ),
         title: const Text(
@@ -193,21 +233,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               ),
                             ),
                             const SizedBox(height: 20),
-                            const FieldLabel(text: "Nama Lengkap"),
                             AuthTextField(
                               controller: _fullnameController,
                               hint: "Nama lengkap",
+                              label: "Nama Lengkap",
                               icon: Icons.person_outline,
                             ),
                             const SizedBox(height: 14),
-                            const FieldLabel(text: "Username"),
                             AuthTextField(
                               controller: _usernameController,
                               hint: "Username",
+                              label: "Username",
                               icon: Icons.alternate_email,
                             ),
                             const SizedBox(height: 14),
-                            const FieldLabel(text: "Tanggal Lahir"),
                             BirthdateField(
                               birthdate: _birthdate,
                               onPick: _pickBirthdate,

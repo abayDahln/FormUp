@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:form_up/core/theme.dart';
 
 /// Delta → HTML web
 String encodeRichText(QuillController controller) {
@@ -774,10 +775,8 @@ class _FontSizeControlState extends State<_FontSizeControl> {
                   controller: _inputController,
                   keyboardType: TextInputType.number,
                   style: const TextStyle(fontSize: 13),
-                  decoration: const InputDecoration(
-                    isDense: true,
+                  decoration: formUpInputDecoration(
                     hintText: 'Ukuran ($kMinFontSize-$kMaxFontSize)',
-                    border: OutlineInputBorder(),
                   ),
                   onSubmitted: (t) {
                     final v = double.tryParse(t.trim());
@@ -1153,8 +1152,7 @@ class _MathInsertSheetState extends State<_MathInsertSheet> {
             maxLines: 3,
             minLines: 1,
             style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
+            decoration: formUpInputDecoration(
               hintText: r'LaTeX, e.g. \frac{-b \pm \sqrt{b^2-4ac}}{2a}',
             ),
             onChanged: (_) => setState(() {}),
@@ -1244,10 +1242,7 @@ class _CodeInsertSheetState extends State<_CodeInsertSheet> {
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: _language,
-            decoration: const InputDecoration(
-              labelText: 'Language',
-              border: OutlineInputBorder(),
-            ),
+            decoration: formUpInputDecoration(labelText: 'Language'),
             items: [
               for (final l in _codeLanguages)
                 DropdownMenuItem(value: l, child: Text(l)),
@@ -1262,8 +1257,7 @@ class _CodeInsertSheetState extends State<_CodeInsertSheet> {
             maxLines: 6,
             minLines: 4,
             style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
+            decoration: formUpInputDecoration(
               hintText: 'Paste or type code here…',
             ),
             onChanged: (_) => setState(() {}),

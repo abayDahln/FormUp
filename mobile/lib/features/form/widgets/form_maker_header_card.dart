@@ -72,30 +72,8 @@ class FormMakerHeaderCard extends StatelessWidget {
             key: titleFieldKey,
             style: const TextStyle(fontSize: 15, color: Colors.black87),
             cursorColor: kAuthPrimary,
-            decoration: InputDecoration(
+            decoration: formUpInputDecoration(
               hintText: "Contoh: Survey Kepuasan",
-              hintStyle: const TextStyle(color: kAuthText),
-              filled: true,
-              fillColor: Colors.white,
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: 14,
-                horizontal: 16,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: kAuthText),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: kAuthText),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(
-                  color: kAuthPrimary,
-                  width: 1.5,
-                ),
-              ),
             ),
           ),
           const SizedBox(height: 16),

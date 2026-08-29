@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -96,10 +97,7 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 initialValue: _reason,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
+                decoration: formUpInputDecoration(hintText: 'Pilih alasan'),
                 items: [
                   for (final r in feedbackReasons)
                     DropdownMenuItem(value: r, child: Text(r)),
@@ -117,8 +115,7 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
               TextField(
                 controller: _descController,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
+                decoration: formUpInputDecoration(
                   hintText: 'Jelaskan feedback atau masalah Anda...',
                 ),
               ),

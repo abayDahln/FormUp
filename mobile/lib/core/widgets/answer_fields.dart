@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 
@@ -201,27 +202,7 @@ class AnswerFields extends StatelessWidget {
     );
   }
 
-  InputDecoration _decoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: kAuthText, fontSize: 14),
-      filled: true,
-      fillColor: const Color(0xFFF0F4F4),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Color(0xFF6E7979)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Color(0xFF6E7979)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: kAuthPrimary, width: 1.5),
-      ),
-    );
-  }
+  InputDecoration _decoration(String hint) => formUpInputDecoration(hintText: hint);
 
   void _toggleMulti(int optionId) {
     final selected = Set<int>.of(multiValue);

@@ -10,7 +10,6 @@ import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form/controllers/question_validation.dart';
 import 'package:form_up/features/form/widgets/question_answer_section.dart';
 import 'package:form_up/features/form/widgets/question_confirm_dialogs.dart';
-import 'package:form_up/features/form/widgets/question_edit_section_card.dart';
 import 'package:form_up/features/form/widgets/question_image_source_sheet.dart';
 import 'package:form_up/features/form/widgets/question_media_section.dart';
 import 'package:form_up/features/form/widgets/question_required_switch.dart';
@@ -237,7 +236,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () async {
             final allow = await _confirmExit();
             if (!allow) return;
@@ -265,48 +264,73 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        QuestionEditSectionCard(
-                          title: 'Soal',
-                          icon: Icons.help_outline,
-                          child: QuestionTextSection(
-                            questionFieldKey: _questionFieldKey,
-                            draft: q,
-                            preview: _preview,
-                            onPreviewChanged: (v) =>
-                                setState(() => _preview = v),
-                            onTypeChanged: _onTypeChanged,
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xCCBDC9C8)),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        QuestionEditSectionCard(
-                          title: 'Jawaban',
-                          icon: Icons.rule,
-                          child: QuestionAnswerSection(
-                            optionsKey: _answerSectionKey,
-                            draft: q,
-                            onChanged: () => setState(() {}),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        QuestionEditSectionCard(
-                          title: 'Media',
-                          icon: Icons.attach_file,
-                          child: QuestionMediaSection(
-                            draft: q,
-                            uploading: _uploading,
-                            onPickImage: _pickQuestionImage,
-                            onPickAudio: _pickQuestionAudio,
-                            onChanged: () => setState(() {}),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        QuestionEditSectionCard(
-                          title: 'Pengaturan',
-                          icon: Icons.tune,
-                          child: QuestionRequiredSwitch(
-                            value: q.isRequired,
-                            onChanged: (v) =>
-                                setState(() => q.isRequired = v),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              QuestionTextSection(
+                                questionFieldKey: _questionFieldKey,
+                                draft: q,
+                                preview: _preview,
+                                onPreviewChanged: (v) => setState(() => _preview = v),
+                                onTypeChanged: _onTypeChanged,
+                              ),
+                              const Divider(height: 32),
+                              Row(
+                                children: const [
+                                  Icon(Icons.rule, size: 18, color: kAuthPrimary),
+                                  SizedBox(width: 8),
+                                  Text('Jawaban',
+                                      style: TextStyle(
+                                          fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              QuestionAnswerSection(
+                                optionsKey: _answerSectionKey,
+                                draft: q,
+                                onChanged: () => setState(() {}),
+                              ),
+                              const Divider(height: 32),
+                              Row(
+                                children: const [
+                                  Icon(Icons.attach_file, size: 18, color: kAuthPrimary),
+                                  SizedBox(width: 8),
+                                  Text('Media',
+                                      style: TextStyle(
+                                          fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              QuestionMediaSection(
+                                draft: q,
+                                uploading: _uploading,
+                                onPickImage: _pickQuestionImage,
+                                onPickAudio: _pickQuestionAudio,
+                                onChanged: () => setState(() {}),
+                              ),
+                              const Divider(height: 32),
+                              Row(
+                                children: const [
+                                  Icon(Icons.tune, size: 18, color: kAuthPrimary),
+                                  SizedBox(width: 8),
+                                  Text('Pengaturan',
+                                      style: TextStyle(
+                                          fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              QuestionRequiredSwitch(
+                                value: q.isRequired,
+                                onChanged: (v) => setState(() => q.isRequired = v),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 24),

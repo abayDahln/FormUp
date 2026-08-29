@@ -84,26 +84,26 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
 }
 
 /// Search field bergaya konsisten dengan tab Riwayat/Analisis
-class _AdminSearchField extends StatelessWidget {
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final String hint;
+// class _AdminSearchField extends StatelessWidget {
+//   final TextEditingController controller;
+//   final ValueChanged<String> onChanged;
+//   final String hint;
 
-  const _AdminSearchField({
-    required this.controller,
-    required this.onChanged,
-    required this.hint,
-  });
+//   const _AdminSearchField({
+//     required this.controller,
+//     required this.onChanged,
+//     required this.hint,
+//   });
 
-  @override
-  Widget build(BuildContext context) {
-    return AppSearchField(
-      controller: controller,
-      onChanged: onChanged,
-      hint: hint,
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return AppSearchField(
+//       controller: controller,
+//       onChanged: onChanged,
+//       hint: hint,
+//     );
+//   }
+// }
 
 /// Item navigasi halaman di dalam list: prev / "Halaman X dari Y" / next,
 /// dipisah dengan spaceBetween.

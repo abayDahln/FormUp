@@ -15,10 +15,8 @@ import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form/controllers/question_payload_builder.dart';
 import 'package:form_up/features/form/controllers/question_validation.dart';
-import 'package:form_up/features/form/widgets/add_question_button.dart';
 import 'package:form_up/features/form/widgets/question_confirm_dialogs.dart';
 import 'package:form_up/features/form/widgets/question_list_card.dart';
-import 'package:form_up/features/form/widgets/question_type_picker_sheet.dart';
 import 'package:form_up/features/form/widgets/questions_empty_state.dart';
 
 /// Kelola daftar soal form: tambah/edit/hapus/urutkan, lalu simpan.
@@ -167,9 +165,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
   }
 
   Future<void> _addQuestion() async {
-    final typeId = await showQuestionTypePicker(context);
-    if (typeId == null || !mounted) return;
-    final draft = QuestionDraft(typeId);
+    final draft = QuestionDraft(1);
     setState(() => _questions.add(draft));
     await _openEditor(draft);
     // Draf baru yang dibuang (tidak disimpan) dihapus dari daftar.
@@ -555,6 +551,14 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
     });
   }
 
+  void _onReorder(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) newIndex -= 1;
+      final q = _questions.removeAt(oldIndex);
+      _questions.insert(newIndex, q);
+    });
+  }
+
   Future<void> _save() async {
     if (!AppDebouncer.tryAcquire('form:saveQuestions')) return;
     if (_saving) return;
@@ -681,7 +685,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () async {
             final allow = await _confirmExit();
             if (!allow) return;
@@ -689,6 +693,61 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
             _router!.pop();
           },
         ),
+        actions: [
+          // Tombol simpan di header, di samping menu
+          Padding(
+            padding: const EdgeInsets.only(right: 2),
+            child: _saving
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: SizedBox(
+                        width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                  )
+                : FilledButton(
+                    onPressed: () async {
+                      if (!_hasChanges) {
+                        await _save();
+                        return;
+                      }
+                      final confirmed = await showSaveConfirmDialog(context);
+                      if (confirmed == true) await _save();
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: kPrimary,
+                      foregroundColor: Colors.white,
+                      textStyle: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                    child: const Text('Simpan'),
+                  ),
+          ),
+          // M3 menu: Impor Soal & Unduh Template — https://m3.material.io/components/menus/overview
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: MenuAnchor(
+              builder: (context, controller, child) => IconButton(
+                icon: const Icon(Icons.more_vert, color: Colors.black87),
+                tooltip: 'Opsi',
+                onPressed: () => controller.isOpen ? controller.close() : controller.open(),
+              ),
+              menuChildren: [
+                MenuItemButton(
+                  leadingIcon: _importing
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.upload_file_outlined, size: 20),
+                  onPressed: (widget.formId == null || _saving || _importing) ? null : _importSoal,
+                  child: Text(_importing ? 'Mengimpor...' : 'Impor Soal'),
+                ),
+                MenuItemButton(
+                  leadingIcon: const Icon(Icons.download_outlined, size: 20),
+                  onPressed: _downloadTemplate,
+                  child: const Text('Unduh Template Import'),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -696,127 +755,121 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
               absorbing: _saving,
               child: AuthBackground(plain: true,
                 child: SafeArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(22, 4, 22, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (_questions.isEmpty)
-                        const QuestionsEmptyState()
-                      else
-                        for (var i = 0; i < _questions.length; i++) ...[
-                          QuestionListCard(
-                            index: i,
-                            totalCount: _questions.length,
-                            question: _questions[i],
-                            onEdit: () => _openEditor(_questions[i]),
-                            onMoveUp: () => _moveQuestion(i, -1),
-                            onMoveDown: () => _moveQuestion(i, 1),
-                            onDelete: () => setState(() {
-                              _questions[i].dispose();
-                              _questions.removeAt(i);
-                            }),
+                  child: _questions.isEmpty
+                      ? SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(22, 4, 22, 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const QuestionsEmptyState(),
+                              const SizedBox(height: 80),
+                              if (_saving && _progress != null) LinearProgressIndicator(value: _progress),
+                            ],
                           ),
-                          const SizedBox(height: 12),
-                        ],
-                      const SizedBox(height: 8),
-                      // 1 baris 2 kolom: tambah pertanyaan + impor soal
-                      Row(
-                        children: [
-                          Expanded(
-                            child: AddQuestionButton(onPressed: _addQuestion),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _ImportSoalButton(
-                              importing: _importing,
-                              disabled: widget.formId == null || _saving,
-                              onPressed: _importSoal,
+                        )
+                      : Stack(
+                          children: [
+                            ReorderableListView.builder(
+                              padding: const EdgeInsets.fromLTRB(22, 4, 22, 96),
+                              itemCount: _questions.length,
+                              onReorder: _onReorder,
+                              buildDefaultDragHandles: false,
+                              proxyDecorator: (child, index, animation) => Material(
+                                elevation: 4,
+                                borderRadius: BorderRadius.circular(16),
+                                child: child,
+                              ),
+                              itemBuilder: (context, i) => ReorderableDragStartListener(
+                                key: ValueKey(_questions[i]),
+                                index: i,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: QuestionListCard(
+                                    index: i,
+                                    totalCount: _questions.length,
+                                    question: _questions[i],
+                                    onEdit: () => _openEditor(_questions[i]),
+                                    onMoveUp: () => _moveQuestion(i, -1),
+                                    onMoveDown: () => _moveQuestion(i, 1),
+                                    onDelete: () => setState(() {
+                                      _questions[i].dispose();
+                                      _questions.removeAt(i);
+                                    }),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      // Unduh template — paritas web `templateDownloadUrl` (csv/xlsx/docx/pdf)
-                      Align(
-                        alignment: Alignment.center,
-                        child: TextButton.icon(
-                          onPressed: _downloadTemplate,
-                          icon: const Icon(Icons.download_outlined, size: 16, color: kAuthPrimary),
-                          label: const Text('Unduh template import',
-                              style: TextStyle(fontSize: 12, color: kAuthPrimary, fontWeight: FontWeight.bold, fontFamily: kFontBold)),
-                          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
+                            if (_saving && _progress != null)
+                              Positioned(
+                                left: 22,
+                                right: 22,
+                                bottom: 16,
+                                child: LinearProgressIndicator(value: _progress),
+                              ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      AuthPrimaryButton(
-                        label: _saving ? "Menyimpan..." : "Simpan Soal",
-                        loading: _saving,
-                        progress: _progress,
-                        onPressed: () async {
-                          if (!_hasChanges) {
-                            await _save();
-                            return;
-                          }
-                          final confirmed = await showSaveConfirmDialog(context);
-                          if (confirmed == true) await _save();
-                        },
-                      ),
-                    ],
-                  ),
                 ),
               ),
             ),
-          ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addQuestion,
+        backgroundColor: kPrimary,
+        foregroundColor: Colors.white,
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        tooltip: 'Tambah Soal',
+        child: const Icon(Icons.add, size: 24),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }
 
 /// Tombol impor soal dari file — sejajar dengan tombol tambah pertanyaan.
-class _ImportSoalButton extends StatelessWidget {
-  final bool importing;
-  final bool disabled;
-  final VoidCallback onPressed;
+// class _ImportSoalButton extends StatelessWidget {
+//   final bool importing;
+//   final bool disabled;
+//   final VoidCallback onPressed;
 
-  const _ImportSoalButton({
-    required this.importing,
-    required this.disabled,
-    required this.onPressed,
-  });
+//   const _ImportSoalButton({
+//     required this.importing,
+//     required this.disabled,
+//     required this.onPressed,
+//   });
 
-  @override
-  Widget build(BuildContext context) {
-    final enabled = !importing && !disabled;
-    return ElevatedButton.icon(
-      onPressed: enabled ? onPressed : null,
-      icon: importing
-          ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : const Icon(Icons.upload_file_outlined, size: 20),
-      label: Text(
-        importing ? "Mengimpor..." : "Impor Soal",
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontFamily: kFontBold,
-        ),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
-        disabledBackgroundColor: Colors.white.withValues(alpha: 0.6),
-        side: BorderSide(
-          color: enabled ? kAuthPrimary : kAuthPrimary.withValues(alpha: 0.4),
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        foregroundColor: kAuthPrimary,
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     final enabled = !importing && !disabled;
+//     return ElevatedButton.icon(
+//       onPressed: enabled ? onPressed : null,
+//       icon: importing
+//           ? const SizedBox(
+//               width: 18,
+//               height: 18,
+//               child: CircularProgressIndicator(strokeWidth: 2),
+//             )
+//           : const Icon(Icons.upload_file_outlined, size: 20),
+//       label: Text(
+//         importing ? "Mengimpor..." : "Impor Soal",
+//         maxLines: 1,
+//         overflow: TextOverflow.ellipsis,
+//         style: TextStyle(
+//           fontWeight: FontWeight.bold,
+//           fontFamily: kFontBold,
+//         ),
+//       ),
+//       style: ElevatedButton.styleFrom(
+//         backgroundColor: Colors.white,
+//         disabledBackgroundColor: Colors.white.withValues(alpha: 0.6),
+//         side: BorderSide(
+//           color: enabled ? kAuthPrimary : kAuthPrimary.withValues(alpha: 0.4),
+//         ),
+//         shape: RoundedRectangleBorder(
+//           borderRadius: BorderRadius.circular(8),
+//         ),
+//         padding: const EdgeInsets.symmetric(vertical: 14),
+//         foregroundColor: kAuthPrimary,
+//       ),
+//     );
+//   }
+// }

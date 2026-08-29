@@ -151,7 +151,7 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
           style: TextStyle(fontFamily: kFontBold, color: Colors.white),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () {
             // Kembali ke beranda atau halaman sebelumnya
             ScaffoldMessenger.maybeOf(context)?.clearSnackBars();

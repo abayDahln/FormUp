@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 
 /// Kartu "Masuk Form": input kode + tombol scan QR
@@ -52,64 +53,41 @@ class HomeKerjakanCard extends StatelessWidget {
                 child: TextField(
                   controller: codeController,
                   enabled: !loading,
-                  style: const TextStyle(color: Colors.black87),
+                  style: const TextStyle(color: Colors.black87, fontSize: 14),
                   cursorColor: kAuthPrimary,
-                  decoration: InputDecoration(
-                    hintText: "Kode form",
-                    hintStyle: const TextStyle(color: kAuthText),
-                    prefixIcon: const Icon(Icons.link, color: kAuthText),
-                    filled: true,
-                    fillColor: const Color(0xFFF0F4F4),
-                    contentPadding: const EdgeInsets.symmetric(
-                      vertical: 14,
-                      horizontal: 16,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: kAuthText),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: kAuthText),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(
-                        color: kAuthPrimary,
-                        width: 1.5,
-                      ),
-                    ),
+                  decoration: formUpInputDecoration(
+                    labelText: "Kode form",
+                    hintText: "Kode",
+                    prefixIcon: const Icon(Icons.link, size: 20),
                   ),
+                  textInputAction: TextInputAction.done,
                   onSubmitted: (_) => loading ? null : onStart(),
                 ),
               ),
 
               const SizedBox(width: 8),
 
-              // Tombol scan QR (warna sama dengan field, tidak kontras)
+              // Tombol scan QR — M3 outlined icon button, selaras tinggi field
               SizedBox(
-                height: 48,
-                width: 48,
-                child: Material(
-                  color: const Color(0xFFF0F4F4), 
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: const BorderSide(color: kAuthText),
-                  ),
-                  child: InkWell( 
-                    onTap: loading
-                        ? null
-                        : () {
-                            FocusScope.of(context).unfocus();
-                            onOpenScanner();
-                          },
-                    borderRadius: BorderRadius.circular(8),
-                    
-                    child: const Icon(
-                      Icons.qr_code_scanner,
-                      color: kAuthPrimary, // Warna icon tetap primary
+                height: 56,
+                width: 56,
+                child: IconButton.outlined(
+                  onPressed: loading
+                      ? null
+                      : () {
+                          FocusScope.of(context).unfocus();
+                          onOpenScanner();
+                        },
+                  icon: const Icon(Icons.qr_code_scanner, size: 22),
+                  color: kAuthPrimary,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    side: const BorderSide(color: kFieldBorderColor),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(kRadiusSm),
                     ),
                   ),
+                  tooltip: 'Scan QR',
                 ),
               ),
             ],

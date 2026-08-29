@@ -157,6 +157,26 @@ ThemeData buildFormUpTheme() {
       elevation: 8,
     ),
 
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.white,
+      floatingLabelBehavior: FloatingLabelBehavior.auto,
+      floatingLabelStyle: const TextStyle(color: kPrimary, fontSize: 14, fontWeight: FontWeight.w500),
+      labelStyle: const TextStyle(color: Color(0xFF49454F), fontSize: 14),
+      hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
+      helperStyle: const TextStyle(color: Color(0xFF49454F), fontSize: 12),
+      errorStyle: const TextStyle(color: kDangerColor, fontSize: 12),
+      prefixIconColor: const Color(0xFF49454F),
+      suffixIconColor: const Color(0xFF49454F),
+      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: const BorderSide(color: kFieldBorderColor)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: const BorderSide(color: kFieldBorderColor)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: const BorderSide(color: kPrimary, width: 2)),
+      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: const BorderSide(color: kDangerColor)),
+      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: const BorderSide(color: kDangerColor, width: 2)),
+      disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: BorderSide(color: kFieldBorderColor.withValues(alpha: 0.38))),
+    ),
+
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((states) =>
             states.contains(WidgetState.selected) ? Colors.white : null),
@@ -210,32 +230,77 @@ ThemeData buildFormUpTheme() {
   );
 }
 
-/// Style InputDecoration dasar bergaya auth (filled putih + outline).
-/// Dipakai lewat copyWith karena hint/prefix tiap field berbeda.
+/// M3 outlined text field — https://m3.material.io/components/text-fields
+/// Varian outlined: label floating, outline 1dp/2dp, support error, prefix/suffix.
+/// Dipakai di semua field kecuali SearchBar.
 InputDecoration formUpInputDecoration({
   String? hintText,
+  String? labelText,
   TextStyle? hintStyle,
+  TextStyle? labelStyle,
   Widget? prefixIcon,
   Widget? suffixIcon,
+  String? helperText,
+  String? errorText,
 }) {
+  // M3 spec: outline radius 4dp, kita pakai kRadiusSm (10) agar selaras sistem.
+  const radius = kRadiusSm;
+  const outline = kFieldBorderColor; // outline variant
   return InputDecoration(
     hintText: hintText,
+    labelText: labelText,
+    helperText: helperText,
+    errorText: errorText,
     hintStyle: hintStyle ?? const TextStyle(color: Colors.black38, fontSize: 14),
+    labelStyle: labelStyle ?? const TextStyle(color: Color(0xFF49454F), fontSize: 14),
+    floatingLabelStyle: const TextStyle(color: kPrimary, fontSize: 14, fontWeight: FontWeight.w500),
+    helperStyle: const TextStyle(color: Color(0xFF49454F), fontSize: 12),
+    errorStyle: const TextStyle(color: kDangerColor, fontSize: 12),
     prefixIcon: prefixIcon,
     suffixIcon: suffixIcon,
+    prefixIconColor: const Color(0xFF49454F),
+    suffixIconColor: const Color(0xFF49454F),
     isDense: true,
     filled: true,
     fillColor: Colors.white,
-    contentPadding:
-        const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+    contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+    // M3 outlined borders
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(radius),
+      borderSide: const BorderSide(color: outline),
+    ),
     enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(kRadiusSm),
-      borderSide: const BorderSide(color: kFieldBorderColor),
+      borderRadius: BorderRadius.circular(radius),
+      borderSide: const BorderSide(color: outline, width: 1),
     ),
     focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(kRadiusSm),
-      borderSide: const BorderSide(color: kPrimary),
+      borderRadius: BorderRadius.circular(radius),
+      borderSide: const BorderSide(color: kPrimary, width: 2),
     ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(radius),
+      borderSide: const BorderSide(color: kDangerColor, width: 1),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(radius),
+      borderSide: const BorderSide(color: kDangerColor, width: 2),
+    ),
+    disabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(radius),
+      borderSide: BorderSide(color: outline.withValues(alpha: 0.38)),
+    ),
+  );
+}
+
+/// Shortcut untuk field filled variant bila perlu (mis. dense toolbar)
+InputDecoration formUpFilledDecoration({
+  String? hintText,
+  Widget? prefixIcon,
+  Widget? suffixIcon,
+}) {
+  return formUpInputDecoration(hintText: hintText, prefixIcon: prefixIcon, suffixIcon: suffixIcon).copyWith(
+    filled: true,
+    fillColor: const Color(0xFFF3F6F6),
   );
 }
 

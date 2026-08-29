@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/features/form/controllers/form_maker_controller.dart';
 
@@ -346,24 +347,4 @@ Widget _dropdownCard(Widget child) {
   );
 }
 
-InputDecoration _fieldDecoration(String hint) {
-  return InputDecoration(
-    hintText: hint,
-    hintStyle: const TextStyle(color: kAuthText, fontSize: 14),
-    filled: true,
-    fillColor: Colors.white,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: kAuthText),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: Color(0xFF6E7979)),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: kAuthPrimary, width: 1.5),
-    ),
-  );
-}
+InputDecoration _fieldDecoration(String hint) => formUpInputDecoration(hintText: hint);

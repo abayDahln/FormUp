@@ -149,28 +149,36 @@ class FormMakerController {
       }
     }
     customLinkController.text = form['formLink'] as String? ?? '';
+    tokenController.text = (settings?['formToken'] as String?) ?? '';
     baseline = snapshot();
   }
 
   /// Bangun payload settings untuk updateSettings.
   Map<String, dynamic> buildSettingsPayload() {
     final timerValue = int.tryParse(timerController.text.trim());
-    return <String, dynamic>{
+    final curToken = tokenController.text.trim();
+    final baseToken = baseline?.token ?? '';
+    final payload = <String, dynamic>{
       'formTypeId': formTypeId,
       'showScore': showScore,
       'randomizeQuestions': randomizeQuestions,
       'oneResponse': oneResponse,
       'requiredLogin': requiredLogin,
       if (timerValue != null && timerValue > 0)
-        'timerDuration':
-            timerValue * (timerUnit == 'jam' ? 3600 : 60),
-      if (tokenController.text.trim().isNotEmpty)
-        'formToken': tokenController.text.trim(),
+        'timerDuration': timerValue * (timerUnit == 'jam' ? 3600 : 60),
       if (openFormTime != null && !openTimeAlreadySet)
         'openFormTime': openFormTime!.toUtc().toIso8601String(),
       if (closeFormTime != null)
         'closeFormTime': closeFormTime!.toUtc().toIso8601String(),
     };
+    // Token: kirim hanya jika berubah agar bisa menghapus (kirim null) atau menambah.
+    if (curToken != baseToken) {
+      payload['formToken'] = curToken.isEmpty ? null : curToken;
+    } else if (baseline == null && curToken.isNotEmpty) {
+      // Form baru tanpa baseline
+      payload['formToken'] = curToken;
+    }
+    return payload;
   }
 }
 

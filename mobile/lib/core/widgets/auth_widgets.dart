@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/widgets/app_toast.dart';
 
@@ -203,7 +204,8 @@ class AuthTitle extends StatelessWidget {
   }
 }
 
-/// Input field + toggle password
+/// M3 outlined text field — https://m3.material.io/components/text-fields
+/// Varian outlined dengan label floating, leading icon, trailing icon (visibility).
 class AuthTextField extends StatefulWidget {
   final TextEditingController controller;
   final String hint;
@@ -211,6 +213,9 @@ class AuthTextField extends StatefulWidget {
   final bool obscure;
   final TextInputType? keyboardType;
   final String? label;
+  final String? helperText;
+  final String? errorText;
+  final bool enabled;
 
   const AuthTextField({
     super.key,
@@ -220,6 +225,9 @@ class AuthTextField extends StatefulWidget {
     this.obscure = false,
     this.keyboardType,
     this.label,
+    this.helperText,
+    this.errorText,
+    this.enabled = true,
   });
 
   @override
@@ -237,69 +245,29 @@ class _AuthTextFieldState extends State<AuthTextField> {
 
   @override
   Widget build(BuildContext context) {
-    final field = SizedBox(
-      height: 56,
-      child: TextField(
-        controller: widget.controller,
-        obscureText: _obscure,
-        keyboardType: widget.keyboardType,
-        style: const TextStyle(color: Colors.black87),
-        cursorColor: kAuthPrimary,
-        decoration: InputDecoration(
-          hintText: widget.hint,
-          hintStyle: const TextStyle(color: kAuthText),
-          prefixIcon: Icon(widget.icon, color: kAuthText),
-          suffixIcon: widget.obscure
-              ? IconButton(
-                  icon: Icon(
-                    _obscure
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    color: kAuthText,
-                  ),
-                  onPressed: () => setState(() => _obscure = !_obscure),
-                )
-              : null,
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 16,
-            horizontal: 16,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(7.5),
-            borderSide: const BorderSide(color: kAuthText),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(7.5),
-            borderSide: const BorderSide(color: kAuthText),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(7.5),
-            borderSide: const BorderSide(color: kAuthPrimary, width: 1.5),
-          ),
-        ),
+    return TextField(
+      controller: widget.controller,
+      obscureText: _obscure,
+      keyboardType: widget.keyboardType,
+      enabled: widget.enabled,
+      style: const TextStyle(color: Colors.black87, fontSize: 14),
+      cursorColor: kAuthPrimary,
+      decoration: formUpInputDecoration(
+        labelText: widget.label ?? widget.hint,
+        hintText: widget.hint,
+        helperText: widget.helperText,
+        errorText: widget.errorText,
+        prefixIcon: Icon(widget.icon, size: 20),
+        suffixIcon: widget.obscure
+            ? IconButton(
+                icon: Icon(
+                  _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  size: 20,
+                ),
+                onPressed: () => setState(() => _obscure = !_obscure),
+              )
+            : null,
       ),
-    );
-
-    final label = widget.label;
-    if (label == null || label.isEmpty) return field;
-
-    // Label di atas field, gaya sama dengan form maker
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            fontFamily: kFontBold,
-            color: kAuthPrimary,
-          ),
-        ),
-        const SizedBox(height: 8),
-        field,
-      ],
     );
   }
 }

@@ -1,9 +1,12 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/user_service.dart';
 import 'package:form_up/core/router/app_router.dart';
+import 'package:form_up/features/profile/widgets/image_source_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String username;
@@ -45,6 +48,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _openEditProfile() async {
     await AppRouter.of(context).push(AppPage.editProfile);
     if (mounted) _load();
+  }
+
+  Future<void> _pickAvatarImage() async {
+    final source = await showImageSourceSheet(context);
+    if (source == null || !mounted) return;
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+      final Uint8List bytes = await picked.readAsBytes();
+      if (!mounted) return;
+      // Loading overlay
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+      try {
+        await UserService.uploadProfileImage(bytes, 'profile.jpg');
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        showAuthToast(context, 'Foto profil diperbarui');
+        await _load();
+      } catch (e) {
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    }
   }
 
   String get _initial {
@@ -183,28 +222,34 @@ if (_loading)
   }
 
   Widget _buildAvatar() {
-    return Stack(
-      children: [
-        Container(
-          width: 90,
-          height: 90,
-          decoration: const BoxDecoration(
-            color: Color(0xFFB8E2DE),
-            shape: BoxShape.circle,
+    return GestureDetector(
+      onTap: _pickAvatarImage,
+      child: Stack(
+        children: [
+          Container(
+            width: 90,
+            height: 90,
+            decoration: const BoxDecoration(
+              color: Color(0xFFB8E2DE),
+              shape: BoxShape.circle,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: _avatarContent(),
           ),
-          clipBehavior: Clip.antiAlias,
-          child: _avatarContent(),
-        ),
-        const Positioned(
-          right: 0,
-          bottom: 0,
-          child: CircleAvatar(
-            radius: 14,
-            backgroundColor: Color(0xFF2A9D8F),
-            child: Icon(Icons.edit, color: Colors.white, size: 14),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: GestureDetector(
+              onTap: _pickAvatarImage,
+              child: const CircleAvatar(
+                radius: 14,
+                backgroundColor: Color(0xFF2A9D8F),
+                child: Icon(Icons.edit, color: Colors.white, size: 14),
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

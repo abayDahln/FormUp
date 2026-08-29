@@ -66,52 +66,39 @@ class QuestionListCard extends StatelessWidget {
                   style: const TextStyle(fontSize: 13, color: Colors.black87),
                 ),
               ),
-              IconButton(
-                icon: const Icon(
-                  Icons.edit_outlined,
-                  size: 18,
-                  color: kAuthPrimary,
-                ),
-                tooltip: "Edit soal",
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                visualDensity: VisualDensity.compact,
-                onPressed: onEdit,
-              ),
-              if (index > 0)
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_upward,
-                    size: 18,
-                    color: Colors.grey,
-                  ),
+              // M3 menu tunggal — https://m3.material.io/components/menus/overview
+              MenuAnchor(
+                builder: (context, controller, child) => IconButton(
+                  icon: const Icon(Icons.more_vert, size: 20, color: Colors.black54),
+                  tooltip: 'Opsi soal',
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                   visualDensity: VisualDensity.compact,
-                  onPressed: onMoveUp,
+                  onPressed: () => controller.isOpen ? controller.close() : controller.open(),
                 ),
-              if (index < totalCount - 1)
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_downward,
-                    size: 18,
-                    color: Colors.grey,
+                menuChildren: [
+                  MenuItemButton(
+                    leadingIcon: const Icon(Icons.edit_outlined, size: 18, color: kAuthPrimary),
+                    onPressed: onEdit,
+                    child: const Text('Edit'),
                   ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: onMoveDown,
-                ),
-              IconButton(
-                icon: const Icon(
-                  Icons.delete_outline,
-                  size: 20,
-                  color: Color(0xFFC0392B),
-                ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                visualDensity: VisualDensity.compact,
-                onPressed: onDelete,
+                  MenuItemButton(
+                    leadingIcon: const Icon(Icons.arrow_upward, size: 18),
+                    onPressed: index > 0 ? onMoveUp : null,
+                    child: const Text('Pindah ke atas'),
+                  ),
+                  MenuItemButton(
+                    leadingIcon: const Icon(Icons.arrow_downward, size: 18),
+                    onPressed: index < totalCount - 1 ? onMoveDown : null,
+                    child: const Text('Pindah ke bawah'),
+                  ),
+                  const Divider(height: 1),
+                  MenuItemButton(
+                    leadingIcon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFC0392B)),
+                    onPressed: onDelete,
+                    child: const Text('Hapus', style: TextStyle(color: Color(0xFFC0392B))),
+                  ),
+                ],
               ),
             ],
           ),

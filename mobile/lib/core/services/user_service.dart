@@ -69,17 +69,23 @@ class UserService {
     return UserStats.fromJson(json['data'] as Map<String, dynamic>);
   }
 
-  /// PUT /users/me
+  /// PUT /users/me — semua field opsional, hanya yang non-null yang dikirim
   static Future<UserProfile> updateProfile({
-    required String fullname,
-    required String username,
+    String? fullname,
+    String? username,
     String? birthdate,
+    bool clearBirthdate = false,
   }) async {
-    final json = await AuthService.put('/users/me', {
-      'fullname': fullname,
-      'username': username,
-      if (birthdate != null && birthdate.isNotEmpty) 'birthdate': birthdate,
-    });
+    final body = <String, dynamic>{};
+    if (fullname != null) body['fullname'] = fullname;
+    if (username != null) body['username'] = username;
+    if (clearBirthdate) {
+      body['birthdate'] = '';
+    } else if (birthdate != null && birthdate.isNotEmpty) {
+      body['birthdate'] = birthdate;
+    }
+    if (body.isEmpty) throw const ApiException('Tidak ada perubahan untuk disimpan');
+    final json = await AuthService.put('/users/me', body);
     return UserProfile.fromJson(json['data'] as Map<String, dynamic>);
   }
 
