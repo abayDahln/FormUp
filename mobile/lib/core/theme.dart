@@ -41,11 +41,11 @@ ThemeData buildFormUpTheme() {
     scaffoldBackgroundColor: kAppBg,
     fontFamily: 'Inter',
 
-    // Card theme dengan shadow konsisten
+    // Card theme M3 — shadow jelas di #F8F9FA
     cardTheme: CardThemeData(
       color: Colors.white,
-      elevation: 0,
-      shadowColor: Colors.black.withValues(alpha: 0.06),
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(kRadiusLg),

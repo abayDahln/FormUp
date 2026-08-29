@@ -23,21 +23,20 @@ class FormCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = formStatusStyle(form.status);
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(kRadius),
-        boxShadow: elevationShadow(ShadowLevel.low),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(kRadius),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(kRadius),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
+    // M3 Card dengan shadow jelas agar tidak samar di #F8F9FA (contoh: clipBehavior hardEdge + InkWell splash)
+    return Card(
+      color: Colors.white,
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      surfaceTintColor: Colors.transparent,
+      clipBehavior: Clip.hardEdge,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
+      child: InkWell(
+        splashColor: kAuthPrimary.withValues(alpha: 0.08),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(11),
@@ -127,7 +126,6 @@ class FormCard extends StatelessWidget {
           ),
         ),
       ),
-    ),
     );
   }
 

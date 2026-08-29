@@ -4,7 +4,7 @@ import 'package:form_up/core/widgets/app_toast.dart';
 
 // ===== Design system =====
 const kBg = Color(0xFFE2F3F2);
-const kAppBg = Color(0xFFF8F9FA);
+const kAppBg = Color(0xFFEAF3F0);
 const kPrimary = Color(0xFF2A9D8F);
 const kRadius = 20.0;
 const kBorderColor = Color(0x1FBDC9C8);
