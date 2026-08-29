@@ -3,6 +3,7 @@ import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
+import 'package:form_up/core/widgets/full_screen_image_viewer.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/features/form_runner/controllers/runner_answer_store.dart';
 
@@ -29,21 +30,27 @@ class RunnerFormHeaderCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Banner form (jika diisi)
+          // Banner form (jika diisi) — tap untuk full-screen
           if (info.bannerImage != null && info.bannerImage!.trim().isNotEmpty) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: AspectRatio(
-                aspectRatio: 16 / 7,
-                child: CachedRemoteImage(
-                  url: profileImageUrl(info.bannerImage),
-                  fit: BoxFit.cover,
-                  errorWidget: Container(
-                    color: kPrimarySoft,
-                    child: const Icon(
-                      Icons.image_outlined,
-                      size: 36,
-                      color: kAuthPrimary,
+            GestureDetector(
+              onTap: () => showFullScreenImage(context, profileImageUrl(info.bannerImage)),
+              child: Hero(
+                tag: profileImageUrl(info.bannerImage),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 7,
+                    child: CachedRemoteImage(
+                      url: profileImageUrl(info.bannerImage),
+                      fit: BoxFit.cover,
+                      errorWidget: Container(
+                        color: kPrimarySoft,
+                        child: const Icon(
+                          Icons.image_outlined,
+                          size: 36,
+                          color: kAuthPrimary,
+                        ),
+                      ),
                     ),
                   ),
                 ),

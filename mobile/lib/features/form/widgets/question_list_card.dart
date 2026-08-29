@@ -28,13 +28,19 @@ class QuestionListCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final q = question;
     final plainText = q.question.document.toPlainText().trim();
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onEdit,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xCCBDC9C8)),
-      ),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xCCBDC9C8)),
+          ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -66,7 +72,7 @@ class QuestionListCard extends StatelessWidget {
                   style: const TextStyle(fontSize: 13, color: Colors.black87),
                 ),
               ),
-              // M3 menu tunggal — https://m3.material.io/components/menus/overview
+              // M3 menu tunggal — tanpa Edit karena tap card langsung edit
               MenuAnchor(
                 builder: (context, controller, child) => IconButton(
                   icon: const Icon(Icons.more_vert, size: 20, color: Colors.black54),
@@ -77,11 +83,6 @@ class QuestionListCard extends StatelessWidget {
                   onPressed: () => controller.isOpen ? controller.close() : controller.open(),
                 ),
                 menuChildren: [
-                  MenuItemButton(
-                    leadingIcon: const Icon(Icons.edit_outlined, size: 18, color: kAuthPrimary),
-                    onPressed: onEdit,
-                    child: const Text('Edit'),
-                  ),
                   MenuItemButton(
                     leadingIcon: const Icon(Icons.arrow_upward, size: 18),
                     onPressed: index > 0 ? onMoveUp : null,
@@ -120,6 +121,8 @@ class QuestionListCard extends StatelessWidget {
               style: const TextStyle(fontSize: 13, color: Colors.black87),
             ),
         ],
+      ),
+        ),
       ),
     );
   }

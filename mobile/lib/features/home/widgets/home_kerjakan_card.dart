@@ -44,53 +44,30 @@ class HomeKerjakanCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // ── Row: TextField (kiri) + Scan Button (kanan) ──
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Field kode form
-              Expanded(
-                child: TextField(
-                  controller: codeController,
-                  enabled: !loading,
-                  style: const TextStyle(color: Colors.black87, fontSize: 14),
-                  cursorColor: kAuthPrimary,
-                  decoration: formUpInputDecoration(
-                    labelText: "Kode form",
-                    hintText: "Kode",
-                    prefixIcon: const Icon(Icons.link, size: 20),
-                  ),
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => loading ? null : onStart(),
-                ),
+          // Field kode form — tombol scan QR digabung sebagai suffixIcon (M3)
+          TextField(
+            controller: codeController,
+            enabled: !loading,
+            style: const TextStyle(color: Colors.black87, fontSize: 14),
+            cursorColor: kAuthPrimary,
+            decoration: formUpInputDecoration(
+              labelText: "Kode form",
+              hintText: "Kode",
+              prefixIcon: const Icon(Icons.link, size: 20),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.qr_code_scanner, size: 22),
+                color: kAuthPrimary,
+                tooltip: 'Scan QR',
+                onPressed: loading
+                    ? null
+                    : () {
+                        FocusScope.of(context).unfocus();
+                        onOpenScanner();
+                      },
               ),
-
-              const SizedBox(width: 8),
-
-              // Tombol scan QR — M3 outlined icon button, selaras tinggi field
-              SizedBox(
-                height: 56,
-                width: 56,
-                child: IconButton.outlined(
-                  onPressed: loading
-                      ? null
-                      : () {
-                          FocusScope.of(context).unfocus();
-                          onOpenScanner();
-                        },
-                  icon: const Icon(Icons.qr_code_scanner, size: 22),
-                  color: kAuthPrimary,
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    side: const BorderSide(color: kFieldBorderColor),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(kRadiusSm),
-                    ),
-                  ),
-                  tooltip: 'Scan QR',
-                ),
-              ),
-            ],
+            ),
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => loading ? null : onStart(),
           ),
 
           const SizedBox(height: 12),

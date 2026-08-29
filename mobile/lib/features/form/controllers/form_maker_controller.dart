@@ -149,7 +149,9 @@ class FormMakerController {
       }
     }
     customLinkController.text = form['formLink'] as String? ?? '';
-    tokenController.text = (settings?['formToken'] as String?) ?? '';
+    tokenController.text = (settings?['formToken'] as String?) ??
+        (settings?['FormToken'] as String?) ??
+        '';
     baseline = snapshot();
   }
 

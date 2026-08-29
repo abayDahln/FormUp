@@ -359,10 +359,10 @@ class FormService {
     return data['id'] as int;
   }
 
-  /// GET /forms/{id}
+  /// GET /forms/{id} — v2 bust cache agar formToken yang sebelumnya hilang ikut terambil
   static Future<Map<String, dynamic>> getForm(int id) async {
     return ApiCache.get(
-      'forms:detail:$_scope:$id',
+      'forms:detail:v2:$_scope:$id',
       const Duration(seconds: 30),
       () async {
         final json = await AuthService.get('/forms/$id');
