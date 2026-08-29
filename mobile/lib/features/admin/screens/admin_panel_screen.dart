@@ -193,6 +193,13 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
     super.dispose();
   }
 
+  void _onSearchImmediate(String value) {
+    _debounce?.cancel();
+    if (!mounted) return;
+    setState(() => _query = value.trim());
+    _load();
+  }
+
   void _onSearchChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
@@ -239,10 +246,12 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-          child: _AdminSearchField(
+          child: AppSearchField(
             controller: _searchController,
             onChanged: _onSearchChanged,
+            onSubmitted: _onSearchImmediate,
             hint: 'Cari nama, username, atau email...',
+            historyKey: 'search_history_admin_users',
           ),
         ),
         Expanded(
@@ -358,6 +367,13 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
     super.dispose();
   }
 
+  void _onSearchImmediate(String value) {
+    _debounce?.cancel();
+    if (!mounted) return;
+    setState(() => _query = value.trim());
+    _load();
+  }
+
   void _onSearchChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
@@ -405,10 +421,12 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-          child: _AdminSearchField(
+          child: AppSearchField(
             controller: _searchController,
             onChanged: _onSearchChanged,
+            onSubmitted: _onSearchImmediate,
             hint: 'Cari judul, kode link, atau pemilik...',
+            historyKey: 'search_history_admin_forms',
           ),
         ),
         Padding(

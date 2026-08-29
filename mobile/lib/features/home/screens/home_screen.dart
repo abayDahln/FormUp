@@ -248,9 +248,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 AppRouter.of(context).push(AppPage.formTemplateChooser);
               },
               backgroundColor: kPrimary,
-              elevation: 1,
-              shape: const CircleBorder(),
-              child: const Icon(Icons.add, color: Colors.white, size: 28),
+              foregroundColor: Colors.white,
+              elevation: 3,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: const Icon(Icons.add, size: 24),
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,

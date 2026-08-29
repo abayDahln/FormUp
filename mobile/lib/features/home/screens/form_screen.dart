@@ -69,6 +69,12 @@ class _FormScreenState extends State<FormScreen> {
     }
   }
 
+  void _onSearchImmediate(String value) {
+    _debounce?.cancel();
+    if (!mounted) return;
+    setState(() => _searchQuery = value.trim().toLowerCase());
+  }
+
   /// Cari (debounce 500ms)
   void _onSearchChanged(String value) {
     _debounce?.cancel();
@@ -187,12 +193,14 @@ class _FormScreenState extends State<FormScreen> {
             FormSearchBar(
               controller: _searchController,
               onChanged: _onSearchChanged,
+              onSubmitted: _onSearchImmediate,
               onClearSearch: () {
                 _searchController.clear();
-                _onSearchChanged('');
+                _onSearchImmediate('');
               },
               filterActive: _filterDate != null || _sort != FormSort.newest,
               onOpenFilter: _openFilterSheet,
+              historyKey: 'search_history_form',
             ),
             const SizedBox(height: 16),
 

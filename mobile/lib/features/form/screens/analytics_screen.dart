@@ -58,6 +58,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     super.dispose();
   }
 
+  void _onSearchImmediate(String value) {
+    _debounce?.cancel();
+    if (!mounted) return;
+    setState(() => _query = value.trim());
+    _load();
+  }
+
   void _onSearchChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
@@ -190,7 +197,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     AppSearchField(
                       controller: _searchController,
                       onChanged: _onSearchChanged,
+                      onSubmitted: _onSearchImmediate,
                       hint: 'Cari responden...',
+                      historyKey: 'search_history_analytics',
                     ),
                     const SizedBox(height: 16),
                     const Text(

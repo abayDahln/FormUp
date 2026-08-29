@@ -39,6 +39,12 @@ class _ResponseScreenState extends State<ResponseScreen> {
     super.dispose();
   }
 
+  void _onSearchImmediate(String value) {
+    _debounce?.cancel();
+    if (!mounted) return;
+    setState(() => _query = value.trim().toLowerCase());
+  }
+
   void _onSearchChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
@@ -109,7 +115,9 @@ class _ResponseScreenState extends State<ResponseScreen> {
               child: AppSearchField(
                 controller: _searchController,
                 onChanged: _onSearchChanged,
+                onSubmitted: _onSearchImmediate,
                 hint: 'Cari respons...',
+                historyKey: 'search_history_response',
               ),
             ),
             const SizedBox(height: 14),
