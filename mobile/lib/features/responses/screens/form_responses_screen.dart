@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
@@ -130,7 +132,7 @@ class _FormResponsesScreenState extends State<FormResponsesScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingIndicator.circular())
           : AuthBackground(plain: true,
               child: SafeArea(
                 child: _responses.isEmpty
@@ -156,9 +158,9 @@ class _FormResponsesScreenState extends State<FormResponsesScreen> {
                           ),
                         ),
                       )
-                    : RefreshIndicator(
+                    : AppRefreshIndicator(
                         onRefresh: _load,
-                        color: kAuthPrimary,
+                        indicatorColor: kAuthPrimary,
                         child: ListView.separated(
                           controller: _scrollController,
                           physics: const AlwaysScrollableScrollPhysics(),

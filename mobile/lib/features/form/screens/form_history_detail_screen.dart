@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -70,7 +71,7 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingIndicator.circular())
           : AuthBackground(plain: true,
               child: SafeArea(
                 child: _result == null

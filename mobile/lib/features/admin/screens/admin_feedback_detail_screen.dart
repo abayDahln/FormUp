@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/admin_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -255,7 +256,7 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
                       child: SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2)),
+                          child: AppLoadingIndicator.inline()),
                     ))
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

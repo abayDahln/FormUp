@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/services/public_form_service.dart';
@@ -78,11 +80,11 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingIndicator.circular())
           : AuthBackground(plain: true,
               child: SafeArea(
-                child: RefreshIndicator(
-                  color: kAuthPrimary,
+                child: AppRefreshIndicator(
+                  indicatorColor: kAuthPrimary,
                   onRefresh: _load,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),

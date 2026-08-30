@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -67,7 +68,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (_) => const Center(child: CircularProgressIndicator()),
+        builder: (_) => const Center(child: AppLoadingIndicator.circular()),
       );
       try {
         await UserService.uploadProfileImage(bytes, 'profile.jpg');
@@ -141,7 +142,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 if (_loading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 60),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: AppLoadingIndicator.circular()),
               )
             else ...[
               Container(

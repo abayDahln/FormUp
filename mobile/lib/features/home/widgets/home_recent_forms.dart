@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/widgets/form_card.dart';
 import 'package:form_up/features/home/widgets/home_empty_card.dart';
@@ -23,7 +24,7 @@ class HomeRecentForms extends StatelessWidget {
     if (loading && forms.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 20),
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: AppLoadingIndicator.circular()),
       );
     }
     if (forms.isEmpty) {

@@ -302,7 +302,7 @@ Future<void> showFormQuickActions(
           ),
           _sheetAction(
             icon: Icons.settings_outlined,
-            label: 'Setting Form (Jadwal/Akses)',
+            label: 'Setting Form',
             onTap: () => _closeAndPush(
               sheetContext,
               context,

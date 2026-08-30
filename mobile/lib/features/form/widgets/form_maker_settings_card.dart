@@ -69,11 +69,11 @@ class FormMakerSettingsCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          _settingsLabel("Link Kustom"),
+          _settingsLabel("Kode Link Kustom"),
           TextField(
             controller: c.customLinkController,
             decoration: _fieldDecoration(
-              "mis. survey-kepuasan",
+              "Kode untuk link form Anda",
             ),
             onChanged: (v) => c.customLinkController.value =
                 c.customLinkController.value.copyWith(
@@ -84,7 +84,7 @@ class FormMakerSettingsCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          _settingsLabel("Batas Waktu"),
+          _settingsLabel("Waktu Mengerjakan"),
           Row(
             children: [
               Expanded(
@@ -93,7 +93,7 @@ class FormMakerSettingsCard extends StatelessWidget {
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: _fieldDecoration(
-                    "mis. 30",
+                    "Batas waktu pengerjaan",
                   ),
                 ),
               ),
@@ -122,7 +122,7 @@ class FormMakerSettingsCard extends StatelessWidget {
           TextField(
             controller: c.tokenController,
             decoration: _fieldDecoration(
-              "",
+              "Token untuk akses form",
             ),
           ),
           const SizedBox(height: 8),

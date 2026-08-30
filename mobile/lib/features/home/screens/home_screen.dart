@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/form_card.dart';
@@ -117,9 +118,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHomeTab() {
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       onRefresh: _load,
-      color: kAuthPrimary,
+      indicatorColor: kAuthPrimary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),

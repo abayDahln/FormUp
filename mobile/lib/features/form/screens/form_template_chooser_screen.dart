@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -310,7 +311,7 @@ class _TemplateCard extends StatelessWidget {
                     fit: BoxFit.cover,
                     memCacheWidth: 800,
                     maxWidthDiskCache: 800,
-                    placeholder: (_, _) => Container(color: template.iconBg, child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))),
+                    placeholder: (_, _) => Container(color: template.iconBg, child: const Center(child: SizedBox(width: 20, height: 20, child: AppLoadingIndicator.inline()))),
                     errorWidget: (_, _, _) => Container(color: template.iconBg, child: Icon(template.icon, color: template.iconColor.withValues(alpha: 0.5))),
                   )
                 : Container(color: template.iconBg, child: Icon(template.icon, color: template.iconColor.withValues(alpha: 0.5))),
@@ -339,7 +340,7 @@ class _TemplateCard extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: busy ? null : onUse,
-                icon: cloning ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.arrow_forward, size: 16),
+                icon: cloning ? const SizedBox(width: 14, height: 14, child: AppLoadingIndicator.button()) : const Icon(Icons.arrow_forward, size: 16),
                 label: Text(cloning ? 'Menyiapkan...' : 'Gunakan Template Ini', style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 12)),
                 style: ElevatedButton.styleFrom(backgroundColor: kAuthPrimary, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 11), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
               ),

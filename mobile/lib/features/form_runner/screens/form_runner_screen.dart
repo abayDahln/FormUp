@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/public_form_service.dart';
@@ -316,7 +317,7 @@ class FormRunnerViewState extends State<FormRunnerView> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const Center(child: AppLoadingIndicator.circular());
     return switch (_step) {
       _RunnerStep.code => RunnerCodeStep(
           showTitle: widget.showTitle,

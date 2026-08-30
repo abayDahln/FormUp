@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/search_field.dart';
 import 'package:form_up/core/services/form_service.dart';
@@ -373,7 +375,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
             const SizedBox(height: 14),
             Expanded(
               child: _loading && _history.isEmpty && _myForms.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(child: AppLoadingIndicator.circular())
                   : TabBarView(
                       children: [
                         _buildHistoryTab(),
@@ -436,30 +438,33 @@ class _ResponseScreenState extends State<ResponseScreen> {
   }
 
   List<FormData> get _filteredForms {
-    var list = _myForms;
-    if (_analyticsQuery.isNotEmpty) {
-      list = list
-          .where((f) =>
-              f.title.toLowerCase().contains(_analyticsQuery) ||
-              (f.description ?? '').toLowerCase().contains(_analyticsQuery))
-          .toList();
-    }
-    switch (_analyticsSort) {
-      case _AnalyticsSort.newest:
-        list = List<FormData>.from(list)
-          ..sort((a, b) => (b.createdAt ?? b.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+    try {
+      var list = List<FormData>.from(_myForms);
+      final q = _analyticsQuery.trim().toLowerCase();
+      if (q.isNotEmpty) {
+        list = list
+            .where((f) =>
+                (f.title).toLowerCase().contains(q) ||
+                (f.description ?? '').toLowerCase().contains(q))
+            .toList();
+      }
+      switch (_analyticsSort) {
+        case _AnalyticsSort.newest:
+          list.sort((a, b) => (b.createdAt ?? b.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0))
               .compareTo(a.createdAt ?? a.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
-        break;
-      case _AnalyticsSort.oldest:
-        list = List<FormData>.from(list)
-          ..sort((a, b) => (a.createdAt ?? a.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+          break;
+        case _AnalyticsSort.oldest:
+          list.sort((a, b) => (a.createdAt ?? a.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0))
               .compareTo(b.createdAt ?? b.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
-        break;
-      case _AnalyticsSort.mostResponses:
-        list = List<FormData>.from(list)..sort((a, b) => b.responseCount.compareTo(a.responseCount));
-        break;
+          break;
+        case _AnalyticsSort.mostResponses:
+          list.sort((a, b) => b.responseCount.compareTo(a.responseCount));
+          break;
+      }
+      return list;
+    } catch (_) {
+      return List<FormData>.from(_myForms);
     }
-    return list;
   }
 
   Widget _buildHistoryTab() {
@@ -510,9 +515,9 @@ class _ResponseScreenState extends State<ResponseScreen> {
 
   Widget _buildHistoryList(List<ResponseHistoryGroup> groups) {
     if (groups.isEmpty) {
-      return RefreshIndicator(
+      return AppRefreshIndicator(
         onRefresh: _load,
-        color: kAuthPrimary,
+        indicatorColor: kAuthPrimary,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -540,9 +545,9 @@ class _ResponseScreenState extends State<ResponseScreen> {
         ),
       );
     }
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       onRefresh: _load,
-      color: kAuthPrimary,
+      indicatorColor: kAuthPrimary,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
@@ -578,9 +583,9 @@ class _ResponseScreenState extends State<ResponseScreen> {
 
   Widget _buildAnalyticsList(List<FormData> forms) {
     if (forms.isEmpty) {
-      return RefreshIndicator(
+      return AppRefreshIndicator(
         onRefresh: _load,
-        color: kAuthPrimary,
+        indicatorColor: kAuthPrimary,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -608,9 +613,9 @@ class _ResponseScreenState extends State<ResponseScreen> {
         ),
       );
     }
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       onRefresh: _load,
-      color: kAuthPrimary,
+      indicatorColor: kAuthPrimary,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),

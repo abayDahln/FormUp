@@ -46,6 +46,8 @@ dependencies:
   mobile_scanner: ^7.4.0
   audioplayers: ^6.8.1
   cached_network_image: ^3.4.1
+  material3_expressive_loading_indicator: ^0.1.2
+  custom_refresh_indicator: ^4.0.2
 
 dev_dependencies:
   flutter_test:

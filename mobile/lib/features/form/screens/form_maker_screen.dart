@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -211,7 +212,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingIndicator.circular())
           : AbsorbPointer(
               absorbing: _saving,
               child: Stack(

@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 
 class CachedRemoteImage extends StatelessWidget {
   final String url;
@@ -29,7 +30,7 @@ class CachedRemoteImage extends StatelessWidget {
       width: width,
       height: height,
       placeholder: (_, __) =>
-          placeholder ?? const Center(child: CircularProgressIndicator()),
+          placeholder ?? const Center(child: AppLoadingIndicator.circular()),
       errorWidget: (_, __, ___) =>
           errorWidget ?? const SizedBox.shrink(),
     );

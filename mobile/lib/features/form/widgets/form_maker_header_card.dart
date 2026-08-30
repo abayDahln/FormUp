@@ -73,7 +73,7 @@ class FormMakerHeaderCard extends StatelessWidget {
             style: const TextStyle(fontSize: 15, color: Colors.black87),
             cursorColor: kAuthPrimary,
             decoration: formUpInputDecoration(
-              hintText: "Contoh: Survey Kepuasan",
+              hintText: "Judul form Anda",
             ),
           ),
           const SizedBox(height: 16),

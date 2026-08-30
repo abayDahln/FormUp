@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/public_form_service.dart';
@@ -203,7 +204,7 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
             Container(
               color: Colors.black45,
               child: const Center(
-                child: CircularProgressIndicator(color: kAuthPrimary),
+                child: AppLoadingIndicator(color: kAuthPrimary),
               ),
             ),
         ],

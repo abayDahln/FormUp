@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -113,7 +114,7 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
         ),
       ),
       body: _loading && _result == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingIndicator.circular())
           : AuthBackground(plain: true,
               child: SafeArea(
                 child: ListView(

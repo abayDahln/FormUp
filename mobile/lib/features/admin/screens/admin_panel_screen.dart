@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/admin_service.dart';
@@ -128,7 +130,6 @@ class PageNavFooter extends StatelessWidget {
           visualDensity: VisualDensity.compact,
           onPressed: page > 1 ? () => onChanged(page - 1) : null,
           icon: const Icon(Icons.chevron_left, size: 22),
-          color: kAuthPrimary,
         ),
         Text(
           'Halaman $page dari $totalPages',
@@ -143,7 +144,6 @@ class PageNavFooter extends StatelessWidget {
           visualDensity: VisualDensity.compact,
           onPressed: page < totalPages ? () => onChanged(page + 1) : null,
           icon: const Icon(Icons.chevron_right, size: 22),
-          color: kAuthPrimary,
         ),
       ],
     );
@@ -255,8 +255,8 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
           ),
         ),
         Expanded(
-          child: RefreshIndicator(
-            color: kAuthPrimary,
+          child: AppRefreshIndicator(
+            indicatorColor: kAuthPrimary,
             onRefresh: () => _load(),
             child: !_loading && _users.isEmpty
                 ? ListView(
@@ -279,7 +279,7 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
                     ],
                   )
                 : _loading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(child: AppLoadingIndicator.circular())
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -487,8 +487,8 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
           ),
         ),
         Expanded(
-          child: RefreshIndicator(
-            color: kAuthPrimary,
+          child: AppRefreshIndicator(
+            indicatorColor: kAuthPrimary,
             onRefresh: () => _load(),
             child: !_loading && _forms.isEmpty
                 ? ListView(
@@ -512,7 +512,7 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                     ],
                   )
                 : _loading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(child: AppLoadingIndicator.circular())
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -687,8 +687,8 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
     return Column(
       children: [
         Expanded(
-          child: RefreshIndicator(
-            color: kAuthPrimary,
+          child: AppRefreshIndicator(
+            indicatorColor: kAuthPrimary,
             onRefresh: () => _load(),
             child: !_loading && _feedbacks.isEmpty
                 ? ListView(
@@ -707,7 +707,7 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
                     ],
                   )
                 : _loading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(child: AppLoadingIndicator.circular())
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),

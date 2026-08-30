@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -97,7 +98,7 @@ class QuestionMediaSection extends StatelessWidget {
               child: SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                child: AppLoadingIndicator.inline(),
               ),
             ),
           )

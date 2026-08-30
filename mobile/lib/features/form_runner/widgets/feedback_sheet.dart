@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -128,7 +129,7 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: AppLoadingIndicator.inline(),
                         )
                       : const Text('Kirim Feedback'),
                 ),

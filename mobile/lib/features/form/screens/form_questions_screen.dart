@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
@@ -811,7 +812,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: AppLoadingIndicator.inline(),
                         )
                       : const Icon(Icons.upload_file_outlined, size: 20),
                   onPressed: (widget.formId == null || _saving || _importing)
@@ -830,7 +831,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingIndicator.circular())
           : AbsorbPointer(
               absorbing: _saving,
               child: AuthBackground(
@@ -941,7 +942,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
 //           ? const SizedBox(
 //               width: 18,
 //               height: 18,
-//               child: CircularProgressIndicator(strokeWidth: 2),
+//               child: AppLoadingIndicator.inline(),
 //             )
 //           : const Icon(Icons.upload_file_outlined, size: 20),
 //       label: Text(

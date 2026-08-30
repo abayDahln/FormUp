@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -202,7 +203,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingIndicator.circular())
           : AbsorbPointer(
               absorbing: _saving,
               child: AuthBackground(plain: true,

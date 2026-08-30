@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/answer_fields.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
@@ -136,7 +137,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingIndicator.circular())
           : AuthBackground(plain: true,
               child: SafeArea(
                 child: Column(

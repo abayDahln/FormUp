@@ -161,13 +161,13 @@ class FormAnalytics {
   });
 
   factory FormAnalytics.fromJson(Map<String, dynamic> json) => FormAnalytics(
-        totalResponses: json['totalResponses'] as int? ?? 0,
-        totalQuestions: json['totalQuestions'] as int? ?? 0,
-        scorableQuestions: json['scorableQuestions'] as int? ?? 0,
-        averageScore: (json['averageScore'] as num?)?.toDouble(),
+        totalResponses: (json['totalResponses'] ?? json['TotalResponses']) as int? ?? 0,
+        totalQuestions: (json['totalQuestions'] ?? json['TotalQuestions']) as int? ?? 0,
+        scorableQuestions: (json['scorableQuestions'] ?? json['ScorableQuestions']) as int? ?? 0,
+        averageScore: ((json['averageScore'] ?? json['AverageScore']) as num?)?.toDouble(),
         respondents: [
-          for (final r in json['respondents'] as List<dynamic>? ?? [])
-            RespondentAnalyticsData.fromJson(r as Map<String, dynamic>),
+          for (final r in (json['respondents'] ?? json['Respondents']) as List<dynamic>? ?? [])
+            RespondentAnalyticsData.fromJson(Map<String, dynamic>.from(r as Map)),
         ],
       );
 }
@@ -196,19 +196,19 @@ class RespondentAnalyticsData {
   });
 
   factory RespondentAnalyticsData.fromJson(Map<String, dynamic> json) {
-    final raw = json['submittedAt'] as String?;
+    final raw = (json['submittedAt'] ?? json['SubmittedAt']) as String?;
     return RespondentAnalyticsData(
-      responseId: json['responseId'] as int,
-      respondentName: json['respondentName'] as String?,
+      responseId: (json['responseId'] ?? json['ResponseId'] ?? json['id'] ?? 0) as int,
+      respondentName: (json['respondentName'] ?? json['RespondentName']) as String?,
       submittedAt: raw == null ? DateTime.now() : DateTime.tryParse(raw) ?? DateTime.now(),
-      answeredCount: json['answeredCount'] as int? ?? 0,
-      totalQuestions: json['totalQuestions'] as int? ?? 0,
-      correctCount: json['correctCount'] as int? ?? 0,
-      scorableQuestions: json['scorableQuestions'] as int? ?? 0,
-      score: (json['score'] as num?)?.toDouble(),
+      answeredCount: (json['answeredCount'] ?? json['AnsweredCount']) as int? ?? 0,
+      totalQuestions: (json['totalQuestions'] ?? json['TotalQuestions']) as int? ?? 0,
+      correctCount: (json['correctCount'] ?? json['CorrectCount']) as int? ?? 0,
+      scorableQuestions: (json['scorableQuestions'] ?? json['ScorableQuestions']) as int? ?? 0,
+      score: ((json['score'] ?? json['Score']) as num?)?.toDouble(),
       answers: [
-        for (final a in json['answers'] as List<dynamic>? ?? [])
-          AnswerAnalyticsData.fromJson(a as Map<String, dynamic>),
+        for (final a in (json['answers'] ?? json['Answers']) as List<dynamic>? ?? [])
+          AnswerAnalyticsData.fromJson(Map<String, dynamic>.from(a as Map)),
       ],
     );
   }
@@ -569,12 +569,19 @@ class FormService {
         'search=${Uri.encodeQueryComponent(search.trim())}',
     ];
     final query = params.isEmpty ? '' : '?${params.join('&')}';
+    // analytics agregasi berat -> timeout lebih panjang, bypass cache ganda (pakai timeout khusus)
     return ApiCache.get(
       'forms:analytics:$_scope:$formId:$query',
       const Duration(seconds: 20),
       () async {
-        final json = await AuthService.get('/forms/$formId/analytics$query');
-        return FormAnalytics.fromJson(json['data'] as Map<String, dynamic>);
+        final json = await AuthService.get('/forms/$formId/analytics$query', timeout: const Duration(seconds: 20));
+        final data = json['data'];
+        if (data is Map<String, dynamic>) {
+          return FormAnalytics.fromJson(data);
+        }
+        // fallback defensif bila server kirim format paged/list kosong
+        if (data == null) return const FormAnalytics();
+        return FormAnalytics.fromJson(Map<String, dynamic>.from(data as Map));
       },
     );
   }

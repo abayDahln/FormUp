@@ -92,8 +92,8 @@ class AuthResult {
 }
 
 class AuthService {
-  // ponytail: tanpa retry, error cepat terlihat.
-  static const Duration _timeout = Duration(seconds: 6);
+  // ponytail: tanpa retry, error cepat terlihat. analytics butuh lebih lama (agregasi DB).
+  static const Duration _timeout = Duration(seconds: 15);
   static const int _maxRetries = 0;
 
   static Duration get timeout => _timeout;
@@ -340,14 +340,16 @@ class AuthService {
     String method,
     String path,
     Map<String, dynamic>? body,
-    Map<String, String> headers,
-  ) async {
+    Map<String, String> headers, {
+    Duration? timeout,
+  }) async {
     if (NetworkStatus.isOffline) {
       await NetworkStatus.refresh();
       if (NetworkStatus.isOffline) {
         throw const ApiException(_offlineMessage);
       }
     }
+    final effectiveTimeout = timeout ?? _timeout;
     var attempt = 0;
     while (true) {
       try {
@@ -357,7 +359,7 @@ class AuthService {
           request.headers['Content-Type'] = 'application/json; charset=UTF-8';
           request.body = jsonEncode(body);
         }
-        final streamed = await request.send().timeout(_timeout);
+        final streamed = await request.send().timeout(effectiveTimeout);
         final response = await http.Response.fromStream(streamed);
         NetworkStatus.markOnline();
         return response;
@@ -382,6 +384,7 @@ class AuthService {
     String path,
     Map<String, dynamic>? body, {
     bool auth = false,
+    Duration? timeout,
   }) async {
     // Debounce 300ms per endpoint (konsisten dengan UI) — cegah spam klik ganda.
     // GET di-cache, jadi hanya mutasi (POST/PUT/PATCH/DELETE) yang di-throttle.
@@ -391,12 +394,12 @@ class AuthService {
     final headers = <String, String>{};
     if (auth && token != null) headers['Authorization'] = 'Bearer $token';
 
-    var response = await _request(method, path, body, headers);
+    var response = await _request(method, path, body, headers, timeout: timeout);
 
     if (auth && response.statusCode == 401 && _isAuthRejected(response)) {
       if (await _refresh()) {
         headers['Authorization'] = 'Bearer $token';
-        response = await _request(method, path, body, headers);
+        response = await _request(method, path, body, headers, timeout: timeout);
       } else {
         await logout();
         onSessionExpired?.call();
@@ -576,11 +579,11 @@ class AuthService {
     return _send('POST', path, body, auth: true);
   }
 
-  static Future<Map<String, dynamic>> get(String path) {
+  static Future<Map<String, dynamic>> get(String path, {Duration? timeout}) {
     return ApiCache.get(
       'http:get:${cacheScope}:$path',
       const Duration(minutes: 30),
-      () => _send('GET', path, null, auth: true),
+      () => _send('GET', path, null, auth: true, timeout: timeout),
     );
   }
 

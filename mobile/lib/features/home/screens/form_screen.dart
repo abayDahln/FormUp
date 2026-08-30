@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/form_card.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -160,9 +162,9 @@ class _FormScreenState extends State<FormScreen> {
         _filterDate != null ||
         _sort != FormSort.newest;
 
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       onRefresh: _loadMyForms,
-      color: kAuthPrimary,
+      indicatorColor: kAuthPrimary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 15, 20, 24),
@@ -207,7 +209,7 @@ class _FormScreenState extends State<FormScreen> {
             if (_loadingForms && _myForms.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 30),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: AppLoadingIndicator.circular()),
               )
             else if (all.isEmpty)
               FormEmptyState(hasFilter: hasFilter)

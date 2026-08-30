@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/admin_service.dart';
@@ -167,9 +169,9 @@ class _AdminBerandaTabState extends State<_AdminBerandaTab> {
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       onRefresh: _load,
-      color: kAuthPrimary,
+      indicatorColor: kAuthPrimary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -479,7 +481,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
           if (_loading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 60),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(child: AppLoadingIndicator.circular()),
             )
           else ...[
             Container(

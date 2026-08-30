@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/widgets/search_field.dart';
@@ -75,6 +76,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   Future<void> _load() async {
+    if (widget.formId == 0) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     setState(() {
       _loading = true;
       _page = 1;
@@ -90,21 +95,26 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       if (!mounted) return;
       setState(() {
         _analytics = analytics;
-        _respondents = analytics.respondents;
+        _respondents = List<RespondentAnalyticsData>.from(analytics.respondents);
         _hasMore =
-            analytics.respondents.length < analytics.totalResponses &&
-                analytics.respondents.isNotEmpty;
+            analytics.respondents.isNotEmpty && analytics.respondents.length < analytics.totalResponses;
       });
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      setState(() {
+        _analytics ??= const FormAnalytics();
+        _respondents = _respondents.isEmpty ? const [] : _respondents;
+        _hasMore = false;
+      });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   Future<void> _loadMore() async {
-    if (_loadingMore || !_hasMore || _loading) return;
+    if (_loadingMore || !_hasMore || _loading || widget.formId == 0) return;
+    if (!_scrollController.hasClients) return;
     setState(() => _loadingMore = true);
     try {
       final next = _page + 1;
@@ -117,13 +127,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       if (!mounted) return;
       setState(() {
         _page = next;
-        _respondents = [..._respondents, ...analytics.respondents];
+        final seen = _respondents.map((r) => r.responseId).toSet();
+        final novos = analytics.respondents.where((r) => !seen.contains(r.responseId)).toList();
+        _respondents = [..._respondents, ...novos];
         _hasMore =
-            analytics.respondents.length < analytics.totalResponses &&
-                analytics.respondents.isNotEmpty;
+            analytics.respondents.isNotEmpty && analytics.respondents.length < analytics.totalResponses;
       });
     } catch (e) {
-      // ponytail: load-more gagal, scroll lagi
+      if (mounted) showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loadingMore = false);
     }
@@ -164,7 +175,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         ),
       ),
       body: _loading && _analytics == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingIndicator.circular())
           : AuthBackground(plain: true,
               child: SafeArea(
                 child: ListView(
@@ -249,13 +260,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       if (_hasMore)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 12),
-                          child: Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
+                          child: Center(child: AppLoadingIndicator.inline()),
                         ),
                     ],
                   ],

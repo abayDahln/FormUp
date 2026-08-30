@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/form_share_sheet.dart';
@@ -120,7 +121,7 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
         ),
       ),
       body: form == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingIndicator.circular())
           : ListView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               children: [

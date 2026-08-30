@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/services/admin_service.dart';
@@ -135,7 +136,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: AppLoadingIndicator.circular())
           : f == null
               ? const Center(
                   child: Text('Data tidak tersedia.',
