@@ -11,6 +11,7 @@ class FormMakerSettingsCard extends StatelessWidget {
   final VoidCallback onChanged;
   final VoidCallback onPickOpenTime;
   final VoidCallback onPickCloseTime;
+  final bool embedded;
 
   const FormMakerSettingsCard({
     super.key,
@@ -18,26 +19,21 @@ class FormMakerSettingsCard extends StatelessWidget {
     required this.onChanged,
     required this.onPickOpenTime,
     required this.onPickCloseTime,
+    this.embedded = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = controller;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xCCBDC9C8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!embedded) ...[
           Row(
-            children: [
-              const Icon(Icons.tune, size: 18, color: kAuthPrimary),
-              const SizedBox(width: 8),
-              const Text(
+            children: const [
+              Icon(Icons.tune, size: 18, color: kAuthPrimary),
+              SizedBox(width: 8),
+              Text(
                 "Pengaturan",
                 style: TextStyle(
                   fontSize: 14,
@@ -49,141 +45,143 @@ class FormMakerSettingsCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          _settingsLabel("Tipe Form"),
-          _dropdownCard(
-            DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                value: c.formTypeId,
-                isExpanded: true,
-                items: const [
-                  DropdownMenuItem(value: 1, child: Text("Formulir")),
-                  DropdownMenuItem(value: 2, child: Text("Ujian")),
-                ],
-                onChanged: (v) {
-                  if (v != null) {
-                    c.formTypeId = v;
-                    onChanged();
-                  }
-                },
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          _settingsLabel("Kode Link Kustom"),
-          TextField(
-            controller: c.customLinkController,
-            decoration: _fieldDecoration(
-              "Kode untuk link form Anda",
-            ),
-            onChanged: (v) => c.customLinkController.value =
-                c.customLinkController.value.copyWith(
-              text: sanitizeFormLink(v),
-              selection: TextSelection.collapsed(
-                offset: sanitizeFormLink(v).length,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          _settingsLabel("Waktu Mengerjakan"),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: c.timerController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: _fieldDecoration(
-                    "Batas waktu pengerjaan",
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              _dropdownCard(
-                DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: c.timerUnit,
-                    items: const [
-                      DropdownMenuItem(value: 'menit', child: Text("Menit")),
-                      DropdownMenuItem(value: 'jam', child: Text("Jam")),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) {
-                        c.timerUnit = v;
-                        onChanged();
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _settingsLabel("Token Akses"),
-          TextField(
-            controller: c.tokenController,
-            decoration: _fieldDecoration(
-              "Token untuk akses form",
-            ),
-          ),
-          const SizedBox(height: 8),
-          _DateTimeTile(
-            icon: Icons.lock_open_outlined,
-            title: "Waktu buka form",
-            subtitle: c.openTimeAlreadySet
-                ? "Sudah diatur, tidak bisa diubah"
-                : "Form terbuka otomatis di waktu ini",
-            value: c.openFormTime,
-            enabled: !c.openTimeAlreadySet,
-            onTap: c.openTimeAlreadySet ? null : onPickOpenTime,
-          ),
-          const SizedBox(height: 8),
-          _DateTimeTile(
-            icon: Icons.lock_outline,
-            title: "Waktu tutup form",
-            subtitle: "Form berhenti menerima respons",
-            value: c.closeFormTime,
-            enabled: true,
-            onTap: onPickCloseTime,
-          ),
-          const SizedBox(height: 8),
-          _SettingSwitch(
-            "Tampilkan skor",
-            "Responden melihat nilai setelah submit",
-            c.showScore,
-            (v) {
-              c.showScore = v;
-              onChanged();
-            },
-          ),
-          _SettingSwitch(
-            "Acak pertanyaan",
-            "Urutan pertanyaan diacak",
-            c.randomizeQuestions,
-            (v) {
-              c.randomizeQuestions = v;
-              onChanged();
-            },
-          ),
-          _SettingSwitch(
-            "Satu respons per orang",
-            "Batasi tiap orang hanya 1 kali isi",
-            c.oneResponse,
-            (v) {
-              c.oneResponse = v;
-              onChanged();
-            },
-          ),
-          _SettingSwitch(
-            "Wajib login",
-            "Responden harus login untuk mengerjakan",
-            c.requiredLogin,
-            (v) {
-              c.requiredLogin = v;
-              onChanged();
-            },
-          ),
         ],
+        _settingsLabel("Tipe Form"),
+        _dropdownCard(
+          DropdownButtonHideUnderline(
+            child: DropdownButton<int>(
+              value: c.formTypeId,
+              isExpanded: true,
+              items: const [
+                DropdownMenuItem(value: 1, child: Text("Formulir")),
+                DropdownMenuItem(value: 2, child: Text("Ujian")),
+              ],
+              onChanged: (v) {
+                if (v != null) {
+                  c.formTypeId = v;
+                  onChanged();
+                }
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        _settingsLabel("Kode Link Kustom"),
+        TextField(
+          controller: c.customLinkController,
+          decoration: _fieldDecoration("Kode untuk link form Anda"),
+          onChanged: (v) => c.customLinkController.value = c
+              .customLinkController
+              .value
+              .copyWith(
+                text: sanitizeFormLink(v),
+                selection: TextSelection.collapsed(
+                  offset: sanitizeFormLink(v).length,
+                ),
+              ),
+        ),
+        const SizedBox(height: 8),
+        _settingsLabel("Waktu Mengerjakan"),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: c.timerController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: _fieldDecoration("Batas waktu pengerjaan"),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _dropdownCard(
+              DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: c.timerUnit,
+                  items: const [
+                    DropdownMenuItem(value: 'menit', child: Text("Menit")),
+                    DropdownMenuItem(value: 'jam', child: Text("Jam")),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) {
+                      c.timerUnit = v;
+                      onChanged();
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _settingsLabel("Token Akses"),
+        TextField(
+          controller: c.tokenController,
+          decoration: _fieldDecoration("Token untuk akses form"),
+        ),
+        const SizedBox(height: 8),
+        _settingsLabel("Waktu buka form"),
+        _DateTimeTile(
+          hint: "Pilih waktu buka",
+          value: c.openFormTime,
+          onTap: onPickOpenTime,
+        ),
+        const SizedBox(height: 8),
+        _settingsLabel("Waktu tutup form"),
+        _DateTimeTile(
+          hint: "Pilih waktu tutup",
+          value: c.closeFormTime,
+          onTap: onPickCloseTime,
+        ),
+        const SizedBox(height: 8),
+        _SettingSwitch(
+          "Tampilkan skor",
+          "Responden melihat nilai setelah submit",
+          c.showScore,
+          (v) {
+            c.showScore = v;
+            onChanged();
+          },
+        ),
+        _SettingSwitch(
+          "Acak pertanyaan",
+          "Urutan pertanyaan diacak",
+          c.randomizeQuestions,
+          (v) {
+            c.randomizeQuestions = v;
+            onChanged();
+          },
+        ),
+        _SettingSwitch(
+          "Satu respons per orang",
+          "Batasi tiap orang hanya 1 kali isi",
+          c.oneResponse,
+          (v) {
+            c.oneResponse = v;
+            onChanged();
+          },
+        ),
+        _SettingSwitch(
+          "Wajib login",
+          "Responden harus login untuk mengerjakan",
+          c.requiredLogin,
+          (v) {
+            c.requiredLogin = v;
+            onChanged();
+          },
+        ),
+      ],
+    );
+
+    if (embedded) return content;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xCCBDC9C8)),
       ),
+      child: content,
     );
   }
 }
@@ -210,12 +208,7 @@ class _SettingSwitch extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
 
-  const _SettingSwitch(
-    this.title,
-    this.subtitle,
-    this.value,
-    this.onChanged,
-  );
+  const _SettingSwitch(this.title, this.subtitle, this.value, this.onChanged);
 
   @override
   Widget build(BuildContext context) {
@@ -240,82 +233,43 @@ class _SettingSwitch extends StatelessWidget {
   }
 }
 
-/// Tile pemilih tanggal & waktu
+/// Tile pemilih tanggal & waktu — selalu aktif (waktu buka bisa diubah kapan saja)
 class _DateTimeTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
+  final String hint;
   final DateTime? value;
-  final bool enabled;
   final VoidCallback? onTap;
 
   const _DateTimeTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
+    required this.hint,
     required this.value,
-    required this.enabled,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: enabled ? onTap : null,
-      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        height: 56,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: enabled ? const Color(0xFF6E7979) : const Color(0xFFD8DEDE),
-          ),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFF6E7979)),
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 18,
-              color: enabled ? kAuthPrimary : Colors.grey.shade400,
-            ),
-            const SizedBox(width: 10),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: kFontBold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    value == null
-                        ? (enabled ? subtitle : "Belum diatur")
-                        : _formatDateTime(value!),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: value != null
-                          ? kAuthPrimary
-                          : Colors.black54,
-                    ),
-                  ),
-                ],
+              child: Text(
+                value == null ? hint : _formatDateTime(value!),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: value != null ? kAuthPrimary : Colors.black54,
+                ),
               ),
             ),
-            if (enabled)
-              const Icon(Icons.chevron_right, size: 18, color: Colors.grey)
-            else
-              const Icon(
-                Icons.lock,
-                size: 16,
-                color: Colors.grey,
-              ),
+            const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
           ],
         ),
       ),
@@ -325,8 +279,18 @@ class _DateTimeTile extends StatelessWidget {
 
 String _formatDateTime(DateTime dt) {
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'Mei',
+    'Jun',
+    'Jul',
+    'Agu',
+    'Sep',
+    'Okt',
+    'Nov',
+    'Des',
   ];
   final local = dt.toLocal();
   final hh = local.hour.toString().padLeft(2, '0');
@@ -347,4 +311,5 @@ Widget _dropdownCard(Widget child) {
   );
 }
 
-InputDecoration _fieldDecoration(String hint) => formUpInputDecoration(hintText: hint);
+InputDecoration _fieldDecoration(String hint) =>
+    formUpInputDecoration(hintText: hint);

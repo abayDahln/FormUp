@@ -10,7 +10,6 @@ import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form/controllers/form_maker_controller.dart';
 import 'package:form_up/features/form/widgets/form_confirm_dialogs.dart';
 import 'package:form_up/features/form/widgets/form_maker_header_card.dart';
-import 'package:form_up/features/form/widgets/form_maker_settings_card.dart';
 import 'package:form_up/features/form/widgets/question_image_source_sheet.dart';
 
 /// Edit informasi & pengaturan form (judul, deskripsi, banner, setting).
@@ -174,10 +173,12 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
-      if (mounted) setState(() {
-        _saving = false;
-        _progress = null;
-      });
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _progress = null;
+        });
+      }
     }
   }
 
@@ -217,64 +218,57 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
               absorbing: _saving,
               child: Stack(
                 children: [
-                AuthBackground(plain: true,
-                  child: SafeArea(
-                    child: ValueListenableBuilder<ActiveRichEditor?>(
-                      valueListenable: activeRichEditor,
-                      builder: (context, active, _) {
-                        final toolbarVisible = active != null;
-                         return SingleChildScrollView(
-                           controller: _scrollController,
-                           padding: EdgeInsets.fromLTRB(
-                             22,
-                             4,
-                             22,
-                             toolbarVisible ? 110 : 24,
-                           ),
-                           child: Column(
-                             crossAxisAlignment: CrossAxisAlignment.stretch,
-                             children: [
-                               FormMakerHeaderCard(
-                                 titleController: _form.titleController,
-                                 descController: _form.descController,
-                                 bannerImage: _form.bannerImage,
-                                 newBanner: _form.newBanner,
-                                 onPickBanner: _pickBanner,
-                                 onRemoveBanner: () => setState(() {
-                                   _form.newBanner = null;
-                                   _form.bannerImage = null;
-                                   _form.bannerCleared = true;
-                                 }),
-                                 titleFocusNode: _titleFocusNode,
-                                 titleFieldKey: _titleFieldKey,
-                               ),
-                              const SizedBox(height: 16),
-                              FormMakerSettingsCard(
-                                controller: _form,
-                                onChanged: () => setState(() {}),
-                                onPickOpenTime: _pickOpenTime,
-                                onPickCloseTime: _pickCloseTime,
-                              ),
-                              const SizedBox(height: 24),
-                              AuthPrimaryButton(
-                                label: _saving
-                                    ? "Menyimpan..."
-                                    : (_isEdit ? "Simpan Form" : "Simpan & Kelola Soal"),
-                                loading: _saving,
-                                progress: _progress,
-                                onPressed: _save,
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                  AuthBackground(
+                    plain: true,
+                    child: SafeArea(
+                      child: ValueListenableBuilder<ActiveRichEditor?>(
+                        valueListenable: activeRichEditor,
+                        builder: (context, active, _) {
+                          final toolbarVisible = active != null;
+                          return SingleChildScrollView(
+                            controller: _scrollController,
+                            padding: EdgeInsets.fromLTRB(
+                              22,
+                              4,
+                              22,
+                              toolbarVisible ? 110 : 24,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                FormMakerHeaderCard(
+                                  titleController: _form.titleController,
+                                  descController: _form.descController,
+                                  bannerImage: _form.bannerImage,
+                                  newBanner: _form.newBanner,
+                                  onPickBanner: _pickBanner,
+                                  titleFocusNode: _titleFocusNode,
+                                  titleFieldKey: _titleFieldKey,
+                                  settingsController: _form,
+                                  onSettingsChanged: () => setState(() {}),
+                                  onPickOpenTime: _pickOpenTime,
+                                  onPickCloseTime: _pickCloseTime,
+                                ),
+                                const SizedBox(height: 24),
+                                AuthPrimaryButton(
+                                  label: _saving
+                                      ? "Menyimpan..."
+                                      : (_isEdit ? "Simpan Form" : "Simpan & Kelola Soal"),
+                                  loading: _saving,
+                                  progress: _progress,
+                                  onPressed: _save,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
-                ),
-                const FloatingRichToolbar(),
-              ],
+                  const FloatingRichToolbar(),
+                ],
+              ),
             ),
-          ),
     );
   }
 

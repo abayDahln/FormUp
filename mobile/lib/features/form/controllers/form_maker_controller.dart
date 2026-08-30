@@ -62,7 +62,10 @@ class FormMakerController {
   Uint8List? newBanner;
   bool bannerCleared = false;
 
-  bool openTimeAlreadySet = false;
+  // legacy flag dipertahankan agar tidak breaking, tapi tidak dipakai lagi
+  // (waktu buka kini bisa diubah kapan saja)
+  bool get openTimeAlreadySet => false;
+  set openTimeAlreadySet(bool v) {}
 
   FormMakerSnapshot? baseline;
 
