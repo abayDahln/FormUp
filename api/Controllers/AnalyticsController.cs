@@ -96,15 +96,17 @@ public class AnalyticsController : ControllerBase
 
             foreach (var q in questions)
             {
-                var answer = response.RespondentAnswers
-                    .FirstOrDefault(a => a.QuestionId == q.Id);
+                var questionAnswerRows = response.RespondentAnswers
+                    .Where(a => a.QuestionId == q.Id)
+                    .ToList();
+                var answer = questionAnswerRows.FirstOrDefault();
 
-                if (answer != null)
+                if (questionAnswerRows.Count > 0)
                     answeredCount++;
 
                 var answerText = ResponseScorer.GetAnswerText(answer, q);
                 var correctAnswer = ResponseScorer.GetCorrectAnswerText(q);
-                var isCorrect = ResponseScorer.IsAnswerCorrect(answer, q);
+                var isCorrect = ResponseScorer.IsAnswerCorrect(questionAnswerRows, q);
 
                 if (isCorrect == true)
                     correctCount++;
@@ -127,8 +129,8 @@ public class AnalyticsController : ControllerBase
                 double earned = 0;
                 foreach (var q in questions)
                 {
-                    var answer = response.RespondentAnswers.FirstOrDefault(a => a.QuestionId == q.Id);
-                    if (ResponseScorer.IsAnswerCorrect(answer, q) == true)
+                    var questionAnswerRows = response.RespondentAnswers.Where(a => a.QuestionId == q.Id).ToList();
+                    if (ResponseScorer.IsAnswerCorrect(questionAnswerRows, q) == true)
                     {
                         earned += (q.Points ?? 1);
                     }
@@ -192,14 +194,16 @@ public class AnalyticsController : ControllerBase
             return null;
 
         var correctByText = new Dictionary<int, string>();
-        var correctOptionByQuestion = new Dictionary<int, int>();
+        var correctOptionsByQuestion = new Dictionary<int, HashSet<int>>();
         var pointsByQuestion = new Dictionary<int, int>();
         foreach (var q in questions)
         {
             pointsByQuestion[q.Id] = q.Points ?? 1;
-            var option = q.OptionQuestions.FirstOrDefault(o => o.IsCorrect == true);
-            if (option != null)
-                correctOptionByQuestion[q.Id] = option.Id;
+            if (q.OptionQuestions.Any(o => o.IsCorrect == true))
+                correctOptionsByQuestion[q.Id] = q.OptionQuestions
+                    .Where(o => o.IsCorrect == true)
+                    .Select(o => o.Id)
+                    .ToHashSet();
             if (!string.IsNullOrEmpty(q.CorrectAnswer))
                 correctByText[q.Id] = q.CorrectAnswer.Trim();
         }
@@ -209,22 +213,15 @@ public class AnalyticsController : ControllerBase
         {
             var correctCount = 0;
             double earnedPoints = 0;
-            foreach (var row in group)
+            foreach (var q in questions)
             {
-                var isCorr = false;
-                if (correctOptionByQuestion.TryGetValue(row.QuestionId, out var correctId))
-                {
-                    if (row.OptionId == correctId) isCorr = true;
-                }
-                else if (correctByText.TryGetValue(row.QuestionId, out var key))
-                {
-                    if (string.Equals(row.AnswerValue?.Trim(), key, StringComparison.OrdinalIgnoreCase)) isCorr = true;
-                }
+                var rows = group.Where(r => r.QuestionId == q.Id).ToList();
+                var isCorr = ResponseScorer.IsAnswerCorrect(rows, q) == true;
 
                 if (isCorr)
                 {
                     correctCount++;
-                    earnedPoints += pointsByQuestion.TryGetValue(row.QuestionId, out var pt) ? pt : 1;
+                    earnedPoints += pointsByQuestion.TryGetValue(q.Id, out var pt) ? pt : 1;
                 }
             }
 

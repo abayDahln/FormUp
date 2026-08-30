@@ -5,10 +5,10 @@ namespace FormUpAPI.Services;
 public static class ResponseScorer
 {
     public static int CountScorable(List<Question> questions) =>
-        questions.Count(q => !string.IsNullOrEmpty(q.CorrectAnswer) || q.OptionQuestions.Any(o => o.IsCorrect == true));
+        questions.Count(q => q.Points.HasValue || !string.IsNullOrEmpty(q.CorrectAnswer) || q.OptionQuestions.Any(o => o.IsCorrect == true));
 
     public static int CountRequiredScorable(List<Question> questions) =>
-        questions.Count(q => q.IsRequired == true && (!string.IsNullOrEmpty(q.CorrectAnswer) || q.OptionQuestions.Any(o => o.IsCorrect == true)));
+        questions.Count(q => q.IsRequired == true && (q.Points.HasValue || !string.IsNullOrEmpty(q.CorrectAnswer) || q.OptionQuestions.Any(o => o.IsCorrect == true)));
 
     public static int GetScoringDivisor(List<Question> questions)
     {
@@ -33,22 +33,105 @@ public static class ResponseScorer
         return question.OptionQuestions.FirstOrDefault(o => o.IsCorrect == true)?.OptionText;
     }
 
+    private static bool HasDefinedCorrectAnswer(Question question)
+    {
+        return !string.IsNullOrEmpty(question.CorrectAnswer) || question.OptionQuestions.Any(o => o.IsCorrect == true);
+    }
+
     public static bool? IsAnswerCorrect(RespondentAnswer? answer, Question question)
     {
-        if (answer == null) return null;
+        var rows = answer == null ? Enumerable.Empty<RespondentAnswer>() : new[] { answer };
+        return IsAnswerCorrect(rows, question);
+    }
+
+    public static bool? IsAnswerCorrect(IEnumerable<RespondentAnswer>? answers, Question question)
+    {
+        var answerRows = answers?.ToList() ?? new List<RespondentAnswer>();
+        return IsAnswerCorrectInternal(answerRows, question);
+    }
+
+    public static bool? IsAnswerCorrect(IEnumerable<(int ResponseId, int QuestionId, int? OptionId, string? AnswerValue)>? answers, Question question)
+    {
+        var answerRows = answers ?? Enumerable.Empty<(int ResponseId, int QuestionId, int? OptionId, string? AnswerValue)>();
+        var selectedOptionIds = answerRows
+            .Where(a => a.QuestionId == question.Id && a.OptionId.HasValue)
+            .Select(a => a.OptionId!.Value)
+            .Distinct()
+            .OrderBy(id => id)
+            .ToList();
+
+        if (question.TypeId == 3)
+        {
+            var correctOptions = question.OptionQuestions
+                .Where(o => o.IsCorrect == true)
+                .Select(o => o.Id)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToList();
+
+            if (!HasDefinedCorrectAnswer(question))
+                return true;
+
+            return selectedOptionIds.SequenceEqual(correctOptions);
+        }
+
+        var answerText = answerRows
+            .Where(a => a.QuestionId == question.Id)
+            .Select(a => a.AnswerValue)
+            .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+        return IsAnswerCorrectInternal(
+            answerRows
+                .Where(a => a.QuestionId == question.Id)
+                .Select(a => new RespondentAnswer
+                {
+                    QuestionId = a.QuestionId,
+                    OptionId = a.OptionId,
+                    AnswerValue = a.AnswerValue,
+                }),
+            question);
+    }
+
+    private static bool? IsAnswerCorrectInternal(IEnumerable<RespondentAnswer> answerRows, Question question)
+    {
+        if (!HasDefinedCorrectAnswer(question))
+            return true;
+
+        if (question.TypeId == 3)
+        {
+            var selectedOptions = answerRows
+                .Where(a => a.OptionId.HasValue)
+                .Select(a => a.OptionId!.Value)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToList();
+
+            var correctOptions = question.OptionQuestions
+                .Where(o => o.IsCorrect == true)
+                .Select(o => o.Id)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToList();
+
+            return selectedOptions.SequenceEqual(correctOptions);
+        }
+
+        var answerText = answerRows
+            .Select(a => GetAnswerText(a, question))
+            .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 
         if (!string.IsNullOrEmpty(question.CorrectAnswer))
         {
-            return string.Equals(answer.AnswerValue?.Trim(),
+            return string.Equals(answerText?.Trim(),
                 question.CorrectAnswer.Trim(),
                 StringComparison.OrdinalIgnoreCase);
         }
 
         var correctOption = question.OptionQuestions.FirstOrDefault(o => o.IsCorrect == true);
         if (correctOption != null)
-            return answer.OptionId == correctOption.Id;
+            return answerRows.Any(a => a.OptionId == correctOption.Id);
 
-        return null;
+        return true;
     }
 
     public static ResponseResult BuildResult(Form form, Response response, List<Question> questions)
@@ -69,7 +152,7 @@ public static class ResponseScorer
             if (answerRows.Count > 0)
                 answeredCount++;
 
-            var isCorrect = showScore ? IsAnswerCorrect(answer, q) : null;
+            var isCorrect = showScore ? IsAnswerCorrect(answerRows, q) : null;
             if (isCorrect == true)
                 correctCount++;
 
@@ -95,7 +178,7 @@ public static class ResponseScorer
             });
         }
 
-        var hasCustomPoints = questions.Any(q => q.Points.HasValue && q.Points.Value > 0 && (!string.IsNullOrEmpty(q.CorrectAnswer) || q.OptionQuestions.Any(o => o.IsCorrect == true)));
+        var hasCustomPoints = questions.Any(q => q.Points.HasValue && q.Points.Value > 0);
 
         double? score = null;
         if (showScore)
@@ -105,8 +188,8 @@ public static class ResponseScorer
                 double earnedPoints = 0;
                 foreach (var q in questions)
                 {
-                    var ansRow = response.RespondentAnswers.FirstOrDefault(a => a.QuestionId == q.Id);
-                    if (IsAnswerCorrect(ansRow, q) == true)
+                    var ansRows = response.RespondentAnswers.Where(a => a.QuestionId == q.Id).ToList();
+                    if (IsAnswerCorrect(ansRows, q) == true)
                     {
                         earnedPoints += (q.Points ?? 1);
                     }

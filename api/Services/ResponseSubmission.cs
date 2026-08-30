@@ -56,11 +56,9 @@ public static class ResponseSubmission
         if (form.StatusId != publishedStatus.Id)
             return Unavailable(FormAccess.NotFound, form);
 
-        if (form.FormSetting?.OpenFormTime != null && form.FormSetting.OpenFormTime > DateTime.UtcNow)
-            return Unavailable(FormAccess.NotOpen, form);
-
-        if (form.FormSetting?.CloseFormTime != null && form.FormSetting.CloseFormTime < DateTime.UtcNow)
-            return Unavailable(FormAccess.Closed, form);
+        // Validasi hanya di awal (saat ambil soal) – jika user sudah mulai
+        // mengerjakan dan form tiba-tiba ditutup, tetap boleh submit.
+        // Cek open/close di sini dihapus, hanya di PublicFormsController.GetQuestions.
 
         var isAuthenticated = user.Identity?.IsAuthenticated == true;
 
@@ -140,6 +138,23 @@ public static class ResponseSubmission
                     if (ansList.Any(a => a.AnswerValue != null || a.OptionId is not int oid ||
                         !q.OptionQuestions.Any(o => o.Id == oid)))
                         return new BadRequestObjectResult(new ApiResponse<object>(400, "Jawaban checkbox tidak valid"));
+
+                    var selectedOptionIds = ansList
+                        .Where(a => a.OptionId.HasValue)
+                        .Select(a => a.OptionId!.Value)
+                        .Distinct()
+                        .OrderBy(id => id)
+                        .ToList();
+
+                    var correctOptionIds = q.OptionQuestions
+                        .Where(o => o.IsCorrect == true)
+                        .Select(o => o.Id)
+                        .Distinct()
+                        .OrderBy(id => id)
+                        .ToList();
+
+                    if (correctOptionIds.Count > 0 && !selectedOptionIds.SequenceEqual(correctOptionIds))
+                        return new BadRequestObjectResult(new ApiResponse<object>(400, "Jawaban checkbox tidak sesuai dengan kunci jawaban"));
                     break;
 
                 case 5:
