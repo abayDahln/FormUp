@@ -29,7 +29,8 @@ export default function Sidebar() {
         { path: '/history', icon: History, label: 'Riwayat' },
     ];
 
-    if (user?.role === 'ADMIN') {
+    const userRole = (user?.role || '').toUpperCase();
+    if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') {
         menuItems.push({ path: '/admin', icon: Shield, label: 'Kontrol Admin' });
     }
 
