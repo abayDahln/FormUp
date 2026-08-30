@@ -24,7 +24,11 @@ class FormQuestionsScreen extends StatefulWidget {
   final int? formId;
   final bool isNew;
 
-  const FormQuestionsScreen({super.key, required this.formId, this.isNew = false});
+  const FormQuestionsScreen({
+    super.key,
+    required this.formId,
+    this.isNew = false,
+  });
 
   @override
   State<FormQuestionsScreen> createState() => _FormQuestionsScreenState();
@@ -58,12 +62,20 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
     try {
       final bytes = await FormService.downloadImportTemplate(format);
       if (!mounted) return;
-      final xfile = XFile.fromData(bytes,
-          name: 'import-questions-template.$format',
-          mimeType: _mimeForTemplate(format));
-      await SharePlus.instance.share(ShareParams(files: [xfile], text: 'Template import soal ($format)'));
+      final xfile = XFile.fromData(
+        bytes,
+        name: 'import-questions-template.$format',
+        mimeType: _mimeForTemplate(format),
+      );
+      await SharePlus.instance.share(
+        ShareParams(files: [xfile], text: 'Template import soal ($format)'),
+      );
       if (!mounted) return;
-      showAppToast(context, 'Template $format siap dibagikan', title: 'Berhasil');
+      showAppToast(
+        context,
+        'Template $format siap dibagikan',
+        title: 'Berhasil',
+      );
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
@@ -71,44 +83,72 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
   }
 
   static String _mimeForTemplate(String f) => switch (f) {
-        'csv' => 'text/csv',
-        'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'pdf' => 'application/pdf',
-        _ => 'application/octet-stream',
-      };
+    'csv' => 'text/csv',
+    'xlsx' =>
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'docx' =>
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'pdf' => 'application/pdf',
+    _ => 'application/octet-stream',
+  };
 
   Future<String?> _pickTemplateFormat() => showModalBottomSheet<String>(
-        context: context,
-        backgroundColor: Colors.white,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        builder: (ctx) => SafeArea(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const SizedBox(height: 12),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 12),
-            const Text('Pilih format template', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
-            const SizedBox(height: 8),
-            for (final fmt in ['csv', 'xlsx', 'docx', 'pdf'])
-              ListTile(
-                leading: const Icon(Icons.download_outlined, color: kAuthPrimary),
-                title: Text(fmt.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
-                subtitle: Text(_templateDesc(fmt), style: const TextStyle(fontSize: 11, color: Colors.black54)),
-                onTap: () => Navigator.pop(ctx, fmt),
+    context: context,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.black26,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Pilih format template',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontFamily: kFontBold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final fmt in ['csv', 'xlsx', 'docx', 'pdf'])
+            ListTile(
+              leading: const Icon(Icons.download_outlined, color: kAuthPrimary),
+              title: Text(
+                fmt.toUpperCase(),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontFamily: kFontBold,
+                ),
               ),
-            const SizedBox(height: 8),
-          ]),
-        ),
-      );
+              subtitle: Text(
+                _templateDesc(fmt),
+                style: const TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              onTap: () => Navigator.pop(ctx, fmt),
+            ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    ),
+  );
 
   static String _templateDesc(String f) => switch (f) {
-        'csv' => 'question,type_id,order,is_required,... (pipe-separated options)',
-        'xlsx' => 'Sheet Questions — kolom sama dengan CSV',
-        'docx' => 'Question: ... / Options: ... per paragraf',
-        'pdf' => 'Petunjuk + contoh soal (read-only)',
-        _ => '',
-      };
+    'csv' => 'question,type_id,order,is_required,... (pipe-separated options)',
+    'xlsx' => 'Sheet Questions — kolom sama dengan CSV',
+    'docx' => 'Question: ... / Options: ... per paragraf',
+    'pdf' => 'Petunjuk + contoh soal (read-only)',
+    _ => '',
+  };
 
   @override
   void initState() {
@@ -178,10 +218,9 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
   }
 
   Future<void> _openEditor(QuestionDraft draft) async {
-    await AppRouter.of(context).push(AppPage.formQuestionEdit, {
-      'formId': widget.formId,
-      'draft': draft,
-    });
+    await AppRouter.of(
+      context,
+    ).push(AppPage.formQuestionEdit, {'formId': widget.formId, 'draft': draft});
     if (mounted) setState(() {});
   }
 
@@ -316,7 +355,9 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: kDangerColor.withValues(alpha: 0.08),
-                  border: Border.all(color: kDangerColor.withValues(alpha: 0.4)),
+                  border: Border.all(
+                    color: kDangerColor.withValues(alpha: 0.4),
+                  ),
                   borderRadius: BorderRadius.circular(kRadiusMd),
                 ),
                 child: Column(
@@ -324,8 +365,11 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.error_outline,
-                            size: 16, color: kDangerColor),
+                        Icon(
+                          Icons.error_outline,
+                          size: 16,
+                          color: kDangerColor,
+                        ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
@@ -452,7 +496,8 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                           children: [
                             _previewChip(
                               questionTypes[q['typeId'] as int?]?.$1 ??
-                                  'Tipe ${q['typeId']}'),
+                                  'Tipe ${q['typeId']}',
+                            ),
                             if (q['isRequired'] == true)
                               _previewChip('Wajib', kDangerColor),
                             if (options.isNotEmpty)
@@ -483,10 +528,13 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                           side: const BorderSide(color: Colors.black26),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(kRadius)),
+                            borderRadius: BorderRadius.circular(kRadius),
+                          ),
                         ),
-                        child: const Text('Batal',
-                            style: TextStyle(color: Colors.black54)),
+                        child: const Text(
+                          'Batal',
+                          style: TextStyle(color: Colors.black54),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -502,7 +550,8 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                           disabledBackgroundColor: Colors.black12,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(kRadius)),
+                            borderRadius: BorderRadius.circular(kRadius),
+                          ),
                         ),
                         icon: const Icon(Icons.download_done, size: 20),
                         label: Text(
@@ -588,8 +637,9 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
       // setelah server balikkan id. Id baru = item di respons yang id-nya
       // tidak termasuk id lama, berurutan sesuai urutan daftar.
       final knownIds = _questions.map((q) => q.id).whereType<int>().toSet();
-      final newSaved =
-          saved.where((m) => !knownIds.contains(m['id'] as int?)).toList();
+      final newSaved = saved
+          .where((m) => !knownIds.contains(m['id'] as int?))
+          .toList();
       final uploads = <(QuestionDraft, Uint8List, String, bool)>[];
       var newIndex = 0;
       for (final q in _questions) {
@@ -601,10 +651,20 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
         q.id ??= savedId;
         newIndex++;
         if (q.pendingImageBytes != null) {
-          uploads.add((q, q.pendingImageBytes!, q.pendingImageName ?? 'question.jpg', true));
+          uploads.add((
+            q,
+            q.pendingImageBytes!,
+            q.pendingImageName ?? 'question.jpg',
+            true,
+          ));
         }
         if (q.pendingAudioBytes != null) {
-          uploads.add((q, q.pendingAudioBytes!, q.pendingAudioName ?? 'audio', false));
+          uploads.add((
+            q,
+            q.pendingAudioBytes!,
+            q.pendingAudioName ?? 'audio',
+            false,
+          ));
         }
       }
 
@@ -657,10 +717,11 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
-      if (mounted) setState(() {
-        _saving = false;
-        _progress = null;
-      });
+      if (mounted)
+        setState(() {
+          _saving = false;
+          _progress = null;
+        });
     }
   }
 
@@ -672,9 +733,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
-        ),
+        shape: const Border(bottom: BorderSide(color: Color(0xCCBDC9C8))),
         title: const Text(
           "Kelola Soal",
           style: TextStyle(
@@ -701,7 +760,13 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                 ? const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16),
                     child: SizedBox(
-                        width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    ),
                   )
                 : FilledButton(
                     onPressed: () async {
@@ -715,9 +780,17 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                     style: FilledButton.styleFrom(
                       backgroundColor: kPrimary,
                       foregroundColor: Colors.white,
-                      textStyle: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      textStyle: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontFamily: kFontBold,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                     ),
                     child: const Text('Simpan'),
                   ),
@@ -729,14 +802,21 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
               builder: (context, controller, child) => IconButton(
                 icon: const Icon(Icons.more_vert, color: Colors.black87),
                 tooltip: 'Opsi',
-                onPressed: () => controller.isOpen ? controller.close() : controller.open(),
+                onPressed: () =>
+                    controller.isOpen ? controller.close() : controller.open(),
               ),
               menuChildren: [
                 MenuItemButton(
                   leadingIcon: _importing
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Icon(Icons.upload_file_outlined, size: 20),
-                  onPressed: (widget.formId == null || _saving || _importing) ? null : _importSoal,
+                  onPressed: (widget.formId == null || _saving || _importing)
+                      ? null
+                      : _importSoal,
                   child: Text(_importing ? 'Mengimpor...' : 'Impor Soal'),
                 ),
                 MenuItemButton(
@@ -753,7 +833,8 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : AbsorbPointer(
               absorbing: _saving,
-              child: AuthBackground(plain: true,
+              child: AuthBackground(
+                plain: true,
                 child: SafeArea(
                   child: _questions.isEmpty
                       ? SingleChildScrollView(
@@ -763,7 +844,8 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                             children: [
                               const QuestionsEmptyState(),
                               const SizedBox(height: 80),
-                              if (_saving && _progress != null) LinearProgressIndicator(value: _progress),
+                              if (_saving && _progress != null)
+                                LinearProgressIndicator(value: _progress),
                             ],
                           ),
                         )
@@ -774,37 +856,50 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                               itemCount: _questions.length,
                               onReorder: _onReorder,
                               buildDefaultDragHandles: false,
-                              proxyDecorator: (child, index, animation) => Material(
-                                elevation: 4,
-                                borderRadius: BorderRadius.circular(16),
-                                child: child,
-                              ),
-                              itemBuilder: (context, i) => ReorderableDragStartListener(
-                                key: ValueKey(_questions[i]),
-                                index: i,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: QuestionListCard(
-                                    index: i,
-                                    totalCount: _questions.length,
-                                    question: _questions[i],
-                                    onEdit: () => _openEditor(_questions[i]),
-                                    onMoveUp: () => _moveQuestion(i, -1),
-                                    onMoveDown: () => _moveQuestion(i, 1),
-                                    onDelete: () => setState(() {
-                                      _questions[i].dispose();
-                                      _questions.removeAt(i);
-                                    }),
+                              proxyDecorator: (child, index, animation) =>
+                                  Transform.scale(
+                                    scale: 0.98,
+                                    child: Opacity(
+                                      opacity: 0.9,
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        elevation: 0,
+                                        child: child,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
+                              itemBuilder: (context, i) =>
+                                  ReorderableDelayedDragStartListener (
+                                    key: ValueKey(_questions[i]),
+                                    index: i,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: QuestionListCard(
+                                        index: i,
+                                        totalCount: _questions.length,
+                                        question: _questions[i],
+                                        onEdit: () =>
+                                            _openEditor(_questions[i]),
+                                        onMoveUp: () => _moveQuestion(i, -1),
+                                        onMoveDown: () => _moveQuestion(i, 1),
+                                        onDelete: () => setState(() {
+                                          _questions[i].dispose();
+                                          _questions.removeAt(i);
+                                        }),
+                                      ),
+                                    ),
+                                  ),
                             ),
                             if (_saving && _progress != null)
                               Positioned(
                                 left: 22,
                                 right: 22,
                                 bottom: 16,
-                                child: LinearProgressIndicator(value: _progress),
+                                child: LinearProgressIndicator(
+                                  value: _progress,
+                                ),
                               ),
                           ],
                         ),
