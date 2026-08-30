@@ -52,18 +52,18 @@ export default function ForgotPasswordPage() {
 
     // ── Success State ──
     if (success) return (
-        <div className="w-screen h-screen bg-gradient-to-br from-[#E1F9F4] via-[#a8e8e0] to-[#004D4E] flex items-center justify-center p-4 font-sans">
-            <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl p-10 max-w-sm w-full text-center shadow-2xl space-y-5">
-                <div className="w-14 h-14 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center mx-auto">
+        <div className="min-h-screen w-full bg-gradient-to-br from-[#E1F9F4] via-[#a8e8e0] to-[#004D4E] flex items-center justify-center p-4 font-sans py-8">
+            <div className="bg-white/80 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-8 sm:p-10 max-w-sm w-full text-center shadow-2xl space-y-5">
+                <div className="w-14 h-14 bg-teal-100 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 rounded-full flex items-center justify-center mx-auto">
                     <CheckCircle size={28} />
                 </div>
                 <div>
-                    <h2 className="text-xl font-extrabold text-slate-900">Password Berhasil Diubah!</h2>
-                    <p className="text-sm text-slate-500 mt-1">Silakan login dengan password baru Anda.</p>
+                    <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">Password Berhasil Diubah!</h2>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">Silakan login dengan password baru Anda.</p>
                 </div>
                 <button
                     onClick={() => navigate('/login')}
-                    className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-2xl transition-all"
+                    className="w-full py-3 bg-[#00897B] hover:bg-[#00796B] text-white font-bold rounded-2xl transition-all cursor-pointer shadow-md"
                 >
                     Kembali ke Login
                 </button>
@@ -72,8 +72,8 @@ export default function ForgotPasswordPage() {
     );
 
     return (
-        <div className="w-screen h-screen bg-gradient-to-br from-[#E1F9F4] via-[#a8e8e0] to-[#004D4E] flex items-center justify-center p-4 font-sans">
-            <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl p-8 max-w-sm w-full shadow-2xl">
+        <div className="min-h-screen w-full bg-gradient-to-br from-[#E1F9F4] via-[#a8e8e0] to-[#004D4E] flex items-center justify-center p-4 font-sans py-8">
+            <div className="bg-white/80 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl">
 
                 {/* Header */}
                 <div className="mb-7">

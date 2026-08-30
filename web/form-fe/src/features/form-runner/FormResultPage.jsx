@@ -60,6 +60,7 @@ export default function FormResultPage() {
         const res = await submitFeedback(formId, {
             reason,
             description: description.trim(),
+            responseId: parseInt(responseId, 10) || null,
         });
         setSendingFeedback(false);
 
@@ -221,7 +222,7 @@ export default function FormResultPage() {
                                 <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Rincian Jawaban & Review Soal</h3>
                                 <p className="text-xs text-slate-400 dark:text-slate-500">Tinjauan jawaban yang telah Anda kirimkan</p>
                             </div>
-                            {result.correctCount != null && (
+                            {showScore && result.correctCount != null && (
                                 <span className="text-xs font-extrabold px-3 py-1 bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 rounded-full border border-teal-200 dark:border-teal-800">
                                     Benar {result.correctCount} / {result.scorableQuestions || result.totalQuestions}
                                 </span>
@@ -230,8 +231,8 @@ export default function FormResultPage() {
 
                         <div className="space-y-4 pt-2">
                             {result.answers.map((a, i) => {
-                                const isCorrect = a.isCorrect === true;
-                                const isWrong = a.isCorrect === false;
+                                const isCorrect = showScore && a.isCorrect === true;
+                                const isWrong = showScore && a.isCorrect === false;
 
                                 return (
                                     <div key={i} className={`p-4 rounded-2xl border transition-all ${isCorrect ? 'bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60' : isWrong ? 'bg-red-50/50 dark:bg-red-950/30 border-red-200 dark:border-red-800/60' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700'}`}>
@@ -241,7 +242,7 @@ export default function FormResultPage() {
                                                 <RichContentRenderer content={a.question} format={a.questionFormat} className="text-xs font-bold text-slate-800 dark:text-slate-100" />
                                             </div>
 
-                                            {a.isCorrect != null && (
+                                            {showScore && a.isCorrect != null && (
                                                 <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${isCorrect ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'}`}>
                                                     {isCorrect ? <><Check size={11} /> Benar</> : <><X size={11} /> Salah</>}
                                                 </span>
@@ -254,7 +255,7 @@ export default function FormResultPage() {
                                                 <RichContentRenderer content={a.optionText || a.answerText || '—'} format="text" className="font-bold text-slate-800 dark:text-slate-200" />
                                             </div>
 
-                                            {isWrong && a.correctAnswer && (
+                                            {showScore && isWrong && a.correctAnswer && (
                                                 <div className="flex items-baseline gap-2 text-emerald-600 dark:text-emerald-400 pt-0.5">
                                                     <span className="font-bold shrink-0">Jawaban Benar:</span>
                                                     <RichContentRenderer content={a.correctAnswer} format="text" className="font-bold" />

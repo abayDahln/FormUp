@@ -319,16 +319,17 @@ export const exportFormResponses = async (formId) => {
 };
 
 // ── Feedback Endpoints ────────────────────────────────────────────────────────
-export const submitFeedback = async (formId, { reason, description }) => {
+export const submitFeedback = async (formId, { reason, description, responseId = null }) => {
     const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/feedback`, {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ reason, description }),
+        body: JSON.stringify({ reason, description, responseId }),
     });
     return parseResponse(res);
 };
 
 export const getMyFeedback = async (formId) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/feedback`, { headers: authHeaders() }));
+export const getFormFeedbacks = async (formId) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/feedbacks`, { headers: authHeaders() }));
 
 // ── Template Endpoints ────────────────────────────────────────────────────────
 export const templateDownloadUrl = (format = 'csv') =>
