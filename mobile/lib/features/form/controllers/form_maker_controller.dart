@@ -77,28 +77,27 @@ class FormMakerController {
     customLinkController.dispose();
   }
 
-  String _delta(QuillController c) =>
-      jsonEncode(c.document.toDelta().toJson());
+  String _delta(QuillController c) => jsonEncode(c.document.toDelta().toJson());
 
   FormMakerSnapshot snapshot() => FormMakerSnapshot(
-        title: titleController.text.trim(),
-        desc: _delta(descController),
-        formTypeId: formTypeId,
-        showScore: showScore,
-        randomizeQuestions: randomizeQuestions,
-        oneResponse: oneResponse,
-        requiredLogin: requiredLogin,
-        openFormTime: openFormTime,
-        closeFormTime: closeFormTime,
-        timer: '$timerUnit:${timerController.text}',
-        token: tokenController.text,
-        customLink: customLinkController.text,
-        bannerImage: newBanner != null
-            ? 'new:${newBanner.hashCode}'
-            : bannerCleared
-                ? ''
-                : bannerImage,
-      );
+    title: titleController.text.trim(),
+    desc: _delta(descController),
+    formTypeId: formTypeId,
+    showScore: showScore,
+    randomizeQuestions: randomizeQuestions,
+    oneResponse: oneResponse,
+    requiredLogin: requiredLogin,
+    openFormTime: openFormTime,
+    closeFormTime: closeFormTime,
+    timer: '$timerUnit:${timerController.text}',
+    token: tokenController.text,
+    customLink: customLinkController.text,
+    bannerImage: newBanner != null
+        ? 'new:${newBanner.hashCode}'
+        : bannerCleared
+        ? ''
+        : bannerImage,
+  );
 
   bool get hasChanges {
     final base = baseline;
@@ -119,6 +118,16 @@ class FormMakerController {
         base.bannerImage != cur.bannerImage;
   }
 
+  // Konversi ke UTC sebelum dikirim ke API agar tidak terjadi double-conversion timezone.
+  static String _toUtcIso8601(DateTime dt) => dt.toUtc().toIso8601String();
+
+  static DateTime? _parseApiDateTime(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    final dt = DateTime.tryParse(raw);
+    if (dt == null) return null;
+    return dt.toLocal();
+  }
+
   /// Isi seluruh field dari respons API getForm.
   void applyForm(Map<String, dynamic> form) {
     final settings = form['settings'] as Map<String, dynamic>?;
@@ -134,10 +143,8 @@ class FormMakerController {
     randomizeQuestions = settings?['randomizeQuestions'] == true;
     oneResponse = settings?['oneResponse'] == true;
     requiredLogin = settings?['requiredLogin'] == true;
-    openFormTime =
-        rawOpen != null ? DateTime.tryParse(rawOpen)?.toLocal() : null;
-    closeFormTime =
-        rawClose != null ? DateTime.tryParse(rawClose)?.toLocal() : null;
+    openFormTime = _parseApiDateTime(rawOpen);
+    closeFormTime = _parseApiDateTime(rawClose);
     openTimeAlreadySet = openFormTime != null;
     if (settings?['timerDuration'] is int) {
       final timerSeconds = settings!['timerDuration'] as int;
@@ -152,7 +159,8 @@ class FormMakerController {
       }
     }
     customLinkController.text = form['formLink'] as String? ?? '';
-    tokenController.text = (settings?['formToken'] as String?) ??
+    tokenController.text =
+        (settings?['formToken'] as String?) ??
         (settings?['FormToken'] as String?) ??
         '';
     baseline = snapshot();
@@ -172,9 +180,9 @@ class FormMakerController {
       if (timerValue != null && timerValue > 0)
         'timerDuration': timerValue * (timerUnit == 'jam' ? 3600 : 60),
       if (openFormTime != null && !openTimeAlreadySet)
-        'openFormTime': openFormTime!.toUtc().toIso8601String(),
+        'openFormTime': _toUtcIso8601(openFormTime!),
       if (closeFormTime != null)
-        'closeFormTime': closeFormTime!.toUtc().toIso8601String(),
+        'closeFormTime': _toUtcIso8601(closeFormTime!),
     };
     // Token: kirim hanya jika berubah agar bisa menghapus (kirim null) atau menambah.
     if (curToken != baseToken) {

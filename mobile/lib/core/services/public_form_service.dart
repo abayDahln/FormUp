@@ -38,30 +38,33 @@ class PublicFormInfo {
     this.closeFormTime,
   });
 
-  factory PublicFormInfo.fromJson(Map<String, dynamic> json) =>
-      PublicFormInfo(
-        id: json['id'] as int,
-        title: json['title'] as String? ?? '',
-        description: json['description'] as String?,
-        bannerImage: json['bannerImage'] as String?,
-        requiresToken: json['requiresToken'] as bool? ?? false,
-        requiresLogin: json['requiresLogin'] as bool? ?? false,
-        oneResponse: json['oneResponse'] as bool? ?? false,
-        isOwner: json['isOwner'] as bool? ?? false,
-        questionCount: json['questionCount'] as int? ?? 0,
-        formTypeId: json['formTypeId'] as int? ?? 1,
-        showScore: json['showScore'] as bool?,
-        timerDuration: json['timerDuration'] as int?,
-        randomizeQuestions: json['randomizeQuestions'] as bool?,
-        openFormTime: _parseDate(json['openFormTime']),
-        closeFormTime: _parseDate(json['closeFormTime']),
-      );
+  factory PublicFormInfo.fromJson(Map<String, dynamic> json) => PublicFormInfo(
+    id: json['id'] as int,
+    title: json['title'] as String? ?? '',
+    description: json['description'] as String?,
+    bannerImage: json['bannerImage'] as String?,
+    requiresToken: json['requiresToken'] as bool? ?? false,
+    requiresLogin: json['requiresLogin'] as bool? ?? false,
+    oneResponse: json['oneResponse'] as bool? ?? false,
+    isOwner: json['isOwner'] as bool? ?? false,
+    questionCount: json['questionCount'] as int? ?? 0,
+    formTypeId: json['formTypeId'] as int? ?? 1,
+    showScore: json['showScore'] as bool?,
+    timerDuration: json['timerDuration'] as int?,
+    randomizeQuestions: json['randomizeQuestions'] as bool?,
+    openFormTime: _parseDate(json['openFormTime']),
+    closeFormTime: _parseDate(json['closeFormTime']),
+  );
 }
 
 DateTime? _parseDate(Object? value) {
   final s = value as String?;
   if (s == null || s.isEmpty) return null;
-  return DateTime.tryParse(s);
+
+  final dt = DateTime.tryParse(s);
+  if (dt == null) return null;
+
+  return dt.toLocal();
 }
 
 class PublicOption {
@@ -99,25 +102,24 @@ class PublicQuestion {
     this.options = const [],
   });
 
-  factory PublicQuestion.fromJson(Map<String, dynamic> json) =>
-      PublicQuestion(
-        id: json['id'] as int,
-        typeId: json['typeId'] as int,
-        question: json['question'] as String? ?? '',
-        questionOrder: json['questionOrder'] as int? ?? 0,
-        isRequired: json['isRequired'] as bool?,
-        randomizeOptions: json['randomizeOptions'] as bool?,
-        questionImage: json['questionImage'] as String?,
-        questionAudio: json['questionAudio'] as String?,
-        options: [
-          for (final o in json['options'] as List<dynamic>? ?? [])
-            PublicOption(
-              id: o['id'] as int,
-              optionText: o['optionText'] as String? ?? '',
-              optionImage: o['optionImage'] as String?,
-            ),
-        ],
-      );
+  factory PublicQuestion.fromJson(Map<String, dynamic> json) => PublicQuestion(
+    id: json['id'] as int,
+    typeId: json['typeId'] as int,
+    question: json['question'] as String? ?? '',
+    questionOrder: json['questionOrder'] as int? ?? 0,
+    isRequired: json['isRequired'] as bool?,
+    randomizeOptions: json['randomizeOptions'] as bool?,
+    questionImage: json['questionImage'] as String?,
+    questionAudio: json['questionAudio'] as String?,
+    options: [
+      for (final o in json['options'] as List<dynamic>? ?? [])
+        PublicOption(
+          id: o['id'] as int,
+          optionText: o['optionText'] as String? ?? '',
+          optionImage: o['optionImage'] as String?,
+        ),
+    ],
+  );
 }
 
 class PublicResultAnswer {
@@ -225,13 +227,13 @@ class MyAttempt {
   });
 
   factory MyAttempt.fromJson(Map<String, dynamic> json) => MyAttempt(
-        responseId: json['responseId'] as int,
-        submittedAt: _parseDate(json['submittedAt']),
-        showScore: json['showScore'] as bool? ?? false,
-        score: (json['score'] as num?)?.toDouble(),
-        correctCount: json['correctCount'] as int? ?? 0,
-        wrongCount: json['wrongCount'] as int? ?? 0,
-      );
+    responseId: json['responseId'] as int,
+    submittedAt: _parseDate(json['submittedAt']),
+    showScore: json['showScore'] as bool? ?? false,
+    score: (json['score'] as num?)?.toDouble(),
+    correctCount: json['correctCount'] as int? ?? 0,
+    wrongCount: json['wrongCount'] as int? ?? 0,
+  );
 }
 
 class PublicFormService {
@@ -255,20 +257,16 @@ class PublicFormService {
     String? token,
   }) async {
     final cacheKey = 'publicForms:questions:$_scope:$formLink:${token ?? ''}';
-    return ApiCache.get(
-      cacheKey,
-      const Duration(seconds: 120),
-      () async {
-        final json = await AuthService.post('/public/forms/$formLink/questions', {
-          if (token != null && token.isNotEmpty) 'token': token,
-        });
-        final data = json['data'] as Map<String, dynamic>;
-        return [
-          for (final q in data['questions'] as List<dynamic>? ?? [])
-            PublicQuestion.fromJson(q as Map<String, dynamic>),
-        ];
-      },
-    );
+    return ApiCache.get(cacheKey, const Duration(seconds: 120), () async {
+      final json = await AuthService.post('/public/forms/$formLink/questions', {
+        if (token != null && token.isNotEmpty) 'token': token,
+      });
+      final data = json['data'] as Map<String, dynamic>;
+      return [
+        for (final q in data['questions'] as List<dynamic>? ?? [])
+          PublicQuestion.fromJson(q as Map<String, dynamic>),
+      ];
+    });
   }
 
   /// POST /public/forms/{formLink}/responses — debounce 300ms anti spam submit
@@ -315,7 +313,9 @@ class PublicFormService {
       'publicForms:attempts:$_scope:$formLink',
       const Duration(seconds: 20),
       () async {
-        final json = await AuthService.get('/public/forms/$formLink/my-responses');
+        final json = await AuthService.get(
+          '/public/forms/$formLink/my-responses',
+        );
         return [
           for (final a in json['data'] as List<dynamic>? ?? [])
             MyAttempt.fromJson(a as Map<String, dynamic>),
