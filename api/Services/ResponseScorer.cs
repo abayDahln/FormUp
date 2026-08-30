@@ -26,10 +26,59 @@ public static class ResponseScorer
         return answer.AnswerValue;
     }
 
+    public static string? GetAnswerText(IEnumerable<RespondentAnswer>? answers, Question question)
+    {
+        var rows = answers?.ToList() ?? new List<RespondentAnswer>();
+        if (rows.Count == 0)
+            return null;
+
+        if (question.TypeId == 3)
+        {
+            var parts = rows
+                .Where(a => a.OptionId.HasValue && a.Option != null)
+                .Select(a => a.Option!.OptionText)
+                .Where(text => !string.IsNullOrWhiteSpace(text))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(text => text)
+                .ToList();
+
+            if (parts.Count > 0)
+                return string.Join(", ", parts);
+
+            var textParts = rows
+                .Select(a => a.AnswerValue)
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(v => v)
+                .ToList();
+
+            return textParts.Count > 0 ? string.Join(", ", textParts) : null;
+        }
+
+        var first = rows
+            .Select(a => GetAnswerText(a, question))
+            .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+        return first;
+    }
+
     public static string? GetCorrectAnswerText(Question question)
     {
         if (!string.IsNullOrEmpty(question.CorrectAnswer))
             return question.CorrectAnswer;
+
+        if (question.TypeId == 3)
+        {
+            var correctOptions = question.OptionQuestions
+                .Where(o => o.IsCorrect == true)
+                .OrderBy(o => o.OptionOrder)
+                .Select(o => o.OptionText)
+                .Where(text => !string.IsNullOrWhiteSpace(text))
+                .ToList();
+
+            return correctOptions.Count > 0 ? string.Join(", ", correctOptions) : null;
+        }
+
         return question.OptionQuestions.FirstOrDefault(o => o.IsCorrect == true)?.OptionText;
     }
 
@@ -162,7 +211,7 @@ public static class ResponseScorer
                 Question = q.Question1,
                 QuestionFormat = q.QuestionFormat ?? RichTextValidation.FormatOf(q.Question1),
                 TypeId = q.TypeId,
-                AnswerText = GetAnswerText(answer, q),
+                AnswerText = GetAnswerText(answerRows, q),
                 CorrectAnswer = showScore ? GetCorrectAnswerText(q) : null,
                 IsCorrect = isCorrect,
                 Options = q.OptionQuestions

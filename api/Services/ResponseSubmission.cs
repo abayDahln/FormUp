@@ -138,23 +138,6 @@ public static class ResponseSubmission
                     if (ansList.Any(a => a.AnswerValue != null || a.OptionId is not int oid ||
                         !q.OptionQuestions.Any(o => o.Id == oid)))
                         return new BadRequestObjectResult(new ApiResponse<object>(400, "Jawaban checkbox tidak valid"));
-
-                    var selectedOptionIds = ansList
-                        .Where(a => a.OptionId.HasValue)
-                        .Select(a => a.OptionId!.Value)
-                        .Distinct()
-                        .OrderBy(id => id)
-                        .ToList();
-
-                    var correctOptionIds = q.OptionQuestions
-                        .Where(o => o.IsCorrect == true)
-                        .Select(o => o.Id)
-                        .Distinct()
-                        .OrderBy(id => id)
-                        .ToList();
-
-                    if (correctOptionIds.Count > 0 && !selectedOptionIds.SequenceEqual(correctOptionIds))
-                        return new BadRequestObjectResult(new ApiResponse<object>(400, "Jawaban checkbox tidak sesuai dengan kunci jawaban"));
                     break;
 
                 case 5:

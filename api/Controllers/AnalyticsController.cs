@@ -104,7 +104,7 @@ public class AnalyticsController : ControllerBase
                 if (questionAnswerRows.Count > 0)
                     answeredCount++;
 
-                var answerText = ResponseScorer.GetAnswerText(answer, q);
+                var answerText = ResponseScorer.GetAnswerText(questionAnswerRows, q);
                 var correctAnswer = ResponseScorer.GetCorrectAnswerText(q);
                 var isCorrect = ResponseScorer.IsAnswerCorrect(questionAnswerRows, q);
 
