@@ -37,6 +37,17 @@ public class FormsController : ControllerBase
         }
     }
 
+    private static DateTime? NormalizeToUtc(DateTime? value)
+    {
+        if (!value.HasValue || value.Value == DateTime.MinValue)
+            return null;
+
+        var v = value.Value;
+        return v.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(v, DateTimeKind.Utc)
+            : v.ToUniversalTime();
+    }
+
     [HttpGet]
     public async Task<ActionResult<ApiResponse<object>>> GetAll()
     {
@@ -340,28 +351,12 @@ public class FormsController : ControllerBase
 
         if (request.OpenFormTime.HasValue)
         {
-            if (request.OpenFormTime.Value == DateTime.MinValue)
-                form.FormSetting.OpenFormTime = null;
-            else
-            {
-                var v = request.OpenFormTime.Value;
-                if (v.Kind == DateTimeKind.Unspecified)
-                    v = DateTime.SpecifyKind(v, DateTimeKind.Utc);
-                form.FormSetting.OpenFormTime = v.ToUniversalTime();
-            }
+            form.FormSetting.OpenFormTime = NormalizeToUtc(request.OpenFormTime);
         }
 
         if (request.CloseFormTime.HasValue)
         {
-            if (request.CloseFormTime.Value == DateTime.MinValue)
-                form.FormSetting.CloseFormTime = null;
-            else
-            {
-                var v = request.CloseFormTime.Value;
-                if (v.Kind == DateTimeKind.Unspecified)
-                    v = DateTime.SpecifyKind(v, DateTimeKind.Utc);
-                form.FormSetting.CloseFormTime = v.ToUniversalTime();
-            }
+            form.FormSetting.CloseFormTime = NormalizeToUtc(request.CloseFormTime);
         }
 
         if (request.FormTypeId.HasValue)

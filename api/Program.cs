@@ -45,6 +45,8 @@ namespace FormUpAPI
                 {
                     options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
                     options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+                    options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter());
+                    options.JsonSerializerOptions.Converters.Add(new UtcNullableDateTimeConverter());
                 });
 
 
