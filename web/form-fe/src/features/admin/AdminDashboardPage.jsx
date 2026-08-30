@@ -1,14 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-    Users, FileText, Trash2, Ban, CheckCircle, 
-    Search, ShieldAlert, ArrowLeft, Loader2, MessageSquare, AlertTriangle, Eye, X
+    Users, FileText, Trash2, Search, Shield, ArrowLeft, Loader2
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import {
     adminGetUsers, adminGetForms, adminDeleteUser, adminDeleteForm,
-    adminBanUser, adminActivateUser, adminGetFeedback, adminTakedownFormFromFeedback,
-    adminGetUserDetail, adminGetFormDetail, adminRestoreFormFromFeedback,
     clearSession, getLocalUser
 } from '../../services/apiService';
 import useDebounce from '../../hooks/useDebounce';
@@ -25,22 +22,35 @@ export default function AdminDashboardPage() {
     const [toast, setToast] = useState(null);
 
     useEffect(() => {
-        if (user?.role !== 'ADMIN') {
+        const userRole = (user?.role || '').toUpperCase();
+        if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') {
             navigate('/dashboard');
             return;
         }
 
         const load = async () => {
             setLoading(true);
-            const [usersRes, formsRes] = await Promise.all([adminGetUsers(), adminGetForms()]);
-            if (usersRes.status === 401 || formsRes.status === 401) {
-                clearSession();
-                navigate('/login');
-                return;
+            try {
+                const [usersRes, formsRes] = await Promise.all([adminGetUsers(), adminGetForms()]);
+                if (usersRes.status === 401 || formsRes.status === 401) {
+                    clearSession();
+                    navigate('/login');
+                    return;
+                }
+                if (usersRes.ok && usersRes.data) {
+                    const uData = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.items || []);
+                    setUsers(uData);
+                }
+                if (formsRes.ok && formsRes.data) {
+                    const fData = Array.isArray(formsRes.data) ? formsRes.data : (formsRes.data?.items || []);
+                    setForms(fData);
+                }
+            } catch (err) {
+                console.error('Error loading admin data:', err);
+                showToast('Gagal memuat beberapa data admin', 'error');
+            } finally {
+                setLoading(false);
             }
-            if (usersRes.ok && Array.isArray(usersRes.data)) setUsers(usersRes.data);
-            if (formsRes.ok && Array.isArray(formsRes.data)) setForms(formsRes.data);
-            setLoading(false);
         };
         load();
     }, [navigate, user]);
@@ -85,16 +95,20 @@ export default function AdminDashboardPage() {
     const filteredForms = forms.filter(f => {
         if (!debouncedSearch.trim()) return true;
         const q = debouncedSearch.toLowerCase();
+        const owner = f.ownerName || f.owner?.fullname || f.ownerEmail || '';
         return (
             (f.title && f.title.toLowerCase().includes(q)) ||
             (f.formLink && f.formLink.toLowerCase().includes(q)) ||
-            (f.owner?.fullname && f.owner.fullname.toLowerCase().includes(q))
+            owner.toLowerCase().includes(q)
         );
     });
 
     if (loading) return (
         <div className="flex items-center justify-center min-h-screen bg-[#F4F8F7] dark:bg-slate-950">
-            <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">Memuat panel kontrol admin...</p>
+            <div className="text-center space-y-2">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#00897B] dark:text-teal-400" />
+                <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">Memuat panel kontrol admin...</p>
+            </div>
         </div>
     );
 
@@ -260,7 +274,7 @@ export default function AdminDashboardPage() {
                                                     <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">/f/{f.formLink}</div>
                                                 </td>
                                                 <td className="py-3.5 px-4 text-xs text-slate-600 dark:text-slate-300 font-medium">
-                                                    {f.owner?.fullname || '—'}
+                                                    {f.ownerName || f.owner?.fullname || f.ownerEmail || '—'}
                                                 </td>
                                                 <td className="py-3.5 px-4">
                                                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${

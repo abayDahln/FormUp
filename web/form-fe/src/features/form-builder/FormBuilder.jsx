@@ -85,6 +85,18 @@ export default function FormBuilder() {
         customFormLink: '',
     });
 
+    const toLocalDatetimeInput = (dateVal) => {
+        if (!dateVal) return '';
+        const d = new Date(dateVal);
+        if (isNaN(d.getTime())) return '';
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+    };
+
     const showToast = (msg, type = 'success') => {
         setToast({ msg, type });
         setTimeout(() => setToast(null), 3000);
@@ -109,8 +121,8 @@ export default function FormBuilder() {
                     requiredLogin: s.requiredLogin ?? false,
                     formToken: s.formToken ?? '',
                     timerDuration: s.timerDuration ? Math.round(s.timerDuration / 60) : '',
-                    openFormTime: s.openFormTime ? s.openFormTime.slice(0, 16) : '',
-                    closeFormTime: s.closeFormTime ? s.closeFormTime.slice(0, 16) : '',
+                    openFormTime: toLocalDatetimeInput(s.openFormTime),
+                    closeFormTime: toLocalDatetimeInput(s.closeFormTime),
                     customFormLink: f.formLink || '',
                 });
             }
@@ -228,8 +240,8 @@ export default function FormBuilder() {
                     requiredLogin: s.requiredLogin ?? false,
                     formToken: s.formToken ?? '',
                     timerDuration: s.timerDuration ? Math.round(s.timerDuration / 60) : '',
-                    openFormTime: s.openFormTime ? s.openFormTime.slice(0, 16) : '',
-                    closeFormTime: s.closeFormTime ? s.closeFormTime.slice(0, 16) : '',
+                    openFormTime: toLocalDatetimeInput(s.openFormTime),
+                    closeFormTime: toLocalDatetimeInput(s.closeFormTime),
                     customFormLink: f.formLink || '',
                 });
             }
