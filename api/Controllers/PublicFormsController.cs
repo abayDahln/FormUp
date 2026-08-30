@@ -241,10 +241,10 @@ public class PublicFormsController : ControllerBase
         if (form.StatusId != publishedStatus.Id)
             return null;
 
-        if (form.FormSetting?.OpenFormTime != null && form.FormSetting.OpenFormTime > JakartaTime.Now)
+        if (form.FormSetting?.OpenFormTime != null && form.FormSetting.OpenFormTime > DateTime.UtcNow)
             return null;
 
-        if (form.FormSetting?.CloseFormTime != null && form.FormSetting.CloseFormTime < JakartaTime.Now)
+        if (form.FormSetting?.CloseFormTime != null && form.FormSetting.CloseFormTime < DateTime.UtcNow)
             return null;
 
         return form;

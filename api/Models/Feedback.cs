@@ -9,7 +9,7 @@ public class Feedback
 
     public int FormId { get; set; }
 
-    public int UserId { get; set; }
+    public int? UserId { get; set; }
 
     public int? ResponseId { get; set; }
 
@@ -21,7 +21,7 @@ public class Feedback
 
     public virtual Form Form { get; set; } = null!;
 
-    public virtual User User { get; set; } = null!;
+    public virtual User? User { get; set; }
 
     public virtual Response? Response { get; set; }
 }

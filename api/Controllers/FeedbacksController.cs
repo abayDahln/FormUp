@@ -19,15 +19,13 @@ public class FeedbacksController : ControllerBase
     }
 
     [HttpPost("forms/{formId}/feedback")]
-    [Authorize]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<object>>> SubmitFeedback(int formId, [FromBody] SubmitFeedbackRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Reason))
             return BadRequest(new ApiResponse<object>(400, "Reason is required"));
 
         var user = await GetCurrentUser();
-        if (user == null)
-            return Unauthorized(new ApiResponse<object>(401, "User not found"));
 
         var form = await _db.Forms
             .FirstOrDefaultAsync(f => f.Id == formId && f.DeletedAt == null);
@@ -39,27 +37,18 @@ public class FeedbacksController : ControllerBase
         if (form.StatusId != publishedStatus.Id)
             return BadRequest(new ApiResponse<object>(400, "Can only submit feedback for published forms"));
 
-        var hasCompleted = await _db.Responses
-            .AnyAsync(r => r.FormId == formId && r.RespondentId == user.Id);
-        if (!hasCompleted)
-            return BadRequest(new ApiResponse<object>(400, "You can only submit feedback after completing the form"));
-
-        var existing = await _db.Feedbacks
-            .AnyAsync(f => f.FormId == formId && f.UserId == user.Id);
-        if (existing)
-            return BadRequest(new ApiResponse<object>(400, "You have already submitted feedback for this form"));
-
-        var response = await _db.Responses
-            .FirstOrDefaultAsync(r => r.FormId == formId && r.RespondentId == user.Id);
+        var response = user != null
+            ? await _db.Responses.FirstOrDefaultAsync(r => r.FormId == formId && r.RespondentId == user.Id)
+            : (request.ResponseId.HasValue ? await _db.Responses.FirstOrDefaultAsync(r => r.Id == request.ResponseId.Value && r.FormId == formId) : null);
 
         var feedback = new Feedback
         {
             FormId = formId,
-            UserId = user.Id,
+            UserId = user?.Id,
             ResponseId = response?.Id,
             Reason = request.Reason,
             Description = request.Description,
-            CreatedAt = JakartaTime.Now,
+            CreatedAt = DateTime.UtcNow,
         };
 
         _db.Feedbacks.Add(feedback);
@@ -94,6 +83,41 @@ public class FeedbacksController : ControllerBase
             Description = feedback.Description,
             CreatedAt = feedback.CreatedAt ?? DateTime.MinValue,
         }));
+    }
+
+    [HttpGet("forms/{formId}/feedbacks")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<object>>> GetFormFeedbacks(int formId)
+    {
+        var user = await GetCurrentUser();
+        if (user == null)
+            return Unauthorized(new ApiResponse<object>(401, "User not found"));
+
+        var form = await _db.Forms.FirstOrDefaultAsync(f => f.Id == formId && f.DeletedAt == null);
+        if (form == null)
+            return NotFound(new ApiResponse<object>(404, "Form not found"));
+
+        if (form.UserId != user.Id && user.Role != "ADMIN")
+            return Forbid();
+
+        var feedbacks = await _db.Feedbacks
+            .Include(f => f.User)
+            .Where(f => f.FormId == formId)
+            .OrderByDescending(f => f.CreatedAt)
+            .Select(f => new FeedbackResponse
+            {
+                Id = f.Id,
+                FormId = f.FormId,
+                FormTitle = form.Title,
+                UserId = f.UserId,
+                UserName = f.User != null ? f.User.Fullname : "Anonim",
+                Reason = f.Reason,
+                Description = f.Description,
+                CreatedAt = f.CreatedAt ?? DateTime.MinValue,
+            })
+            .ToListAsync();
+
+        return Ok(new ApiResponse<object>(200, "OK", feedbacks));
     }
 
     [HttpGet("admin/feedback")]
@@ -214,7 +238,7 @@ public class FeedbacksController : ControllerBase
         if (feedback.Form.TakenDownAt != null)
             return BadRequest(new ApiResponse<object>(400, "Form is already taken down"));
 
-        feedback.Form.TakenDownAt = JakartaTime.Now;
+        feedback.Form.TakenDownAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Form has been taken down"));

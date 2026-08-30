@@ -38,7 +38,7 @@ public class AuthController : ControllerBase
             return Conflict(new ApiResponse<object>(409, "Username already taken"));
 
         var existingOtp = await _db.RegistrationOtps
-            .Where(t => t.Email == request.Email && !t.IsUsed && t.ExpiresAt > JakartaTime.Now)
+            .Where(t => t.Email == request.Email && !t.IsUsed && t.ExpiresAt > DateTime.UtcNow)
             .ToListAsync();
         _db.RegistrationOtps.RemoveRange(existingOtp);
 
@@ -47,8 +47,8 @@ public class AuthController : ControllerBase
         {
             Email = request.Email,
             Otp = otp,
-            ExpiresAt = JakartaTime.Now.AddMinutes(15),
-            CreatedAt = JakartaTime.Now,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+            CreatedAt = DateTime.UtcNow,
         });
         await _db.SaveChangesAsync();
 
@@ -85,7 +85,7 @@ public class AuthController : ControllerBase
                 t.Email == request.Email &&
                 t.Otp == request.Otp &&
                 !t.IsUsed &&
-                t.ExpiresAt > JakartaTime.Now);
+                t.ExpiresAt > DateTime.UtcNow);
 
         if (token == null)
             return BadRequest(new ApiResponse<object>(400, "Invalid or expired OTP"));
@@ -100,7 +100,7 @@ public class AuthController : ControllerBase
             Password = PasswordHelper.Hash(request.Password),
             Role = "USER",
             IsActive = true,
-            CreatedAt = JakartaTime.Now,
+            CreatedAt = DateTime.UtcNow,
         };
 
         if (DateOnly.TryParse(request.Birthdate, out var birthdate))
@@ -181,7 +181,7 @@ public class AuthController : ControllerBase
             return Ok(new ApiResponse<object>(200, "If the email exists, an OTP has been sent"));
 
         var existingTokens = await _db.PasswordResetTokens
-            .Where(t => t.UserId == user.Id && !t.IsUsed && t.ExpiresAt > JakartaTime.Now)
+            .Where(t => t.UserId == user.Id && !t.IsUsed && t.ExpiresAt > DateTime.UtcNow)
             .ToListAsync();
         _db.PasswordResetTokens.RemoveRange(existingTokens);
 
@@ -190,8 +190,8 @@ public class AuthController : ControllerBase
         {
             UserId = user.Id,
             Otp = otp,
-            ExpiresAt = JakartaTime.Now.AddMinutes(15),
-            CreatedAt = JakartaTime.Now,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+            CreatedAt = DateTime.UtcNow,
         });
         await _db.SaveChangesAsync();
 
@@ -225,14 +225,14 @@ public class AuthController : ControllerBase
                 t.UserId == user.Id &&
                 t.Otp == request.Otp &&
                 !t.IsUsed &&
-                t.ExpiresAt > JakartaTime.Now);
+                t.ExpiresAt > DateTime.UtcNow);
 
         if (token == null)
             return BadRequest(new ApiResponse<object>(400, "Invalid or expired OTP"));
 
         token.IsUsed = true;
         user.Password = PasswordHelper.Hash(request.NewPassword);
-        user.UpdatedAt = JakartaTime.Now;
+        user.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
 

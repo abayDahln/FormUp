@@ -340,13 +340,29 @@ public class FormsController : ControllerBase
 
         if (request.OpenFormTime.HasValue)
         {
-            if (form.FormSetting.OpenFormTime.HasValue)
-                return BadRequest(new ApiResponse<object>(400, "Open form time sudah diatur dan tidak bisa diubah"));
-            form.FormSetting.OpenFormTime = request.OpenFormTime;
+            if (request.OpenFormTime.Value == DateTime.MinValue)
+                form.FormSetting.OpenFormTime = null;
+            else
+            {
+                var v = request.OpenFormTime.Value;
+                if (v.Kind == DateTimeKind.Unspecified)
+                    v = DateTime.SpecifyKind(v, DateTimeKind.Utc);
+                form.FormSetting.OpenFormTime = v.ToUniversalTime();
+            }
         }
 
         if (request.CloseFormTime.HasValue)
-            form.FormSetting.CloseFormTime = request.CloseFormTime;
+        {
+            if (request.CloseFormTime.Value == DateTime.MinValue)
+                form.FormSetting.CloseFormTime = null;
+            else
+            {
+                var v = request.CloseFormTime.Value;
+                if (v.Kind == DateTimeKind.Unspecified)
+                    v = DateTime.SpecifyKind(v, DateTimeKind.Utc);
+                form.FormSetting.CloseFormTime = v.ToUniversalTime();
+            }
+        }
 
         if (request.FormTypeId.HasValue)
         {

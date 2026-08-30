@@ -56,10 +56,10 @@ public static class ResponseSubmission
         if (form.StatusId != publishedStatus.Id)
             return Unavailable(FormAccess.NotFound, form);
 
-        if (form.FormSetting?.OpenFormTime != null && form.FormSetting.OpenFormTime > JakartaTime.Now)
+        if (form.FormSetting?.OpenFormTime != null && form.FormSetting.OpenFormTime > DateTime.UtcNow)
             return Unavailable(FormAccess.NotOpen, form);
 
-        if (form.FormSetting?.CloseFormTime != null && form.FormSetting.CloseFormTime < JakartaTime.Now)
+        if (form.FormSetting?.CloseFormTime != null && form.FormSetting.CloseFormTime < DateTime.UtcNow)
             return Unavailable(FormAccess.Closed, form);
 
         var isAuthenticated = user.Identity?.IsAuthenticated == true;
@@ -172,8 +172,8 @@ public static class ResponseSubmission
             RespondentId = respondentId,
             RespondentName = respondentName,
             StatusId = newStatus.Id,
-            SubmittedAt = JakartaTime.Now,
-            CreatedAt = JakartaTime.Now,
+            SubmittedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
         };
 
         db.Responses.Add(response);
@@ -185,7 +185,7 @@ public static class ResponseSubmission
             QuestionId = a.QuestionId,
             OptionId = a.OptionId,
             AnswerValue = a.AnswerValue,
-            CreatedAt = JakartaTime.Now,
+            CreatedAt = DateTime.UtcNow,
         }).ToList();
 
         db.RespondentAnswers.AddRange(answers);
