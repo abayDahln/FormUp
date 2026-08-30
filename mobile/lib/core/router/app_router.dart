@@ -28,6 +28,7 @@ import 'package:form_up/features/settings/settings_screen.dart';
 import 'package:form_up/features/form/screens/form_detail_screen.dart';
 import 'package:form_up/features/form/screens/form_questions_screen.dart';
 import 'package:form_up/features/form/screens/form_question_edit_screen.dart';
+import 'package:form_up/features/form/screens/form_feedbacks_screen.dart';
 import 'package:form_up/features/form_runner/screens/form_start_screen.dart';
 import 'package:form_up/features/home/screens/qrcode_scanner_screen.dart';
 import 'package:form_up/core/models/question_draft.dart';
@@ -56,6 +57,7 @@ enum AppPage {
   formPreview,
   formAnalytics,
   formResponses,
+  formFeedbacks,
   respondentDetail,
   adminPanel,
   adminUserDetail,
@@ -365,6 +367,11 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
           formId: route.args['formId'] as int? ?? 0,
           title: route.args['title'] as String? ?? '',
         );
+      case AppPage.formFeedbacks:
+        return FormFeedbacksScreen(
+          formId: route.args['formId'] as int,
+          formTitle: route.args['formTitle'] as String,
+        );
       case AppPage.respondentDetail:
         return RespondentDetailScreen(
           formId: route.args['formId'] as int? ?? 0,
@@ -427,6 +434,7 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       'form-preview' => const AppRoute(AppPage.formPreview),
       'form-analytics' => const AppRoute(AppPage.formAnalytics),
       'form-responses' => const AppRoute(AppPage.formResponses),
+      'form-feedbacks' => const AppRoute(AppPage.formFeedbacks),
       'settings' => const AppRoute(AppPage.settings),
       _ => const AppRoute(AppPage.login),
     };
@@ -456,6 +464,7 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       AppPage.formPreview => 'form-preview',
       AppPage.formAnalytics => 'form-analytics',
       AppPage.formResponses => 'form-responses',
+      AppPage.formFeedbacks => 'form-feedbacks',
       AppPage.respondentDetail => 'respondent-detail',
       AppPage.adminPanel => 'admin-panel',
       AppPage.adminUserDetail => 'admin-user',

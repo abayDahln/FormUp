@@ -335,6 +335,42 @@ class PagedResult<T> {
   const PagedResult({required this.items, required this.total});
 }
 
+/// Item umpan balik dari responden
+class FormFeedbackItem {
+  final int id;
+  final int formId;
+  final String formTitle;
+  final int? userId;
+  final String userName;
+  final String reason;
+  final String? description;
+  final DateTime createdAt;
+
+  const FormFeedbackItem({
+    required this.id,
+    required this.formId,
+    required this.formTitle,
+    required this.userName,
+    required this.reason,
+    required this.createdAt,
+    this.userId,
+    this.description,
+  });
+
+  factory FormFeedbackItem.fromJson(Map<String, dynamic> json) => FormFeedbackItem(
+        id: json['id'] as int,
+        formId: json['formId'] as int,
+        formTitle: json['formTitle'] as String? ?? '',
+        userId: json['userId'] as int?,
+        userName: json['userName'] as String? ?? 'Anonim',
+        reason: json['reason'] as String? ?? '',
+        description: json['description'] as String?,
+        createdAt: json['createdAt'] != null
+            ? DateTime.tryParse(json['createdAt'] as String) ?? DateTime.now()
+            : DateTime.now(),
+      );
+}
+
 /// Klien forms & questions
 class FormService {
   static String get _scope => AuthService.cacheScope;
@@ -553,6 +589,13 @@ class FormService {
       if (description != null && description.trim().isNotEmpty)
         'description': description.trim(),
     });
+  }
+
+  /// GET /forms/{formId}/feedbacks
+  static Future<List<FormFeedbackItem>> getFormFeedbacks(int formId) async {
+    final json = await AuthService.get('/forms/$formId/feedbacks');
+    final list = json['data'] as List<dynamic>? ?? [];
+    return list.map((item) => FormFeedbackItem.fromJson(item as Map<String, dynamic>)).toList();
   }
 
   /// GET /forms/{id}/analytics
