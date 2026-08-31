@@ -38,6 +38,9 @@ String? validateQuestionsList(List<QuestionDraft> questions) {
 List<QuestionDraft> draftsFromQuestions(List<QuestionData> questions) {
   final drafts = <QuestionDraft>[];
   for (final q in questions) {
+    final hasCorrectAnswer = q.correctAnswer != null && q.correctAnswer!.trim().isNotEmpty;
+    final hasCorrectOption = q.options.any((o) => o.isCorrect == true);
+    final inferredScorable = q.points != null || hasCorrectAnswer || hasCorrectOption;
     final draft = QuestionDraft(
       q.typeId,
       id: q.id,
@@ -45,6 +48,8 @@ List<QuestionDraft> draftsFromQuestions(List<QuestionData> questions) {
       correctAnswer: q.correctAnswer ?? '',
       isRequired: q.isRequired ?? true,
       randomizeOptions: q.randomizeOptions ?? false,
+      isScorable: inferredScorable,
+      points: q.points,
       questionImage: q.questionImage,
       questionAudio: q.questionAudio,
     );

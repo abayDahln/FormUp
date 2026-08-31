@@ -78,6 +78,7 @@ class QuestionData {
   final bool? isRequired;
   final String? correctAnswer;
   final bool? randomizeOptions;
+  final int? points;
   final List<QuestionOptionData> options;
 
   const QuestionData({
@@ -90,6 +91,7 @@ class QuestionData {
     this.isRequired,
     this.correctAnswer,
     this.randomizeOptions,
+    this.points,
     this.options = const [],
   });
 
@@ -103,6 +105,7 @@ class QuestionData {
         isRequired: json['isRequired'] as bool?,
         correctAnswer: json['correctAnswer'] as String?,
         randomizeOptions: json['randomizeOptions'] as bool?,
+        points: json['points'] as int?,
         options: [
           for (final o in json['options'] as List<dynamic>? ?? [])
             QuestionOptionData(

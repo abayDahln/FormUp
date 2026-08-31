@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/models/question_draft.dart';
@@ -330,6 +331,59 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                                 value: q.isRequired,
                                 onChanged: (v) => setState(() => q.isRequired = v),
                               ),
+                              const SizedBox(height: 8),
+                              // Hitung ke skor — paritas web FormBuilder.jsx
+                              Row(
+                                children: [
+                                  const Text(
+                                    "Hitung ke skor (Dinilai)",
+                                    style: TextStyle(fontSize: 13, color: Colors.black87),
+                                  ),
+                                  const Spacer(),
+                                  Switch(
+                                    value: q.isScorable,
+                                    activeTrackColor: kAuthPrimary,
+                                    onChanged: (v) => setState(() => q.isScorable = v),
+                                  ),
+                                ],
+                              ),
+                              if (q.isScorable) ...[
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    const Text(
+                                      "Poin Soal",
+                                      style: TextStyle(fontSize: 13, color: Colors.black87),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    SizedBox(
+                                      width: 90,
+                                      child: TextFormField(
+                                        key: ValueKey('points_${q.points}'),
+                                        initialValue: q.points?.toString() ?? '',
+                                        keyboardType: TextInputType.number,
+                                        decoration: formUpInputDecoration(hintText: "1").copyWith(
+                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                        ),
+                                        onChanged: (v) {
+                                          if (v.trim().isEmpty) {
+                                            q.points = null;
+                                          } else {
+                                            q.points = int.tryParse(v);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Expanded(
+                                      child: Text(
+                                        "opsional — kosong = bobot sama rata",
+                                        style: TextStyle(fontSize: 10, color: Colors.black45, fontStyle: FontStyle.italic),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
                         ),

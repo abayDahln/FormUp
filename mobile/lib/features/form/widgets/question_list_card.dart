@@ -64,9 +64,36 @@ class QuestionListCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    questionTypes[q.typeId]?.$1 ?? '',
-                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                  child: Row(
+                    children: [
+                      Text(
+                        questionTypes[q.typeId]?.$1 ?? '',
+                        style: const TextStyle(fontSize: 13, color: Colors.black87),
+                      ),
+                      if (q.isScorable) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: kAuthPrimary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            q.points != null ? '${q.points} poin' : 'Dinilai',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: kAuthPrimary),
+                          ),
+                        ),
+                      ] else
+                        Container(
+                          margin: const EdgeInsets.only(left: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.black12,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text('Tidak dinilai', style: TextStyle(fontSize: 10, color: Colors.black54)),
+                        ),
+                    ],
                   ),
                 ),
                 MenuAnchor(

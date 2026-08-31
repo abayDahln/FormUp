@@ -20,6 +20,29 @@ class QuestionAnswerSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final q = draft;
+    final scorable = q.isScorable;
+    if (!scorable) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0F4F4),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFBDC9C8)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.info_outline, size: 16, color: Colors.black54),
+            SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Soal tidak dinilai — untuk pengumpulan data (Nama, Email, dsb). Tidak perlu kunci jawaban.',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     if (q.typeId == 5) return _buildTrueFalseAnswer(q);
     if (q.typeId == 1) {
       return Column(

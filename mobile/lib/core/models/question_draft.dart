@@ -26,6 +26,8 @@ class QuestionDraft {
   final TextEditingController correctAnswer;
   bool isRequired;
   bool randomizeOptions;
+  bool isScorable;
+  int? points;
   final List<OptionDraft> options;
   String? questionImage;
   String? questionAudio;
@@ -43,6 +45,8 @@ class QuestionDraft {
     String correctAnswer = '',
     this.isRequired = true,
     this.randomizeOptions = false,
+    this.isScorable = true,
+    this.points,
     this.questionImage,
     this.questionAudio,
   })  : question = richTextController(question),
@@ -61,6 +65,8 @@ class QuestionDraft {
     if (correctAnswer.text != other.correctAnswer.text) return false;
     if (isRequired != other.isRequired) return false;
     if (randomizeOptions != other.randomizeOptions) return false;
+    if (isScorable != other.isScorable) return false;
+    if (points != other.points) return false;
     if (questionImage != other.questionImage) return false;
     if (questionAudio != other.questionAudio) return false;
     if (!listEquals(pendingImageBytes, other.pendingImageBytes)) return false;
@@ -83,6 +89,8 @@ class QuestionDraft {
       correctAnswer: correctAnswer.text,
       isRequired: isRequired,
       randomizeOptions: randomizeOptions,
+      isScorable: isScorable,
+      points: points,
       questionImage: questionImage,
       questionAudio: questionAudio,
     );
@@ -108,6 +116,8 @@ class QuestionDraft {
     correctAnswer.text = other.correctAnswer.text;
     isRequired = other.isRequired;
     randomizeOptions = other.randomizeOptions;
+    isScorable = other.isScorable;
+    points = other.points;
     questionImage = other.questionImage;
     questionAudio = other.questionAudio;
     pendingImageBytes = other.pendingImageBytes;

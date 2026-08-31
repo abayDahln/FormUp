@@ -2,23 +2,28 @@ import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 
 /// Bangun payload JSON untuk menyimpan daftar draf soal.
+/// Sesuai endpoint PUT /forms/{id}/questions — field `points` & `correctAnswer`/`isCorrect`
+/// hanya dikirim bila soal dinilai (isScorable), mirip web FormBuilder.jsx.
 List<Map<String, dynamic>> buildQuestionsPayload(List<QuestionDraft> questions) {
   return [
-    for (final q in questions)
+    for (var i = 0; i < questions.length; i++)
       {
-        if (q.id != null) 'id': q.id,
-        'typeId': q.typeId,
-        'question': encodeRichText(q.question),
-        'isRequired': q.isRequired,
-        'randomizeOptions': q.randomizeOptions,
-        if (q.correctAnswer.text.trim().isNotEmpty)
-          'correctAnswer': q.correctAnswer.text.trim(),
-        if (q.hasOptions)
+        if (questions[i].id != null) 'id': questions[i].id,
+        'typeId': questions[i].typeId,
+        'question': encodeRichText(questions[i].question),
+        'questionOrder': i + 1,
+        'isRequired': questions[i].isRequired,
+        'randomizeOptions': questions[i].randomizeOptions,
+        'points': questions[i].isScorable ? questions[i].points : null,
+        if (questions[i].isScorable &&
+            questions[i].correctAnswer.text.trim().isNotEmpty)
+          'correctAnswer': questions[i].correctAnswer.text.trim(),
+        if (questions[i].hasOptions)
           'options': [
-            for (final o in q.options)
+            for (final o in questions[i].options)
               {
                 'optionText': o.text.document.toPlainText().trim(),
-                'isCorrect': o.isCorrect,
+                'isCorrect': questions[i].isScorable ? o.isCorrect : false,
               },
           ],
       },
