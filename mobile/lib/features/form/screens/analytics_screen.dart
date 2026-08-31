@@ -264,26 +264,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     ),
                     const SizedBox(height: 12),
                     if (_respondents.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(vertical: 36),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 48),
                         child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.people_outline,
-                                color: Colors.grey, size: 36),
-                            const SizedBox(height: 10),
+                            const Icon(Icons.people_outline, color: Colors.black38, size: 40),
+                            const SizedBox(height: 12),
                             Text(
                               _query.isEmpty
                                   ? 'Belum ada responden'
                                   : 'Tidak ada hasil untuk "${_searchController.text}"',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.black54,
-                              ),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 14, color: Colors.black45),
                             ),
                           ],
                         ),

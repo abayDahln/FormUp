@@ -75,23 +75,18 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
               plain: true,
               child: SafeArea(
                 child: _feedbacks.isEmpty
-                    ? Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(32),
-                          margin: const EdgeInsets.symmetric(horizontal: 20),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 48),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(Icons.feedback_outlined, color: Colors.grey, size: 40),
+                            children: [
+                              Icon(Icons.feedback_outlined, color: Colors.black38, size: 40),
                               SizedBox(height: 12),
                               Text(
                                 'Belum ada umpan balik untuk form ini.',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 13, color: Colors.black54),
+                                style: TextStyle(fontSize: 14, color: Colors.black45),
                               ),
                             ],
                           ),
