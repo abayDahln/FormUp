@@ -70,12 +70,12 @@ class _ActivityItem extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE2F3F2),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF0F4F4),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.description_outlined,
+                Icons.history_outlined,
                 color: Color(0xFF2A9D8F),
                 size: 18,
               ),

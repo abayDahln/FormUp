@@ -254,9 +254,9 @@ class FormRunnerViewState extends State<FormRunnerView> {
   }
 
   /// Submit jawaban. Mengembalikan true bila berhasil, false bila gagal/validasi.
-  Future<bool> _submit() async {
-    return _submitInternal(returnToStartScreen: false);
-  }
+  // Future<bool> _submit() async {
+  //   return _submitInternal(returnToStartScreen: false);
+  // }
 
   Future<bool> _submitInternal({
     required bool returnToStartScreen,

@@ -72,12 +72,12 @@ class ResponseHistoryTile extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(11),
                       decoration: BoxDecoration(
-                        color: kPrimarySoft,
+                        color: const Color(0xFFF0F4F4),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
-                        Icons.description_outlined,
-                        color: kAuthPrimary,
+                        Icons.history_outlined,
+                        color: Color(0xFF2A9D8F),
                         size: 22,
                       ),
                     ),

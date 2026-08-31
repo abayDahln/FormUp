@@ -50,7 +50,7 @@ class ResponseAnalyticsTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
-                    Icons.bar_chart,
+                    Icons.groups_outlined,
                     color: kAuthPrimary,
                     size: 22,
                   ),
