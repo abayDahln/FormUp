@@ -177,7 +177,7 @@ public class PublicFormsController : ControllerBase
             .Include(r => r.RespondentAnswers)
                 .ThenInclude(a => a.Option)
             .Where(r => r.FormId == form.Id && r.RespondentId == userId)
-            .OrderByDescending(r => r.SubmittedAt)
+            .OrderBy(r => r.SubmittedAt)
             .ToListAsync();
 
         var questions = await _db.Questions
