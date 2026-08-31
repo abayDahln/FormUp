@@ -12,6 +12,7 @@ class RunnerQuestionCard extends StatelessWidget {
   final GlobalKey cardKey;
   final int index;
   final PublicQuestion question;
+  final double zoom;
   final bool hasError;
   final TextEditingController? essayController;
   final FocusNode? essayFocusNode;
@@ -31,6 +32,7 @@ class RunnerQuestionCard extends StatelessWidget {
     required this.index,
     required this.question,
     required this.hasError,
+    this.zoom = 1.0,
     required this.essayController,
     required this.essayFocusNode,
     required this.singleValue,
@@ -47,6 +49,7 @@ class RunnerQuestionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final q = question;
+    double zs(double v) => (v * zoom).clamp(10, 48).toDouble();
     return Container(
       key: cardKey,
       padding: const EdgeInsets.all(18),
@@ -69,8 +72,8 @@ class RunnerQuestionCard extends StatelessWidget {
               children: [
                 Text(
                   '${index + 1}. ',
-                  style: const TextStyle(
-                    fontSize: 15,
+                  style: TextStyle(
+                    fontSize: zs(15),
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
                     color: Colors.black87,
@@ -80,8 +83,9 @@ class RunnerQuestionCard extends StatelessWidget {
                 Expanded(
                   child: RichTextView(
                     text: q.question,
-                    style: const TextStyle(
-                      fontSize: 15,
+                    zoom: zoom,
+                    style: TextStyle(
+                      fontSize: zs(15),
                       fontFamily: kFontBold,
                       color: Colors.black87,
                       height: 1.4,
@@ -108,6 +112,7 @@ class RunnerQuestionCard extends StatelessWidget {
           ],
           const SizedBox(height: 12),
           AnswerFields(
+            zoom: zoom,
             typeId: q.typeId,
             options: [
               for (final o in q.options) AnswerOption(o.id, o.optionText),

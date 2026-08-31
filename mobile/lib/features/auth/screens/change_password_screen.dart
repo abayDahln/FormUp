@@ -69,101 +69,100 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: kAppBg,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        shape: const Border(
+          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => AppRouter.of(context).pop(),
+        ),
+        title: const Text(
+          "Ubah Kata Sandi",
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: Colors.black87,
+          ),
+        ),
+      ),
       body: AbsorbPointer(
         absorbing: _loading,
         child: AuthBackground(
+          plain: true,
           child: SafeArea(
-            child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AuthCard(
+                    padding: const EdgeInsets.all(24),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         AuthCard(
-                           child: Column(
-                             crossAxisAlignment: CrossAxisAlignment.stretch,
-                             children: [
-                               const AuthTitle(
-                                 title: "Ubah Kata Sandi",
-                                 subtitle: "Masukkan kata sandi saat ini dan kata sandi baru Anda.",
-                               ),
-                               const SizedBox(height: 24),
-                               AuthTextField(
-                                controller: _currentController,
-                                hint: "Kata Sandi Saat Ini",
-                                label: "Kata Sandi Saat Ini",
-                                icon: Icons.lock_outline,
-                                obscure: true,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          "Masukkan kata sandi saat ini dan kata sandi baru Anda.",
+                          style: TextStyle(fontSize: 13, color: Colors.black54),
+                        ),
+                        const SizedBox(height: 20),
+                        AuthTextField(
+                          controller: _currentController,
+                          hint: "Kata Sandi Saat Ini",
+                          label: "Kata Sandi Saat Ini",
+                          icon: Icons.lock_outline,
+                          obscure: true,
+                        ),
+                        const SizedBox(height: 14),
+                        AuthTextField(
+                          controller: _newController,
+                          hint: "Kata Sandi Baru",
+                          label: "Kata Sandi Baru",
+                          icon: Icons.lock_reset,
+                          obscure: true,
+                        ),
+                        const SizedBox(height: 14),
+                        AuthTextField(
+                          controller: _confirmController,
+                          hint: "Konfirmasi Kata Sandi Baru",
+                          label: "Konfirmasi Kata Sandi Baru",
+                          icon: Icons.lock_outline,
+                          obscure: true,
+                        ),
+                        const SizedBox(height: 14),
+                        const Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 16, color: kAuthHint),
+                            SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                "Kata sandi baru minimal 8 karakter, kombinasi huruf dan angka.",
+                                style: TextStyle(color: kAuthHint, fontSize: 12),
                               ),
-                              const SizedBox(height: 17),
-                              AuthTextField(
-                                controller: _newController,
-                                hint: "Kata Sandi Baru",
-                                label: "Kata Sandi Baru",
-                                icon: Icons.lock_reset,
-                                obscure: true,
-                              ),
-                              const SizedBox(height: 17),
-                              AuthTextField(
-                                controller: _confirmController,
-                                hint: "Konfirmasi Kata Sandi Baru",
-                                label: "Konfirmasi Kata Sandi Baru",
-                                icon: Icons.lock_outline,
-                                obscure: true,
-                              ),
-                              const SizedBox(height: 14),
-                              const Row(
-                                children: [
-                                  Icon(
-                                    Icons.info_outline,
-                                    size: 16,
-                                    color: kAuthHint,
-                                  ),
-                                  SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      "Kata sandi baru minimal 8 karakter, kombinasi huruf dan angka.",
-                                      style: TextStyle(
-                                        color: kAuthHint,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              AuthPrimaryButton(
-                                label: "Simpan",
-                                pill: true,
-                                loading: _loading,
-                                onPressed: _save,
-                              ),
-                              const SizedBox(height: 20),
-                              AuthInlineLink(
-                                link: "Kembali ke Profil",
-                                onTap: () => AppRouter.of(context).pop(),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                ),
-              );
-            },
+                  const SizedBox(height: 16),
+                  AuthPrimaryButton(
+                    label: _loading ? "Menyimpan..." : "Simpan",
+                    pill: true,
+                    loading: _loading,
+                    onPressed: _save,
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
-      ),
       ),
     );
   }
 }
-
-

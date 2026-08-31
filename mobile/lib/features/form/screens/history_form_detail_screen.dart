@@ -7,6 +7,7 @@ import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
+import 'package:form_up/features/form_runner/controllers/runner_answer_store.dart';
 
 /// Detail riwayat satu form: info lengkap form + daftar attempt pengerjaan
 class HistoryFormDetailScreen extends StatefulWidget {
@@ -46,6 +47,11 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
         info = await PublicFormService.getFormInfo(widget.formLink);
       } catch (_) {}
       if (!mounted) return;
+      attempts.sort((a, b) {
+        final da = a.submittedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final db = b.submittedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return da.compareTo(db);
+      });
       setState(() {
         _info = info;
         _attempts = attempts;
@@ -187,12 +193,13 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
                 _infoRow(Icons.category_outlined, _formTypeLabel()),
                 if (_info?.timerDuration != null)
                   _infoRow(Icons.timer_outlined,
-                      "${_info!.timerDuration} menit"),
-                _infoRow(Icons.login_outlined,
-                    _formatDateTime(_info?.openFormTime) ?? "Langsung terbuka"),
-                _infoRow(Icons.logout_outlined,
-                    _formatDateTime(_info?.closeFormTime) ??
-                        "Tidak ada batas tutup"),
+                      formatRunnerDuration(_info!.timerDuration!)),
+                if (_info?.openFormTime != null)
+                  _infoRow(Icons.login_outlined,
+                      _formatDateTime(_info!.openFormTime)!),
+                if (_info?.closeFormTime != null)
+                  _infoRow(Icons.logout_outlined,
+                      _formatDateTime(_info!.closeFormTime)!),
                 if (_info?.showScore == true)
                   _infoRow(
                       Icons.leaderboard_outlined, "Menampilkan nilai"),

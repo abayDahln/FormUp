@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/answer_fields.dart';
+import 'package:form_up/core/utils/form_zoom.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/features/form/widgets/form_zoom_controls.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/router/app_router.dart';
 
@@ -135,34 +137,42 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
             color: Colors.black87,
           ),
         ),
+        actions: const [
+          Padding(padding: EdgeInsets.only(right: 8), child: Center(child: FormZoomControls())),
+        ],
       ),
       body: _loading
           ? const AppLoadingOverlay()
-          : AuthBackground(plain: true,
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: ListView(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                        children: [
-                          _buildHeader(),
-                          const SizedBox(height: 16),
-                          for (var i = 0; i < _questions.length; i++) ...[
-                            _buildQuestionCard(i),
-                            const SizedBox(height: 12),
+          : ValueListenableBuilder<double>(
+              valueListenable: formZoom,
+              builder: (context, zoom, _) => AuthBackground(
+                plain: true,
+                child: SafeArea(
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                          children: [
+                            _buildHeader(zoom),
+                            const SizedBox(height: 16),
+                            for (var i = 0; i < _questions.length; i++) ...[
+                              _buildQuestionCard(i, zoom),
+                              const SizedBox(height: 12),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader([double zoom = 1.0]) {
+    double zs(double v) => (v * zoom).clamp(10, 48).toDouble();
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -175,8 +185,9 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
         children: [
           RichTextView(
             text: _title,
-            style: const TextStyle(
-              fontSize: 18,
+            zoom: zoom,
+            style: TextStyle(
+              fontSize: zs(18),
               fontWeight: FontWeight.bold,
               fontFamily: kFontBold,
               color: Colors.black87,
@@ -186,20 +197,22 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
             const SizedBox(height: 6),
             RichTextView(
               text: _description,
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
+              zoom: zoom,
+              style: TextStyle(fontSize: zs(12), color: Colors.black54),
             ),
           ],
           const SizedBox(height: 8),
           Text(
             "${_questions.length} pertanyaan · ${_questions.where((q) => q.isRequired == true).length} wajib dijawab",
-            style: const TextStyle(fontSize: 12, color: Colors.black54),
+            style: TextStyle(fontSize: zs(12), color: Colors.black54),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildQuestionCard(int index) {
+  Widget _buildQuestionCard(int index, [double zoom = 1.0]) {
+    double zs(double v) => (v * zoom).clamp(10, 48).toDouble();
     final q = _questions[index];
     return Container(
       padding: const EdgeInsets.all(16),
@@ -237,8 +250,9 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
               Expanded(
                 child: RichTextView(
                   text: q.question,
-                  style: const TextStyle(
-                    fontSize: 14,
+                  zoom: zoom,
+                  style: TextStyle(
+                    fontSize: zs(14),
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
                     color: Colors.black87,
@@ -254,6 +268,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
           ),
           const SizedBox(height: 12),
           AnswerFields(
+            zoom: zoom,
             typeId: q.typeId,
             options: [
               for (final o in q.options)

@@ -110,12 +110,12 @@ class FormRunnerViewState extends State<FormRunnerView> {
   }
 
   /// Konfirmasi keluar dari form.
-  /// Mengembalikan true bila boleh keluar (sudah kirim & keluar), false bila batal.
+  /// Keluar = langsung keluar tanpa submit (tidak tercatat), Batal = tetap di form.
   Future<bool> _confirmExit() async {
-    // Hanya intercept saat sedang mengerjakan (fill step)
     if (_step != _RunnerStep.fill) return true;
     if (!mounted) return true;
-    return showRunnerExitDialog(context, _submit);
+    final action = await showRunnerExitDialog(context);
+    return action == RunnerExitAction.exitWithoutSubmit;
   }
 
   /// Panggil saat timer form habis (dari countdown di AppBar).
@@ -342,6 +342,7 @@ class FormRunnerViewState extends State<FormRunnerView> {
           onSubmit: _submitWithConfirmation,
           onNext: _next,
           onPrevious: () => setState(() => _c.currentQuestion--),
+          onJumpTo: (idx) => setState(() => _c.currentQuestion = idx),
           onAnswerChanged: (qid) =>
               setState(() => _errorQuestionIds.remove(qid)),
           onPickDateTime: _pickDateTime,
@@ -349,13 +350,8 @@ class FormRunnerViewState extends State<FormRunnerView> {
     };
   }
 
-  /// Lanjut soal berikutnya (multi-page)
+  /// Lanjut soal berikutnya (multi-page) - bebas pindah, validasi hanya saat submit
   void _next() {
-    final q = _c.questions[_c.currentQuestion];
-    if (q.isRequired == true && !_c.store.isAnswered(q)) {
-      showAuthToast(context, "Pertanyaan wajib belum dijawab", isError: true);
-      return;
-    }
     setState(() => _c.currentQuestion++);
   }
 

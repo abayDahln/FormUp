@@ -12,8 +12,10 @@ import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/theme.dart';
+import 'package:form_up/core/utils/form_zoom.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/router/app_router.dart';
+import 'package:form_up/features/form/widgets/form_zoom_controls.dart';
 import 'package:form_up/features/form/controllers/question_payload_builder.dart';
 import 'package:form_up/features/form/controllers/question_validation.dart';
 import 'package:form_up/features/form/widgets/question_confirm_dialogs.dart';
@@ -754,6 +756,10 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
           },
         ),
         actions: [
+          const Padding(
+            padding: EdgeInsets.only(right: 4),
+            child: Center(child: FormZoomControls()),
+          ),
           // Tombol simpan di header, di samping menu
           Padding(
             padding: const EdgeInsets.only(right: 2),
@@ -872,25 +878,27 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                                     ),
                                   ),
                               itemBuilder: (context, i) =>
-                                  ReorderableDelayedDragStartListener (
-                                    key: ValueKey(_questions[i]),
-                                    index: i,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 12,
-                                      ),
-                                      child: QuestionListCard(
-                                        index: i,
-                                        totalCount: _questions.length,
-                                        question: _questions[i],
-                                        onEdit: () =>
-                                            _openEditor(_questions[i]),
-                                        onMoveUp: () => _moveQuestion(i, -1),
-                                        onMoveDown: () => _moveQuestion(i, 1),
-                                        onDelete: () => setState(() {
-                                          _questions[i].dispose();
-                                          _questions.removeAt(i);
-                                        }),
+                                  ValueListenableBuilder<double>(
+                                    valueListenable: formZoom,
+                                    builder: (context, zoom, _) =>
+                                        ReorderableDelayedDragStartListener(
+                                      key: ValueKey(_questions[i]),
+                                      index: i,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(bottom: 12),
+                                        child: QuestionListCard(
+                                          index: i,
+                                          totalCount: _questions.length,
+                                          question: _questions[i],
+                                          zoom: zoom,
+                                          onEdit: () => _openEditor(_questions[i]),
+                                          onMoveUp: () => _moveQuestion(i, -1),
+                                          onMoveDown: () => _moveQuestion(i, 1),
+                                          onDelete: () => setState(() {
+                                            _questions[i].dispose();
+                                            _questions.removeAt(i);
+                                          }),
+                                        ),
                                       ),
                                     ),
                                   ),

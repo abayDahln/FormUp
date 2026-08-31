@@ -12,6 +12,7 @@ class QuestionListCard extends StatelessWidget {
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
   final VoidCallback onDelete;
+  final double zoom;
 
   const QuestionListCard({
     super.key,
@@ -22,7 +23,9 @@ class QuestionListCard extends StatelessWidget {
     required this.onMoveUp,
     required this.onMoveDown,
     required this.onDelete,
+    this.zoom = 1.0,
   });
+  double _zs(double v) => (v * zoom).clamp(10, 48).toDouble();
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +71,7 @@ class QuestionListCard extends StatelessWidget {
                     children: [
                       Text(
                         questionTypes[q.typeId]?.$1 ?? '',
-                        style: const TextStyle(fontSize: 13, color: Colors.black87),
+                        style: TextStyle(fontSize: _zs(13), color: Colors.black87),
                       ),
                       if (q.isScorable) ...[
                         const SizedBox(width: 6),
@@ -78,10 +81,10 @@ class QuestionListCard extends StatelessWidget {
                             color: kAuthPrimary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Text(
-                            q.points != null ? '${q.points} poin' : 'Dinilai',
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: kAuthPrimary),
-                          ),
+                            child: Text(
+                             q.points != null ? '${q.points} poin' : 'Dinilai',
+                             style: TextStyle(fontSize: _zs(10), fontWeight: FontWeight.bold, color: kAuthPrimary),
+                           ),
                         ),
                       ] else
                         Container(
@@ -91,7 +94,7 @@ class QuestionListCard extends StatelessWidget {
                             color: Colors.black12,
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text('Tidak dinilai', style: TextStyle(fontSize: 10, color: Colors.black54)),
+                          child: Text('Tidak dinilai', style: TextStyle(fontSize: _zs(10), color: Colors.black54)),
                         ),
                     ],
                   ),
@@ -128,10 +131,10 @@ class QuestionListCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             if (plainText.isEmpty)
-              const Text(
+              Text(
                 'Belum ada teks pertanyaan.',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: _zs(12),
                   color: Colors.black45,
                   fontStyle: FontStyle.italic,
                 ),
@@ -139,9 +142,10 @@ class QuestionListCard extends StatelessWidget {
             else
               RichTextView(
                 text: encodeRichText(q.question),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, color: Colors.black87),
+                zoom: zoom,
+                maxLines: zoom > 1.15 ? null : 2,
+                overflow: zoom > 1.15 ? null : TextOverflow.ellipsis,
+                style: TextStyle(fontSize: _zs(13), color: Colors.black87),
               ),
           ],
         ),

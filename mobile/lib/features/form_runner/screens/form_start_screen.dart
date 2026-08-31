@@ -270,57 +270,33 @@ class _FormStartScreenState extends State<FormStartScreen> {
             ),
           ],
 
+          const SizedBox(height: 24),
+
           if (_myAttempts.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE3F4E8),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_outline,
-                        size: 18,
-                        color: Color(0xFF2E7D32),
-                      ),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          "Anda sudah selesai mengerjakan form ini.",
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF2E7D32),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  AuthPrimaryButton(
-                    label: "Lihat Respon",
-                    onPressed: _openResponseHistory,
-                  ),
-                ],
-              ),
+            const Text(
+              "Anda sudah menyelesaikan form ini.",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Colors.black54),
             ),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: _openResponseHistory,
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: kAuthPrimary),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: const Text("Lihat Respon", style: TextStyle(color: kAuthPrimary, fontWeight: FontWeight.bold, fontFamily: kFontBold)),
+            ),
+            const SizedBox(height: 12),
           ],
 
-          if (!(info.oneResponse && _myAttempts.isNotEmpty)) ...[
-            const SizedBox(height: 24),
-
-            // Tombol Mulai
-            AuthPrimaryButton(
-              label: "Mulai Mengerjakan",
-              loading: _validatingToken,
-              onPressed: _validatingToken ? null : _startForm,
-            ),
-          ],
+          // Tombol Mulai / Kerjakan Ulang
+          AuthPrimaryButton(
+            label: _myAttempts.isNotEmpty ? "Kerjakan Ulang" : "Mulai Mengerjakan",
+            loading: _validatingToken,
+            onPressed: _validatingToken ? null : _startForm,
+          ),
         ],
       ),
     );

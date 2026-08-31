@@ -295,7 +295,7 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
                             ],
                           ),
                           const SizedBox(height: 10),
-                          Text('Kode form: ${_form!.formLink}',
+                          Text('Kode Form: ${_form!.formLink}',
                               style: const TextStyle(
                                   fontSize: 12, color: Colors.black54)),
                           Text(

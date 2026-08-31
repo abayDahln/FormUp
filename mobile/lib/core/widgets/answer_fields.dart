@@ -25,6 +25,7 @@ class AnswerFields extends StatelessWidget {
   final ValueChanged<String?>? onTfChanged;
   final VoidCallback? onPickDateTime;
 
+  final double zoom;
   const AnswerFields({
     super.key,
     required this.typeId,
@@ -40,7 +41,9 @@ class AnswerFields extends StatelessWidget {
     this.onMultiChanged,
     this.onTfChanged,
     this.onPickDateTime,
+    this.zoom = 1.0,
   });
+  double _zs(double v) => (v * zoom).clamp(10, 48).toDouble();
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +54,7 @@ class AnswerFields extends StatelessWidget {
           focusNode: essayFocusNode,
           maxLines: 3,
           onChanged: onEssayChanged,
+          style: TextStyle(fontSize: _zs(14)),
           decoration: _decoration("Tulis jawaban Anda..."),
         );
       case 2: // Multiple Choice
@@ -141,7 +145,7 @@ class AnswerFields extends StatelessWidget {
                   child: Text(
                     dateLabel ?? "Pilih tanggal & waktu",
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: _zs(14),
                       color: dateLabel == null ? Colors.black45 : Colors.black87,
                     ),
                   ),
@@ -192,7 +196,7 @@ class AnswerFields extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 14,
+            fontSize: _zs(14),
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
             color: selected ? kAuthPrimary : Colors.black54,
@@ -237,8 +241,8 @@ class AnswerFields extends StatelessWidget {
               padding: const EdgeInsets.only(top: 7),
               child: Text(
                 '$letter. ',
-                style: const TextStyle(
-                  fontSize: 14,
+                style: TextStyle(
+                  fontSize: _zs(14),
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
                   color: Colors.black87,
@@ -251,8 +255,9 @@ class AnswerFields extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 7),
                 child: RichTextView(
                   text: text,
-                  style: const TextStyle(
-                    fontSize: 14,
+                  zoom: zoom,
+                  style: TextStyle(
+                    fontSize: _zs(14),
                     color: Colors.black87,
                     height: 1.3,
                   ),

@@ -61,18 +61,18 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
     showAppToast(context, message, type: ToastType.error, title: 'Gagal');
   }
 
-  Future<void> _rescan() async {
-    setState(() {
-      _errorMessage = null;
-      _isProcessing = false;
-    });
-    try {
-      await _controller.start();
-    } catch (_) {
-      if (!mounted) return;
-      _showErrorToast('Tidak dapat mengaktifkan kamera. Periksa izin kamera.');
-    }
-  }
+  // Future<void> _rescan() async {
+  //   setState(() {
+  //     _errorMessage = null;
+  //     _isProcessing = false;
+  //   });
+  //   try {
+  //     await _controller.start();
+  //   } catch (_) {
+  //     if (!mounted) return;
+  //     _showErrorToast('Tidak dapat mengaktifkan kamera. Periksa izin kamera.');
+  //   }
+  // }
 
   void _onDetect(BarcodeCapture capture) async {
     if (_isProcessing || _errorMessage != null) return;

@@ -105,7 +105,7 @@ class FormDetailHeader extends StatelessWidget {
           _InfoRow(Icons.calendar_today_outlined,
               'Dibuat: ${_formatDate(form.createdAt ?? form.updatedAt)}'),
           const SizedBox(height: 4),
-          _InfoRow(Icons.link, 'Kode form: ${form.formLink}'),
+          _InfoRow(Icons.link, 'Kode Form: ${form.formLink}'),
         ],
       ),
     );

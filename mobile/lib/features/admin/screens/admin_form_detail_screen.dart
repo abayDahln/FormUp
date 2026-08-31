@@ -3,6 +3,7 @@ import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/services/admin_service.dart';
+import 'package:form_up/features/form_runner/controllers/runner_answer_store.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/models/question_draft.dart';
@@ -303,7 +304,8 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen> {
           type == 2 ? 'Ujian' : 'Formulir');
     }
     if (settings['timerDuration'] != null) {
-      add(Icons.timer_outlined, 'Timer', '${settings['timerDuration']} menit');
+      final sec = settings['timerDuration'] is int ? settings['timerDuration'] as int : int.tryParse('${settings['timerDuration']}') ?? 0;
+      add(Icons.timer_outlined, 'Timer', formatRunnerDuration(sec));
     }
     if (settings['showScore'] is bool) {
       add(Icons.leaderboard_outlined, 'Tampilkan Nilai',

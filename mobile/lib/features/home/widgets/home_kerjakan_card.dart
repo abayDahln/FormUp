@@ -51,7 +51,7 @@ class HomeKerjakanCard extends StatelessWidget {
             style: const TextStyle(color: Colors.black87, fontSize: 14),
             cursorColor: kAuthPrimary,
             decoration: formUpInputDecoration(
-              labelText: "Kode form",
+              labelText: "Kode Form",
               hintText: "Kode",
               prefixIcon: const Icon(Icons.link, size: 20),
               suffixIcon: IconButton(

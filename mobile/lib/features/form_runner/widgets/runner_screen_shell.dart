@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/features/form_runner/widgets/countdown_badge.dart';
+import 'package:form_up/features/form/widgets/form_zoom_controls.dart';
 
 /// Shell layar kerjakan form: AppBar dengan countdown timer + background.
 class RunnerScreenShell extends StatelessWidget {
@@ -32,16 +33,11 @@ class RunnerScreenShell extends StatelessWidget {
           // Lewat popRoute agar back guard (dialog keluar form) tetap jalan.
           onPressed: () => AppRouter.of(context).popRoute(),
         ),
-        title: const Text(
-          "Kerjakan Form",
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            fontFamily: kFontBold,
-            color: Colors.black87,
-          ),
-        ),
         actions: [
+          const Padding(
+            padding: EdgeInsets.only(right: 4),
+            child: Center(child: FormZoomControls()),
+          ),
           if (timerSeconds != null && timerSeconds! > 0)
             Padding(
               padding: const EdgeInsets.only(right: 16),

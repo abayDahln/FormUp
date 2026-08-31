@@ -308,6 +308,7 @@ class PublicFormService {
   }
 
   /// GET .../my-responses — semua attempt user pada satu form
+  /// Diurutkan terlama -> terbaru agar Percobaan #1 = paling lama
   static Future<List<MyAttempt>> getMyAttempts(String formLink) async {
     return ApiCache.get(
       'publicForms:attempts:$_scope:$formLink',
@@ -316,10 +317,16 @@ class PublicFormService {
         final json = await AuthService.get(
           '/public/forms/$formLink/my-responses',
         );
-        return [
+        final list = [
           for (final a in json['data'] as List<dynamic>? ?? [])
             MyAttempt.fromJson(a as Map<String, dynamic>),
         ];
+        list.sort((a, b) {
+          final da = a.submittedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final db = b.submittedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return da.compareTo(db);
+        });
+        return list;
       },
     );
   }

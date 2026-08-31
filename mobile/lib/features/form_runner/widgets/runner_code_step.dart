@@ -50,7 +50,7 @@ class RunnerCodeStep extends StatelessWidget {
               children: [
                 AuthTextField(
                   controller: codeController,
-                  hint: "Kode form",
+                  hint: "Kode Form",
                   icon: Icons.link,
                 ),
                 if (info != null) ...[

@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 
+enum RunnerExitAction { stay, exitWithoutSubmit }
+
 /// Dialog konfirmasi keluar dari form.
-/// [onSubmitAndExit] dipanggil saat user memilih "Kirim dan Keluar";
-/// hasilnya (berhasil/kirim) menjadi nilai balik dialog.
-Future<bool> showRunnerExitDialog(
-  BuildContext context,
-  Future<bool> Function() onSubmitAndExit,
-) async {
-  final exit = await showDialog<bool>(
+/// Keluar = langsung keluar tanpa submit, tidak tercatat sebagai responden.
+Future<RunnerExitAction> showRunnerExitDialog(BuildContext context) async {
+  final action = await showDialog<RunnerExitAction>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) => AlertDialog(
@@ -22,31 +20,25 @@ Future<bool> showRunnerExitDialog(
         ),
       ),
       content: const Text(
-        "Apakah Anda yakin ingin keluar? Jawaban Anda akan dikumpulkan.",
+        "Jawaban yang belum dikirim tidak akan tersimpan dan tidak tercatat sebagai pengerjaan.",
         style: TextStyle(fontSize: 14, color: Colors.black54),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: const Text("Batalkan",
-              style: TextStyle(color: Colors.black54)),
+          onPressed: () => Navigator.pop(ctx, RunnerExitAction.stay),
+          child: const Text("Batal", style: TextStyle(color: Colors.black54)),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: kAuthPrimary,
+            backgroundColor: const Color(0xFFC0392B),
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
-          onPressed: () async {
-            final ok = await onSubmitAndExit();
-            if (ctx.mounted) Navigator.pop(ctx, ok);
-          },
-          child: const Text("Kirim dan Keluar"),
+          onPressed: () => Navigator.pop(ctx, RunnerExitAction.exitWithoutSubmit),
+          child: const Text("Keluar"),
         ),
       ],
     ),
   );
-  return exit ?? false;
+  return action ?? RunnerExitAction.stay;
 }

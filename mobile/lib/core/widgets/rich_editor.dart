@@ -1479,6 +1479,7 @@ class RichTextView extends StatelessWidget {
   final int? maxLines;
   final TextOverflow? overflow;
   final bool ignoreInlineFontSize;
+  final double zoom;
 
   const RichTextView({
     super.key,
@@ -1489,7 +1490,11 @@ class RichTextView extends StatelessWidget {
     this.maxLines,
     this.overflow,
     this.ignoreInlineFontSize = false,
+    this.zoom = 1.0,
   });
+
+  TextStyle? get _scaledStyle =>
+      style == null ? null : style!.copyWith(fontSize: (style!.fontSize ?? 14) * zoom);
 
   @override
   Widget build(BuildContext context) {
@@ -1504,10 +1509,10 @@ class RichTextView extends StatelessWidget {
     if (isPlainSingle) {
       return Text.rich(
         TextSpan(
-          style: style,
+          style: _scaledStyle,
           children: [
-            if (prefix.isNotEmpty) TextSpan(text: prefix),
-            ...blocks.first.spans,
+            if (prefix.isNotEmpty) TextSpan(text: prefix, style: _scaledStyle),
+            ..._scaledSpans(blocks.first.spans),
           ],
         ),
         textAlign: blocks.first.align ?? textAlign,
@@ -1525,6 +1530,28 @@ class RichTextView extends StatelessWidget {
 
   bool _hasMathOrCode(_RichBlock b) =>
       b.spans.any((s) => s is WidgetSpan) || b.plain.trim().startsWith('```');
+
+  List<InlineSpan> _scaledSpans(List<InlineSpan> spans) {
+    if (zoom == 1.0) return spans;
+    return [
+      for (final s in spans)
+        if (s is TextSpan)
+          TextSpan(
+            text: s.text,
+            style: s.style == null
+                ? _scaledStyle
+                : s.style!.copyWith(fontSize: (s.style!.fontSize ?? _scaledStyle?.fontSize ?? 14) * zoom),
+            children: s.children == null ? null : _scaledSpans(s.children!.cast<InlineSpan>()),
+          )
+        else if (s is WidgetSpan)
+          WidgetSpan(
+            alignment: s.alignment,
+            child: Transform.scale(scale: zoom, alignment: Alignment.centerLeft, child: s.child),
+          )
+        else
+          s,
+    ];
+  }
 
   List<Widget> _blocksToWidgets(List<_RichBlock> blocks) {
     final widgets = <Widget>[];
@@ -1564,7 +1591,7 @@ class RichTextView extends StatelessWidget {
 
       if (t.startsWith('```')) {
         widgets.add(Text.rich(
-          TextSpan(style: style, children: b.spans),
+          TextSpan(style: _scaledStyle, children: _scaledSpans(b.spans)),
         ));
         i++;
         continue;
@@ -1576,7 +1603,7 @@ class RichTextView extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: _mathWidget(math.group(1)!.trim(), display: true, style: style),
+            child: _mathWidget(math.group(1)!.trim(), display: true, style: _scaledStyle),
           ),
         ));
         i++;
@@ -1585,10 +1612,10 @@ class RichTextView extends StatelessWidget {
 
       widgets.add(Text.rich(
         TextSpan(
-          style: style,
+          style: _scaledStyle,
           children: [
-            if (first && prefix.isNotEmpty) TextSpan(text: prefix),
-            ...b.spans,
+            if (first && prefix.isNotEmpty) TextSpan(text: prefix, style: _scaledStyle),
+            ..._scaledSpans(b.spans),
           ],
         ),
         textAlign: b.align ?? textAlign,
