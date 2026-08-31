@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:form_up/core/widgets/app_toast.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -57,34 +58,10 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
   void _showErrorToast(String message) {
     _controller.stop();
     setState(() => _errorMessage = message);
-
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.error_outline, color: Colors.white),
-            const SizedBox(width: 12),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.red.shade800,
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 3),
-        action: SnackBarAction(
-          label: 'Scan Ulang',
-          textColor: Colors.white,
-          onPressed: _rescan,
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    showAppToast(context, message, type: ToastType.error, title: 'Gagal');
   }
 
   Future<void> _rescan() async {
-    ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
     setState(() {
       _errorMessage = null;
       _isProcessing = false;
@@ -125,7 +102,6 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
         return;
       }
 
-      ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
       AppRouter.of(context).replaceTop(
         AppPage.formStart,
         {'formLink': formLink},
@@ -154,8 +130,6 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () {
-            // Kembali ke beranda atau halaman sebelumnya
-            ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
             AppRouter.of(context).pop();
           },
         ),

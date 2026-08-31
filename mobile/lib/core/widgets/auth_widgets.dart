@@ -577,7 +577,8 @@ void showAuthToast(
   BuildContext context,
   String message, {
   bool isError = false,
+  Duration? duration,
 }) {
   showAppToast(context, message,
-      type: isError ? ToastType.error : ToastType.success);
+      type: isError ? ToastType.error : ToastType.success, duration: duration);
 }
