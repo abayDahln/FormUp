@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/router/app_router.dart';
+import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
+import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 
@@ -76,10 +78,46 @@ class FormDetailActions extends StatelessWidget {
               'Bagikan Form',
               () => onShare(form),
             ),
+            _divider(),
+            _ActionTile(
+              Icons.delete_outline,
+              'Hapus Form',
+              () => _confirmDelete(context, form),
+              danger: true,
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, FormData form) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus Form?', style: TextStyle(fontFamily: kFontBold)),
+        content: Text('Form "${richToPlainText(form.title)}" akan dihapus permanen. Lanjutkan?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: kDangerColor),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await FormService.deleteForm(form.id);
+      if (!context.mounted) return;
+      showAuthToast(context, 'Form berhasil dihapus');
+      formsVersion.value++;
+      AppRouter.of(context).pop();
+    } catch (e) {
+      if (!context.mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    }
   }
 }
 
@@ -92,24 +130,28 @@ class _ActionTile extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final bool locked;
+  final bool danger;
 
-  const _ActionTile(this.icon, this.label, this.onTap, {this.locked = false});
+  const _ActionTile(this.icon, this.label, this.onTap, {this.locked = false, this.danger = false});
 
   @override
   Widget build(BuildContext context) {
+    final color = danger ? kDangerColor : kAuthPrimary;
     return ListTile(
       leading: Icon(
         locked ? Icons.lock_outline : icon,
-        color: kAuthPrimary,
+        color: locked ? Colors.black38 : color,
       ),
       title: Text(
         label,
         style: TextStyle(
           fontSize: 14,
-          color: locked ? Colors.black38 : Colors.black87,
+          fontWeight: danger ? FontWeight.bold : FontWeight.normal,
+          fontFamily: danger ? kFontBold : null,
+          color: danger ? kDangerColor : (locked ? Colors.black38 : Colors.black87),
         ),
       ),
-      trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+      trailing: Icon(Icons.chevron_right, size: 18, color: danger ? kDangerColor : Colors.grey),
       onTap: onTap,
     );
   }
