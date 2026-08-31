@@ -53,9 +53,12 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
             ),
           ),
           const SizedBox(height: 16),
-          const ColoredBox(
-            color: Colors.white,
-            child: TabBar(
+          Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(bottom: BorderSide(color: Color(0xCCBDC9C8))),
+            ),
+            child: const TabBar(
               labelColor: kPrimary,
               unselectedLabelColor: Colors.grey,
               indicatorColor: kPrimary,

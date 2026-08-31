@@ -935,14 +935,18 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                   ),
               ],
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addQuestion,
-        backgroundColor: kPrimary,
-        foregroundColor: Colors.white,
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        tooltip: 'Tambah Soal',
-        child: const Icon(Icons.add, size: 24),
+      floatingActionButton: SizedBox(
+        width: 68,
+        height: 68,
+        child: FloatingActionButton(
+          onPressed: _addQuestion,
+          backgroundColor: kPrimary,
+          foregroundColor: Colors.white,
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          tooltip: 'Tambah Soal',
+          child: const Icon(Icons.add, size: 32),
+        ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );

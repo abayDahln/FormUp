@@ -99,51 +99,66 @@ ThemeData buildFormUpTheme() {
       modalBackgroundColor: Colors.white,
     ),
 
-    // Tombol
+    // M3 Buttons — https://m3.material.io/components/buttons/overview
+    // useMaterial3:true sudah aktif, override hanya warna + shape M3 (20dp)
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: kPrimary,
-        foregroundColor: Colors.white,
-        minimumSize: const Size(64, 46),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-        shape: const StadiumBorder(),
+        backgroundColor: Colors.white,
+        foregroundColor: kPrimary,
+        surfaceTintColor: kPrimary,
+        minimumSize: const Size(64, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         textStyle: const TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.bold,
           fontFamily: kFontBold,
+          letterSpacing: 0.1,
+        ),
+        elevation: 1,
+        shadowColor: Colors.black.withValues(alpha: 0.15),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: kPrimary,
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: kPrimary.withValues(alpha: 0.38),
+        disabledForegroundColor: Colors.white.withValues(alpha: 0.38),
+        minimumSize: const Size(64, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        textStyle: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          fontFamily: kFontBold,
+          letterSpacing: 0.1,
         ),
         elevation: 0,
-        shadowColor: kPrimary.withValues(alpha: 0.25),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: kPrimary,
-        side: const BorderSide(color: kPrimary),
-        minimumSize: const Size(64, 42),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-        shape: const StadiumBorder(),
+        side: const BorderSide(color: Color(0xFF79747E)),
+        minimumSize: const Size(64, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         textStyle: const TextStyle(
-          fontSize: 13,
+          fontSize: 14,
           fontWeight: FontWeight.bold,
           fontFamily: kFontBold,
+          letterSpacing: 0.1,
         ),
-        elevation: 0,
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: kPrimary,
-        textStyle: const TextStyle(fontWeight: FontWeight.w600),
-      ),
-    ),
-
-    // Ikon button tonal (mis. navigasi halaman admin)
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        backgroundColor: kPrimarySoft,
-        shape: const StadiumBorder(),
-        elevation: 0,
+        minimumSize: const Size(64, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold),
       ),
     ),
 

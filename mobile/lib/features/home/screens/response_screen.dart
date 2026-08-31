@@ -356,8 +356,11 @@ class _ResponseScreenState extends State<ResponseScreen> {
               ),
             ),
             const SizedBox(height: 14),
-            ColoredBox(
-              color: kAppBg,
+            Container(
+              decoration: const BoxDecoration(
+                color: kAppBg,
+                border: Border(bottom: BorderSide(color: Color(0xCCBDC9C8))),
+              ),
               child: TabBar(
                 labelColor: kPrimary,
                 unselectedLabelColor: Colors.grey,

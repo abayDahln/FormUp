@@ -204,20 +204,25 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        height: 62,
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          if (index == _currentIndex) return;
-          setState(() {
-            _visitedTabs.add(index);
-            _currentIndex = index;
-          });
-        },
-        backgroundColor: Colors.white,
-        indicatorColor: kPrimary.withValues(alpha: 0.15),
-        elevation: 2,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Color(0xCCBDC9C8))),
+        ),
+        child: NavigationBar(
+          height: 62,
+          selectedIndex: _currentIndex,
+          onDestinationSelected: (index) {
+            if (index == _currentIndex) return;
+            setState(() {
+              _visitedTabs.add(index);
+              _currentIndex = index;
+            });
+          },
+          backgroundColor: Colors.white,
+          indicatorColor: kPrimary.withValues(alpha: 0.15),
+          elevation: 0,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
@@ -240,19 +245,24 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Profil',
           ),
         ],
+        ),
       ),
       // FAB tambah form: hanya tampil di tab Form Saya, melayang kanan bawah
       // (endFloat = punya lapisan klik sendiri, tidak menembus widget di belakang)
       floatingActionButton: _currentIndex == 1
-          ? FloatingActionButton(
-              onPressed: () {
-                AppRouter.of(context).push(AppPage.formTemplateChooser);
-              },
-              backgroundColor: kPrimary,
-              foregroundColor: Colors.white,
-              elevation: 3,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: const Icon(Icons.add, size: 24),
+          ? SizedBox(
+              width: 68,
+              height: 68,
+              child: FloatingActionButton(
+                onPressed: () {
+                  AppRouter.of(context).push(AppPage.formTemplateChooser);
+                },
+                backgroundColor: kPrimary,
+                foregroundColor: Colors.white,
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                child: const Icon(Icons.add, size: 32),
+              ),
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,

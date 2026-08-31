@@ -272,7 +272,8 @@ class _AuthTextFieldState extends State<AuthTextField> {
   }
 }
 
-/// Tombol teal (pill atau rx 8) — debounce 300ms otomatis (poin spam-klik).
+/// M3 Filled button (primary) — debounce 300ms otomatis.
+/// pill=true → Stadium (fully rounded) untuk CTA auth, pill=false → M3 20dp.
 class AuthPrimaryButton extends StatelessWidget {
   final String label;
   final bool loading;
@@ -280,7 +281,6 @@ class AuthPrimaryButton extends StatelessWidget {
   final bool showArrow;
   final double? progress;
   final VoidCallback? onPressed;
-  /// Kunci debounce unik; default pakai label (cukup untuk satu tombol per screen).
   final String? debounceKey;
 
   const AuthPrimaryButton({
@@ -305,82 +305,47 @@ class AuthPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final height = pill ? 52.0 : 55.0;
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(pill ? 26 : 8),
-        boxShadow: [
-          BoxShadow(
-            color: kAuthPrimary.withValues(alpha: 0.25),
-            offset: const Offset(0, 4),
-            blurRadius: 7.5,
-          ),
-        ],
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        height: height,
-        child: ElevatedButton(
-          onPressed: _guardedOnPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: kAuthPrimary,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            disabledBackgroundColor: kAuthPrimary.withValues(alpha: 0.7),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(pill ? 26 : 8),
-            ),
-          ),
-          child: loading
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    ),
-                    if (progress != null) ...[
-                      const SizedBox(width: 10),
-                      Text(
-                        "${(progress!.clamp(0.0, 1.0) * 100).round()}%",
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: kFontBold,
-                        ),
-                      ),
-                    ],
+    final shape = pill
+        ? const StadiumBorder()
+        : RoundedRectangleBorder(borderRadius: BorderRadius.circular(20));
+    return SizedBox(
+      width: double.infinity,
+      height: pill ? 52 : 48,
+      child: FilledButton(
+        onPressed: _guardedOnPressed,
+        style: FilledButton.styleFrom(shape: shape),
+        child: loading
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  ),
+                  if (progress != null) ...[
+                    const SizedBox(width: 10),
+                    Text("${(progress!.clamp(0.0, 1.0) * 100).round()}%",
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold)),
                   ],
-                )
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: kFontBold,
-                      ),
-                    ),
-                    if (showArrow) ...[
-                      const SizedBox(width: 8),
-                      const Icon(Icons.arrow_forward_rounded, size: 18),
-                    ],
+                ],
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, letterSpacing: 0.1)),
+                  if (showArrow) ...[
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_forward_rounded, size: 18),
                   ],
-                ),
-        ),
+                ],
+              ),
       ),
     );
   }
 }
 
-/// Pill navigasi antar screen
-/// Baris link inline (pengganti AuthBottomPill saat digabung ke dalam kartu)
+/// M3 TextButton link inline — ganti GestureDetector+Text
 class AuthInlineLink extends StatelessWidget {
   final String? question;
   final String link;
@@ -401,21 +366,15 @@ class AuthInlineLink extends StatelessWidget {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           if (question != null)
-            Text(
-              question!,
-              style: const TextStyle(color: Colors.black54, fontSize: 14),
+            Text(question!, style: const TextStyle(color: Colors.black54, fontSize: 14)),
+          TextButton(
+            onPressed: onTap,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-          GestureDetector(
-            onTap: onTap,
-            child: Text(
-              link,
-              style: const TextStyle(
-                color: kAuthPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                fontFamily: kFontBold,
-              ),
-            ),
+            child: Text(link, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold)),
           ),
         ],
       ),
@@ -423,6 +382,7 @@ class AuthInlineLink extends StatelessWidget {
   }
 }
 
+/// M3 Filled tonal pill — ganti Container+BoxShadow+InkWell
 class AuthBottomPill extends StatelessWidget {
   final String? question;
   final String link;
@@ -437,46 +397,19 @@ class AuthBottomPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.74),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: kBorderColor),
-        boxShadow: softShadow(),
-      ),
-      child: Center(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(28),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                if (question != null)
-                  Text(
-                    question!,
-                    style: const TextStyle(
-                        color: Colors.black54, fontSize: 14),
-                  ),
-                Text(
-                  link,
-                  style: const TextStyle(
-                    color: kAuthPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: kFontBold,
-                    decoration: TextDecoration.underline,
-                    decorationColor: kAuthPrimary,
-                  ),
-                ),
-              ],
-            ),
+    return Center(
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          if (question != null)
+            Text(question!, style: const TextStyle(color: Colors.black54, fontSize: 14)),
+          FilledButton.tonal(
+            onPressed: onTap,
+            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10)),
+            child: Text(link, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold)),
           ),
-        ),
+        ],
       ),
     );
   }
