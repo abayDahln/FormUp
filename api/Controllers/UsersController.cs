@@ -70,7 +70,7 @@ public class UsersController : ControllerBase
             }
         }
 
-        user.UpdatedAt = JakartaTime.Now;
+        user.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Profile updated", MapUserDto(user)));
@@ -93,7 +93,7 @@ public class UsersController : ControllerBase
             return BadRequest(new ApiResponse<object>(400, "Current password is incorrect"));
 
         user.Password = PasswordHelper.Hash(request.NewPassword);
-        user.UpdatedAt = JakartaTime.Now;
+        user.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Password changed successfully"));
@@ -139,7 +139,7 @@ public class UsersController : ControllerBase
         }
 
         user.ProfileImage = $"/profile/{uniqueName}";
-        user.UpdatedAt = JakartaTime.Now;
+        user.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Profile image uploaded", new { profileImage = user.ProfileImage }));

@@ -50,7 +50,7 @@ public class ResponsesController : ControllerBase
                 Id = r.Id,
                 RespondentName = r.Respondent != null ? r.Respondent.Fullname : r.RespondentName,
                 Status = r.Status!.Status,
-                SubmittedAt = r.SubmittedAt ?? r.CreatedAt ?? JakartaTime.Now,
+                SubmittedAt = r.SubmittedAt ?? r.CreatedAt ?? DateTime.UtcNow,
             });
 
         if (page.HasValue && pageSize.HasValue && pageSize > 0)
@@ -105,7 +105,7 @@ public class ResponsesController : ControllerBase
             FormId = response.FormId,
             RespondentName = response.Respondent?.Fullname ?? response.RespondentName,
             Status = response.Status?.Status ?? "unknown",
-            SubmittedAt = response.SubmittedAt ?? response.CreatedAt ?? JakartaTime.Now,
+            SubmittedAt = response.SubmittedAt ?? response.CreatedAt ?? DateTime.UtcNow,
             Answers = response.RespondentAnswers.Select(a => new AnswerDetail
             {
                 QuestionId = a.QuestionId,
@@ -250,7 +250,7 @@ public class ResponsesController : ControllerBase
             return BadRequest(new ApiResponse<object>(400, "Invalid status ID"));
 
         response.StatusId = request.StatusId;
-        response.UpdatedAt = JakartaTime.Now;
+        response.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Status updated"));

@@ -135,8 +135,8 @@ public class FormsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        form.DeletedAt = JakartaTime.Now;
-        form.UpdatedAt = JakartaTime.Now;
+        form.DeletedAt = DateTime.UtcNow;
+        form.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Form deleted"));
@@ -156,7 +156,7 @@ public class FormsController : ControllerBase
             .Where(f => request.FormIds.Contains(f.Id) && f.UserId == user.Id && f.DeletedAt == null)
             .ToListAsync();
 
-        var now = JakartaTime.Now;
+        var now = DateTime.UtcNow;
         foreach (var form in forms)
         {
             form.DeletedAt = now;
@@ -213,7 +213,7 @@ public class FormsController : ControllerBase
             form.FormLink = newLink;
         }
 
-        form.UpdatedAt = JakartaTime.Now;
+        form.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Form updated", MapFormResponse(form)));
@@ -245,7 +245,7 @@ public class FormsController : ControllerBase
             DescriptionFormat = RichTextValidation.FormatOf(request.Description),
             BannerImage = request.BannerImage,
             FormLink = Guid.NewGuid().ToString("N")[..12],
-            CreatedAt = JakartaTime.Now,
+            CreatedAt = DateTime.UtcNow,
         };
 
         _db.Forms.Add(form);
@@ -300,7 +300,7 @@ public class FormsController : ControllerBase
         }
 
         form.BannerImage = $"/banner/{uniqueName}";
-        form.UpdatedAt = JakartaTime.Now;
+        form.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Banner uploaded", new { bannerImage = form.BannerImage }));
@@ -326,7 +326,7 @@ public class FormsController : ControllerBase
             {
                 FormId = form.Id,
                 FormTypeId = 1,
-                CreatedAt = JakartaTime.Now,
+                CreatedAt = DateTime.UtcNow,
             };
             _db.FormSettings.Add(form.FormSetting);
         }
@@ -367,8 +367,8 @@ public class FormsController : ControllerBase
             form.FormSetting.FormTypeId = request.FormTypeId.Value;
         }
 
-        form.FormSetting.UpdatedAt = JakartaTime.Now;
-        form.UpdatedAt = JakartaTime.Now;
+        form.FormSetting.UpdatedAt = DateTime.UtcNow;
+        form.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Settings updated", new FormSettingDto
@@ -405,7 +405,7 @@ public class FormsController : ControllerBase
         if (form.StatusId == publishedStatus.Id)
         {
             form.StatusId = draftStatus.Id;
-            form.UpdatedAt = JakartaTime.Now;
+            form.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
             return Ok(new ApiResponse<object>(200, "Form unpublished"));
         }
@@ -417,7 +417,7 @@ public class FormsController : ControllerBase
                 "Form tidak dapat dipublish karena belum memiliki soal"));
 
         form.StatusId = publishedStatus.Id;
-        form.UpdatedAt = JakartaTime.Now;
+        form.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Form published"));

@@ -115,7 +115,7 @@ public class QuestionsController : ControllerBase
                     IsRequired = item.IsRequired ?? false,
                     CorrectAnswer = item.CorrectAnswer,
                     RandomizeOptions = item.RandomizeOptions ?? false,
-                    CreatedAt = JakartaTime.Now,
+                    CreatedAt = DateTime.UtcNow,
                 };
 
                 _db.Questions.Add(question);
@@ -130,7 +130,7 @@ public class QuestionsController : ControllerBase
                         OptionText = o.OptionText,
                         IsCorrect = o.IsCorrect ?? false,
                         OptionOrder = i + 1,
-                        CreatedAt = JakartaTime.Now,
+                        CreatedAt = DateTime.UtcNow,
                     }).ToList();
 
                     _db.OptionQuestions.AddRange(options);
@@ -222,7 +222,7 @@ public class QuestionsController : ControllerBase
                     question.CorrectAnswer = item.CorrectAnswer;
                     question.RandomizeOptions = item.RandomizeOptions ?? false;
                     question.Points = item.Points;
-                    question.UpdatedAt = JakartaTime.Now;
+                    question.UpdatedAt = DateTime.UtcNow;
                 }
                 else
                 {
@@ -239,7 +239,7 @@ public class QuestionsController : ControllerBase
                         CorrectAnswer = item.CorrectAnswer,
                         RandomizeOptions = item.RandomizeOptions ?? false,
                         Points = item.Points,
-                        CreatedAt = JakartaTime.Now,
+                        CreatedAt = DateTime.UtcNow,
                     };
 
                     _db.Questions.Add(question);
@@ -260,7 +260,7 @@ public class QuestionsController : ControllerBase
                         OptionText = o.OptionText,
                         IsCorrect = o.IsCorrect ?? false,
                         OptionOrder = i + 1,
-                        CreatedAt = JakartaTime.Now,
+                        CreatedAt = DateTime.UtcNow,
                     }).ToList();
 
                     _db.OptionQuestions.AddRange(options);
@@ -283,8 +283,8 @@ public class QuestionsController : ControllerBase
                 await _db.Questions
                     .Where(q => removedIds.Contains(q.Id))
                     .ExecuteUpdateAsync(s => s
-                        .SetProperty(q => q.DeletedAt, JakartaTime.Now)
-                        .SetProperty(q => q.UpdatedAt, JakartaTime.Now));
+                        .SetProperty(q => q.DeletedAt, DateTime.UtcNow)
+                        .SetProperty(q => q.UpdatedAt, DateTime.UtcNow));
             }
 
             // Form published yang kehabisan soal otomatis kembali jadi draft
@@ -337,8 +337,8 @@ public class QuestionsController : ControllerBase
             .Where(o => o.QuestionId == id)
             .ExecuteDeleteAsync();
 
-        question.DeletedAt = JakartaTime.Now;
-        question.UpdatedAt = JakartaTime.Now;
+        question.DeletedAt = DateTime.UtcNow;
+        question.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         // Form published yang kehabisan soal otomatis kembali jadi draft
@@ -560,7 +560,7 @@ public class QuestionsController : ControllerBase
                     IsRequired = row.IsRequired,
                     CorrectAnswer = row.CorrectAnswer,
                     RandomizeOptions = row.RandomizeOptions,
-                    CreatedAt = JakartaTime.Now,
+                    CreatedAt = DateTime.UtcNow,
                 };
 
                 // Simpan gambar hasil ekstraksi dokumen (jika ada)
@@ -604,7 +604,7 @@ public class QuestionsController : ControllerBase
                             OptionText = cleanOpt,
                             OptionOrder = i + 1,
                             IsCorrect = isCorrect,
-                            CreatedAt = JakartaTime.Now,
+                            CreatedAt = DateTime.UtcNow,
                         };
                     }).ToList();
 
@@ -684,7 +684,7 @@ public class QuestionsController : ControllerBase
         }
 
         question.QuestionAudio = $"/questions/audio/{uniqueName}";
-        question.UpdatedAt = JakartaTime.Now;
+        question.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Audio uploaded", new { questionAudio = question.QuestionAudio }));
@@ -746,7 +746,7 @@ public class QuestionsController : ControllerBase
         }
 
         question.QuestionImage = $"/questions/images/{uniqueName}";
-        question.UpdatedAt = JakartaTime.Now;
+        question.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Image uploaded", new { questionImage = question.QuestionImage }));
@@ -799,7 +799,7 @@ public class QuestionsController : ControllerBase
         if (form.StatusId != draftStatus.Id)
         {
             form.StatusId = draftStatus.Id;
-            form.UpdatedAt = JakartaTime.Now;
+            form.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
         }
     }
