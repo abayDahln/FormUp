@@ -29,7 +29,7 @@ class ResponseDetailSheet extends StatelessWidget {
                     children: [
                       Text(
                         (detail.respondentName ?? '').trim().isEmpty
-                            ? 'Detail Respons'
+                            ? 'Detail Respon'
                             : detail.respondentName!,
                         style: const TextStyle(
                           fontSize: 16,

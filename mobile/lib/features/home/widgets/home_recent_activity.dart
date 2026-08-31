@@ -23,7 +23,7 @@ class HomeRecentActivity extends StatelessWidget {
     if (loading && responses.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 20),
-        child: Center(child: AppLoadingIndicator.circular()),
+        child: AppLoadingOverlay(),
       );
     }
     if (responses.isEmpty) {

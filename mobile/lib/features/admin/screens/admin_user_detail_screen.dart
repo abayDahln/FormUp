@@ -121,7 +121,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: AppLoadingIndicator.circular())
+          ? const AppLoadingOverlay()
           : u == null
               ? const Center(
                   child: Text('Data tidak tersedia.',
@@ -203,7 +203,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                         _infoRow(Icons.description_outlined, 'Jumlah Form',
                             '${u.formCount}'),
                         _infoRow(
-                            Icons.people_outline, 'Jumlah Respons',
+                            Icons.people_outline, 'Jumlah Respon',
                             '${u.responseCount}'),
                         _infoRow(Icons.calendar_today_outlined,
                             'Tanggal Gabung', _formatDate(u.createdAt)),

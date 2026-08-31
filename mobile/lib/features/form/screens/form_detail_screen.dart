@@ -121,7 +121,7 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
         ),
       ),
       body: form == null
-          ? const Center(child: AppLoadingIndicator.circular())
+          ? const AppLoadingOverlay()
           : ListView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               children: [

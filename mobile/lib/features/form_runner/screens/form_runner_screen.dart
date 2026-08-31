@@ -317,7 +317,7 @@ class FormRunnerViewState extends State<FormRunnerView> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: AppLoadingIndicator.circular());
+    if (_loading) return const AppLoadingOverlay();
     return switch (_step) {
       _RunnerStep.code => RunnerCodeStep(
           showTitle: widget.showTitle,

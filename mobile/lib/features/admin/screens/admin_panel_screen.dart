@@ -279,7 +279,7 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
                     ],
                   )
                 : _loading
-                    ? const Center(child: AppLoadingIndicator.circular())
+                    ? const AppLoadingOverlay()
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -512,7 +512,7 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                     ],
                   )
                 : _loading
-                    ? const Center(child: AppLoadingIndicator.circular())
+                    ? const AppLoadingOverlay()
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -707,7 +707,7 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
                     ],
                   )
                 : _loading
-                    ? const Center(child: AppLoadingIndicator.circular())
+                    ? const AppLoadingOverlay()
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),

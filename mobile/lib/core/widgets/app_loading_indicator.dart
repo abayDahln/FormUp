@@ -23,7 +23,7 @@ class AppLoadingIndicator extends StatelessWidget {
 
   const AppLoadingIndicator({
     super.key,
-    this.size = 64,
+    this.size = 72,
     this.strokeWidth,
     this.value,
     this.color,
@@ -32,11 +32,11 @@ class AppLoadingIndicator extends StatelessWidget {
   })  : _isLinear = false,
         _isContained = false;
 
-  /// M3 Circular medium (64dp) – untuk full-screen / page loading (screen)
-  /// Spec Android: indicator 38dp dalam 48dp → skala medium 64dp (active ~50dp)
+  /// M3 Circular medium (72dp) – untuk full-screen / page loading (screen)
+  /// Spec Android: indicator 38dp dalam 48dp → medium 72dp (active ~57dp, sedang)
   const AppLoadingIndicator.circular({
     super.key,
-    this.size = 64,
+    this.size = 72,
     this.strokeWidth,
     this.value,
     this.color,
@@ -151,22 +151,47 @@ class AppLoadingIndicator extends StatelessWidget {
     }
 
     // Indeterminate morphing – Android LoadingIndicator (contained vs uncontained)
-    final constraints = BoxConstraints.tightFor(
-      width: size ?? 64,
-      height: size ?? 64,
-    );
+    // ROOT CAUSE: ExpressiveLoadingIndicator internal scale = activeSize(38)/minSide,
+    // jadi shape selalu ~38dp apapun constraints. Fix: untuk ukuran medium/large
+    // (>=48) render base 48dp lalu scale via Transform.scale agar `size`
+    // benar-benar membesar. Untuk ukuran kecil (<=36) pakai constraints
+    // langsung agar tidak jadi kecil di dalam circle swipe-refresh.
+    const base = 48.0;
+    final targetSize = size ?? 72;
 
-    final morph = ExpressiveLoadingIndicator(
-      color: effectiveColor,
-      constraints: constraints,
-      semanticsLabel: semanticsLabel ?? 'Loading',
-    );
+    // Ukuran kecil (swipe refresh 24, inline 36, button 18) jangan di-scale
+    // via base 48 – pakai package langsung agar proporsi tetap pas.
+    if (targetSize <= 36) {
+      return ExpressiveLoadingIndicator(
+        color: effectiveColor,
+        constraints: BoxConstraints.tightFor(width: targetSize, height: targetSize),
+        semanticsLabel: semanticsLabel ?? 'Loading',
+      );
+    }
+
+    Widget buildScaled(double outerSize) {
+      final scale = outerSize / base;
+      return SizedBox(
+        width: outerSize,
+        height: outerSize,
+        child: Center(
+          child: Transform.scale(
+            scale: scale,
+            child: ExpressiveLoadingIndicator(
+              color: effectiveColor,
+              constraints: const BoxConstraints.tightFor(width: base, height: base),
+              semanticsLabel: semanticsLabel ?? 'Loading',
+            ),
+          ),
+        ),
+      );
+    }
 
     if (_isContained) {
-      // Contained: container = size, indicator = size * 38/48 (Android spec)
       final containerColor = backgroundColor ?? scheme.surfaceContainerHighest;
-      final outer = size ?? 80;
+      final outer = targetSize;
       final inner = (outer * 38 / 48).clamp(18.0, 80.0).toDouble();
+      // Container tetap outer, indicator diskalakan ke inner
       return Container(
         width: outer,
         height: outer,
@@ -175,19 +200,31 @@ class AppLoadingIndicator extends StatelessWidget {
           shape: BoxShape.circle,
         ),
         alignment: Alignment.center,
-        child: ExpressiveLoadingIndicator(
-          color: effectiveColor,
-          constraints: BoxConstraints.tightFor(width: inner, height: inner),
-          semanticsLabel: semanticsLabel ?? 'Loading',
+        child: SizedBox(
+          width: inner,
+          height: inner,
+          child: Center(
+            child: Transform.scale(
+              scale: inner / base,
+              child: ExpressiveLoadingIndicator(
+                color: effectiveColor,
+                constraints: const BoxConstraints.tightFor(width: base, height: base),
+                semanticsLabel: semanticsLabel ?? 'Loading',
+              ),
+            ),
+          ),
         ),
       );
     }
 
-    return morph;
+    return buildScaled(targetSize);
   }
 }
 
-/// M3 full-screen loading – Center + morphing circular (uncontained default)
+/// M3 full-screen loading – true vertical center (akun AppBar)
+/// Sebelumnya `Center` di `Scaffold.body` berada sedikit di atas karena
+/// body berada di bawah AppBar. Tambah offset 24dp agar tampak di tengah
+/// visual screen/container.
 class AppLoadingOverlay extends StatelessWidget {
   final String? message;
   final bool contained;
@@ -196,18 +233,21 @@ class AppLoadingOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (contained) const AppLoadingIndicator.contained() else const AppLoadingIndicator.circular(),
-          if (message != null) ...[
-            const SizedBox(height: 16),
-            Text(
-              message!,
-              style: const TextStyle(fontSize: 14, color: Colors.black54),
-            ),
+      child: Transform.translate(
+        offset: const Offset(0, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (contained) const AppLoadingIndicator.contained() else const AppLoadingIndicator.circular(),
+            if (message != null) ...[
+              const SizedBox(height: 16),
+              Text(
+                message!,
+                style: const TextStyle(fontSize: 14, color: Colors.black54),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

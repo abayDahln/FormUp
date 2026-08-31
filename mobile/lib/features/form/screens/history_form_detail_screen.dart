@@ -80,7 +80,7 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: AppLoadingIndicator.circular())
+          ? const AppLoadingOverlay()
           : AuthBackground(plain: true,
               child: SafeArea(
                 child: AppRefreshIndicator(

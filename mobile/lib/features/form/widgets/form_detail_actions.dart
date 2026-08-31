@@ -49,8 +49,8 @@ class FormDetailActions extends StatelessWidget {
             _divider(),
             _ActionTile(
               Icons.people_outline,
-              'Lihat Respons',
-              () => onPush(AppPage.formResponses, {
+              'Lihat Respon',
+              () => onPush(AppPage.formAnalytics, {
                 'formId': form.id,
                 'title': richToPlainText(form.title),
               }),

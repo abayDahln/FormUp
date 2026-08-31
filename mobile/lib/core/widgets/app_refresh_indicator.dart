@@ -40,8 +40,8 @@ class AppRefreshIndicator extends StatelessWidget {
             duration: const Duration(milliseconds: 150),
             scale: isLoading ? 1 : (0.7 + dragProgress * 0.3),
             child: Container(
-              width: 32,
-              height: 32,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: Colors.white,
                 shape: BoxShape.circle,

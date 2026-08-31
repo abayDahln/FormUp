@@ -213,7 +213,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: AppLoadingIndicator.circular())
+          ? const AppLoadingOverlay()
           : AbsorbPointer(
               absorbing: _saving,
               child: Stack(

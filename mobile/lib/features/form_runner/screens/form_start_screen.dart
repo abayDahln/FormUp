@@ -214,7 +214,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(child: AppLoadingIndicator.circular());
+      return const AppLoadingOverlay();
     }
 
     if (_error != null) {

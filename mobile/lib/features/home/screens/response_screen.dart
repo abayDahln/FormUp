@@ -339,7 +339,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Respons',
+                    'Respon',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -375,7 +375,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
             const SizedBox(height: 14),
             Expanded(
               child: _loading && _history.isEmpty && _myForms.isEmpty
-                  ? const Center(child: AppLoadingIndicator.circular())
+                  ? const AppLoadingOverlay()
                   : TabBarView(
                       children: [
                         _buildHistoryTab(),

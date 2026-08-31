@@ -292,11 +292,11 @@ Future<void> showFormQuickActions(
           ),
           _sheetAction(
             icon: Icons.people_outline,
-            label: 'Lihat Respons',
+            label: 'Lihat Respon',
             onTap: () => _closeAndPush(
               sheetContext,
               context,
-              AppPage.formResponses,
+              AppPage.formRespon,
               {'formId': form.id, 'title': richToPlainText(form.title)},
             ),
           ),

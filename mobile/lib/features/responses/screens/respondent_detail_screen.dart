@@ -114,7 +114,7 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
         ),
       ),
       body: _loading && _result == null
-          ? const Center(child: AppLoadingIndicator.circular())
+          ? const AppLoadingOverlay()
           : AuthBackground(plain: true,
               child: SafeArea(
                 child: ListView(

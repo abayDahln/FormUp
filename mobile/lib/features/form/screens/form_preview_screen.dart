@@ -137,7 +137,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: AppLoadingIndicator.circular())
+          ? const AppLoadingOverlay()
           : AuthBackground(plain: true,
               child: SafeArea(
                 child: Column(

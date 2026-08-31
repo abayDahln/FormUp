@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/widgets/search_field.dart';
@@ -38,6 +40,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   bool _loadingMore = false;
   bool _hasMore = true;
   int _page = 1;
+  bool _exporting = false;
 
   @override
   void initState() {
@@ -149,6 +152,28 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     });
   }
 
+  Future<void> _export() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final bytes = await FormService.exportResponses(widget.formId);
+      if (!mounted) return;
+      final xfile = XFile.fromData(
+        bytes,
+        name: 'responses-form-${widget.formId}.csv',
+        mimeType: 'text/csv',
+      );
+      await SharePlus.instance.share(ShareParams(files: [xfile], text: 'Export responden ${widget.title}'));
+      if (!mounted) return;
+      showAppToast(context, 'CSV berhasil diekspor', title: 'Berhasil');
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -165,7 +190,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           onPressed: () => AppRouter.of(context).pop(),
         ),
         title: const Text(
-          "Analisis Form",
+          "Responden",
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
@@ -173,9 +198,24 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             color: Colors.black87,
           ),
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: _exporting
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(width: 20, height: 20, child: AppLoadingIndicator.inline()),
+                  )
+                : IconButton(
+                    icon: const Icon(Icons.download_outlined, color: Colors.black87),
+                    tooltip: 'Export CSV',
+                    onPressed: _export,
+                  ),
+          ),
+        ],
       ),
       body: _loading && _analytics == null
-          ? const Center(child: AppLoadingIndicator.circular())
+          ? const AppLoadingOverlay()
           : AuthBackground(plain: true,
               child: SafeArea(
                 child: ListView(

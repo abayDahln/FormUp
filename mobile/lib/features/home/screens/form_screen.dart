@@ -209,7 +209,7 @@ class _FormScreenState extends State<FormScreen> {
             if (_loadingForms && _myForms.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 30),
-                child: Center(child: AppLoadingIndicator.circular()),
+                child: AppLoadingOverlay(),
               )
             else if (all.isEmpty)
               FormEmptyState(hasFilter: hasFilter)

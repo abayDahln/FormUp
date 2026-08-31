@@ -164,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 25),
 
             const Text(
-              "Aktivitas Respons Terbaru",
+              "Aktivitas Respon Terbaru",
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -232,7 +232,7 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),
             selectedIcon: Icon(Icons.bar_chart, color: kPrimary),
-            label: 'Respons',
+            label: 'Respon',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),

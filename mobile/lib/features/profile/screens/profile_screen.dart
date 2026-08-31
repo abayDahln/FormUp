@@ -68,7 +68,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (_) => const Center(child: AppLoadingIndicator.circular()),
+        builder: (_) => const AppLoadingOverlay(),
       );
       try {
         await UserService.uploadProfileImage(bytes, 'profile.jpg');
@@ -142,7 +142,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 if (_loading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 60),
-                child: Center(child: AppLoadingIndicator.circular()),
+                child: AppLoadingOverlay(),
               )
             else ...[
               Container(

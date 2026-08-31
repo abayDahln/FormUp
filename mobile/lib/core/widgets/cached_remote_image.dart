@@ -30,7 +30,7 @@ class CachedRemoteImage extends StatelessWidget {
       width: width,
       height: height,
       placeholder: (_, __) =>
-          placeholder ?? const Center(child: AppLoadingIndicator.circular()),
+          placeholder ?? const AppLoadingOverlay(),
       errorWidget: (_, __, ___) =>
           errorWidget ?? const SizedBox.shrink(),
     );

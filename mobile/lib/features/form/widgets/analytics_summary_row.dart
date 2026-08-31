@@ -15,7 +15,7 @@ class AnalyticsSummaryRow extends StatelessWidget {
       children: [
         Expanded(
           child: _StatCard(
-            label: 'Respons',
+            label: 'Respon',
             value: '${a.totalResponses}',
             icon: Icons.people_outline,
           ),

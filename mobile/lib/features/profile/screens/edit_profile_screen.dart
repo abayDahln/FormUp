@@ -203,7 +203,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: AppLoadingIndicator.circular())
+          ? const AppLoadingOverlay()
           : AbsorbPointer(
               absorbing: _saving,
               child: AuthBackground(plain: true,

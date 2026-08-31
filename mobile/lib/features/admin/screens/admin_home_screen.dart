@@ -481,7 +481,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
           if (_loading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 60),
-              child: Center(child: AppLoadingIndicator.circular()),
+              child: AppLoadingOverlay(),
             )
           else ...[
             Container(
@@ -562,7 +562,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
                 children: [
                   _stat('${stats.totalForms}', 'Form Dibuat'),
                   _verticalDivider(),
-                  _stat('${stats.totalResponses}', 'Respons'),
+                  _stat('${stats.totalResponses}', 'Respon'),
                   _verticalDivider(),
                   _stat('${stats.totalFeedbackGiven}', 'Feedback'),
                 ],

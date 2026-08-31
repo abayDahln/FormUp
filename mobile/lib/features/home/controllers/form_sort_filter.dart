@@ -8,8 +8,8 @@ extension FormSortLabel on FormSort {
   String get label => switch (this) {
         FormSort.newest => 'Terbaru',
         FormSort.oldest => 'Terlama',
-        FormSort.mostResponses => 'Respons Terbanyak',
-        FormSort.leastResponses => 'Respons Terdikit',
+        FormSort.mostResponses => 'Respon Terbanyak',
+        FormSort.leastResponses => 'Respon Terdikit',
       };
 }
 

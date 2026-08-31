@@ -71,7 +71,7 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: AppLoadingIndicator.circular())
+          ? const AppLoadingOverlay()
           : AuthBackground(plain: true,
               child: SafeArea(
                 child: _result == null

@@ -17,7 +17,7 @@ import 'package:form_up/features/auth/screens/change_password_screen.dart';
 import 'package:form_up/features/profile/screens/edit_profile_screen.dart';
 import 'package:form_up/features/form/screens/form_preview_screen.dart';
 import 'package:form_up/features/form/screens/analytics_screen.dart';
-import 'package:form_up/features/responses/screens/form_responses_screen.dart';
+import 'package:form_up/features/responses/screens/form_respon_screen.dart';
 import 'package:form_up/features/responses/screens/respondent_detail_screen.dart';
 import 'package:form_up/features/admin/screens/admin_home_screen.dart';
 import 'package:form_up/features/admin/screens/admin_user_detail_screen.dart';
@@ -56,7 +56,7 @@ enum AppPage {
   editProfile,
   formPreview,
   formAnalytics,
-  formResponses,
+  formRespon,
   formFeedbacks,
   respondentDetail,
   adminPanel,
@@ -362,8 +362,8 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
           formId: route.args['formId'] as int? ?? 0,
           title: route.args['title'] as String? ?? '',
         );
-      case AppPage.formResponses:
-        return FormResponsesScreen(
+      case AppPage.formRespon:
+        return FormResponScreen(
           formId: route.args['formId'] as int? ?? 0,
           title: route.args['title'] as String? ?? '',
         );
@@ -433,7 +433,7 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       'edit-profile' => const AppRoute(AppPage.editProfile),
       'form-preview' => const AppRoute(AppPage.formPreview),
       'form-analytics' => const AppRoute(AppPage.formAnalytics),
-      'form-responses' => const AppRoute(AppPage.formResponses),
+      'form-respon' => const AppRoute(AppPage.formRespon),
       'form-feedbacks' => const AppRoute(AppPage.formFeedbacks),
       'settings' => const AppRoute(AppPage.settings),
       _ => const AppRoute(AppPage.login),
@@ -463,7 +463,7 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       AppPage.editProfile => 'edit-profile',
       AppPage.formPreview => 'form-preview',
       AppPage.formAnalytics => 'form-analytics',
-      AppPage.formResponses => 'form-responses',
+      AppPage.formRespon => 'form-respon',
       AppPage.formFeedbacks => 'form-feedbacks',
       AppPage.respondentDetail => 'respondent-detail',
       AppPage.adminPanel => 'admin-panel',

@@ -134,7 +134,7 @@ class ApiCache {
           return attempted;
         } catch (_) {
           throw const OfflineCacheException(
-            'Kamu sedang offline dan data ini belum ada di cache.',
+            'Kamu sedang offline. Periksa koneksi internet dan coba lagi.',
           );
         }
       }

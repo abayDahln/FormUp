@@ -24,7 +24,7 @@ class HomeRecentForms extends StatelessWidget {
     if (loading && forms.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 20),
-        child: Center(child: AppLoadingIndicator.circular()),
+        child: AppLoadingOverlay(),
       );
     }
     if (forms.isEmpty) {

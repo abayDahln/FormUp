@@ -831,10 +831,12 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: AppLoadingIndicator.circular())
-          : AbsorbPointer(
-              absorbing: _saving,
-              child: AuthBackground(
+          ? const AppLoadingOverlay()
+          : Stack(
+              children: [
+                AbsorbPointer(
+                  absorbing: _saving || _importing,
+                  child: AuthBackground(
                 plain: true,
                 child: SafeArea(
                   child: _questions.isEmpty
@@ -906,6 +908,32 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                         ),
                 ),
               ),
+            ),
+                if (_importing)
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      child: const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AppLoadingIndicator.contained(),
+                            SizedBox(height: 16),
+                            Text(
+                              'Memproses file...',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addQuestion,

@@ -136,7 +136,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: AppLoadingIndicator.circular())
+          ? const AppLoadingOverlay()
           : f == null
               ? const Center(
                   child: Text('Data tidak tersedia.',
@@ -211,7 +211,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen> {
                         _infoRow(Icons.person_outline, 'Pemilik',
                             '${f.owner.fullname ?? '-'} (${f.owner.email ?? '-'})'),
                         _infoRow(Icons.link_outlined, 'Kode Link', f.formLink),
-                        _infoRow(Icons.people_outline, 'Jumlah Respons',
+                        _infoRow(Icons.people_outline, 'Jumlah Respon',
                             '${f.responseCount}'),
                         ..._settingRows(f.settings),
                         _infoRow(Icons.calendar_today_outlined, 'Dibuat',
