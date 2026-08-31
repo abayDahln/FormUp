@@ -9,7 +9,7 @@ class ResponseTabItem {
   const ResponseTabItem({required this.icon, required this.label});
 }
 
-/// Segmented control Riwayat / Analisis
+/// Segmented control Riwayat / Responden
 /// - Animasi slider background mengikuti tab aktif
 /// - Mendukung gesture swipe untuk mengganti tab
 class ResponseTabSwitcher extends StatefulWidget {

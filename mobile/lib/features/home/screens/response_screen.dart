@@ -231,7 +231,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
     );
   }
 
-  // ── Filter sheet analisis ─────────────────────────────
+  // ── Filter sheet responden ─────────────────────────────
   Future<void> _openAnalyticsFilterSheet() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -258,7 +258,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Text(
-                'Filter Analisis',
+                'Filter Responden',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 17,
@@ -349,7 +349,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
                   ),
                   SizedBox(height: 2),
                   Text(
-                    'Riwayat & analisis respons',
+                    'Riwayat & responden',
                     style: TextStyle(fontSize: 13, color: Colors.black54),
                   ),
                 ],
@@ -371,7 +371,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
                 unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
                 tabs: const [
                   Tab(text: 'Riwayat'),
-                  Tab(text: 'Analisis'),
+                  Tab(text: 'Responden'),
                 ],
               ),
             ),
@@ -504,7 +504,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
             controller: _analyticsSearchController,
             onChanged: _onAnalyticsSearchChanged,
             onSubmitted: _onAnalyticsSearchImmediate,
-            hint: 'Cari form untuk analisis...',
+            hint: 'Cari form untuk responden...',
             historyKey: 'search_history_response_analytics',
             filterActive: filterActive,
             onOpenFilter: _openAnalyticsFilterSheet,

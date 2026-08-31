@@ -3,7 +3,7 @@ import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 
-/// Kartu form pada daftar analisis (legacy)
+/// Kartu form pada daftar responden (legacy)
 class ResponseAnalyticsCard extends StatelessWidget {
   final FormData form;
   final VoidCallback onTap;
@@ -20,7 +20,7 @@ class ResponseAnalyticsCard extends StatelessWidget {
   }
 }
 
-/// M3 list tile untuk analisis — dipakai di dalam grouped container dengan Divider
+/// M3 list tile untuk responden — dipakai di dalam grouped container dengan Divider
 class ResponseAnalyticsTile extends StatelessWidget {
   final FormData form;
   final VoidCallback onTap;
@@ -83,7 +83,7 @@ class ResponseAnalyticsTile extends StatelessWidget {
                   ),
                 ),
                 const Text(
-                  'Analisis',
+                  'Responden',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
