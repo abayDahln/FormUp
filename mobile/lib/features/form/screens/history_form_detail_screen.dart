@@ -25,10 +25,28 @@ class HistoryFormDetailScreen extends StatefulWidget {
       _HistoryFormDetailScreenState();
 }
 
+enum _HistorySort { newest, oldest, highScore, lowScore }
+
+extension _HistSortExt on _HistorySort {
+  String get label => switch (this) {
+        _HistorySort.newest => 'Terbaru',
+        _HistorySort.oldest => 'Terlama',
+        _HistorySort.highScore => 'Nilai tertinggi',
+        _HistorySort.lowScore => 'Nilai terendah',
+      };
+  IconData get icon => switch (this) {
+        _HistorySort.newest => Icons.schedule_outlined,
+        _HistorySort.oldest => Icons.history_outlined,
+        _HistorySort.highScore => Icons.arrow_upward_outlined,
+        _HistorySort.lowScore => Icons.arrow_downward_outlined,
+      };
+}
+
 class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
   bool _loading = true;
   PublicFormInfo? _info;
   List<MyAttempt> _attempts = [];
+  _HistorySort _sort = _HistorySort.newest;
 
   @override
   void initState() {
@@ -98,14 +116,37 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
                     children: [
                       _buildInfoCard(),
                       const SizedBox(height: 16),
-                      Text(
-                        "Riwayat Pengerjaan (${_attempts.length})",
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: kFontBold,
-                          color: Colors.black87,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            "Riwayat Pengerjaan (${_attempts.length})",
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: kFontBold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const Spacer(),
+                          MenuAnchor(
+                            builder: (context, controller, child) => IconButton(
+                              icon: Icon(Icons.tune, color: _sort == _HistorySort.newest ? Colors.black54 : kAuthPrimary, size: 20),
+                              tooltip: 'Filter & urutkan',
+                              style: IconButton.styleFrom(
+                                backgroundColor: _sort == _HistorySort.newest ? Colors.transparent : const Color(0xFFE2F3F2),
+                              ),
+                              onPressed: () => controller.isOpen ? controller.close() : controller.open(),
+                            ),
+                            menuChildren: [
+                              for (final s in _HistorySort.values)
+                                MenuItemButton(
+                                  leadingIcon: Icon(s.icon, size: 18, color: _sort == s ? kAuthPrimary : Colors.black54),
+                                  onPressed: () => setState(() => _sort = s),
+                                  child: Text(s.label, style: TextStyle(fontSize: 14, color: _sort == s ? kAuthPrimary : Colors.black87, fontWeight: _sort == s ? FontWeight.bold : FontWeight.normal)),
+                                ),
+                            ],
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 12),
                       if (_attempts.isEmpty)
@@ -122,15 +163,15 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
                           ),
                         )
                       else
-                        for (var i = 0; i < _attempts.length; i++) ...[
+                        for (var i = 0; i < _sortedAttempts.length; i++) ...[
                           _AttemptCard(
                             index: i,
-                            attempt: _attempts[i],
+                            attempt: _sortedAttempts[i],
                             onTap: () => AppRouter.of(context).push(
                               AppPage.formHistoryDetail,
                               {
                                 'formLink': widget.formLink,
-                                'responseId': _attempts[i].responseId,
+                                'responseId': _sortedAttempts[i].responseId,
                               },
                             ),
                           ),
@@ -220,6 +261,33 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
       default:
         return "Tidak diketahui";
     }
+  }
+
+  List<MyAttempt> get _sortedAttempts {
+    final list = List<MyAttempt>.from(_attempts);
+    switch (_sort) {
+      case _HistorySort.newest:
+        list.sort((a, b) {
+          final da = a.submittedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final db = b.submittedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return db.compareTo(da);
+        });
+        break;
+      case _HistorySort.oldest:
+        list.sort((a, b) {
+          final da = a.submittedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final db = b.submittedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return da.compareTo(db);
+        });
+        break;
+      case _HistorySort.highScore:
+        list.sort((a, b) => (b.score ?? -1).compareTo(a.score ?? -1));
+        break;
+      case _HistorySort.lowScore:
+        list.sort((a, b) => (a.score ?? 999).compareTo(b.score ?? 999));
+        break;
+    }
+    return list;
   }
 
   String? _formatDateTime(DateTime? dt) {

@@ -28,6 +28,23 @@ class AnalyticsScreen extends StatefulWidget {
   State<AnalyticsScreen> createState() => _AnalyticsScreenState();
 }
 
+enum _RespondentSort { newest, oldest, highScore, lowScore }
+
+extension _RespSortExt on _RespondentSort {
+  String get label => switch (this) {
+        _RespondentSort.newest => 'Terbaru',
+        _RespondentSort.oldest => 'Terlama',
+        _RespondentSort.highScore => 'Nilai tertinggi',
+        _RespondentSort.lowScore => 'Nilai terendah',
+      };
+  IconData get icon => switch (this) {
+        _RespondentSort.newest => Icons.schedule_outlined,
+        _RespondentSort.oldest => Icons.history_outlined,
+        _RespondentSort.highScore => Icons.arrow_upward_outlined,
+        _RespondentSort.lowScore => Icons.arrow_downward_outlined,
+      };
+}
+
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
   static const _pageSize = 20;
   final _scrollController = ScrollController();
@@ -41,6 +58,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   bool _hasMore = true;
   int _page = 1;
   bool _exporting = false;
+  _RespondentSort _sort = _RespondentSort.newest;
 
   @override
   void initState() {
@@ -143,6 +161,25 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     }
   }
 
+  List<RespondentAnalyticsData> get _sortedRespondents {
+    final list = List<RespondentAnalyticsData>.from(_respondents);
+    switch (_sort) {
+      case _RespondentSort.newest:
+        list.sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+        break;
+      case _RespondentSort.oldest:
+        list.sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
+        break;
+      case _RespondentSort.highScore:
+        list.sort((a, b) => (b.score ?? -1).compareTo(a.score ?? -1));
+        break;
+      case _RespondentSort.lowScore:
+        list.sort((a, b) => (a.score ?? 999).compareTo(b.score ?? 999));
+        break;
+    }
+    return list;
+  }
+
   void _openRespondent(RespondentAnalyticsData respondent) {
     AppRouter.of(context).push(AppPage.respondentDetail, {
       'formId': widget.formId,
@@ -150,6 +187,31 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       'responseId': respondent.responseId,
       'respondentName': respondent.respondentName ?? '',
     });
+  }
+
+  Future<void> _openSortMenu() async {
+    final box = context.findRenderObject() as RenderBox?;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final offset = box != null && overlay != null ? box.localToGlobal(Offset.zero, ancestor: overlay) : Offset.zero;
+    final result = await showMenu<_RespondentSort>(
+      context: context,
+      position: RelativeRect.fromLTRB(offset.dx + 200, offset.dy + 280, 16, 0),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      items: [
+        for (final s in _RespondentSort.values)
+          PopupMenuItem<_RespondentSort>(
+            value: s,
+            child: Row(
+              children: [
+                Icon(s.icon, size: 18, color: _sort == s ? kAuthPrimary : Colors.black54),
+                const SizedBox(width: 10),
+                Text(s.label, style: TextStyle(fontSize: 14, color: _sort == s ? kAuthPrimary : Colors.black87, fontWeight: _sort == s ? FontWeight.bold : FontWeight.normal)),
+              ],
+            ),
+          ),
+      ],
+    );
+    if (result != null && mounted) setState(() => _sort = result);
   }
 
   Future<void> _export() async {
@@ -251,6 +313,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       onSubmitted: _onSearchImmediate,
                       hint: 'Cari responden...',
                       historyKey: 'search_history_analytics',
+                      filterActive: _sort != _RespondentSort.newest,
+                      onOpenFilter: _openSortMenu,
                     ),
                     const SizedBox(height: 16),
                     const Text(
@@ -263,7 +327,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    if (_respondents.isEmpty)
+                    if (_sortedRespondents.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 48),
                         child: Column(
@@ -282,11 +346,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         ),
                       )
                     else ...[
-                      for (var i = 0; i < _respondents.length; i++) ...[
+                      for (var i = 0; i < _sortedRespondents.length; i++) ...[
                         AnalyticsRespondentCard(
                           index: i,
-                          respondent: _respondents[i],
-                          onTap: () => _openRespondent(_respondents[i]),
+                          respondent: _sortedRespondents[i],
+                          onTap: () => _openRespondent(_sortedRespondents[i]),
                         ),
                         const SizedBox(height: 12),
                       ],
