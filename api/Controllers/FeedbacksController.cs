@@ -24,6 +24,10 @@ public class FeedbacksController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Reason))
             return BadRequest(new ApiResponse<object>(400, "Reason is required"));
+        if (request.Reason.Trim().Length < 3)
+            return BadRequest(new ApiResponse<object>(400, "Reason terlalu pendek"));
+        if (request.Description != null && request.Description.Length > 2000)
+            return BadRequest(new ApiResponse<object>(400, "Description maksimal 2000 karakter"));
 
         var user = await GetCurrentUser();
 
@@ -33,9 +37,29 @@ public class FeedbacksController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
+        if (form.TakenDownAt != null)
+            return BadRequest(new ApiResponse<object>(400, "Form telah di-takedown dan tidak dapat diberi umpan balik"));
+
         var publishedStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "published");
         if (form.StatusId != publishedStatus.Id)
             return BadRequest(new ApiResponse<object>(400, "Can only submit feedback for published forms"));
+
+        // 1x per user per form
+        if (user != null)
+        {
+            var already = await _db.Feedbacks.AnyAsync(f => f.FormId == formId && f.UserId == user.Id);
+            if (already)
+                return BadRequest(new ApiResponse<object>(400, "Kamu sudah mengirim umpan balik untuk form ini"));
+            // Harus sudah mengerjakan form terlebih dahulu
+            var hasResponse = await _db.Responses.AnyAsync(r => r.FormId == formId && r.RespondentId == user.Id);
+            if (!hasResponse)
+                return BadRequest(new ApiResponse<object>(400, "Hanya bisa memberi umpan balik setelah mengerjakan form"));
+        }
+        else
+        {
+            if (!request.ResponseId.HasValue)
+                return BadRequest(new ApiResponse<object>(400, "Login diperlukan untuk memberi umpan balik"));
+        }
 
         var response = user != null
             ? await _db.Responses.FirstOrDefaultAsync(r => r.FormId == formId && r.RespondentId == user.Id)
@@ -235,6 +259,9 @@ public class FeedbacksController : ControllerBase
         if (feedback.Form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
+        if (feedback.Form.DeletedAt != null)
+            return BadRequest(new ApiResponse<object>(400, "Form sudah dihapus"));
+
         if (feedback.Form.TakenDownAt != null)
             return BadRequest(new ApiResponse<object>(400, "Form is already taken down"));
 
@@ -264,6 +291,9 @@ public class FeedbacksController : ControllerBase
 
         if (feedback.Form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
+
+        if (feedback.Form.DeletedAt != null)
+            return BadRequest(new ApiResponse<object>(400, "Form sudah dihapus"));
 
         if (feedback.Form.TakenDownAt == null)
             return BadRequest(new ApiResponse<object>(400, "Form is not taken down"));

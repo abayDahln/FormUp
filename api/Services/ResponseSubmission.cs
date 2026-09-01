@@ -68,7 +68,7 @@ public static class ResponseSubmission
         if (!string.IsNullOrEmpty(form.FormSetting?.FormToken))
         {
             if (string.IsNullOrEmpty(body.Token) || body.Token != form.FormSetting.FormToken)
-                return new UnauthorizedObjectResult(new ApiResponse<object>(401, "Invalid or missing form token"));
+                return new UnauthorizedObjectResult(new ApiResponse<object>(401, "Form token tidak valid."));
         }
 
         var ownerClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -101,12 +101,29 @@ public static class ResponseSubmission
         if (invalidIds.Count > 0)
             return new BadRequestObjectResult(new ApiResponse<object>(400, $"Invalid question IDs: {string.Join(", ", invalidIds)}"));
 
+        // Cegah respon kosong untuk submit manual; auto-submit (waktu habis) boleh kosong/parsial
+        if (!body.IsAutoSubmit)
+        {
+            if (validQuestions.Count > 0 && body.Answers.Count == 0)
+                return new BadRequestObjectResult(new ApiResponse<object>(400, "Isi minimal satu jawaban sebelum mengirim"));
+
+            var tmpByQ = body.Answers
+                .Where(a => validQuestions.Any(q => q.Id == a.QuestionId))
+                .GroupBy(a => a.QuestionId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+            if (validQuestions.Count > 0 && tmpByQ.Count == 0)
+                return new BadRequestObjectResult(new ApiResponse<object>(400, "Isi minimal satu jawaban sebelum mengirim"));
+        }
+
         var answersByQuestion = body.Answers
             .Where(a => validQuestions.Any(q => q.Id == a.QuestionId))
             .GroupBy(a => a.QuestionId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        foreach (var q in validQuestions.Where(q => q.IsRequired == true))
+        // Validasi wajib hanya untuk submit manual; auto-submit (waktu habis) langsung kirim apa adanya
+        if (!body.IsAutoSubmit)
+        {
+            foreach (var q in validQuestions.Where(q => q.IsRequired == true))
         {
             if (!answersByQuestion.TryGetValue(q.Id, out var answerList))
                 return new BadRequestObjectResult(new ApiResponse<object>(400, $"Pertanyaan \"{q.Question1}\" wajib dijawab"));
@@ -118,6 +135,7 @@ public static class ResponseSubmission
             };
             if (!answered)
                 return new BadRequestObjectResult(new ApiResponse<object>(400, $"Pertanyaan \"{q.Question1}\" wajib dijawab"));
+            }
         }
 
         foreach (var (questionId, ansList) in answersByQuestion)

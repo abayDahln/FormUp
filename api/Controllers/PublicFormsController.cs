@@ -222,7 +222,7 @@ public class PublicFormsController : ControllerBase
         if (!string.IsNullOrEmpty(form.FormSetting?.FormToken))
         {
             if (string.IsNullOrEmpty(token) || token != form.FormSetting.FormToken)
-                return Unauthorized(new ApiResponse<object>(401, "Invalid or missing form token"));
+                return Unauthorized(new ApiResponse<object>(401, "Form token tidak valid."));
         }
 
         return null;

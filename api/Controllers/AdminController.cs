@@ -147,8 +147,17 @@ public class AdminController : ControllerBase
         if (user == null)
             return NotFound(new ApiResponse<object>(404, "User not found"));
 
+        if (user.DeletedAt != null)
+            return BadRequest(new ApiResponse<object>(400, "User sudah dihapus"));
+
         if (user.Role == "ADMIN")
             return BadRequest(new ApiResponse<object>(400, "Cannot ban an admin"));
+
+        if (admin.Id == user.Id)
+            return BadRequest(new ApiResponse<object>(400, "Tidak dapat ban akun sendiri"));
+
+        if (user.IsActive == false)
+            return BadRequest(new ApiResponse<object>(400, "User sudah di-ban"));
 
         user.IsActive = false;
         user.UpdatedAt = DateTime.UtcNow;
@@ -167,6 +176,12 @@ public class AdminController : ControllerBase
         var user = await _db.Users.FindAsync(id);
         if (user == null)
             return NotFound(new ApiResponse<object>(404, "User not found"));
+
+        if (user.DeletedAt != null)
+            return BadRequest(new ApiResponse<object>(400, "User sudah dihapus"));
+
+        if (user.IsActive == true)
+            return BadRequest(new ApiResponse<object>(400, "User sudah aktif"));
 
         user.IsActive = true;
         user.UpdatedAt = DateTime.UtcNow;
@@ -341,6 +356,9 @@ public class AdminController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
+        if (form.DeletedAt != null)
+            return BadRequest(new ApiResponse<object>(400, "Form sudah dihapus"));
+
         if (form.TakenDownAt != null)
             return BadRequest(new ApiResponse<object>(400, "Form is already taken down"));
 
@@ -361,6 +379,9 @@ public class AdminController : ControllerBase
         var form = await _db.Forms.FindAsync(id);
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
+
+        if (form.DeletedAt != null)
+            return BadRequest(new ApiResponse<object>(400, "Form sudah dihapus"));
 
         if (form.TakenDownAt == null)
             return BadRequest(new ApiResponse<object>(400, "Form is not taken down"));

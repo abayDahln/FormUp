@@ -5,6 +5,7 @@ public class SubmitResponseRequest
     public string? Token { get; set; }
     public string? RespondentName { get; set; }
     public List<AnswerRequest> Answers { get; set; } = new();
+    public bool IsAutoSubmit { get; set; } = false;
 }
 
 public class AnswerRequest
