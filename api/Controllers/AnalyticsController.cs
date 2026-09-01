@@ -60,6 +60,14 @@ public class AnalyticsController : ControllerBase
         // Paging di level database — tidak lagi memuat semua respon.
         var totalResponses = await responsesQuery.CountAsync(ct);
 
+        // Hitung distinct user (group by user) untuk pagination group-by-user
+        var totalDistinctUsers = await responsesQuery
+            .Select(r => r.RespondentId != null
+                ? "id:" + r.RespondentId.Value.ToString()
+                : "name:" + (r.RespondentName ?? "").Trim().ToLower())
+            .Distinct()
+            .CountAsync(ct);
+
         var currentPage = page.GetValueOrDefault(1);
         var currentPageSize = pageSize.GetValueOrDefault(0);
         var paged = currentPageSize > 0;
@@ -161,6 +169,7 @@ public class AnalyticsController : ControllerBase
             return Ok(new ApiResponse<object>(200, "OK", new
             {
                 TotalResponses = totalResponses,
+                TotalDistinctUsers = totalDistinctUsers,
                 TotalQuestions = totalQuestions,
                 ScorableQuestions = scorableQuestions,
                 AverageScore = averageScore,
