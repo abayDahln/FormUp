@@ -7,17 +7,15 @@ import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 
-/// Kartu form seragam
+/// Kartu form seragam – hanya tap ke detail, tanpa aksi cepat titik tiga
 class FormCard extends StatelessWidget {
   final FormData form;
   final VoidCallback onTap;
-  final VoidCallback onQuickActions;
 
   const FormCard({
     super.key,
     required this.form,
     required this.onTap,
-    required this.onQuickActions,
   });
 
   @override
@@ -117,11 +115,7 @@ class FormCard extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.more_vert, color: Colors.grey, size: 22),
-                tooltip: 'Aksi cepat',
-                onPressed: onQuickActions,
-              ),
+
             ],
           ),
         ),

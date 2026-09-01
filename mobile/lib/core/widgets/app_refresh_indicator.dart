@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:custom_refresh_indicator/custom_refresh_indicator.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 
 /// M3 Swipe Refresh – Morphing 24dp small khusus pull-to-refresh
@@ -49,10 +49,10 @@ class AppRefreshIndicator extends StatelessWidget {
               ),
               alignment: Alignment.center,
               child: isLoading || isDragging
-                  ? AppLoadingIndicator.small(
+                  ? LoadingIndicator.small(
                       color: indicatorColor ?? kPrimary,
                     )
-                  : const AppLoadingIndicator.small(color: kPrimary),
+                  : const LoadingIndicator.small(color: kPrimary),
             ),
           ),
         );

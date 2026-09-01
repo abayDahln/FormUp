@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/models/question_draft.dart';
@@ -123,6 +123,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
   Future<void> _pickQuestionImage() async {
     final source = await showQuestionImageSourceSheet(context);
     if (source == null || !mounted) return;
+    setState(() => _uploading = true);
     try {
       final picked = await ImagePicker().pickImage(
         source: source,
@@ -130,7 +131,10 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
         maxHeight: 1200,
         imageQuality: 85,
       );
-      if (picked == null) return;
+      if (picked == null) {
+        if (mounted) setState(() => _uploading = false);
+        return;
+      }
       final bytes = await picked.readAsBytes();
       if (!mounted) return;
       if (exceedsUploadLimit(bytes)) {
@@ -146,10 +150,13 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _uploading = false);
     }
   }
 
   Future<void> _pickQuestionAudio() async {
+    setState(() => _uploading = true);
     try {
       final result = await FilePicker.pickFiles(
         type: FileType.audio,
@@ -186,6 +193,8 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
       if (!mounted) return;
       final msg = e is ApiException ? e.message : e.toString().replaceFirst('Exception: ', '');
       showAuthToast(context, msg.isEmpty ? "Gagal memproses audio" : msg, isError: true);
+    } finally {
+      if (mounted) setState(() => _uploading = false);
     }
   }
 
@@ -238,7 +247,9 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
               top: 0,
               left: 0,
               right: 0,
-              child: AppLoadingIndicator.linear(),
+              child: progress.ProgressIndicator.linear(
+                semanticsLabel: 'Memuat media',
+              ),
             ),
           AuthBackground(plain: true,
             child: SafeArea(

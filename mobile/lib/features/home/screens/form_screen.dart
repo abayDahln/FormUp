@@ -147,11 +147,6 @@ class _FormScreenState extends State<FormScreen> {
         'formId': form.id,
         'form': form,
       }),
-      onQuickActions: () => showFormQuickActions(
-        context,
-        form,
-        onChanged: _refreshMyForms,
-      ),
     );
   }
 

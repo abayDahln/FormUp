@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/loading_indicator.dart';
+import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -212,12 +213,20 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
         ),
       ),
       body: _loading
-          ? const AppLoadingOverlay()
+          ? const LoadingOverlay(contained: true)
           : AbsorbPointer(
               absorbing: _saving,
-              child: Stack(
+              child: Column(
                 children: [
-                  AuthBackground(
+                  if (_saving)
+                    progress.ProgressIndicator.linear(
+                      value: _progress,
+                      semanticsLabel: 'Menyimpan form',
+                    ),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        AuthBackground(
                     plain: true,
                     child: SafeArea(
                       child: ValueListenableBuilder<ActiveRichEditor?>(
@@ -264,7 +273,10 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
                       ),
                     ),
                   ),
-                  const FloatingRichToolbar(),
+                        const FloatingRichToolbar(),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),

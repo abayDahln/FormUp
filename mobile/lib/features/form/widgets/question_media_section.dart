@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -69,9 +69,9 @@ class QuestionMediaSection extends StatelessWidget {
           ),
           const SizedBox(height: 8),
         ],
-        // Indikator wavy di atas tombol gambar saat upload
+        // Indikator wavy di atas tombol gambar saat upload (save ke DB -> ProgressIndicator)
         if (uploading) ...[
-          const AppLoadingIndicator.linear(),
+          const progress.ProgressIndicator.linear(semanticsLabel: 'Mengunggah gambar'),
           const SizedBox(height: 8),
         ],
         // Tombol gambar: tata letak row sejajar
@@ -137,9 +137,9 @@ class QuestionMediaSection extends StatelessWidget {
           ],
           const SizedBox(height: 8),
         ],
-        // Indikator wavy di atas tombol audio saat upload
+        // Indikator wavy di atas tombol audio saat upload (save ke DB -> ProgressIndicator)
         if (uploading) ...[
-          const AppLoadingIndicator.linear(),
+          const progress.ProgressIndicator.linear(semanticsLabel: 'Mengunggah audio'),
           const SizedBox(height: 8),
         ],
         // Tombol audio: tata letak row sejajar

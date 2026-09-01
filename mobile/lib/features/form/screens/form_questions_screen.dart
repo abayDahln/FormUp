@@ -3,7 +3,8 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/loading_indicator.dart';
+import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
@@ -803,14 +804,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
             child: _saving
                 ? const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    ),
+                    child: LoadingIndicator.button(),
                   )
                 : FilledButton(
                     onPressed: () async {
@@ -867,7 +861,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: AppLoadingIndicator.inline(),
+                          child: LoadingIndicator.inline(),
                         )
                       : const Icon(Icons.upload_file_outlined, size: 20),
                   onPressed: (widget.formId == null || _saving || _importing)
@@ -886,7 +880,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
         ],
       ),
       body: _loading
-          ? const AppLoadingOverlay()
+          ? const LoadingOverlay(contained: true)
           : AbsorbPointer(
               absorbing: _saving || _importing,
               child: AuthBackground(
@@ -895,16 +889,9 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                   child: Column(
                     children: [
                       if (_saving || _importing)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(22, 8, 22, 10),
-                          child: SizedBox(
-                            height: 3,
-                            child: AppLoadingIndicator.linear(
-                              value: _progress,
-                              linearHeight: 3,
-                              backgroundColor: Colors.transparent,
-                            ),
-                          ),
+                        progress.ProgressIndicator.linear(
+                          value: _progress,
+                          semanticsLabel: _saving ? 'Menyimpan soal' : 'Mengimpor soal',
                         ),
                       Expanded(
                         child: _questions.isEmpty

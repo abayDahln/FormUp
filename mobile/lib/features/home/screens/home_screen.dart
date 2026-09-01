@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
-import 'package:form_up/core/widgets/form_card.dart';
 import 'package:form_up/features/home/screens/form_screen.dart';
 import 'package:form_up/features/home/screens/response_screen.dart';
 import 'package:form_up/features/home/widgets/home_header.dart';
@@ -142,11 +141,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 'formId': form.id,
                 'form': form,
               }),
-              onQuickActions: (form) => showFormQuickActions(
-                context,
-                form,
-                onChanged: () => _load(),
-              ),
             ),
             const SizedBox(height: 25),
 

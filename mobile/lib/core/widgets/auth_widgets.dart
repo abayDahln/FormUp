@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/widgets/app_toast.dart';
+import 'package:form_up/core/widgets/loading_indicator.dart';
 
 // ===== Design system =====
 const kBg = Color(0xFFE2F3F2);
@@ -318,11 +319,7 @@ class AuthPrimaryButton extends StatelessWidget {
             ? Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  ),
+                  const LoadingIndicator.button(),
                   if (progress != null) ...[
                     const SizedBox(width: 10),
                     Text("${(progress!.clamp(0.0, 1.0) * 100).round()}%",
