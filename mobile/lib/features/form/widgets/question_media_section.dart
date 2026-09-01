@@ -125,31 +125,15 @@ class QuestionMediaSection extends StatelessWidget {
         // Preview audio
         if (hasAudio) ...[
           if (q.pendingAudioBytes != null) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F4F4),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFBDC9C8)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.audio_file, size: 20, color: kAuthPrimary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      q.pendingAudioName ?? 'Audio pending (belum tersimpan)',
-                      style: const TextStyle(fontSize: 12, color: Colors.black87),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const Icon(Icons.hourglass_top, size: 16, color: Colors.black45),
-                ],
-              ),
+            QuestionAudioPlayer(
+              bytes: q.pendingAudioBytes,
+              label: q.pendingAudioName ?? 'Audio pending (belum tersimpan)',
             ),
           ] else if (q.questionAudio != null) ...[
-            QuestionAudioPlayer(url: q.questionAudio!),
+            QuestionAudioPlayer(
+              url: q.questionAudio!,
+              label: 'Audio tersimpan',
+            ),
           ],
           const SizedBox(height: 8),
         ],

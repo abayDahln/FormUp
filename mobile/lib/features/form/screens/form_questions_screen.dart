@@ -175,6 +175,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
 
   /// Konfirmasi keluar: simpan / buang draf / batal.
   Future<bool> _confirmExit() async {
+    if (_saving) return false;
     if (!_hasChanges) return true;
     final choice = await showExitConfirmDialog(context);
     if (!mounted) return false;
@@ -632,7 +633,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
       final saved = widget.isNew
           ? await FormService.saveQuestions(formId, payload)
           : await FormService.updateQuestions(formId, payload);
-      setProgress(0.5);
+      setProgress(0.7);
 
       // Queue upload media draf: soal baru belum punya id, jadi upload
       // setelah server balikkan id. Server kembalikan daftar berurutan sesuai questionOrder.
@@ -672,6 +673,10 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
         }
       }
 
+      if (uploads.isNotEmpty) {
+        setProgress(0.85);
+      }
+
       for (var i = 0; i < uploads.length; i++) {
         final (q, bytes, name, isImage) = uploads[i];
         try {
@@ -702,10 +707,11 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
             isError: true,
           );
         }
-        setProgress(0.5 + (0.5 * (i + 1) / uploads.length));
+        setProgress(0.85 + (0.15 * (i + 1) / uploads.length));
       }
       if (!mounted) return;
       setProgress(1.0);
+      await Future<void>.delayed(const Duration(milliseconds: 120));
       AppRouter.of(context).pop(formId);
       showAuthToast(context, "Soal berhasil disimpan");
     } catch (e) {
@@ -730,7 +736,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
         scrolledUnderElevation: 0,
         shape: const Border(bottom: BorderSide(color: Color(0xCCBDC9C8))),
         title: const Text(
-          "Kelola Soal",
+          'Kelola Soal',
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
@@ -740,15 +746,16 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () async {
-            final allow = await _confirmExit();
-            if (!allow) return;
-            if (!mounted) return;
-            _router!.pop();
-          },
+          onPressed: _saving
+              ? null
+              : () async {
+                  final allow = await _confirmExit();
+                  if (!allow) return;
+                  if (!mounted) return;
+                  _router!.pop();
+                },
         ),
         actions: [
-          // Tombol simpan di header, di samping menu
           Padding(
             padding: const EdgeInsets.only(right: 2),
             child: _saving
@@ -790,15 +797,15 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                     child: const Text('Simpan'),
                   ),
           ),
-          // M3 menu: Impor Soal & Unduh Template — https://m3.material.io/components/menus/overview
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: MenuAnchor(
               builder: (context, controller, child) => IconButton(
                 icon: const Icon(Icons.more_vert, color: Colors.black87),
                 tooltip: 'Opsi',
-                onPressed: () =>
-                    controller.isOpen ? controller.close() : controller.open(),
+                onPressed: (_saving || _importing)
+                    ? null
+                    : () => controller.isOpen ? controller.close() : controller.open(),
               ),
               menuChildren: [
                 MenuItemButton(
@@ -816,7 +823,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                 ),
                 MenuItemButton(
                   leadingIcon: const Icon(Icons.download_outlined, size: 20),
-                  onPressed: _downloadTemplate,
+                  onPressed: (_saving || _importing) ? null : _downloadTemplate,
                   child: const Text('Unduh Template Import'),
                 ),
               ],
@@ -826,108 +833,89 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
       ),
       body: _loading
           ? const AppLoadingOverlay()
-          : Stack(
-              children: [
-                AbsorbPointer(
-                  absorbing: _saving || _importing,
-                  child: AuthBackground(
+          : AbsorbPointer(
+              absorbing: _saving || _importing,
+              child: AuthBackground(
                 plain: true,
                 child: SafeArea(
-                  child: _questions.isEmpty
-                      ? SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
-                          child: const Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              QuestionsEmptyState(),
-                              SizedBox(height: 80),
-                            ],
-                          ),
-                        )
-                      : Stack(
-                          children: [
-                            ReorderableListView.builder(
-                              padding: const EdgeInsets.fromLTRB(22, 4, 22, 96),
-                              itemCount: _questions.length,
-                              onReorder: _onReorder,
-                              buildDefaultDragHandles: false,
-                              proxyDecorator: (child, index, animation) =>
-                                  Transform.scale(
-                                    scale: 0.98,
-                                    child: Opacity(
-                                      opacity: 0.9,
-                                      child: Material(
-                                        color: Colors.transparent,
-                                        elevation: 0,
-                                        child: child,
-                                      ),
-                                    ),
-                                  ),
-                              itemBuilder: (context, i) =>
-                                  ReorderableDelayedDragStartListener(
-                                    key: ValueKey(_questions[i]),
-                                    index: i,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(bottom: 12),
-                                      child: QuestionListCard(
-                                        index: i,
-                                        totalCount: _questions.length,
-                                        question: _questions[i],
-                                          onEdit: () => _openEditor(_questions[i]),
-                                          onMoveUp: () => _moveQuestion(i, -1),
-                                          onMoveDown: () => _moveQuestion(i, 1),
-                                          onDelete: () => setState(() {
-                                            _questions[i].dispose();
-                                            _questions.removeAt(i);
-                                          }),
-                                        ),
-                                      ),
-                                    ),
+                  child: Column(
+                    children: [
+                      if (_saving)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 8, 22, 10),
+                          child: SizedBox(
+                            height: 28,
+                            child: AppLoadingIndicator.linear(
+                              value: _progress,
+                              backgroundColor: Colors.transparent,
                             ),
-                          ],
+                          ),
                         ),
+                      Expanded(
+                        child: _questions.isEmpty
+                            ? SingleChildScrollView(
+                                padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
+                                child: const Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    QuestionsEmptyState(),
+                                    SizedBox(height: 80),
+                                  ],
+                                ),
+                              )
+                            : Stack(
+                                children: [
+                                  ReorderableListView.builder(
+                                    padding: const EdgeInsets.fromLTRB(22, 4, 22, 96),
+                                    itemCount: _questions.length,
+                                    onReorder: _onReorder,
+                                    buildDefaultDragHandles: false,
+                                    proxyDecorator: (child, index, animation) =>
+                                        Transform.scale(
+                                          scale: 0.98,
+                                          child: Opacity(
+                                            opacity: 0.9,
+                                            child: Material(
+                                              color: Colors.transparent,
+                                              elevation: 0,
+                                              child: child,
+                                            ),
+                                          ),
+                                        ),
+                                    itemBuilder: (context, i) =>
+                                        ReorderableDelayedDragStartListener(
+                                          key: ValueKey(_questions[i]),
+                                          index: i,
+                                          child: Padding(
+                                            padding: const EdgeInsets.only(bottom: 12),
+                                            child: QuestionListCard(
+                                              index: i,
+                                              totalCount: _questions.length,
+                                              question: _questions[i],
+                                              onEdit: () => _openEditor(_questions[i]),
+                                              onMoveUp: () => _moveQuestion(i, -1),
+                                              onMoveDown: () => _moveQuestion(i, 1),
+                                              onDelete: () => setState(() {
+                                                _questions[i].dispose();
+                                                _questions.removeAt(i);
+                                              }),
+                                            ),
+                                          ),
+                                        ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-                // Indikator M3 wavy smooth full kiri ke kanan saat menyimpan
-                if (_saving)
-                  const Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: AppLoadingIndicator.linear(),
-                  ),
-                if (_importing)
-                  Positioned.fill(
-                    child: Container(
-                      color: Colors.black.withValues(alpha: 0.15),
-                      child: const Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            AppLoadingIndicator.contained(),
-                            SizedBox(height: 16),
-                            Text(
-                              'Memproses file...',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                                decoration: TextDecoration.none,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
             ),
       floatingActionButton: SizedBox(
         width: 68,
         height: 68,
         child: FloatingActionButton(
-          onPressed: _addQuestion,
+          onPressed: (_saving || _importing) ? null : _addQuestion,
           backgroundColor: kPrimary,
           foregroundColor: Colors.white,
           elevation: 4,

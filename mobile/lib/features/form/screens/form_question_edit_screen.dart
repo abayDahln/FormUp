@@ -137,28 +137,12 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
         showAuthToast(context, "Gambar maksimal 10 MB", isError: true);
         return;
       }
-      // Soal belum punya id → simpan sebagai draf, upload setelah tersimpan.
-      if (q.id == null) {
-        setState(() {
-          q.pendingImageBytes = bytes;
-          q.pendingImageName = 'question.jpg';
-          q.questionImage = null;
-        });
-        return;
-      }
-      setState(() => _uploading = true);
-      try {
-        final path = await FormService.uploadQuestionImage(
-          widget.formId!,
-          q.id!,
-          bytes,
-          'question.jpg',
-        );
-        if (!mounted) return;
-        setState(() => q.questionImage = path);
-      } finally {
-        if (mounted) setState(() => _uploading = false);
-      }
+      setState(() {
+        q.pendingImageBytes = bytes;
+        q.pendingImageName = 'question.jpg';
+        // Nilai final questionImage baru ditetapkan setelah soal disimpan.
+        q.questionImage = null;
+      });
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
@@ -192,28 +176,12 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
         showAuthToast(context, "Audio maksimal 10 MB", isError: true);
         return;
       }
-      // Soal belum punya id → simpan sebagai draf, upload setelah tersimpan.
-      if (q.id == null) {
-        setState(() {
-          q.pendingAudioBytes = bytes;
-          q.pendingAudioName = file.name;
-          q.questionAudio = null;
-        });
-        return;
-      }
-      setState(() => _uploading = true);
-      try {
-        final path = await FormService.uploadQuestionAudio(
-          widget.formId!,
-          q.id!,
-          bytes,
-          file.name,
-        );
-        if (!mounted) return;
-        setState(() => q.questionAudio = path);
-      } finally {
-        if (mounted) setState(() => _uploading = false);
-      }
+      setState(() {
+        q.pendingAudioBytes = bytes;
+        q.pendingAudioName = file.name;
+        // Nilai final questionAudio baru ditetapkan setelah soal disimpan.
+        q.questionAudio = null;
+      });
     } catch (e) {
       if (!mounted) return;
       final msg = e is ApiException ? e.message : e.toString().replaceFirst('Exception: ', '');

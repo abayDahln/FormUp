@@ -17,6 +17,7 @@ class AppLoadingIndicator extends StatelessWidget {
   final double? value; // null = indeterminate morphing; 0..1 = determinate wavy (linear saja)
   final Color? color;
   final Color? backgroundColor;
+  final double? linearHeight;
   final bool _isLinear;
   final bool _isContained;
   final String? semanticsLabel;
@@ -28,6 +29,7 @@ class AppLoadingIndicator extends StatelessWidget {
     this.value,
     this.color,
     this.backgroundColor,
+    this.linearHeight,
     this.semanticsLabel,
   })  : _isLinear = false,
         _isContained = false;
@@ -41,6 +43,7 @@ class AppLoadingIndicator extends StatelessWidget {
     this.value,
     this.color,
     this.backgroundColor,
+    this.linearHeight,
     this.semanticsLabel,
   })  : _isLinear = false,
         _isContained = false;
@@ -55,6 +58,7 @@ class AppLoadingIndicator extends StatelessWidget {
     this.value,
     this.color,
     this.backgroundColor,
+    this.linearHeight,
     this.semanticsLabel,
   })  : _isLinear = false,
         _isContained = true;
@@ -67,6 +71,7 @@ class AppLoadingIndicator extends StatelessWidget {
     this.value,
     this.color,
     this.backgroundColor,
+    this.linearHeight,
     this.semanticsLabel,
   })  : _isLinear = false,
         _isContained = false;
@@ -79,6 +84,7 @@ class AppLoadingIndicator extends StatelessWidget {
     this.value,
     this.color,
     this.backgroundColor,
+    this.linearHeight,
     this.semanticsLabel,
   })  : _isLinear = false,
         _isContained = false;
@@ -91,6 +97,7 @@ class AppLoadingIndicator extends StatelessWidget {
     this.value,
     this.color = Colors.white,
     this.backgroundColor,
+    this.linearHeight,
     this.semanticsLabel,
   })  : _isLinear = false,
         _isContained = false;
@@ -102,6 +109,7 @@ class AppLoadingIndicator extends StatelessWidget {
     this.value,
     this.color,
     this.backgroundColor,
+    this.linearHeight = 2,
     this.semanticsLabel,
   })  : _isLinear = true,
         _isContained = false,
@@ -116,22 +124,31 @@ class AppLoadingIndicator extends StatelessWidget {
     if (_isLinear) {
       // Determinate wavy linear (Expressive) – phase scroll otomatis
       if (value != null) {
-        return ExpressiveLinearProgressIndicator(
-          value: value,
-          color: effectiveColor,
-          backgroundColor: backgroundColor ?? scheme.surfaceContainerHighest,
-          minHeight: 4,
-          borderRadius: BorderRadius.circular(2),
-          semanticsLabel: semanticsLabel,
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0, end: value!.clamp(0.0, 1.0)),
+          duration: const Duration(milliseconds: 700),
+          curve: Curves.easeInOutCubic,
+          builder: (context, animatedValue, _) {
+            return SizedBox(
+              height: linearHeight ?? 2,
+              child: LinearProgressIndicator(
+                value: animatedValue,
+                color: effectiveColor,
+                backgroundColor: backgroundColor ?? scheme.surfaceContainerHighest,
+                semanticsLabel: semanticsLabel,
+              ),
+            );
+          },
         );
       }
       // Indeterminate wavy
-      return ExpressiveLinearProgressIndicator(
-        color: effectiveColor,
-        backgroundColor: backgroundColor ?? scheme.surfaceContainerHighest,
-        minHeight: 4,
-        borderRadius: BorderRadius.circular(2),
-        semanticsLabel: semanticsLabel ?? 'Loading',
+      return SizedBox(
+        height: linearHeight ?? 2,
+        child: ExpressiveLinearProgressIndicator(
+          color: effectiveColor,
+          backgroundColor: backgroundColor ?? scheme.surfaceContainerHighest,
+          semanticsLabel: semanticsLabel ?? 'Loading',
+        ),
       );
     }
 
