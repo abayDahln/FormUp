@@ -275,6 +275,7 @@ class PublicFormService {
     String? token,
     String? respondentName,
     required List<Map<String, dynamic>> answers,
+    bool isAutoSubmit = false,
   }) async {
     if (!AppDebouncer.tryAcquire('public:submit:$formLink')) {
       throw const ApiException('Terlalu cepat, tunggu sebentar.');
@@ -284,6 +285,7 @@ class PublicFormService {
       if (respondentName != null && respondentName.trim().isNotEmpty)
         'respondentName': respondentName.trim(),
       'answers': answers,
+      if (isAutoSubmit) 'isAutoSubmit': true,
     });
     ApiCache.invalidatePrefix('publicForms:');
     ApiCache.invalidatePrefix('http:get:');

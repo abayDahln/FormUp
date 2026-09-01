@@ -219,11 +219,40 @@ class FormRunnerViewState extends State<FormRunnerView> {
     }
   }
 
-  /// Auto submit saat waktu habis: jawaban dikirim langsung lalu kembali ke
-  /// screen awal form.
+  /// Auto submit saat waktu habis: langsung kirim hasil apa adanya
+  /// (selesai atau tidak selesai), tidak ada penambahan waktu.
   Future<void> _autoSubmit() async {
     if (_submitting) return;
-    await _submitInternal(returnToStartScreen: true);
+    final answers = _c.store.collectAutoAnswers(_c.questions);
+    setState(() => _submitting = true);
+    try {
+      await _c.submitAnswers(answers, isAutoSubmit: true);
+    } catch (e) {
+      if (!mounted) return;
+      // Tetap tampilkan dialog selesai meski submit gagal (mis. sudah pernah submit)
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Form Selesai", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
+        content: const Text("Waktu pengerjaan telah habis. Jawaban telah dikirim.", style: TextStyle(fontSize: 14, color: Colors.black54)),
+        actions: [
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: kAuthPrimary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Tutup"),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    AppRouter.of(context).pop();
   }
 
   /// Scroll ke soal belum dijawab pertama dan fokus ke field esai-nya (jika ada).
@@ -273,6 +302,11 @@ class FormRunnerViewState extends State<FormRunnerView> {
       showAuthToast(context, "Pertanyaan wajib belum dijawab", isError: true);
       return false;
     }
+    // Cegah submit kosong: belum isi apapun tetap tercatat sebagai sudah mengerjakan
+    if (!_c.store.hasAnyAnswer(_c.questions)) {
+      showAuthToast(context, "Isi minimal satu jawaban sebelum mengirim", isError: true);
+      return false;
+    }
     final answers = _c.store.collectValidatedAnswers(_c.questions);
     if (answers == null) {
       showAuthToast(context, "Pertanyaan wajib belum dijawab", isError: true);
@@ -284,6 +318,23 @@ class FormRunnerViewState extends State<FormRunnerView> {
       await _c.submitAnswers(answers);
       if (!mounted) return false;
       if (returnToStartScreen) {
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text("Jawaban Terkirim", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
+            content: const Text("Jawaban sudah terkirim.", style: TextStyle(fontSize: 14, color: Colors.black54)),
+            actions: [
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: kAuthPrimary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Tutup"),
+              ),
+            ],
+          ),
+        );
+        if (!mounted) return true;
         AppRouter.of(context).pop();
       }
       return true;
@@ -307,6 +358,10 @@ class FormRunnerViewState extends State<FormRunnerView> {
       });
       _scrollToUnanswered(firstUnanswered);
       showAuthToast(context, "Pertanyaan wajib belum dijawab", isError: true);
+      return;
+    }
+    if (!_c.store.hasAnyAnswer(_c.questions)) {
+      showAuthToast(context, "Isi minimal satu jawaban sebelum mengirim", isError: true);
       return;
     }
 

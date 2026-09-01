@@ -64,9 +64,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   _RespondentSort _sort = _RespondentSort.newest;
 
   int get _totalPages {
-    final total = _analytics?.totalResponses ?? 0;
+    final total = _analytics?.totalDistinctUsers ?? _analytics?.totalResponses ?? 0;
     if (total == 0) return 1;
     return (total / _pageSize).ceil();
+  }
+
+  bool get _showPagination {
+    final distinct = _analytics?.totalDistinctUsers ?? 0;
+    // Jika backend belum kirim distinct, fallback ke estimasi group lokal
+    final fallbackDistinct = _groupedRespondents.length;
+    final count = distinct > 0 ? distinct : fallbackDistinct;
+    return count > 20;
   }
 
   @override
@@ -499,8 +507,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                           padding: EdgeInsets.symmetric(vertical: 12),
                           child: Center(child: LoadingIndicator.inline()),
                         ),
-                      // Pagination admin-style
-                      if (_analytics != null && _analytics!.totalResponses > _pageSize)
+                      // Pagination hanya jika group by user > 20
+                      if (_showPagination)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Row(

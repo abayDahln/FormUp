@@ -151,6 +151,7 @@ class MyResponseItem {  final int responseId;
 /// Analisis respons form
 class FormAnalytics {
   final int totalResponses;
+  final int totalDistinctUsers;
   final int totalQuestions;
   final int scorableQuestions;
   final double? averageScore;
@@ -158,6 +159,7 @@ class FormAnalytics {
 
   const FormAnalytics({
     this.totalResponses = 0,
+    this.totalDistinctUsers = 0,
     this.totalQuestions = 0,
     this.scorableQuestions = 0,
     this.averageScore,
@@ -166,6 +168,7 @@ class FormAnalytics {
 
   factory FormAnalytics.fromJson(Map<String, dynamic> json) => FormAnalytics(
         totalResponses: (json['totalResponses'] ?? json['TotalResponses']) as int? ?? 0,
+        totalDistinctUsers: (json['totalDistinctUsers'] ?? json['TotalDistinctUsers']) as int? ?? (json['totalResponses'] ?? json['TotalResponses']) as int? ?? 0,
         totalQuestions: (json['totalQuestions'] ?? json['TotalQuestions']) as int? ?? 0,
         scorableQuestions: (json['scorableQuestions'] ?? json['ScorableQuestions']) as int? ?? 0,
         averageScore: ((json['averageScore'] ?? json['AverageScore']) as num?)?.toDouble(),
@@ -603,6 +606,19 @@ class FormService {
       if (description != null && description.trim().isNotEmpty)
         'description': description.trim(),
     });
+  }
+
+  /// GET /forms/{formId}/feedback — umpan balik milik user saat ini (1x per form)
+  static Future<FormFeedbackItem?> getMyFeedback(int formId) async {
+    try {
+      final json = await AuthService.get('/forms/$formId/feedback');
+      final data = json['data'] as Map<String, dynamic>?;
+      if (data == null) return null;
+      return FormFeedbackItem.fromJson(data);
+    } catch (_) {
+      // 404 = belum pernah memberi umpan balik; anggap null
+      return null;
+    }
   }
 
   /// GET /forms/{formId}/feedbacks

@@ -139,6 +139,10 @@ class RunnerAnswerStore {
     return answers;
   }
 
+  /// Apakah ada jawaban sama sekali.
+  bool hasAnyAnswer(List<PublicQuestion> questions) =>
+      questions.any((q) => isAnswered(q));
+
   /// Kumpulkan jawaban dengan pemeriksaan wajib per soal.
   /// Mengembalikan null bila ada soal wajib yang belum dijawab.
   List<Map<String, dynamic>>? collectValidatedAnswers(

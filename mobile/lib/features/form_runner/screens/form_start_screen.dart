@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form_runner/widgets/form_start_banner_card.dart';
@@ -28,6 +30,18 @@ class _FormStartScreenState extends State<FormStartScreen> {
   String? _tokenError;
 
   final _tokenController = TextEditingController();
+  final _feedbackController = TextEditingController();
+  String _feedbackReason = 'General Feedback';
+  bool _submittingFeedback = false;
+  FormFeedbackItem? _myFeedback;
+  bool _loadingFeedback = false;
+
+  static const _feedbackReasons = [
+    'General Feedback',
+    'Inappropriate Content',
+    'Misleading Information',
+    'Bug / Technical Issue',
+  ];
 
   @override
   void initState() {
@@ -41,6 +55,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
   @override
   void dispose() {
     _tokenController.dispose();
+    _feedbackController.dispose();
     super.dispose();
   }
 
@@ -84,7 +99,10 @@ class _FormStartScreenState extends State<FormStartScreen> {
   Future<void> _loadCompletionState() async {
     if (!mounted) return;
     if (AuthService.token == null || _formInfo == null) {
-      setState(() => _myAttempts = []);
+      setState(() {
+        _myAttempts = [];
+        _myFeedback = null;
+      });
       return;
     }
 
@@ -95,6 +113,23 @@ class _FormStartScreenState extends State<FormStartScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _myAttempts = []);
+    }
+
+    // Muat umpan balik hanya jika sudah pernah mengerjakan
+    if (_myAttempts.isNotEmpty && _formInfo != null) {
+      setState(() => _loadingFeedback = true);
+      try {
+        final fb = await FormService.getMyFeedback(_formInfo!.id);
+        if (!mounted) return;
+        setState(() => _myFeedback = fb);
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _myFeedback = null);
+      } finally {
+        if (mounted) setState(() => _loadingFeedback = false);
+      }
+    } else {
+      setState(() => _myFeedback = null);
     }
   }
 
@@ -297,6 +332,98 @@ class _FormStartScreenState extends State<FormStartScreen> {
             loading: _validatingToken,
             onPressed: _validatingToken ? null : _startForm,
           ),
+
+          // Umpan balik — hanya jika sudah pernah mengerjakan, 1x per user
+          if (_myAttempts.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            const Divider(height: 1, color: Color(0x1FBDC9C8)),
+            const SizedBox(height: 16),
+            const Text(
+              "Umpan Balik untuk Form ini",
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _myFeedback != null ? "Kamu sudah mengirim umpan balik untuk form ini." : "Hanya terlihat jika kamu sudah mengerjakan form ini. Satu umpan balik per form.",
+              style: const TextStyle(fontSize: 11, color: Colors.black54),
+            ),
+            const SizedBox(height: 12),
+            if (_loadingFeedback)
+              const Center(child: Padding(padding: EdgeInsets.all(16), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
+            else if (_myFeedback != null)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0x1FBDC9C8)),
+                  boxShadow: softShadow(),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      const Text("Umpan Balik Kamu", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kAuthPrimary)),
+                      Text(
+                        "${_myFeedback!.createdAt.day}/${_myFeedback!.createdAt.month}/${_myFeedback!.createdAt.year}",
+                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                    ]),
+                    const SizedBox(height: 8),
+                    Text("Kategori: ${_myFeedback!.reason}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: kAuthPrimary)),
+                    if (_myFeedback!.description != null && _myFeedback!.description!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(_myFeedback!.description!, style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                    ],
+                    const SizedBox(height: 8),
+                    const Text("Umpan balik hanya bisa dikirim satu kali per form.", style: TextStyle(fontSize: 11, color: Colors.black38, fontStyle: FontStyle.italic)),
+                  ],
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0x1FBDC9C8)),
+                  boxShadow: softShadow(),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Alasan Umpan Balik", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: _feedbackReason,
+                      decoration: formUpInputDecoration(hintText: 'Pilih alasan umpan balik'),
+                      items: [for (final r in _feedbackReasons) DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(fontSize: 13)))],
+                      onChanged: _submittingFeedback ? null : (v) { if (v != null) setState(() => _feedbackReason = v); },
+                    ),
+                    const SizedBox(height: 12),
+                    const Text("Deskripsi Umpan Balik", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _feedbackController,
+                      maxLines: 3,
+                      enabled: !_submittingFeedback,
+                      decoration: formUpInputDecoration(hintText: 'Jelaskan umpan balik atau masalah...'),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _submittingFeedback ? null : _submitFeedback,
+                        style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), padding: const EdgeInsets.symmetric(vertical: 14)),
+                        child: _submittingFeedback
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Text("Kirim Umpan Balik", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ],
       ),
     );
@@ -309,5 +436,38 @@ class _FormStartScreenState extends State<FormStartScreen> {
       'formLink': widget.formLink,
       'formTitle': info.title,
     });
+  }
+
+  Future<void> _submitFeedback() async {
+    if (_myFeedback != null) {
+      showAuthToast(context, 'Kamu sudah mengirim umpan balik untuk form ini', isError: true);
+      return;
+    }
+    final desc = _feedbackController.text.trim();
+    if (desc.isEmpty) {
+      showAuthToast(context, 'Deskripsi umpan balik wajib diisi', isError: true);
+      return;
+    }
+    final formId = _formInfo?.id;
+    if (formId == null) {
+      showAuthToast(context, 'Form tidak ditemukan', isError: true);
+      return;
+    }
+    setState(() => _submittingFeedback = true);
+    try {
+      await FormService.submitFeedback(formId, reason: _feedbackReason, description: desc);
+      if (!mounted) return;
+      showAuthToast(context, 'Umpan balik berhasil dikirim');
+      _feedbackController.clear();
+      // Muat ulang agar tampil sebagai "sudah mengirim" dan tidak bisa kirim lagi
+      final fb = await FormService.getMyFeedback(formId);
+      if (!mounted) return;
+      setState(() => _myFeedback = fb ?? FormFeedbackItem(id: 0, formId: formId, formTitle: _formInfo?.title ?? '', userName: '', reason: _feedbackReason, description: desc, createdAt: DateTime.now()));
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _submittingFeedback = false);
+    }
   }
 }

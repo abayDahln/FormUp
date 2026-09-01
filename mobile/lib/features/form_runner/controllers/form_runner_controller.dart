@@ -55,7 +55,7 @@ class FormRunnerController {
   }
 
   /// Kirim jawaban; mengembalikan id respons.
-  Future<int> submitAnswers(List<Map<String, dynamic>> answers) async {
+  Future<int> submitAnswers(List<Map<String, dynamic>> answers, {bool isAutoSubmit = false}) async {
     final data = await PublicFormService.submit(
       formLink!,
       token: tokenController.text.trim().isEmpty
@@ -63,6 +63,7 @@ class FormRunnerController {
           : tokenController.text.trim(),
       respondentName: isLoggedIn ? null : nameController.text,
       answers: answers,
+      isAutoSubmit: isAutoSubmit,
     );
     return data['responseId'] as int;
   }
