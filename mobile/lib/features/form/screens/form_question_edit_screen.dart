@@ -1,7 +1,10 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:form_up/core/theme.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/models/question_draft.dart';
@@ -170,16 +173,29 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
         withData: true,
       );
       final file = result?.files.single;
-      if (file == null || file.bytes == null) return;
+      if (file == null) return;
+      Uint8List? bytes = file.bytes;
+      if (bytes == null && file.path != null) {
+        try {
+          bytes = await File(file.path!).readAsBytes();
+        } catch (_) {
+          bytes = null;
+        }
+      }
+      if (bytes == null) {
+        if (!mounted) return;
+        showAuthToast(context, "Gagal membaca file audio", isError: true);
+        return;
+      }
       if (!mounted) return;
-      if (exceedsUploadLimit(file.bytes!)) {
+      if (exceedsUploadLimit(bytes)) {
         showAuthToast(context, "Audio maksimal 10 MB", isError: true);
         return;
       }
       // Soal belum punya id → simpan sebagai draf, upload setelah tersimpan.
       if (q.id == null) {
         setState(() {
-          q.pendingAudioBytes = file.bytes;
+          q.pendingAudioBytes = bytes;
           q.pendingAudioName = file.name;
           q.questionAudio = null;
         });
@@ -190,7 +206,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
         final path = await FormService.uploadQuestionAudio(
           widget.formId!,
           q.id!,
-          file.bytes!,
+          bytes,
           file.name,
         );
         if (!mounted) return;
@@ -200,7 +216,8 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      final msg = e is ApiException ? e.message : e.toString().replaceFirst('Exception: ', '');
+      showAuthToast(context, msg.isEmpty ? "Gagal memproses audio" : msg, isError: true);
     }
   }
 
@@ -248,6 +265,13 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
       ),
       body: Stack(
         children: [
+          if (_uploading)
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: AppLoadingIndicator.linear(),
+            ),
           AuthBackground(plain: true,
             child: SafeArea(
               child: ValueListenableBuilder<ActiveRichEditor?>(
@@ -329,68 +353,26 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                               const SizedBox(height: 14),
                               QuestionRequiredSwitch(
                                 value: q.isRequired,
-                                onChanged: (v) => setState(() => q.isRequired = v),
+                                onChanged: (v) => setState(() {
+                                  q.isRequired = v;
+                                  if (!v) {
+                                    q.isScorable = false;
+                                    q.points = null;
+                                    q.correctAnswer.clear();
+                                    for (final o in q.options) {
+                                      o.isCorrect = false;
+                                    }
+                                  }
+                                }),
                               ),
-                              const SizedBox(height: 8),
-                              // Hitung ke skor — paritas web FormBuilder.jsx
-                              Row(
-                                children: [
-                                  const Text(
-                                    "Hitung ke skor (Dinilai)",
-                                    style: TextStyle(fontSize: 13, color: Colors.black87),
-                                  ),
-                                  const Spacer(),
-                                  Switch(
-                                    value: q.isScorable,
-                                    activeTrackColor: kAuthPrimary,
-                                    onChanged: (v) => setState(() => q.isScorable = v),
-                                  ),
-                                ],
-                              ),
-                              if (q.isScorable) ...[
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    const Text(
-                                      "Poin Soal",
-                                      style: TextStyle(fontSize: 13, color: Colors.black87),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    SizedBox(
-                                      width: 90,
-                                      child: TextFormField(
-                                        key: ValueKey('points_${q.points}'),
-                                        initialValue: q.points?.toString() ?? '',
-                                        keyboardType: TextInputType.number,
-                                        decoration: formUpInputDecoration(hintText: "1").copyWith(
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                        ),
-                                        onChanged: (v) {
-                                          if (v.trim().isEmpty) {
-                                            q.points = null;
-                                          } else {
-                                            q.points = int.tryParse(v);
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Expanded(
-                                      child: Text(
-                                        "opsional — kosong = bobot sama rata",
-                                        style: TextStyle(fontSize: 10, color: Colors.black45, fontStyle: FontStyle.italic),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
                             ],
                           ),
                         ),
                         const SizedBox(height: 24),
                         AuthPrimaryButton(
                           label: "Simpan Soal",
-                          onPressed: _save,
+                          loading: _uploading,
+                          onPressed: _uploading ? null : _save,
                         ),
                       ],
                     ),

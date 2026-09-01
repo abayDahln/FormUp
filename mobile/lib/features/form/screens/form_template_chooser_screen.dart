@@ -175,7 +175,7 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
         ];
         await FormService.saveQuestions(formId, payload);
       }
-      formsVersion.value++;
+      // _invalidateCaches() sudah bump formsVersion
       if (!mounted) return;
       // Ganti chooser dengan detail form — user bisa langsung edit/lanjut kelola soal.
       AppRouter.of(context).replaceTop(AppPage.formDetail, {'formId': formId});

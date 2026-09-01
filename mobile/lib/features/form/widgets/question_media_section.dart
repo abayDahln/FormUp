@@ -4,6 +4,7 @@ import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
+import 'package:form_up/features/form_runner/widgets/question_audio_player.dart';
 
 /// Isi section "Media": pratinjau gambar/audio + tombol tambah/ganti/hapus
 class QuestionMediaSection extends StatelessWidget {
@@ -30,129 +31,178 @@ class QuestionMediaSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Preview gambar
         if (q.pendingImageBytes != null) ...[
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: Image.memory(
               q.pendingImageBytes!,
-              height: 120,
+              height: 160,
               width: double.infinity,
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => Container(
                 height: 120,
                 alignment: Alignment.center,
                 color: const Color(0xFFF0F4F4),
-                child: const Icon(Icons.broken_image_outlined,
-                    size: 32, color: Colors.grey),
+                child: const Icon(Icons.broken_image_outlined, size: 32, color: Colors.grey),
               ),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
+          const Text('Pratinjau gambar (belum tersimpan)', style: TextStyle(fontSize: 11, color: Colors.black45, fontStyle: FontStyle.italic)),
+          const SizedBox(height: 8),
         ] else if (q.questionImage != null) ...[
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: CachedRemoteImage(
               url: profileImageUrl(q.questionImage),
-              height: 120,
+              height: 160,
               width: double.infinity,
               fit: BoxFit.cover,
               errorWidget: Container(
                 height: 120,
                 alignment: Alignment.center,
                 color: const Color(0xFFF0F4F4),
-                child: const Icon(Icons.broken_image_outlined,
-                    size: 32, color: Colors.grey),
+                child: const Icon(Icons.broken_image_outlined, size: 32, color: Colors.grey),
               ),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
         ],
-        if (hasAudio) ...[
-          Row(
-            children: [
-              const Icon(Icons.audio_file, size: 18, color: kAuthPrimary),
-              const SizedBox(width: 6),
-              const Expanded(
-                child: Text(
-                  'Audio terlampir',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close, size: 16, color: Colors.grey),
-                onPressed: () {
-                  q.questionAudio = null;
-                  q.pendingAudioBytes = null;
-                  q.pendingAudioName = null;
-                  onChanged();
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
+        // Indikator wavy di atas tombol gambar saat upload
+        if (uploading) ...[
+          const AppLoadingIndicator.linear(),
+          const SizedBox(height: 8),
         ],
-        if (uploading)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Center(
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: AppLoadingIndicator.inline(),
-              ),
-            ),
-          )
-        else
-          Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            children: [
-              if (hasImage)
-                TextButton.icon(
-                  onPressed: () {
-                    q.questionImage = null;
-                    q.pendingImageBytes = null;
-                    q.pendingImageName = null;
-                    onChanged();
-                  },
-                  icon: const Icon(Icons.close, size: 16, color: Color(0xFFC0392B)),
-                  label: const Text(
-                    'Hapus Gambar',
-                    style: TextStyle(fontSize: 12, color: Color(0xFFC0392B)),
-                  ),
-                ),
-              if (hasAudio)
-                TextButton.icon(
-                  onPressed: () {
-                    q.questionAudio = null;
-                    q.pendingAudioBytes = null;
-                    q.pendingAudioName = null;
-                    onChanged();
-                  },
-                  icon: const Icon(Icons.close, size: 16, color: Color(0xFFC0392B)),
-                  label: const Text(
-                    'Hapus Audio',
-                    style: TextStyle(fontSize: 12, color: Color(0xFFC0392B)),
-                  ),
-                ),
-              OutlinedButton.icon(
-                onPressed: onPickImage,
-                icon: const Icon(Icons.image_outlined, size: 16, color: kAuthPrimary),
+        // Tombol gambar: tata letak row sejajar
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: uploading ? null : onPickImage,
+                icon: Icon(hasImage ? Icons.image_outlined : Icons.add_photo_alternate_outlined, size: 16, color: kAuthPrimary),
                 label: Text(
                   hasImage ? 'Ganti Gambar' : 'Tambah Gambar',
-                  style: const TextStyle(fontSize: 12, color: kAuthPrimary),
+                  style: const TextStyle(fontSize: 12, color: kAuthPrimary, fontWeight: FontWeight.w600),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: kAuthPrimary),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: onPickAudio,
-                icon: const Icon(Icons.audio_file_outlined, size: 16, color: kAuthPrimary),
-                label: Text(
-                  hasAudio ? 'Ganti Audio' : 'Tambah Audio',
-                  style: const TextStyle(fontSize: 12, color: kAuthPrimary),
+            ),
+            if (hasImage) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: uploading
+                      ? null
+                      : () {
+                          q.questionImage = null;
+                          q.pendingImageBytes = null;
+                          q.pendingImageName = null;
+                          onChanged();
+                        },
+                  icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFC0392B)),
+                  label: const Text(
+                    'Hapus Gambar',
+                    style: TextStyle(fontSize: 12, color: Color(0xFFC0392B), fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFC0392B)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
                 ),
               ),
             ],
-          ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        const Divider(height: 1),
+        const SizedBox(height: 16),
+        // Preview audio
+        if (hasAudio) ...[
+          if (q.pendingAudioBytes != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F4F4),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFBDC9C8)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.audio_file, size: 20, color: kAuthPrimary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      q.pendingAudioName ?? 'Audio pending (belum tersimpan)',
+                      style: const TextStyle(fontSize: 12, color: Colors.black87),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const Icon(Icons.hourglass_top, size: 16, color: Colors.black45),
+                ],
+              ),
+            ),
+          ] else if (q.questionAudio != null) ...[
+            QuestionAudioPlayer(url: q.questionAudio!),
+          ],
+          const SizedBox(height: 8),
+        ],
+        // Indikator wavy di atas tombol audio saat upload
+        if (uploading) ...[
+          const AppLoadingIndicator.linear(),
+          const SizedBox(height: 8),
+        ],
+        // Tombol audio: tata letak row sejajar
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: uploading ? null : onPickAudio,
+                icon: Icon(hasAudio ? Icons.audio_file_outlined : Icons.add_circle_outline, size: 16, color: kAuthPrimary),
+                label: Text(
+                  hasAudio ? 'Ganti Audio' : 'Tambah Audio',
+                  style: const TextStyle(fontSize: 12, color: kAuthPrimary, fontWeight: FontWeight.w600),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: kAuthPrimary),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+            if (hasAudio) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: uploading
+                      ? null
+                      : () {
+                          q.questionAudio = null;
+                          q.pendingAudioBytes = null;
+                          q.pendingAudioName = null;
+                          onChanged();
+                        },
+                  icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFC0392B)),
+                  label: const Text(
+                    'Hapus Audio',
+                    style: TextStyle(fontSize: 12, color: Color(0xFFC0392B), fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFC0392B)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ],
     );
   }

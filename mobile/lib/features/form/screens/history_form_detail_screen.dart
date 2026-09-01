@@ -163,20 +163,38 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
                           ),
                         )
                       else
-                        for (var i = 0; i < _sortedAttempts.length; i++) ...[
-                          _AttemptCard(
-                            index: i,
-                            attempt: _sortedAttempts[i],
-                            onTap: () => AppRouter.of(context).push(
-                              AppPage.formHistoryDetail,
-                              {
-                                'formLink': widget.formLink,
-                                'responseId': _sortedAttempts[i].responseId,
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
+                        Builder(builder: (context) {
+                          final sorted = _sortedAttempts;
+                          // Map kronologis: #1 = paling lama (sesuai Komentar di PublicFormService.getMyAttempts)
+                          final chrono = List<MyAttempt>.from(_attempts)
+                            ..sort((a, b) {
+                              final da = a.submittedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+                              final db = b.submittedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+                              return da.compareTo(db);
+                            });
+                          final numberById = {
+                            for (var j = 0; j < chrono.length; j++) chrono[j].responseId: j + 1,
+                          };
+                          return Column(
+                            children: [
+                              for (var i = 0; i < sorted.length; i++) ...[
+                                _AttemptCard(
+                                  key: ValueKey(sorted[i].responseId),
+                                  index: (numberById[sorted[i].responseId] ?? i + 1) - 1,
+                                  attempt: sorted[i],
+                                  onTap: () => AppRouter.of(context).push(
+                                    AppPage.formHistoryDetail,
+                                    {
+                                      'formLink': widget.formLink,
+                                      'responseId': sorted[i].responseId,
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                            ],
+                          );
+                        }),
                     ],
                   ),
                 ),
@@ -330,6 +348,7 @@ class _AttemptCard extends StatelessWidget {
   final VoidCallback onTap;
 
   const _AttemptCard({
+    super.key,
     required this.index,
     required this.attempt,
     required this.onTap,
@@ -375,9 +394,9 @@ class _AttemptCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "Percobaan",
-                      style: TextStyle(
+                    Text(
+                      "Percobaan ke-${index + 1}",
+                      style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,

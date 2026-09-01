@@ -112,7 +112,7 @@ class FormDetailActions extends StatelessWidget {
       await FormService.deleteForm(form.id);
       if (!context.mounted) return;
       showAuthToast(context, 'Form berhasil dihapus');
-      formsVersion.value++;
+      // _invalidateCaches() sudah bump formsVersion
       AppRouter.of(context).pop();
     } catch (e) {
       if (!context.mounted) return;

@@ -5,7 +5,6 @@ import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/form_card.dart';
 import 'package:form_up/features/home/screens/form_screen.dart';
 import 'package:form_up/features/home/screens/response_screen.dart';
-import 'package:form_up/features/home/widgets/home_error_banner.dart';
 import 'package:form_up/features/home/widgets/home_header.dart';
 import 'package:form_up/features/home/widgets/home_kerjakan_card.dart';
 import 'package:form_up/features/home/widgets/home_recent_activity.dart';
@@ -34,7 +33,6 @@ class _HomeScreenState extends State<HomeScreen> {
   List<FormData> _myForms = [];
   List<MyResponseItem> _myResponses = [];
   bool _loading = true;
-  String? _loadError;
   final _codeController = TextEditingController();
   bool _validatingCode = false;
 
@@ -42,7 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     formsVersion.addListener(_onFormsChanged);
-    _load(silent: true);
+    _load();
   }
 
   @override
@@ -52,10 +50,9 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _onFormsChanged() => _load(silent: true);
+  void _onFormsChanged() => _load();
 
-  /// Load silent (tanpa toast)
-  Future<void> _load({bool silent = false}) async {
+  Future<void> _load() async {
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
@@ -66,16 +63,11 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _myForms = results[0] as List<FormData>;
         _myResponses = results[1] as List<MyResponseItem>;
-        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
-      final message = AuthService.errorMessage(e);
-      if (silent) {
-        setState(() => _loadError = message);
-      } else {
-        showAuthToast(context, message, isError: true);
-      }
+      // Konsisten: selalu toast float, tidak ada banner inline di dalam view
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -131,11 +123,6 @@ class _HomeScreenState extends State<HomeScreen> {
             HomeHeader(username: widget.username),
             const SizedBox(height: 20),
 
-            if (_loadError != null) ...[
-              HomeErrorBanner(message: _loadError!),
-              const SizedBox(height: 20),
-            ],
-
             HomeKerjakanCard(
               codeController: _codeController,
               onStart: _start,
@@ -158,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onQuickActions: (form) => showFormQuickActions(
                 context,
                 form,
-                onChanged: () => _load(silent: true),
+                onChanged: () => _load(),
               ),
             ),
             const SizedBox(height: 25),

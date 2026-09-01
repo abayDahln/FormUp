@@ -151,8 +151,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
       setProgress(1.0);
 
       if (!mounted) return;
-      // Beri tahu layar daftar form/beranda agar auto-refresh.
-      formsVersion.value++;
+      // _invalidateCaches() di FormService sudah bump formsVersion -> auto-refresh
       if (_isEdit) {
         AppRouter.of(context).pop(formId);
         showAuthToast(

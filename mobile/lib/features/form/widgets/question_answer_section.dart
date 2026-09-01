@@ -20,30 +20,80 @@ class QuestionAnswerSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final q = draft;
-    final scorable = q.isScorable;
-    if (!scorable) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF0F4F4),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFBDC9C8)),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.info_outline, size: 16, color: Colors.black54),
-            SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                'Soal tidak dinilai — untuk pengumpulan data (Nama, Email, dsb). Tidak perlu kunci jawaban.',
-                style: TextStyle(fontSize: 11, color: Colors.black54),
-              ),
-            ),
-          ],
-        ),
-      );
+    final hasScoringValue = q.isRequired &&
+        (q.correctAnswer.text.trim().isNotEmpty || q.options.any((o) => o.isCorrect));
+    // sinkronkan isScorable dengan isi field (otomatis)
+    if (q.isScorable != hasScoringValue) {
+      // jangan panggil onChanged di build, cukup sinkron nilai
+      q.isScorable = hasScoringValue;
+      if (!hasScoringValue) q.points = null;
     }
-    if (q.typeId == 5) return _buildTrueFalseAnswer(q);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildAnswerContent(context),
+        if (hasScoringValue) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Text(
+                "Poin Soal",
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 90,
+                child: TextFormField(
+                  key: ValueKey('points_${q.points}_${q.isRequired}'),
+                  initialValue: q.points?.toString() ?? '',
+                  keyboardType: TextInputType.number,
+                  enabled: q.points != null,
+                  decoration: formUpInputDecoration(hintText: "1").copyWith(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  onChanged: (v) {
+                    if (v.trim().isEmpty) {
+                      q.points = null;
+                    } else {
+                      q.points = int.tryParse(v);
+                    }
+                    onChanged();
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                "Otomatis",
+                style: TextStyle(fontSize: 12, color: Colors.black87),
+              ),
+              const SizedBox(width: 4),
+              Switch(
+                value: q.points == null,
+                activeTrackColor: kAuthPrimary,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onChanged: (v) {
+                  if (v) {
+                    q.points = null;
+                  } else {
+                    q.points = 1;
+                  }
+                  onChanged();
+                },
+              ),
+            ],
+          ),
+          Text(
+            q.points == null ? "Bobot otomatis sama rata" : "Bobot manual",
+            style: const TextStyle(fontSize: 10, color: Colors.black45, fontStyle: FontStyle.italic),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAnswerContent(BuildContext context) {
+    final q = draft;
+    if (q.typeId == 5) return _buildTrueFalseAnswer(q, onChanged);
     if (q.typeId == 1) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -61,9 +111,11 @@ class QuestionAnswerSection extends StatelessWidget {
           TextField(
             controller: q.correctAnswer,
             maxLines: null,
+            enabled: q.isRequired,
             decoration: _fieldDecoration(
               "Kunci jawaban untuk kuis",
             ),
+            onChanged: (_) => onChanged(),
           ),
         ],
       );
@@ -131,29 +183,41 @@ class QuestionAnswerSection extends StatelessWidget {
   }
 }
 
-Widget _buildTrueFalseAnswer(QuestionDraft q) {
-  return Row(
-    children: [
-      Expanded(
-        child: _AnswerChip(
-          "Benar",
-          q.correctAnswer.text == 'Benar',
-          () {
-            q.correctAnswer.text = 'Benar';
-          },
+Widget _buildTrueFalseAnswer(QuestionDraft q, VoidCallback onChanged) {
+  final enabled = q.isRequired;
+  return Opacity(
+    opacity: enabled ? 1 : 0.5,
+    child: Row(
+      children: [
+        Expanded(
+          child: _AnswerChip(
+            "Benar",
+            q.correctAnswer.text == 'Benar',
+            enabled
+                ? () {
+                    q.correctAnswer.text = 'Benar';
+                    onChanged();
+                  }
+                : () {},
+            enabled: enabled,
+          ),
         ),
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: _AnswerChip(
-          "Salah",
-          q.correctAnswer.text == 'Salah',
-          () {
-            q.correctAnswer.text = 'Salah';
-          },
+        const SizedBox(width: 10),
+        Expanded(
+          child: _AnswerChip(
+            "Salah",
+            q.correctAnswer.text == 'Salah',
+            enabled
+                ? () {
+                    q.correctAnswer.text = 'Salah';
+                    onChanged();
+                  }
+                : () {},
+            enabled: enabled,
+          ),
         ),
-      ),
-    ],
+      ],
+    ),
   );
 }
 
@@ -162,13 +226,14 @@ class _AnswerChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final bool enabled;
 
-  const _AnswerChip(this.label, this.selected, this.onTap);
+  const _AnswerChip(this.label, this.selected, this.onTap, {this.enabled = true});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: enabled ? onTap : null,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         alignment: Alignment.center,
@@ -216,17 +281,19 @@ class _OptionRow extends StatelessWidget {
       child: Row(
         children: [
           InkWell(
-            onTap: () {
-              if (singleSelect) {
-                for (final opt in q.options) {
-                  opt.isCorrect = false;
-                }
-                o.isCorrect = true;
-              } else {
-                o.isCorrect = !o.isCorrect;
-              }
-              onChanged();
-            },
+            onTap: !q.isRequired
+                ? null
+                : () {
+                    if (singleSelect) {
+                      for (final opt in q.options) {
+                        opt.isCorrect = false;
+                      }
+                      o.isCorrect = true;
+                    } else {
+                      o.isCorrect = !o.isCorrect;
+                    }
+                    onChanged();
+                  },
             child: Icon(
               singleSelect
                   ? (o.isCorrect

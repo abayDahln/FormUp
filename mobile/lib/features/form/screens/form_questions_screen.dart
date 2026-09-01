@@ -12,10 +12,8 @@ import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/theme.dart';
-import 'package:form_up/core/utils/form_zoom.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/router/app_router.dart';
-import 'package:form_up/features/form/widgets/form_zoom_controls.dart';
 import 'package:form_up/features/form/controllers/question_payload_builder.dart';
 import 'package:form_up/features/form/controllers/question_validation.dart';
 import 'package:form_up/features/form/widgets/question_confirm_dialogs.dart';
@@ -637,22 +635,16 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
       setProgress(0.5);
 
       // Queue upload media draf: soal baru belum punya id, jadi upload
-      // setelah server balikkan id. Id baru = item di respons yang id-nya
-      // tidak termasuk id lama, berurutan sesuai urutan daftar.
-      final knownIds = _questions.map((q) => q.id).whereType<int>().toSet();
-      final newSaved = saved
-          .where((m) => !knownIds.contains(m['id'] as int?))
-          .toList();
+      // setelah server balikkan id. Server kembalikan daftar berurutan sesuai questionOrder.
+      for (var i = 0; i < _questions.length && i < saved.length; i++) {
+        _questions[i].id ??= saved[i]['id'] as int?;
+      }
       final uploads = <(QuestionDraft, Uint8List, String, bool)>[];
-      var newIndex = 0;
       for (final q in _questions) {
         if (q.pendingImageBytes == null && q.pendingAudioBytes == null) {
           continue;
         }
-        final savedId = q.id ?? newSaved[newIndex]['id'] as int?;
-        if (savedId == null) continue;
-        q.id ??= savedId;
-        newIndex++;
+        if (q.id == null) continue;
         if (q.pendingImageBytes != null) {
           uploads.add((
             q,
@@ -756,10 +748,6 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
           },
         ),
         actions: [
-          const Padding(
-            padding: EdgeInsets.only(right: 4),
-            child: Center(child: FormZoomControls()),
-          ),
           // Tombol simpan di header, di samping menu
           Padding(
             padding: const EdgeInsets.only(right: 2),
@@ -847,14 +835,12 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                 child: SafeArea(
                   child: _questions.isEmpty
                       ? SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(22, 4, 22, 24),
-                          child: Column(
+                          padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
+                          child: const Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              const QuestionsEmptyState(),
-                              const SizedBox(height: 80),
-                              if (_saving && _progress != null)
-                                LinearProgressIndicator(value: _progress),
+                              QuestionsEmptyState(),
+                              SizedBox(height: 80),
                             ],
                           ),
                         )
@@ -878,19 +864,15 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                                     ),
                                   ),
                               itemBuilder: (context, i) =>
-                                  ValueListenableBuilder<double>(
-                                    valueListenable: formZoom,
-                                    builder: (context, zoom, _) =>
-                                        ReorderableDelayedDragStartListener(
-                                      key: ValueKey(_questions[i]),
-                                      index: i,
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(bottom: 12),
-                                        child: QuestionListCard(
-                                          index: i,
-                                          totalCount: _questions.length,
-                                          question: _questions[i],
-                                          zoom: zoom,
+                                  ReorderableDelayedDragStartListener(
+                                    key: ValueKey(_questions[i]),
+                                    index: i,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(bottom: 12),
+                                      child: QuestionListCard(
+                                        index: i,
+                                        totalCount: _questions.length,
+                                        question: _questions[i],
                                           onEdit: () => _openEditor(_questions[i]),
                                           onMoveUp: () => _moveQuestion(i, -1),
                                           onMoveDown: () => _moveQuestion(i, 1),
@@ -901,22 +883,20 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                                         ),
                                       ),
                                     ),
-                                  ),
                             ),
-                            if (_saving && _progress != null)
-                              Positioned(
-                                left: 22,
-                                right: 22,
-                                bottom: 16,
-                                child: LinearProgressIndicator(
-                                  value: _progress,
-                                ),
-                              ),
                           ],
                         ),
                 ),
               ),
             ),
+                // Indikator M3 wavy smooth full kiri ke kanan saat menyimpan
+                if (_saving)
+                  const Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: AppLoadingIndicator.linear(),
+                  ),
                 if (_importing)
                   Positioned.fill(
                     child: Container(

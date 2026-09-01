@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -382,6 +383,9 @@ class FormService {
     ApiCache.invalidatePrefix('forms:');
     ApiCache.invalidatePrefix('publicForms:');
     ApiCache.invalidatePrefix('http:get:');
+    // Auto-refresh daftar (home + form tab) setelah add/edit/hapus/publish/import/banner
+    // formsVersion dipakai sebagai cache-buster di getMyForms/getMyResponses/getQuestions
+    formsVersion.value++;
   }
 
   /// POST /forms
@@ -738,6 +742,8 @@ class FormService {
     return (json['data'] as Map<String, dynamic>?)?[dataKey] as String? ?? '';
   }
 
+  static const _uploadTimeout = Duration(seconds: 60);
+
   static Future<http.Response> _upload(
     Uri uri,
     Uint8List bytes,
@@ -748,8 +754,12 @@ class FormService {
     request.files.add(
       http.MultipartFile.fromBytes('file', bytes, filename: filename),
     );
-    final streamed = await request.send().timeout(AuthService.timeout);
-    return await http.Response.fromStream(streamed);
+    try {
+      final streamed = await request.send().timeout(_uploadTimeout);
+      return await http.Response.fromStream(streamed).timeout(_uploadTimeout);
+    } on TimeoutException {
+      throw const ApiException('Upload timeout. File besar atau koneksi lambat, coba lagi.');
+    }
   }
 
   /// POST /forms/{id}/questions/import/preview — parse & validasi file impor
