@@ -16,13 +16,14 @@ import FormResultPage from './features/form-runner/FormResultPage';
 import AdminDashboardPage from './features/admin/AdminDashboardPage';
 import ProfilePage from './features/profile/ProfilePage';
 import ForgotPasswordPage from './features/auth/ForgotPasswordPage';
+import LandingPage from './features/landing/LandingPage';
 import ProtectedRoute from './components/ui/ProtectedRoute';
 import { isAuthenticated } from './services/apiService';
 
 function App() {
   return (
     <Routes>
-      <Route path="/" element={isAuthenticated() ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
+      <Route path="/" element={isAuthenticated() ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
 
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />

@@ -10,7 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@studio-freight/lenis": "^1.0.42",
     "@tailwindcss/vite": "^4.3.3",
+    "gsap": "^3.15.0",
     "lucide-react": "^1.27.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
