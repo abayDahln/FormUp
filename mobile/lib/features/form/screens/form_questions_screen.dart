@@ -844,9 +844,10 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                         Padding(
                           padding: const EdgeInsets.fromLTRB(22, 8, 22, 10),
                           child: SizedBox(
-                            height: 28,
+                            height: 3,
                             child: AppLoadingIndicator.linear(
                               value: _progress,
+                              linearHeight: 3,
                               backgroundColor: Colors.transparent,
                             ),
                           ),
