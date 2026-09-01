@@ -151,6 +151,7 @@ export default function FormBuilder() {
 
     const handleSaveQuestions = async () => {
         setSaving(true);
+        // 0 soal diperbolehkan: kirim array kosong -> backend hapus semua soal
         const payloadQuestions = questions.map((q, i) => {
             const scorable = q.isScorable !== false;
             return {
@@ -175,22 +176,36 @@ export default function FormBuilder() {
         setSaving(false);
 
         if (res.ok) {
-            showToast('Soal berhasil disimpan!');
+            showToast(payloadQuestions.length === 0 ? 'Semua soal berhasil dihapus!' : 'Soal berhasil disimpan!');
             const qRes = await getQuestions(id);
             if (qRes.ok && Array.isArray(qRes.data)) {
-                setQuestions(qRes.data.map((q, i) => ({
-                    ...q,
-                    _id: questions[i]?._id || `q_${q.id}`,
-                    isScorable: questions[i]?.isScorable ?? ((q.options || []).some(o => o.isCorrect === true) || !!(q.correctAnswer && q.correctAnswer.trim())),
-                    points: q.points ?? null,
-                    options: q.options || [],
-                })));
+                if (qRes.data.length === 0) {
+                    setQuestions([]);
+                } else {
+                    setQuestions(qRes.data.map((q, i) => ({
+                        ...q,
+                        _id: questions[i]?._id || `q_${q.id}`,
+                        isScorable: questions[i]?.isScorable ?? ((q.options || []).some(o => o.isCorrect === true) || !!(q.correctAnswer && q.correctAnswer.trim())),
+                        points: q.points ?? null,
+                        options: q.options || [],
+                    })));
+                }
+                // Jika form kehabisan soal, status otomatis kembali draft
+                const refreshed = await getFormById(id);
+                if (refreshed.ok && refreshed.data) setForm(refreshed.data);
             }
             return true;
         } else {
             showToast(res.message || 'Gagal menyimpan soal.', 'error');
             return false;
         }
+    };
+
+    const handleClearAllQuestions = () => {
+        if (questions.length === 0) return;
+        if (!window.confirm('Hapus semua soal? Perubahan berlaku setelah Simpan.')) return;
+        setQuestions([]);
+        showToast('Semua soal dihapus dari draf. Tekan Simpan untuk menyimpan perubahan.', 'success');
     };
 
     const handleSaveSettings = async () => {
@@ -877,12 +892,28 @@ export default function FormBuilder() {
                                 ))}
                             </div>
 
-                            <button
-                                onClick={addQuestion}
-                                className="w-full py-3.5 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl text-xs font-extrabold text-slate-600 dark:text-slate-400 hover:border-[#00897B] dark:hover:border-teal-400 hover:text-[#00897B] dark:hover:text-teal-400 transition-all flex items-center justify-center gap-2 bg-white/60 dark:bg-slate-900/60 cursor-pointer"
-                            >
-                                <Plus size={18} /> Tambah Soal Baru
-                            </button>
+                            {questions.length === 0 && (
+                                <div className="py-8 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl bg-white/60 dark:bg-slate-900/60">
+                                    <p className="text-sm font-bold text-slate-500 dark:text-slate-400">Belum ada soal</p>
+                                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Form tanpa soal akan tersimpan kosong (0 soal) dan otomatis kembali menjadi draf.</p>
+                                </div>
+                            )}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={addQuestion}
+                                    className="flex-1 py-3.5 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl text-xs font-extrabold text-slate-600 dark:text-slate-400 hover:border-[#00897B] dark:hover:border-teal-400 hover:text-[#00897B] dark:hover:text-teal-400 transition-all flex items-center justify-center gap-2 bg-white/60 dark:bg-slate-900/60 cursor-pointer"
+                                >
+                                    <Plus size={18} /> Tambah Soal Baru
+                                </button>
+                                {questions.length > 0 && (
+                                    <button
+                                        onClick={handleClearAllQuestions}
+                                        className="px-4 py-3.5 border border-red-200 dark:border-red-900 rounded-2xl text-xs font-extrabold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-all flex items-center justify-center gap-2 bg-white dark:bg-slate-900 cursor-pointer"
+                                    >
+                                        <Trash2 size={16} /> Hapus Semua
+                                    </button>
+                                )}
+                            </div>
                         </>
                     )}
 

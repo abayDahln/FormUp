@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
-import 'package:form_up/core/widgets/rich_editor.dart';
 
 /// Kartu satu soal pada daftar kelola soal
 class QuestionListCard extends StatelessWidget {
@@ -31,6 +30,7 @@ class QuestionListCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final q = question;
     final plainText = q.question.document.toPlainText().trim();
+    final typeLabel = questionTypes[q.typeId]?.$1 ?? '';
 
     return GestureDetector(
       onTap: onEdit,
@@ -67,35 +67,30 @@ class QuestionListCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        questionTypes[q.typeId]?.$1 ?? '',
-                        style: TextStyle(fontSize: _zs(13), color: Colors.black87),
+                        plainText.isEmpty ? 'Belum ada teks pertanyaan.' : plainText,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: _zs(13),
+                          fontWeight: FontWeight.w700,
+                          fontFamily: kFontBold,
+                          color: Colors.black87,
+                          height: 1.25,
+                        ),
                       ),
-                      if (q.isScorable) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: kAuthPrimary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                            child: Text(
-                             q.points != null ? '${q.points} poin' : 'Dinilai',
-                             style: TextStyle(fontSize: _zs(10), fontWeight: FontWeight.bold, color: kAuthPrimary),
-                           ),
+                      const SizedBox(height: 4),
+                      Text(
+                        typeLabel,
+                        style: TextStyle(
+                          fontSize: _zs(11),
+                          color: kAuthPrimary,
+                          fontWeight: FontWeight.w600,
                         ),
-                      ] else
-                        Container(
-                          margin: const EdgeInsets.only(left: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.black12,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text('Tidak dinilai', style: TextStyle(fontSize: _zs(10), color: Colors.black54)),
-                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -109,6 +104,11 @@ class QuestionListCard extends StatelessWidget {
                     onPressed: () => controller.isOpen ? controller.close() : controller.open(),
                   ),
                   menuChildren: [
+                    MenuItemButton(
+                      leadingIcon: const Icon(Icons.edit_outlined, size: 18),
+                      onPressed: onEdit,
+                      child: const Text('Edit Soal'),
+                    ),
                     MenuItemButton(
                       leadingIcon: const Icon(Icons.arrow_upward, size: 18),
                       onPressed: index > 0 ? onMoveUp : null,
@@ -129,24 +129,6 @@ class QuestionListCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            if (plainText.isEmpty)
-              Text(
-                'Belum ada teks pertanyaan.',
-                style: TextStyle(
-                  fontSize: _zs(12),
-                  color: Colors.black45,
-                  fontStyle: FontStyle.italic,
-                ),
-              )
-            else
-              RichTextView(
-                text: encodeRichText(q.question),
-                zoom: zoom,
-                maxLines: zoom > 1.15 ? null : 2,
-                overflow: zoom > 1.15 ? null : TextOverflow.ellipsis,
-                style: TextStyle(fontSize: _zs(13), color: Colors.black87),
-              ),
           ],
         ),
       ),

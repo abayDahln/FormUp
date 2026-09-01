@@ -277,19 +277,59 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                               const Divider(height: 32),
                               Row(
                                 children: const [
-                                  Icon(Icons.rule, size: 18, color: kAuthPrimary),
+                                  Icon(Icons.tune, size: 18, color: kAuthPrimary),
                                   SizedBox(width: 8),
-                                  Text('Jawaban',
-                                      style: TextStyle(
-                                          fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
+                                  Text(
+                                    'Pengaturan',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      fontFamily: kFontBold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 14),
-                              QuestionAnswerSection(
-                                optionsKey: _answerSectionKey,
-                                draft: q,
-                                onChanged: () => setState(() {}),
+                              QuestionRequiredSwitch(
+                                value: q.isRequired,
+                                onChanged: (v) => setState(() {
+                                  q.isRequired = v;
+                                  if (!v) {
+                                    q.isScorable = false;
+                                    q.points = null;
+                                    q.correctAnswer.clear();
+                                    for (final o in q.options) {
+                                      o.isCorrect = false;
+                                    }
+                                  }
+                                }),
                               ),
+                              const SizedBox(height: 18),
+                              if (q.isRequired)
+                                ...[
+                                  Row(
+                                    children: const [
+                                      Icon(Icons.rule, size: 18, color: kAuthPrimary),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Jawaban',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          fontFamily: kFontBold,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  QuestionAnswerSection(
+                                    optionsKey: _answerSectionKey,
+                                    draft: q,
+                                    onChanged: () => setState(() {}),
+                                  ),
+                                ],
                               const Divider(height: 32),
                               Row(
                                 children: const [
@@ -307,31 +347,6 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                                 onPickImage: _pickQuestionImage,
                                 onPickAudio: _pickQuestionAudio,
                                 onChanged: () => setState(() {}),
-                              ),
-                              const Divider(height: 32),
-                              Row(
-                                children: const [
-                                  Icon(Icons.tune, size: 18, color: kAuthPrimary),
-                                  SizedBox(width: 8),
-                                  Text('Pengaturan',
-                                      style: TextStyle(
-                                          fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                              QuestionRequiredSwitch(
-                                value: q.isRequired,
-                                onChanged: (v) => setState(() {
-                                  q.isRequired = v;
-                                  if (!v) {
-                                    q.isScorable = false;
-                                    q.points = null;
-                                    q.correctAnswer.clear();
-                                    for (final o in q.options) {
-                                      o.isCorrect = false;
-                                    }
-                                  }
-                                }),
                               ),
                             ],
                           ),

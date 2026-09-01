@@ -89,21 +89,37 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
   Widget build(BuildContext context) {
     final maxMs = (_duration ?? Duration.zero).inMilliseconds;
     final posMs = _position.inMilliseconds.clamp(0, maxMs).toDouble();
+    final progress = maxMs == 0 ? 0.0 : (posMs / maxMs).clamp(0.0, 1.0);
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F4F4),
-        borderRadius: BorderRadius.circular(12),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF7FFFD), Color(0xFFE6F8F4)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF7ECFC0), width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A018081),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: _loading
           ? Row(
               children: [
                 const SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                  width: 30,
+                  height: 30,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    valueColor: AlwaysStoppedAnimation<Color>(kAuthPrimary),
+                  ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,13 +127,21 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
                     children: [
                       const Text(
                         "Mempersiapkan pratinjau audio",
-                        style: TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF123B36),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       if (widget.label != null) ...[
                         const SizedBox(height: 2),
                         Text(
                           widget.label!,
-                          style: const TextStyle(fontSize: 11, color: Colors.black45),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF1E6B60),
+                            fontWeight: FontWeight.w500,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -129,52 +153,80 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
             )
           : Row(
               children: [
-                IconButton(
-                  onPressed: _toggle,
-                  icon: Icon(
-                    _playing ? Icons.pause_circle : Icons.play_circle,
-                    color: kAuthPrimary,
-                    size: 32,
+                InkResponse(
+                  onTap: _toggle,
+                  radius: 26,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF018081),
+                      shape: BoxShape.circle,
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x2A018081),
+                          blurRadius: 10,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 26,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         "Audio Soal",
-                        style: TextStyle(fontSize: 12, color: Colors.black54),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF123B36),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       if (widget.label != null) ...[
                         const SizedBox(height: 2),
                         Text(
                           widget.label!,
-                          style: const TextStyle(fontSize: 11, color: Colors.black45),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF1E6B60),
+                            fontWeight: FontWeight.w500,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
-                      const SizedBox(height: 4),
-                      Slider(
-                        value: maxMs == 0 ? 0 : posMs,
-                        max: maxMs == 0 ? 1 : maxMs.toDouble(),
-                        activeColor: kAuthPrimary,
-                        onChanged: maxMs == 0
-                            ? null
-                            : (v) async {
-                                final t = Duration(milliseconds: v.round());
-                                await _player.seek(t);
-                                setState(() => _position = t);
-                              },
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: SizedBox(
+                          height: 4,
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            minHeight: 4,
+                            backgroundColor: const Color(0xFFBFE9E1),
+                            valueColor: const AlwaysStoppedAnimation<Color>(kAuthPrimary),
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 Text(
-                  maxMs == 0 ? _fmt(_position) : _fmt(_duration!),
-                  style: const TextStyle(fontSize: 11, color: Colors.black54),
+                  '${_fmt(_position)} / ${maxMs == 0 ? '--:--' : _fmt(_duration!)}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF123B36),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),

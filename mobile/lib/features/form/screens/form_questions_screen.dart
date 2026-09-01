@@ -207,7 +207,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
   }
 
   Future<void> _addQuestion() async {
-    final draft = QuestionDraft(1);
+    final draft = QuestionDraft(1, isRequired: true);
     setState(() => _questions.add(draft));
     await _openEditor(draft);
     // Draf baru yang dibuang (tidak disimpan) dihapus dari daftar.
@@ -274,22 +274,20 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
       final confirmed = await _showImportPreview(questions, preview);
       if (!mounted || confirmed != true) return;
 
-      // 3) Simpan sungguhan ke database
-      final result = await FormService.saveQuestionImport(
-        widget.formId!,
-        bytes,
-        file.name,
-      );
+      // 3) Masukkan hasil impor ke draf lokal, belum disimpan ke database.
+      final importedDrafts = <QuestionDraft>[
+        for (final item in questions) _draftFromImportItem(item),
+      ];
       if (!mounted) return;
-      final imported = result['totalImported'] as int? ?? 0;
-      final skipped = result['totalSkipped'] as int? ?? 0;
+      setState(() {
+        _questions.addAll(importedDrafts);
+      });
       showAppToast(
         context,
-        "$imported soal diimpor${skipped > 0 ? ", $skipped dilewati" : ""}",
-        type: imported > 0 ? ToastType.success : ToastType.warning,
+        "${importedDrafts.length} soal masuk draf",
+        type: importedDrafts.isNotEmpty ? ToastType.success : ToastType.warning,
         title: "Impor Selesai",
       );
-      await _loadQuestions();
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
@@ -610,10 +608,46 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
     });
   }
 
+  Future<void> _clearAllQuestions() async {
+    if (_saving || _importing || _questions.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'Hapus Semua Soal?',
+          style: TextStyle(fontFamily: kFontBold),
+        ),
+        content: const Text(
+          'Semua soal di draf ini akan dihapus. Perubahan berlaku setelah kamu menekan Simpan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Hapus Semua',
+              style: TextStyle(color: Color(0xFFC0392B)),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      for (final q in _questions) {
+        q.dispose();
+      }
+      _questions.clear();
+    });
+  }
+
   Future<void> _save() async {
     if (!AppDebouncer.tryAcquire('form:saveQuestions')) return;
     if (_saving) return;
-    final error = validateQuestionsList(_questions);
+    final error = validateQuestionsList(_questions, allowEmpty: true);
     if (error != null) {
       showAuthToast(context, error, isError: true);
       return;
@@ -630,9 +664,17 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
       final formId = widget.formId;
       if (formId == null) return;
       setProgress(0.1);
-      final saved = widget.isNew
-          ? await FormService.saveQuestions(formId, payload)
-          : await FormService.updateQuestions(formId, payload);
+      if (_questions.isEmpty) {
+        await FormService.deleteAllQuestions(formId);
+        setProgress(1.0);
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        if (!mounted) return;
+        AppRouter.of(context).pop(formId);
+        showAuthToast(context, "Semua soal berhasil dihapus");
+        return;
+      }
+
+      final saved = await FormService.updateQuestions(formId, payload);
       setProgress(0.7);
 
       // Queue upload media draf: soal baru belum punya id, jadi upload
@@ -809,6 +851,18 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
               ),
               menuChildren: [
                 MenuItemButton(
+                  leadingIcon: const Icon(
+                    Icons.delete_sweep_outlined,
+                    size: 18,
+                    color: Color(0xFFC0392B),
+                  ),
+                  onPressed: _questions.isEmpty ? null : _clearAllQuestions,
+                  child: const Text(
+                    'Hapus Semua Soal',
+                    style: TextStyle(color: Color(0xFFC0392B)),
+                  ),
+                ),
+                MenuItemButton(
                   leadingIcon: _importing
                       ? const SizedBox(
                           width: 18,
@@ -840,7 +894,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                 child: SafeArea(
                   child: Column(
                     children: [
-                      if (_saving)
+                      if (_saving || _importing)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(22, 8, 22, 10),
                           child: SizedBox(
@@ -927,6 +981,36 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
+  }
+
+  QuestionDraft _draftFromImportItem(Map<String, dynamic> item) {
+    final draft = QuestionDraft(
+      item['typeId'] as int? ?? 1,
+      question: item['question'] as String? ?? '',
+      correctAnswer: item['correctAnswer'] as String? ?? '',
+      isRequired: item['isRequired'] as bool? ?? true,
+      randomizeOptions: item['randomizeOptions'] as bool? ?? false,
+      isScorable: item['hasCorrectAnswer'] == true ||
+          item['correctAnswer'] != null ||
+          (item['options'] as List<dynamic>? ?? [])
+              .whereType<Map<String, dynamic>>()
+              .any((o) => o['isCorrect'] == true),
+      points: item['points'] as int?,
+      questionImage: item['image'] as String? ?? item['questionImage'] as String?,
+      questionAudio: item['audio'] as String? ?? item['questionAudio'] as String?,
+    );
+
+    final options = (item['options'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>();
+    for (final opt in options) {
+      draft.options.add(
+        OptionDraft(
+          text: opt['optionText'] as String? ?? '',
+          isCorrect: opt['isCorrect'] == true,
+        ),
+      );
+    }
+    return draft;
   }
 }
 

@@ -23,8 +23,11 @@ String? validateQuestionDraft(QuestionDraft q) {
 
 /// Validasi seluruh daftar draf soal (dipakai saat simpan kelola soal).
 /// Mengembalikan pesan error pertama, atau null bila semua valid.
-String? validateQuestionsList(List<QuestionDraft> questions) {
-  if (questions.isEmpty) {
+String? validateQuestionsList(
+  List<QuestionDraft> questions, {
+  bool allowEmpty = false,
+}) {
+  if (questions.isEmpty && !allowEmpty) {
     return "Tambahkan minimal 1 pertanyaan";
   }
   for (final q in questions) {

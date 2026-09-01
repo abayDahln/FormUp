@@ -499,6 +499,13 @@ class FormService {
     ];
   }
 
+  /// DELETE /forms/{id}/questions
+  /// Menghapus seluruh soal pada form.
+  static Future<void> deleteAllQuestions(int formId) async {
+    await AuthService.delete('/forms/$formId/questions');
+    _invalidateCaches();
+  }
+
   /// POST /forms/{id}/publish
   static Future<void> publish(int formId) async {
     await AuthService.post('/forms/$formId/publish', {});

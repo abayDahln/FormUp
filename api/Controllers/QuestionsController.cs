@@ -56,9 +56,6 @@ public class QuestionsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ApiResponse<object>>> Create(int formId, [FromBody] SaveQuestionsRequest request)
     {
-        if (request.Questions.Count == 0)
-            return BadRequest(new ApiResponse<object>(400, "No questions provided"));
-
         var user = await GetCurrentUser();
         if (user == null)
             return Unauthorized(new ApiResponse<object>(401, "User not found"));
@@ -158,9 +155,6 @@ public class QuestionsController : ControllerBase
     [HttpPut]
     public async Task<ActionResult<ApiResponse<object>>> Save(int formId, [FromBody] SaveQuestionsRequest request)
     {
-        if (request.Questions.Count == 0)
-            return BadRequest(new ApiResponse<object>(400, "No questions provided"));
-
         var user = await GetCurrentUser();
         if (user == null)
             return Unauthorized(new ApiResponse<object>(401, "User not found"));
@@ -171,11 +165,15 @@ public class QuestionsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        var typeIds = request.Questions.Select(q => q.TypeId).Distinct().ToList();
-        var validTypes = await _db.QuestionTypes
-            .Where(t => typeIds.Contains(t.Id))
-            .Select(t => t.Id)
-            .ToListAsync();
+        // Kelola soal mendukung 0 soal: list kosong/null artinya hapus semua soal
+        var incoming = request?.Questions ?? new List<QuestionItem>();
+        var typeIds = incoming.Select(q => q.TypeId).Distinct().ToList();
+        var validTypes = typeIds.Count == 0
+            ? new List<int>()
+            : await _db.QuestionTypes
+                .Where(t => typeIds.Contains(t.Id))
+                .Select(t => t.Id)
+                .ToListAsync();
 
         var invalidTypes = typeIds.Except(validTypes).ToList();
         if (invalidTypes.Count > 0)
@@ -197,12 +195,12 @@ public class QuestionsController : ControllerBase
 
             var existingById = existingQuestions.ToDictionary(q => q.Id);
             var nextOrder = existingQuestions.Count > 0 ? existingQuestions.Max(q => q.QuestionOrder) : 0;
-            var submittedIds = request.Questions
+            var submittedIds = incoming
                 .Where(q => q.Id.HasValue && existingById.ContainsKey(q.Id.Value))
                 .Select(q => q.Id!.Value)
                 .ToHashSet();
 
-            foreach (var item in request.Questions)
+            foreach (var item in incoming)
             {
                 var questionText = item.Question ?? "";
                 if (!string.IsNullOrWhiteSpace(questionText) && !RichTextValidation.TryValidate(questionText, out var formatError))
@@ -292,13 +290,13 @@ public class QuestionsController : ControllerBase
 
             await tx.CommitAsync();
 
-            var questions = await _db.Questions
+            var resultQuestions = await _db.Questions
                 .Include(q => q.OptionQuestions.OrderBy(o => o.OptionOrder))
                 .Where(q => q.FormId == formId && q.DeletedAt == null)
                 .OrderBy(q => q.QuestionOrder)
                 .ToListAsync();
 
-            return Ok(new ApiResponse<object>(200, $"{questions.Count} questions updated", questions.Select(MapQuestion).ToList()));
+            return Ok(new ApiResponse<object>(200, $"{resultQuestions.Count} questions updated", resultQuestions.Select(MapQuestion).ToList()));
         }
         catch
         {
@@ -347,6 +345,53 @@ public class QuestionsController : ControllerBase
         await tx.CommitAsync();
 
         return Ok(new ApiResponse<object>(200, "Question deleted"));
+    }
+
+    [HttpDelete]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteAll(int formId)
+    {
+        var user = await GetCurrentUser();
+        if (user == null)
+            return Unauthorized(new ApiResponse<object>(401, "User not found"));
+
+        var form = await _db.Forms
+            .FirstOrDefaultAsync(f => f.Id == formId && f.UserId == user.Id && f.DeletedAt == null);
+
+        if (form == null)
+            return NotFound(new ApiResponse<object>(404, "Form not found"));
+
+        using var tx = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        await LockFormRow(formId);
+
+        var blocked = await EnsureNoResponses(formId);
+        if (blocked != null)
+            return blocked;
+
+        var questionIds = await _db.Questions
+            .Where(q => q.FormId == formId && q.DeletedAt == null)
+            .Select(q => q.Id)
+            .ToListAsync();
+
+        if (questionIds.Count == 0)
+        {
+            await tx.CommitAsync();
+            return Ok(new ApiResponse<object>(200, "No questions to delete", new List<object>()));
+        }
+
+        await _db.OptionQuestions
+            .Where(o => questionIds.Contains(o.QuestionId))
+            .ExecuteDeleteAsync();
+
+        await _db.Questions
+            .Where(q => questionIds.Contains(q.Id))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(q => q.DeletedAt, DateTime.UtcNow)
+                .SetProperty(q => q.UpdatedAt, DateTime.UtcNow));
+
+        await UnpublishIfNoQuestions(form);
+        await tx.CommitAsync();
+
+        return Ok(new ApiResponse<object>(200, "All questions deleted", new List<object>()));
     }
 
     /// <summary>
