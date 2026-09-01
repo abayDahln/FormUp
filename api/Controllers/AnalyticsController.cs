@@ -82,7 +82,7 @@ public class AnalyticsController : ControllerBase
             .Select(r => (r.ResponseId, r.QuestionId, r.OptionId, r.AnswerValue))
             .ToList();
 
-        var hasCustomPoints = questions.Any(q => q.Points.HasValue && q.Points.Value > 0 && (!string.IsNullOrEmpty(q.CorrectAnswer) || q.OptionQuestions.Any(o => o.IsCorrect == true)));
+        var hasCustomPoints = questions.Any(q => q.Points.HasValue && q.Points.Value > 0);
         var scoringDivisor = ResponseScorer.GetScoringDivisor(questions);
         double? averageScore = ComputeAverageScore(questions, scoringDivisor, hasCustomPoints, answerRows);
 
@@ -182,7 +182,7 @@ public class AnalyticsController : ControllerBase
 
     /// <summary>
     /// Hitung rata-rata skor seluruh respon form dari proyeksi baris jawaban
-    /// ringan (ResponseId, QuestionId, OptionId, AnswerValue).
+    /// ringan (ResponseId, QuestionId, OptionId, AnswerValue). Selalu dalam persen 0-100.
     /// </summary>
     private static double? ComputeAverageScore(
         List<Question> questions,
@@ -193,20 +193,16 @@ public class AnalyticsController : ControllerBase
         if (scorableQuestions == 0 && !hasCustomPoints)
             return null;
 
-        var correctByText = new Dictionary<int, string>();
-        var correctOptionsByQuestion = new Dictionary<int, HashSet<int>>();
         var pointsByQuestion = new Dictionary<int, int>();
+        var totalPoints = 0;
         foreach (var q in questions)
         {
-            pointsByQuestion[q.Id] = q.Points ?? 1;
-            if (q.OptionQuestions.Any(o => o.IsCorrect == true))
-                correctOptionsByQuestion[q.Id] = q.OptionQuestions
-                    .Where(o => o.IsCorrect == true)
-                    .Select(o => o.Id)
-                    .ToHashSet();
-            if (!string.IsNullOrEmpty(q.CorrectAnswer))
-                correctByText[q.Id] = q.CorrectAnswer.Trim();
+            var pt = q.Points ?? 1;
+            pointsByQuestion[q.Id] = pt;
+            if (hasCustomPoints) totalPoints += pt;
+            else if (ResponseScorer.CountScorable(new List<Question> { q }) > 0) totalPoints += pt;
         }
+        if (totalPoints == 0) totalPoints = scorableQuestions > 0 ? scorableQuestions : questions.Count;
 
         var scores = new List<double>();
         foreach (var group in answerRows.GroupBy(a => a.ResponseId))
@@ -217,7 +213,6 @@ public class AnalyticsController : ControllerBase
             {
                 var rows = group.Where(r => r.QuestionId == q.Id).ToList();
                 var isCorr = ResponseScorer.IsAnswerCorrect(rows, q) == true;
-
                 if (isCorr)
                 {
                     correctCount++;
@@ -225,14 +220,21 @@ public class AnalyticsController : ControllerBase
                 }
             }
 
+            double score;
             if (hasCustomPoints)
             {
-                scores.Add(Math.Round(earnedPoints, 1));
+                score = totalPoints > 0 ? Math.Round(earnedPoints / totalPoints * 100, 1) : 0;
+                score = Math.Min(100.0, score);
             }
             else if (scorableQuestions > 0)
             {
-                scores.Add(Math.Min(100.0, Math.Round((double)correctCount / scorableQuestions * 100, 1)));
+                score = Math.Min(100.0, Math.Round((double)correctCount / scorableQuestions * 100, 1));
             }
+            else
+            {
+                continue;
+            }
+            scores.Add(score);
         }
 
         return scores.Count > 0 ? Math.Round(scores.Average(), 1) : null;
