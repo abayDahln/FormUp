@@ -18,6 +18,7 @@ class LoadingIndicator extends StatelessWidget {
   final Color? color;
   final Color? backgroundColor;
   final bool _isContained;
+  final bool _isButton;
   final String? semanticsLabel;
 
   const LoadingIndicator({
@@ -28,7 +29,8 @@ class LoadingIndicator extends StatelessWidget {
     this.color,
     this.backgroundColor,
     this.semanticsLabel,
-  }) : _isContained = false;
+  })  : _isContained = false,
+        _isButton = false;
 
   /// M3 Circular medium 96dp – page loading uncontained (diperbesar agar tampak di tengah list)
   const LoadingIndicator.circular({
@@ -39,7 +41,8 @@ class LoadingIndicator extends StatelessWidget {
     this.color,
     this.backgroundColor,
     this.semanticsLabel,
-  }) : _isContained = false;
+  })  : _isContained = false,
+        _isButton = false;
 
   /// M3 Contained 96dp – page loading dengan container bulat (diperbesar)
   const LoadingIndicator.contained({
@@ -50,7 +53,8 @@ class LoadingIndicator extends StatelessWidget {
     this.color,
     this.backgroundColor,
     this.semanticsLabel,
-  }) : _isContained = true;
+  })  : _isContained = true,
+        _isButton = false;
 
   /// M3 inline 36dp – placeholder media/card tanpa container
   const LoadingIndicator.inline({
@@ -61,7 +65,8 @@ class LoadingIndicator extends StatelessWidget {
     this.color,
     this.backgroundColor,
     this.semanticsLabel,
-  }) : _isContained = false;
+  })  : _isContained = false,
+        _isButton = false;
 
   /// M3 small 24dp – khusus swipe refresh
   const LoadingIndicator.small({
@@ -72,9 +77,10 @@ class LoadingIndicator extends StatelessWidget {
     this.color,
     this.backgroundColor,
     this.semanticsLabel,
-  }) : _isContained = false;
+  })  : _isContained = false,
+        _isButton = false;
 
-  /// M3 button 18dp putih
+  /// M3 button 18dp putih – CircularProgressIndicator indeterminate growing/shrinking
   const LoadingIndicator.button({
     super.key,
     this.size = 18,
@@ -83,12 +89,27 @@ class LoadingIndicator extends StatelessWidget {
     this.color = Colors.white,
     this.backgroundColor,
     this.semanticsLabel,
-  }) : _isContained = false;
+  })  : _isContained = false,
+        _isButton = true;
 
   @override
   Widget build(BuildContext context) {
     final effectiveColor = color ?? kPrimary;
     final scheme = Theme.of(context).colorScheme;
+
+    // Button loading: CircularProgressIndicator indeterminate growing/shrinking (login, regis, etc)
+    if (_isButton) {
+      return SizedBox(
+        width: size,
+        height: size,
+        child: CircularProgressIndicator(
+          strokeWidth: strokeWidth ?? 2,
+          color: effectiveColor,
+          strokeCap: StrokeCap.round,
+          semanticsLabel: semanticsLabel ?? 'Loading',
+        ),
+      );
+    }
 
     // Determinate fallback
     if (value != null) {

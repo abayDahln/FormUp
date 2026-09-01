@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/loading_indicator.dart';
+import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
@@ -46,7 +49,7 @@ extension _RespSortExt on _RespondentSort {
 }
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
-  static const _pageSize = 20;
+  static const _pageSize = 10;
   final _scrollController = ScrollController();
   final _searchController = TextEditingController();
   Timer? _debounce;
@@ -59,6 +62,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   int _page = 1;
   bool _exporting = false;
   _RespondentSort _sort = _RespondentSort.newest;
+
+  int get _totalPages {
+    final total = _analytics?.totalResponses ?? 0;
+    if (total == 0) return 1;
+    return (total / _pageSize).ceil();
+  }
 
   @override
   void initState() {
@@ -81,6 +90,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   void _onSearchImmediate(String value) {
+    if (_exporting) return;
     _debounce?.cancel();
     if (!mounted) return;
     setState(() => _query = value.trim());
@@ -88,6 +98,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   void _onSearchChanged(String value) {
+    if (_exporting) return;
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
       if (!mounted) return;
@@ -117,8 +128,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       setState(() {
         _analytics = analytics;
         _respondents = List<RespondentAnalyticsData>.from(analytics.respondents);
-        _hasMore =
-            analytics.respondents.isNotEmpty && analytics.respondents.length < analytics.totalResponses;
+        _hasMore = _respondents.length < analytics.totalResponses;
       });
     } catch (e) {
       if (!mounted) return;
@@ -151,13 +161,39 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         final seen = _respondents.map((r) => r.responseId).toSet();
         final novos = analytics.respondents.where((r) => !seen.contains(r.responseId)).toList();
         _respondents = [..._respondents, ...novos];
-        _hasMore =
-            analytics.respondents.isNotEmpty && analytics.respondents.length < analytics.totalResponses;
+        _hasMore = _respondents.length < analytics.totalResponses;
       });
     } catch (e) {
       if (mounted) showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  Future<void> _goToPage(int target) async {
+    if (target < 1 || target > _totalPages || _loading || _loadingMore) return;
+    setState(() {
+      _loading = true;
+      _page = target;
+    });
+    try {
+      final analytics = await FormService.getAnalytics(
+        widget.formId,
+        page: target,
+        pageSize: _pageSize,
+        search: _query,
+      );
+      if (!mounted) return;
+      setState(() {
+        _analytics = analytics;
+        _respondents = List<RespondentAnalyticsData>.from(analytics.respondents);
+        _hasMore = _respondents.length < analytics.totalResponses;
+      });
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    } catch (e) {
+      if (mounted) showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -180,7 +216,50 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     return list;
   }
 
+  /// Gabungkan responden berdasarkan user yang sama (nama lower-case).
+  /// Kunci: nama trimmed lower; fallback "anonim" untuk null.
+  /// Setiap grup menyimpan percobaan terbaru sebagai wakil untuk kartu.
+  List<_GroupedRespondent> get _groupedRespondents {
+    final sorted = _sortedRespondents;
+    final Map<String, List<RespondentAnalyticsData>> groups = {};
+    for (final r in sorted) {
+      final key = (r.respondentName ?? '').trim().toLowerCase();
+      final k = key.isEmpty ? '__anonim__' : key;
+      groups.putIfAbsent(k, () => []).add(r);
+    }
+    final grouped = <_GroupedRespondent>[];
+    for (final entry in groups.entries) {
+      final list = entry.value;
+      // Wakil = percobaan terbaru (submittedAt paling baru)
+      list.sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+      final latest = list.first;
+      // Skor terbaik untuk sort highScore jika grup diurutkan ulang? Keep latest.
+      grouped.add(_GroupedRespondent(
+        displayName: latest.respondentName?.trim().isEmpty == true ? 'Anonim' : latest.respondentName!.trim(),
+        latest: latest,
+        attempts: list,
+      ));
+    }
+    // Urutkan grup sesuai _sort tapi pakai wakil terbaru
+    switch (_sort) {
+      case _RespondentSort.newest:
+        grouped.sort((a, b) => b.latest.submittedAt.compareTo(a.latest.submittedAt));
+        break;
+      case _RespondentSort.oldest:
+        grouped.sort((a, b) => a.latest.submittedAt.compareTo(b.latest.submittedAt));
+        break;
+      case _RespondentSort.highScore:
+        grouped.sort((a, b) => (b.latest.score ?? -1).compareTo(a.latest.score ?? -1));
+        break;
+      case _RespondentSort.lowScore:
+        grouped.sort((a, b) => (a.latest.score ?? 999).compareTo(b.latest.score ?? 999));
+        break;
+    }
+    return grouped;
+  }
+
   void _openRespondent(RespondentAnalyticsData respondent) {
+    if (_exporting) return;
     AppRouter.of(context).push(AppPage.respondentDetail, {
       'formId': widget.formId,
       'title': widget.title,
@@ -190,6 +269,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   Future<void> _openSortMenu() async {
+    if (_exporting) return;
     final box = context.findRenderObject() as RenderBox?;
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
     final offset = box != null && overlay != null ? box.localToGlobal(Offset.zero, ancestor: overlay) : Offset.zero;
@@ -214,20 +294,72 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     if (result != null && mounted) setState(() => _sort = result);
   }
 
+  Future<String?> _pickExportFormat() => showModalBottomSheet<String>(
+        context: context,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (ctx) => SafeArea(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const SizedBox(height: 12),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 12),
+            const Text('Pilih format ekspor', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
+            const SizedBox(height: 8),
+            for (final f in ['csv', 'xlsx', 'pdf'])
+              ListTile(
+                leading: Icon(f == 'pdf' ? Icons.picture_as_pdf_outlined : f == 'xlsx' ? Icons.table_chart_outlined : Icons.description_outlined, color: kAuthPrimary),
+                title: Text(f.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
+                onTap: () => Navigator.pop(ctx, f),
+              ),
+            const SizedBox(height: 8),
+          ]),
+        ),
+      );
+
+  String _sanitizeFileName(String name) {
+    var s = name.trim();
+    if (s.isEmpty) s = 'form-${widget.formId}';
+    s = s.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+    s = s.replaceAll(RegExp(r'[^\w\s\-().]'), '_');
+    if (s.length > 80) s = s.substring(0, 80).trim();
+    if (s.isEmpty) s = 'form-${widget.formId}';
+    return s;
+  }
+
+  Future<void> _shareExport(Uint8List bytes, String fileName, String mime, String format) async {
+    final xfile = XFile.fromData(bytes, name: fileName, mimeType: mime);
+    await SharePlus.instance.share(ShareParams(files: [xfile], text: 'Export responden ${widget.title} ($format)'));
+  }
+
+  Future<void> _showExportDoneDialog(Uint8List bytes, String fileName, String mime, String format) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(children: [Icon(Icons.check_circle, color: kPrimary), SizedBox(width: 8), Text('Ekspor Selesai', style: TextStyle(fontFamily: kFontBold))]),
+        content: Text('File "$fileName" berhasil dibuat (${(bytes.length / 1024).toStringAsFixed(1)} KB).', style: const TextStyle(fontSize: 13, color: Colors.black87)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup')),
+          FilledButton.icon(onPressed: () async { Navigator.pop(ctx); await _shareExport(bytes, fileName, mime, format); }, icon: const Icon(Icons.share_outlined, size: 18), label: const Text('Bagikan')),
+        ],
+      ),
+    );
+  }
+
   Future<void> _export() async {
     if (_exporting) return;
+    final format = await _pickExportFormat();
+    if (format == null || !mounted) return;
     setState(() => _exporting = true);
     try {
-      final bytes = await FormService.exportResponses(widget.formId);
+      final bytes = await FormService.exportResponses(widget.formId, format: format);
       if (!mounted) return;
-      final xfile = XFile.fromData(
-        bytes,
-        name: 'responses-form-${widget.formId}.csv',
-        mimeType: 'text/csv',
-      );
-      await SharePlus.instance.share(ShareParams(files: [xfile], text: 'Export responden ${widget.title}'));
-      if (!mounted) return;
-      showAppToast(context, 'CSV berhasil diekspor', title: 'Berhasil');
+      final mime = format == 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : format == 'pdf' ? 'application/pdf' : 'text/csv';
+      final fileName = '${_sanitizeFileName(widget.title)}.$format';
+      await _showExportDoneDialog(bytes, fileName, mime, format);
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
@@ -238,7 +370,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: !_exporting,
+      onPopInvokedWithResult: (didPop, _) { if (!didPop && _exporting) showAppToast(context, 'Tunggu ekspor selesai', type: ToastType.warning); },
+      child: Scaffold(
       backgroundColor: kAppBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -249,7 +384,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => AppRouter.of(context).pop(),
+          onPressed: _exporting ? null : () => AppRouter.of(context).pop(),
         ),
         title: const Text(
           "Responden",
@@ -266,19 +401,23 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             child: _exporting
                 ? const Padding(
                     padding: EdgeInsets.all(12),
-                    child: SizedBox(width: 20, height: 20, child: AppLoadingIndicator.inline()),
+                    child: SizedBox(width: 20, height: 20, child: LoadingIndicator.inline()),
                   )
                 : IconButton(
                     icon: const Icon(Icons.download_outlined, color: Colors.black87),
-                    tooltip: 'Export CSV',
+                    tooltip: 'Export CSV/XLSX/PDF',
                     onPressed: _export,
                   ),
           ),
         ],
       ),
-      body: _loading && _analytics == null
-          ? const AppLoadingOverlay()
-          : AuthBackground(plain: true,
+      body: Column(children: [
+        if (_exporting) const progress.ProgressIndicator.linear(semanticsLabel: 'Mengekspor respon'),
+        Expanded(child: _loading && _analytics == null
+          ? const LoadingOverlay(contained: true)
+          : AbsorbPointer(
+              absorbing: _exporting,
+              child: AuthBackground(plain: true,
               child: SafeArea(
                 child: ListView(
                   controller: _scrollController,
@@ -327,7 +466,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    if (_sortedRespondents.isEmpty)
+                    if (_groupedRespondents.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 48),
                         child: Column(
@@ -346,24 +485,58 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         ),
                       )
                     else ...[
-                      for (var i = 0; i < _sortedRespondents.length; i++) ...[
+                      for (var i = 0; i < _groupedRespondents.length; i++) ...[
                         AnalyticsRespondentCard(
                           index: i,
-                          respondent: _sortedRespondents[i],
-                          onTap: () => _openRespondent(_sortedRespondents[i]),
+                          respondent: _groupedRespondents[i].latest,
+                          attemptCount: _groupedRespondents[i].attempts.length,
+                          onTap: () => _openRespondent(_groupedRespondents[i].latest),
                         ),
                         const SizedBox(height: 12),
                       ],
-                      if (_hasMore)
+                      if (_loadingMore)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 12),
-                          child: Center(child: AppLoadingIndicator.inline()),
+                          child: Center(child: LoadingIndicator.inline()),
+                        ),
+                      // Pagination admin-style
+                      if (_analytics != null && _analytics!.totalResponses > _pageSize)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              IconButton.filledTonal(
+                                visualDensity: VisualDensity.compact,
+                                onPressed: _page > 1 && !_loading && !_loadingMore ? () => _goToPage(_page - 1) : null,
+                                icon: const Icon(Icons.chevron_left, size: 22),
+                              ),
+                              Text('Halaman $_page dari $_totalPages', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
+                              IconButton.filledTonal(
+                                visualDensity: VisualDensity.compact,
+                                onPressed: _page < _totalPages && !_loading && !_loadingMore ? () => _goToPage(_page + 1) : null,
+                                icon: const Icon(Icons.chevron_right, size: 22),
+                              ),
+                            ],
+                          ),
                         ),
                     ],
-                  ],
+                    ],
                 ),
               ),
             ),
+          ),
+        ),
+      ],
+      ),
+    ),
     );
   }
+}
+
+class _GroupedRespondent {
+  final String displayName;
+  final RespondentAnalyticsData latest;
+  final List<RespondentAnalyticsData> attempts;
+  _GroupedRespondent({required this.displayName, required this.latest, required this.attempts});
 }

@@ -849,11 +849,12 @@ class FormService {
     return json['data'] as Map<String, dynamic>? ?? {};
   }
 
-  /// GET /forms/{formId}/responses/export — CSV (owner only)
-  /// Endpoint API: ResponsesController.cs:259 `GET /api/forms/{formId}/responses/export`
-  /// Mengembalikan file CSV dengan BOM UTF-8, header "Response ID,Submitted At,Respondent,...".
-  static Future<Uint8List> exportResponses(int formId) async {
-    final bytes = await _authGetBytes('/forms/$formId/responses/export');
+  /// GET /forms/{formId}/responses/export — csv/xlsx/pdf (owner only)
+  /// Endpoint API: ResponsesController.cs:259 `GET /api/forms/{formId}/responses/export?format=csv|xlsx|pdf`
+  static Future<Uint8List> exportResponses(int formId, {String format = 'csv'}) async {
+    final fmt = format.toLowerCase();
+    final path = fmt == 'csv' ? '/forms/$formId/responses/export' : '/forms/$formId/responses/export?format=$fmt';
+    final bytes = await _authGetBytes(path);
     if (bytes.isEmpty) throw const ApiException('Gagal mengekspor data respons.');
     // Validasi sederhana: endpoint sukses mengembalikan text/csv, error JSON diawali {
     if (bytes.length > 1 && bytes[0] == 0x7B) {

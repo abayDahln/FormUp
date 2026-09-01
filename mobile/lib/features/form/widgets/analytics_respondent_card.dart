@@ -6,12 +6,14 @@ import 'package:form_up/core/widgets/auth_widgets.dart';
 class AnalyticsRespondentCard extends StatelessWidget {
   final int index;
   final RespondentAnalyticsData respondent;
+  final int attemptCount;
   final VoidCallback onTap;
 
   const AnalyticsRespondentCard({
     super.key,
     required this.index,
     required this.respondent,
+    this.attemptCount = 1,
     required this.onTap,
   });
 
@@ -36,17 +38,7 @@ class AnalyticsRespondentCard extends StatelessWidget {
                   color: kPrimarySoft,
                   shape: BoxShape.circle,
                 ),
-                child: Center(
-                  child: Text(
-                    '${index + 1}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontFamily: kFontBold,
-                      color: kAuthPrimary,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
+                child: const Icon(Icons.person_outline, color: kAuthPrimary, size: 18),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -55,7 +47,7 @@ class AnalyticsRespondentCard extends StatelessWidget {
                   children: [
                     Text(
                       (r.respondentName ?? '').trim().isEmpty
-                          ? 'Responden ${index + 1}'
+                          ? 'Anonim'
                           : r.respondentName!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -67,10 +59,22 @@ class AnalyticsRespondentCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      "${r.answeredCount}/${r.totalQuestions} dijawab · ${_formatTime(r.submittedAt)}",
-                      style:
-                          const TextStyle(fontSize: 11, color: Colors.black54),
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      runSpacing: 2,
+                      children: [
+                        Text(
+                          "${r.answeredCount}/${r.totalQuestions} dijawab · ${_formatTime(r.submittedAt)}",
+                          style: const TextStyle(fontSize: 11, color: Colors.black54),
+                        ),
+                        if (attemptCount > 1)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: kPrimarySoft, borderRadius: BorderRadius.circular(6)),
+                            child: Text('${attemptCount}x percobaan', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: kAuthPrimary)),
+                          ),
+                      ],
                     ),
                   ],
                 ),
