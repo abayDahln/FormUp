@@ -7,6 +7,7 @@ import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/form_card.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
+import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/home/controllers/form_sort_filter.dart';
 import 'package:form_up/features/home/widgets/form_empty_state.dart';
@@ -37,12 +38,18 @@ class _FormScreenState extends State<FormScreen> {
   void initState() {
     super.initState();
     formsVersion.addListener(_refreshMyForms);
+    NetworkStatus.onlineTick.addListener(_onOnline);
     _loadMyForms();
+  }
+
+  void _onOnline() {
+    if (mounted && NetworkStatus.isOnline) _refreshMyForms();
   }
 
   @override
   void dispose() {
     formsVersion.removeListener(_refreshMyForms);
+    NetworkStatus.onlineTick.removeListener(_onOnline);
     _debounce?.cancel();
     _searchController.dispose();
     super.dispose();

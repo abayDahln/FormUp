@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -7,6 +8,8 @@ class NetworkStatus {
   static bool _offline = false;
 
   static final ValueNotifier<bool> notifier = ValueNotifier<bool>(false);
+  /// Version yang naik tiap kali kembali online — dipakai screen untuk auto-refresh.
+  static final ValueNotifier<int> onlineTick = ValueNotifier<int>(0);
 
   static bool get isOffline => _offline;
   static bool get isOnline => !_offline;
@@ -63,5 +66,21 @@ class NetworkStatus {
     if (!_offline) return;
     _offline = false;
     notifier.value = false;
+    onlineTick.value++;
+  }
+
+  static Timer? _pollTimer;
+
+  /// Mulai polling setiap 5 detik saat offline untuk deteksi kembali online.
+  static void startMonitoring() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (_offline) await refresh();
+    });
+  }
+
+  static void stopMonitoring() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
   }
 }

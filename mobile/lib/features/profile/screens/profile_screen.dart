@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/services/user_service.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/profile/widgets/image_source_sheet.dart';
@@ -26,7 +27,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    NetworkStatus.onlineTick.addListener(_onOnline);
     _load();
+  }
+
+  void _onOnline() {
+    if (mounted && NetworkStatus.isOnline) _load();
   }
 
   Future<void> _load() async {
@@ -49,6 +55,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _openEditProfile() async {
     await AppRouter.of(context).push(AppPage.editProfile);
     if (mounted) _load();
+  }
+
+  @override
+  void dispose() {
+    NetworkStatus.onlineTick.removeListener(_onOnline);
+    super.dispose();
   }
 
   Future<void> _pickAvatarImage() async {

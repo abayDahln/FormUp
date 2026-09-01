@@ -12,6 +12,7 @@ void main() async {
   await dotenv.load(fileName: '.env', isOptional: true);
   NetworkStatus.configure(apiBaseUrl);
   await NetworkStatus.refresh();
+  NetworkStatus.startMonitoring();
   
   bool isLoggedIn = false;
   AuthResult? session;

@@ -12,6 +12,7 @@ import 'package:form_up/features/profile/screens/profile_screen.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
+import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -39,12 +40,18 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     formsVersion.addListener(_onFormsChanged);
+    NetworkStatus.onlineTick.addListener(_onOnline);
     _load();
+  }
+
+  void _onOnline() {
+    if (mounted && NetworkStatus.isOnline) _load();
   }
 
   @override
   void dispose() {
     formsVersion.removeListener(_onFormsChanged);
+    NetworkStatus.onlineTick.removeListener(_onOnline);
     _codeController.dispose();
     super.dispose();
   }

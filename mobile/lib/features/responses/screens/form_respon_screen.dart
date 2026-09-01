@@ -9,6 +9,7 @@ import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
+import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/responses/widgets/response_list_card.dart';
 
@@ -41,6 +42,7 @@ class _FormResponScreenState extends State<FormResponScreen> {
   @override
   void initState() {
     super.initState();
+    NetworkStatus.onlineTick.addListener(_onOnline);
     _load();
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
@@ -50,8 +52,13 @@ class _FormResponScreenState extends State<FormResponScreen> {
     });
   }
 
+  void _onOnline() {
+    if (mounted && NetworkStatus.isOnline) _load();
+  }
+
   @override
   void dispose() {
+    NetworkStatus.onlineTick.removeListener(_onOnline);
     _scrollController.dispose();
     super.dispose();
   }

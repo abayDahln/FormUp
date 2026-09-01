@@ -12,6 +12,7 @@ import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/widgets/search_field.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
+import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form/widgets/analytics_respondent_card.dart';
 import 'package:form_up/features/form/widgets/analytics_summary_row.dart';
@@ -80,6 +81,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   @override
   void initState() {
     super.initState();
+    NetworkStatus.onlineTick.addListener(_onOnline);
     _load();
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
@@ -89,8 +91,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     });
   }
 
+  void _onOnline() {
+    if (mounted && NetworkStatus.isOnline) _load();
+  }
+
   @override
   void dispose() {
+    NetworkStatus.onlineTick.removeListener(_onOnline);
     _debounce?.cancel();
     _scrollController.dispose();
     _searchController.dispose();
