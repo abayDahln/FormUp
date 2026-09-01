@@ -5,6 +5,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 
 namespace FormUpAPI.Controllers;
 
@@ -257,7 +260,7 @@ public class ResponsesController : ControllerBase
     }
 
     [HttpGet("api/forms/{formId}/responses/export")]
-    public async Task<IActionResult> Export(int formId, CancellationToken ct)
+    public async Task<IActionResult> Export(int formId, [FromQuery] string format = "csv", CancellationToken ct = default)
     {
         var user = await GetCurrentUser();
         if (user == null)
@@ -283,6 +286,18 @@ public class ResponsesController : ControllerBase
             .OrderByDescending(r => r.SubmittedAt)
             .ToListAsync(ct);
 
+        var fmt = (format ?? "csv").ToLowerInvariant();
+        return fmt switch
+        {
+            "xlsx" => ExportXlsx(formId, questions, responses),
+            "pdf" => ExportPdf(formId, form, questions, responses),
+            "csv" => ExportCsv(formId, questions, responses),
+            _ => BadRequest(new ApiResponse<object>(400, "Supported formats: csv, xlsx, pdf")),
+        };
+    }
+
+    private IActionResult ExportCsv(int formId, List<Question> questions, List<Response> responses)
+    {
         using var writer = new System.IO.StringWriter();
 
         writer.Write("Response ID,Submitted At,Respondent");
@@ -322,6 +337,151 @@ public class ResponsesController : ControllerBase
         Buffer.BlockCopy(textBytes, 0, csvBytes, preamble.Length, textBytes.Length);
 
         return File(csvBytes, "text/csv; charset=utf-8", $"responses-form-{formId}.csv");
+    }
+
+    private IActionResult ExportXlsx(int formId, List<Question> questions, List<Response> responses)
+    {
+        using var workbook = new ClosedXML.Excel.XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Responses");
+
+        var headers = new List<string> { "Response ID", "Submitted At", "Respondent" };
+        headers.AddRange(questions.Select(q => StripHtml(q.Question1)));
+        headers.Add("Status");
+
+        for (var c = 0; c < headers.Count; c++)
+        {
+            var cell = sheet.Cell(1, c + 1);
+            cell.Value = headers[c];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#2A9D8F");
+            cell.Style.Font.FontColor = ClosedXML.Excel.XLColor.White;
+            cell.Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Center;
+        }
+
+        var row = 2;
+        foreach (var r in responses)
+        {
+            var col = 1;
+            sheet.Cell(row, col++).Value = r.Id;
+            sheet.Cell(row, col++).Value = r.SubmittedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "";
+            sheet.Cell(row, col++).Value = r.Respondent?.Fullname ?? r.RespondentName ?? "Anonymous";
+            foreach (var q in questions)
+            {
+                var answer = r.RespondentAnswers.FirstOrDefault(a => a.QuestionId == q.Id);
+                string val = "";
+                if (answer != null)
+                    val = answer.OptionId.HasValue ? (answer.Option?.OptionText ?? "") : (answer.AnswerValue ?? "");
+                sheet.Cell(row, col++).Value = StripHtml(val);
+            }
+            sheet.Cell(row, col).Value = r.Status?.Status ?? "unknown";
+            row++;
+        }
+
+        sheet.Columns().AdjustToContents();
+        sheet.SheetView.FreezeRows(1);
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        stream.Position = 0;
+        return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"responses-form-{formId}.xlsx");
+    }
+
+    private IActionResult ExportPdf(int formId, Form form, List<Question> questions, List<Response> responses)
+    {
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
+        var headers = new List<string> { "ID", "Submitted", "Respondent" };
+        headers.AddRange(questions.Select(q => StripHtml(q.Question1)));
+        headers.Add("Status");
+
+        var title = StripHtml(form.Title ?? $"Form {formId}");
+
+        var doc = QuestPDF.Fluent.Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(QuestPDF.Helpers.PageSizes.A4.Landscape());
+                page.Margin(20);
+                page.DefaultTextStyle(x => x.FontSize(7));
+
+                page.Header().Column(col =>
+                {
+                    col.Item().Text($"Responses - {title}").Bold().FontSize(14).FontColor(QuestPDF.Helpers.Colors.Grey.Darken3);
+                    col.Item().Text($"Exported {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC • {responses.Count} responses • {questions.Count} questions").FontSize(8).FontColor(QuestPDF.Helpers.Colors.Grey.Medium);
+                    col.Item().PaddingTop(4).LineHorizontal(1).LineColor(QuestPDF.Helpers.Colors.Grey.Lighten2);
+                });
+
+                page.Content().PaddingTop(10).Table(table =>
+                {
+                    table.ColumnsDefinition(cols =>
+                    {
+                        cols.RelativeColumn(0.5f);
+                        cols.RelativeColumn(1f);
+                        cols.RelativeColumn(1f);
+                        foreach (var _ in questions) cols.RelativeColumn(1.5f);
+                        cols.RelativeColumn(0.7f);
+                    });
+
+                    table.Header(header =>
+                    {
+                        foreach (var h in headers)
+                        {
+                            header.Cell().Element(CellHeader).Text(h).Bold().FontColor(QuestPDF.Helpers.Colors.White);
+                        }
+
+                        static QuestPDF.Infrastructure.IContainer CellHeader(QuestPDF.Infrastructure.IContainer c) =>
+                            c.Background("#2A9D8F").PaddingVertical(4).PaddingHorizontal(4).DefaultTextStyle(x => x.FontSize(7));
+                    });
+
+                    foreach (var r in responses)
+                    {
+                        var vals = new List<string>
+                        {
+                            r.Id.ToString(),
+                            r.SubmittedAt?.ToString("yyyy-MM-dd HH:mm") ?? "",
+                            r.Respondent?.Fullname ?? r.RespondentName ?? "Anonymous",
+                        };
+                        foreach (var q in questions)
+                        {
+                            var answer = r.RespondentAnswers.FirstOrDefault(a => a.QuestionId == q.Id);
+                            string val = "";
+                            if (answer != null)
+                                val = answer.OptionId.HasValue ? (answer.Option?.OptionText ?? "") : (answer.AnswerValue ?? "");
+                            vals.Add(StripHtml(val));
+                        }
+                        vals.Add(r.Status?.Status ?? "unknown");
+
+                        foreach (var v in vals)
+                        {
+                            table.Cell().Element(CellBody).Text(v.Length > 120 ? v[..120] + "..." : v);
+                        }
+
+                        static QuestPDF.Infrastructure.IContainer CellBody(QuestPDF.Infrastructure.IContainer c) =>
+                            c.BorderBottom(0.5f).BorderColor(QuestPDF.Helpers.Colors.Grey.Lighten2).PaddingVertical(3).PaddingHorizontal(4);
+                    }
+                });
+
+                page.Footer().AlignCenter().Text(x =>
+                {
+                    x.Span("FormUp • ").FontSize(7).FontColor(QuestPDF.Helpers.Colors.Grey.Medium);
+                    x.Span("page ").FontSize(7);
+                    x.CurrentPageNumber().FontSize(7);
+                    x.Span(" / ").FontSize(7);
+                    x.TotalPages().FontSize(7);
+                });
+            });
+        });
+
+        var pdf = doc.GeneratePdf();
+        return File(pdf, "application/pdf", $"responses-form-{formId}.pdf");
+    }
+
+    private static string StripHtml(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return "";
+        var clean = System.Text.RegularExpressions.Regex.Replace(value, "<.*?>", string.Empty);
+        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"[\r\n]+", " ").Trim();
+        return clean;
     }
 
     private async Task<User?> GetCurrentUser()
