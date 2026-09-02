@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Assets/FormUpLogoName.png" alt="FormUp" width="420" />
+  <img src="Assets/FormUpLogoName.png" alt="FormUp"/>
 </p>
 
 # FormUp
