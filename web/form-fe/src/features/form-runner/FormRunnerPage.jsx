@@ -58,6 +58,7 @@ export default function FormRunnerPage() {
     // Timer
     const [timeLeft, setTimeLeft] = useState(null);
     const timerRef = useRef(null);
+    const isSubmittingRef = useRef(false);
 
     // Dark mode toggle for Form Runner
     const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -127,9 +128,17 @@ export default function FormRunnerPage() {
                     loadQuestions();
                 }
 
-                // Setup timer if available
-                if (f.timerDuration) {
-                    setTimeLeft(f.timerDuration);
+                // Setup persistent timer if available
+                if (f.timerDuration && f.timerDuration > 0) {
+                    const timerDeadlineKey = `formup_timer_deadline_${formLink}`;
+                    const now = Date.now();
+                    let deadlineMs = parseInt(localStorage.getItem(timerDeadlineKey), 10);
+                    if (!deadlineMs || isNaN(deadlineMs)) {
+                        deadlineMs = now + (f.timerDuration * 1000);
+                        localStorage.setItem(timerDeadlineKey, String(deadlineMs));
+                    }
+                    const remaining = Math.max(0, Math.ceil((deadlineMs - now) / 1000));
+                    setTimeLeft(remaining);
                 }
             } else {
                 setError(res.message || 'Formulir tidak ditemukan atau belum dipublikasikan.');
@@ -142,14 +151,20 @@ export default function FormRunnerPage() {
     const loadQuestions = async (token = null) => {
         const res = await getPublicFormQuestions(formLink, { token, name: respondentName });
         if (res.ok && res.data) {
-            setQuestions(res.data.questions || res.data || []);
+            const qList = res.data.questions || res.data || [];
+            setQuestions(qList);
+            questionsRef.current = qList;
             // Restore cached answers if available
             try {
                 const cached = localStorage.getItem(`formup_cache_${formLink}`);
                 if (cached) {
                     const parsed = JSON.parse(cached);
                     if (parsed && typeof parsed === 'object') {
-                        setAnswers(prev => ({ ...parsed, ...prev }));
+                        setAnswers(prev => {
+                            const next = { ...parsed, ...prev };
+                            answersRef.current = next;
+                            return next;
+                        });
                     }
                 }
             } catch {}
@@ -158,27 +173,51 @@ export default function FormRunnerPage() {
         }
     };
 
-    // Timer countdown
-    useEffect(() => {
-        if (timeLeft === null || !tokenUnlocked) return;
+    const answersRef = useRef(answers);
+    const questionsRef = useRef(questions);
 
-        if (timeLeft <= 0) {
-            handleSubmit();
-            return;
+    useEffect(() => {
+        answersRef.current = answers;
+    }, [answers]);
+
+    useEffect(() => {
+        questionsRef.current = questions;
+    }, [questions]);
+
+    // Timer countdown with persistent deadline
+    useEffect(() => {
+        if (!tokenUnlocked || !form?.timerDuration || form.timerDuration <= 0) return;
+
+        const timerDeadlineKey = `formup_timer_deadline_${formLink}`;
+        let stored = localStorage.getItem(timerDeadlineKey);
+        let deadlineMs = stored ? parseInt(stored, 10) : null;
+        const now = Date.now();
+
+        if (!deadlineMs || isNaN(deadlineMs)) {
+            deadlineMs = now + (form.timerDuration * 1000);
+            localStorage.setItem(timerDeadlineKey, String(deadlineMs));
         }
 
-        timerRef.current = setInterval(() => {
-            setTimeLeft(prev => {
-                if (prev <= 1) {
-                    clearInterval(timerRef.current);
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
+        const checkTimer = () => {
+            const currentNow = Date.now();
+            const remaining = Math.max(0, Math.ceil((deadlineMs - currentNow) / 1000));
+            setTimeLeft(remaining);
 
-        return () => clearInterval(timerRef.current);
-    }, [timeLeft, tokenUnlocked]);
+            if (remaining <= 0) {
+                if (timerRef.current) clearInterval(timerRef.current);
+                if (!isSubmittingRef.current) {
+                    handleSubmit(null, true);
+                }
+            }
+        };
+
+        checkTimer();
+        timerRef.current = setInterval(checkTimer, 1000);
+
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, [tokenUnlocked, form?.timerDuration, formLink]);
 
     const formatTimer = (seconds) => {
         const m = Math.floor(seconds / 60);
@@ -189,6 +228,7 @@ export default function FormRunnerPage() {
     const handleAnswerChange = (questionId, value) => {
         setAnswers(prev => {
             const next = { ...prev, [questionId]: value };
+            answersRef.current = next;
             try {
                 localStorage.setItem(`formup_cache_${formLink}`, JSON.stringify(next));
             } catch {}
@@ -203,6 +243,7 @@ export default function FormRunnerPage() {
                 ? [...current, optionId]
                 : current.filter(id => id !== optionId);
             const next = { ...prev, [questionId]: updated };
+            answersRef.current = next;
             try {
                 localStorage.setItem(`formup_cache_${formLink}`, JSON.stringify(next));
             } catch {}
@@ -217,12 +258,17 @@ export default function FormRunnerPage() {
         const res = await getPublicFormQuestions(formLink, { token, name: respondentName });
         if (res.ok && res.data) {
             setTokenUnlocked(true);
-            setQuestions(res.data.questions || res.data || []);
+            const qList = res.data.questions || res.data || [];
+            setQuestions(qList);
+            questionsRef.current = qList;
             try {
                 const cached = localStorage.getItem(`formup_cache_${formLink}`);
                 if (cached) {
                     const parsed = JSON.parse(cached);
-                    if (parsed && typeof parsed === 'object') setAnswers(parsed);
+                    if (parsed && typeof parsed === 'object') {
+                        setAnswers(parsed);
+                        answersRef.current = parsed;
+                    }
                 }
             } catch {}
         } else {
@@ -235,58 +281,70 @@ export default function FormRunnerPage() {
         setTimeout(() => setValidationToast(null), 4500);
     };
 
-    const handleSubmit = async (e) => {
-        if (e) e.preventDefault();
+    const handleSubmit = async (e, isAuto = false) => {
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
 
-        // Validation for required questions (BUG-9)
-        const unanswered = [];
-        for (const q of questions) {
-            if (q.isRequired) {
-                const val = answers[q.id];
-                const isAnswered = q.typeId === 3
-                    ? (Array.isArray(val) && val.length > 0)
-                    : (val !== undefined && val !== null && String(val).trim().length > 0);
-                if (!isAnswered) {
-                    unanswered.push(q);
+        // Guard against double submission (concurrent clicks or timer hitting 0 while manual click)
+        if (isSubmittingRef.current) return;
+
+        const currentQuestions = questionsRef.current?.length ? questionsRef.current : questions;
+        const currentAnswers = answersRef.current || answers;
+
+        // Validation for required questions (only for manual submission; skip on auto-submit when timer expires)
+        if (!isAuto) {
+            const unanswered = [];
+            for (const q of currentQuestions) {
+                if (q.isRequired) {
+                    const val = currentAnswers[q.id];
+                    const isAnswered = q.typeId === 3
+                        ? (Array.isArray(val) && val.length > 0)
+                        : (val !== undefined && val !== null && String(val).trim().length > 0);
+                    if (!isAnswered) {
+                        unanswered.push(q);
+                    }
                 }
+            }
+
+            if (unanswered.length > 0) {
+                const msg = `Ada ${unanswered.length} pertanyaan wajib yang belum dijawab.`;
+                showValidationAlert(msg);
+                setError(msg);
+
+                const firstUnanswered = unanswered[0];
+                const isStep = form?.formTypeId === 2 || form?.settings?.formTypeId === 2;
+                if (isStep) {
+                    const targetIdx = currentQuestions.findIndex(item => item.id === firstUnanswered.id);
+                    if (targetIdx !== -1) setCurrentStep(targetIdx);
+                } else {
+                    const el = document.getElementById(`question-card-${firstUnanswered.id}`);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        el.classList.add('ring-2', 'ring-red-400', 'transition-all');
+                        setTimeout(() => el.classList.remove('ring-2', 'ring-red-400'), 3500);
+                    }
+                }
+                return;
             }
         }
 
-        if (unanswered.length > 0) {
-            const msg = `Ada ${unanswered.length} pertanyaan wajib yang belum dijawab.`;
-            showValidationAlert(msg);
-            setError(msg);
-
-            const firstUnanswered = unanswered[0];
-            const isStep = form?.formTypeId === 2 || form?.settings?.formTypeId === 2;
-            if (isStep) {
-                const targetIdx = questions.findIndex(item => item.id === firstUnanswered.id);
-                if (targetIdx !== -1) setCurrentStep(targetIdx);
-            } else {
-                const el = document.getElementById(`question-card-${firstUnanswered.id}`);
-                if (el) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    el.classList.add('ring-2', 'ring-red-400', 'transition-all');
-                    setTimeout(() => el.classList.remove('ring-2', 'ring-red-400'), 3500);
-                }
-            }
-            return;
-        }
-
+        // Lock submission immediately
+        isSubmittingRef.current = true;
         setSubmitting(true);
+        if (timerRef.current) clearInterval(timerRef.current);
         setError('');
         setValidationToast(null);
 
-        // Format answers matching backend contract (BUG-2)
-        const formattedAnswers = Object.entries(answers).map(([questionId, value]) => {
-            const q = questions.find(item => item.id === parseInt(questionId, 10));
+        // Format answers matching backend contract: only include non-empty, valid answers
+        const formattedAnswers = Object.entries(currentAnswers).map(([questionId, value]) => {
+            const q = currentQuestions.find(item => item.id === parseInt(questionId, 10));
             if (!q) return null;
 
             if (q.typeId === 2) {
                 const parsed = parseInt(value, 10);
+                if (isNaN(parsed) || parsed <= 0) return null;
                 return {
                     questionId: q.id,
-                    optionId: !isNaN(parsed) && parsed > 0 ? parsed : null,
+                    optionId: parsed,
                 };
             }
 
@@ -301,6 +359,7 @@ export default function FormRunnerPage() {
 
             if (q.typeId === 5) {
                 const strVal = String(value || '').trim();
+                if (!strVal) return null;
                 const normalizedVal = (strVal.toLowerCase() === 'benar' || strVal.toLowerCase() === 'true') ? 'Benar' : 'Salah';
                 return {
                     questionId: q.id,
@@ -308,38 +367,51 @@ export default function FormRunnerPage() {
                 };
             }
 
+            const textVal = String(value || '').trim();
+            if (!textVal) return null;
             return {
                 questionId: q.id,
-                answerValue: String(value || ''),
-                answerText: String(value || '')
+                answerValue: textVal,
             };
         }).flat().filter(Boolean);
 
         const payload = {
             token: tokenInput ? tokenInput.trim() : null,
             respondentName: respondentName.trim() || 'Anonim',
+            isAutoSubmit: Boolean(isAuto),
+            IsAutoSubmit: Boolean(isAuto),
             answers: formattedAnswers,
         };
 
-        const res = await submitPublicFormResponse(formLink, payload);
-        const responseData = res.data;
-        const responseId = responseData?.responseId || responseData?.id || (typeof responseData === 'number' || typeof responseData === 'string' ? responseData : null);
-        const guestToken = responseData?.guestToken || null;
+        try {
+            const res = await submitPublicFormResponse(formLink, payload);
+            const responseData = res.data;
+            const responseId = responseData?.responseId || responseData?.id || (typeof responseData === 'number' || typeof responseData === 'string' ? responseData : null);
+            const guestToken = responseData?.guestToken || null;
 
-        if (res.ok && responseId) {
-            // Clean up localStorage cache upon successful submit (BUG-1)
-            try {
-                localStorage.removeItem(`formup_cache_${formLink}`);
-                localStorage.setItem(`formup_submitted_${formLink}`, String(responseId));
-            } catch {}
+            if (res.ok && responseId) {
+                // Clean up localStorage cache upon successful submit (BUG-1)
+                try {
+                    localStorage.removeItem(`formup_cache_${formLink}`);
+                    localStorage.removeItem(`formup_timer_deadline_${formLink}`);
+                    localStorage.setItem(`formup_submitted_${formLink}`, String(responseId));
+                } catch {}
 
-            // Pass guestToken via router state so FormResultPage can fetch result
-            navigate(`/f/${formLink}/result/${responseId}`, {
-                state: { guestToken }
-            });
-        } else {
+                // Pass guestToken via router state so FormResultPage can fetch result
+                navigate(`/f/${formLink}/result/${responseId}`, {
+                    state: { guestToken }
+                });
+            } else {
+                isSubmittingRef.current = false;
+                setSubmitting(false);
+                const errText = res.message || 'Gagal mengirimkan respons formulir.';
+                setError(errText);
+                showValidationAlert(errText);
+            }
+        } catch (err) {
+            isSubmittingRef.current = false;
             setSubmitting(false);
-            const errText = res.message || 'Gagal mengirimkan respons formulir.';
+            const errText = 'Terjadi kesalahan koneksi saat mengirim formulir.';
             setError(errText);
             showValidationAlert(errText);
         }
@@ -651,7 +723,7 @@ export default function FormRunnerPage() {
                             ) : (
                                 <button
                                     type="button"
-                                    onClick={handleSubmit}
+                                    onClick={(e) => handleSubmit(e, false)}
                                     disabled={submitting}
                                     className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-60"
                                 >
@@ -662,7 +734,7 @@ export default function FormRunnerPage() {
                     </div>
                 ) : (
                     // Single page view (all questions)
-                    <form onSubmit={handleSubmit} className="space-y-5">
+                    <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-5">
                         {questions.map((q, idx) => (
                             <div
                                 key={q.id || idx}
