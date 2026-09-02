@@ -286,14 +286,19 @@ export const updateResponseStatus = async (responseId, statusId) => {
     return parseResponse(res);
 };
 
-export const exportUrl = (formId) => {
+export const exportUrl = (formId, format = 'csv') => {
     const token = getToken();
-    return `${API_BASE_URL}/api/forms/${formId}/responses/export${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+    const params = new URLSearchParams();
+    if (format) params.set('format', format);
+    if (token) params.set('token', token);
+    const qs = params.toString() ? `?${params}` : '';
+    return `${API_BASE_URL}/api/forms/${formId}/responses/export${qs}`;
 };
 
-export const exportFormResponses = async (formId) => {
+export const exportFormResponses = async (formId, format = 'csv') => {
     const token = getToken();
-    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/responses/export`, {
+    const fmt = (format || 'csv').toLowerCase();
+    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/responses/export?format=${encodeURIComponent(fmt)}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 
@@ -310,7 +315,8 @@ export const exportFormResponses = async (formId) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `responses-form-${formId}.csv`;
+    const ext = fmt === 'xlsx' ? 'xlsx' : fmt === 'pdf' ? 'pdf' : 'csv';
+    a.download = `responses-form-${formId}.${ext}`;
     document.body.appendChild(a);
     a.click();
     a.remove();

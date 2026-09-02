@@ -632,13 +632,14 @@ export default function AdminDashboardPage() {
                                             <th className="py-3 px-4">Kategori</th>
                                             <th className="py-3 px-4">Isi Pesan / Laporan</th>
                                             <th className="py-3 px-4">Formulir Terkait</th>
+                                            <th className="py-3 px-4">Tanggal</th>
                                             <th className="py-3 px-4 text-right">Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                         {filteredFeedbacks.length === 0 ? (
                                             <tr>
-                                                <td colSpan={5} className="text-center py-8 text-xs text-slate-400">Tidak ada umpan balik / laporan masuk.</td>
+                                                <td colSpan={6} className="text-center py-8 text-xs text-slate-400">Tidak ada umpan balik / laporan masuk.</td>
                                             </tr>
                                         ) : (
                                             filteredFeedbacks.map(fb => (
@@ -661,6 +662,9 @@ export default function AdminDashboardPage() {
                                                         ) : (
                                                             <span className="text-slate-400 italic">Umum</span>
                                                         )}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                                        {fb.createdAt ? new Date(fb.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
                                                     </td>
                                                     <td className="py-3.5 px-4 text-right">
                                                         <div className="flex items-center justify-end gap-1.5">

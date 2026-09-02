@@ -16,13 +16,15 @@ import {
     Loader2,
     BarChart3,
     Check,
-    AlertCircle
+    AlertCircle,
+    Download
 } from 'lucide-react';
 
 import Sidebar from '../../components/layout/Sidebar';
 import {
     getFormById,
     getFormAnalytics,
+    exportFormResponses,
     clearSession
 } from '../../services/apiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
@@ -41,8 +43,28 @@ export default function FormAnalyticsPage() {
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [totalCount, setTotalCount] = useState(0);
-
     const [selectedRespondent, setSelectedRespondent] = useState(null);
+    const [exportingFormat, setExportingFormat] = useState(null);
+    const [exportError, setExportError] = useState(null);
+
+    const handleExport = async (format) => {
+        if (!id || exportingFormat !== null) return;
+        setExportingFormat(format);
+        setExportError(null);
+
+        try {
+            const res = await exportFormResponses(id, format);
+            if (!res.ok) {
+                setExportError(res.message || `Gagal mengekspor data ke format ${format.toUpperCase()}`);
+                setTimeout(() => setExportError(null), 4000);
+            }
+        } catch (err) {
+            setExportError(`Terjadi kesalahan saat mengekspor data ${format.toUpperCase()}`);
+            setTimeout(() => setExportError(null), 4000);
+        } finally {
+            setExportingFormat(null);
+        }
+    };
 
     useEffect(() => {
         const load = async () => {
@@ -220,23 +242,65 @@ export default function FormAnalyticsPage() {
             <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
 
                 {/* Header */}
-                <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center gap-3">
-                    <button
-                        onClick={() => navigate(`/forms/${id}/responses`)}
-                        className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
-                    >
-                        <ArrowLeft size={18} />
-                    </button>
+                <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <button
+                            onClick={() => navigate(`/forms/${id}/responses`)}
+                            className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                        >
+                            <ArrowLeft size={18} />
+                        </button>
 
-                    <div className="min-w-0">
-                        <h1 className="text-base font-extrabold text-slate-900 dark:text-white truncate">
-                            {form?.title || 'Formulir'} — Analisis & Diagram
-                        </h1>
-                        <p className="text-xs text-slate-400 dark:text-slate-500">
-                            Ringkasan performa & analisis hasil ({respondents.length} / {totalCount || respondents.length} responden dimuat)
-                        </p>
+                        <div className="min-w-0">
+                            <h1 className="text-base font-extrabold text-slate-900 dark:text-white truncate">
+                                {form?.title || 'Formulir'} — Analisis & Diagram
+                            </h1>
+                            <p className="text-xs text-slate-400 dark:text-slate-500">
+                                Ringkasan performa & analisis hasil ({respondents.length} / {totalCount || respondents.length} responden dimuat)
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* 3 Export Buttons: XLSX, CSV, PDF */}
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => handleExport('xlsx')}
+                            disabled={exportingFormat !== null}
+                            className="px-3 py-1.5 text-xs font-bold rounded-xl border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                            title="Export ke Excel (.xlsx)"
+                        >
+                            <Download size={14} />
+                            <span>{exportingFormat === 'xlsx' ? 'Mengunduh...' : 'Export XLSX'}</span>
+                        </button>
+
+                        <button
+                            onClick={() => handleExport('csv')}
+                            disabled={exportingFormat !== null}
+                            className="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                            title="Export ke CSV (.csv)"
+                        >
+                            <Download size={14} />
+                            <span>{exportingFormat === 'csv' ? 'Mengunduh...' : 'Export CSV'}</span>
+                        </button>
+
+                        <button
+                            onClick={() => handleExport('pdf')}
+                            disabled={exportingFormat !== null}
+                            className="px-3 py-1.5 text-xs font-bold rounded-xl border border-red-300 dark:border-red-800 text-red-700 dark:text-red-400 bg-red-50/70 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                            title="Export ke PDF (.pdf)"
+                        >
+                            <Download size={14} />
+                            <span>{exportingFormat === 'pdf' ? 'Mengunduh...' : 'Export PDF'}</span>
+                        </button>
                     </div>
                 </div>
+
+                {exportError && (
+                    <div className="bg-red-50 dark:bg-red-950/60 border-b border-red-200 dark:border-red-800 px-6 py-2.5 text-xs text-red-600 dark:text-red-400 flex items-center gap-2">
+                        <AlertCircle size={15} />
+                        <span>{exportError}</span>
+                    </div>
+                )}
 
                 <div className="p-6 max-w-5xl mx-auto w-full space-y-6">
 
