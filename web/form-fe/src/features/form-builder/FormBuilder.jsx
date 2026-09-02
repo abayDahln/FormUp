@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
     Save, Plus, Trash2, ChevronUp, ChevronDown,
     Globe, Lock, ArrowLeft, Upload, FileUp, Image, Music, Download,
-    GripVertical, Code, Calculator, Eye, EyeOff, X
+    GripVertical, Code, Calculator, Eye, EyeOff, X, Sparkles
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import {
@@ -17,6 +17,7 @@ import RichContentRenderer from '../../utils/RichContentRenderer';
 import BlockQuestionEditor from '../../components/ui/BlockQuestionEditor';
 import MathAndCodeModal from '../../components/ui/MathAndCodeModal';
 import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
+import AIGeneratorModal from '../../components/ui/AIGeneratorModal';
 
 const envUrl = import.meta.env.VITE_API_BASE_URL;
 const API_BASE_URL = (envUrl !== undefined && envUrl !== '')
@@ -70,6 +71,9 @@ export default function FormBuilder() {
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('math');
     const [modalTarget, setModalTarget] = useState({ type: 'question', qIdx: null, oIdx: null });
+
+    // AI Quiz Generator Modal state
+    const [aiModalOpen, setAiModalOpen] = useState(false);
 
     // Live preview toggle per question
     const [previewVisibility, setPreviewVisibility] = useState({});
@@ -400,6 +404,20 @@ export default function FormBuilder() {
 
     const addQuestion = () => setQuestions(prev => [...prev, newQuestion(prev.length + 1)]);
 
+    const handleAddAIQuestions = (newGeneratedQuestions) => {
+        if (!newGeneratedQuestions || newGeneratedQuestions.length === 0) return;
+        setQuestions(prev => {
+            const startOrder = prev.length + 1;
+            const mapped = newGeneratedQuestions.map((q, idx) => ({
+                ...q,
+                _id: `q_ai_${Date.now()}_${idx}`,
+                questionOrder: startOrder + idx,
+            }));
+            return [...prev, ...mapped];
+        });
+        showToast(`Berhasil menambahkan ${newGeneratedQuestions.length} butir soal dari AI!`, 'success');
+    };
+
     const moveQuestion = (idx, dir) => {
         setQuestions(prev => {
             const arr = [...prev];
@@ -580,27 +598,55 @@ export default function FormBuilder() {
                                     </label>
                                 </div>
 
-                                {/* Question Import Bar */}
-                                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">Impor soal dari XLSX, CSV, DOCX, atau PDF:</p>
-                                        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 hover:bg-teal-100 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0">
-                                            <FileUp size={13} /> {importLoading ? 'Mengimpor...' : 'Impor Soal'}
+                                {/* AI Generator & File Import Bar */}
+                                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                                    {/* AI Generator Banner Card */}
+                                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-teal-500/15 via-emerald-500/10 to-teal-500/5 border border-teal-500/25 dark:border-teal-500/20 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-400 text-white flex items-center justify-center shadow-xs">
+                                                <Sparkles size={16} />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                    Buat Soal Otomatis dengan AI
+                                                    <span className="text-[9px] uppercase px-1.5 py-0.5 rounded-md bg-teal-600 text-white font-extrabold tracking-wider">
+                                                        Gemini
+                                                    </span>
+                                                </p>
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                    Ketik topik atau paste materi, AI menyusun soal, opsi, dan kunci jawaban instan.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAiModalOpen(true)}
+                                            className="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-500 hover:from-teal-700 hover:to-emerald-600 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                                        >
+                                            <Sparkles size={13} />
+                                            <span>Generate Soal AI</span>
+                                        </button>
+                                    </div>
+
+                                    {/* Question Import Bar */}
+                                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">Template:</span>
+                                            {['csv', 'xlsx', 'docx'].map(fmt => (
+                                                <a
+                                                    key={fmt}
+                                                    href={templateDownloadUrl(fmt)}
+                                                    download
+                                                    className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[11px] font-bold transition-all"
+                                                >
+                                                    <Download size={11} /> .{fmt.toUpperCase()}
+                                                </a>
+                                            ))}
+                                        </div>
+                                        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0">
+                                            <FileUp size={13} /> {importLoading ? 'Mengimpor...' : 'Impor File Soal'}
                                             <input type="file" accept=".xlsx,.csv,.docx,.pdf" className="hidden" onChange={handleImportFile} disabled={importLoading} />
                                         </label>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">Unduh template:</span>
-                                        {['csv', 'xlsx', 'docx'].map(fmt => (
-                                            <a
-                                                key={fmt}
-                                                href={templateDownloadUrl(fmt)}
-                                                download
-                                                className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[11px] font-bold transition-all"
-                                            >
-                                                <Download size={11} /> .{fmt.toUpperCase()}
-                                            </a>
-                                        ))}
                                     </div>
                                 </div>
                             </div>
@@ -928,12 +974,18 @@ export default function FormBuilder() {
                                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Form tanpa soal akan tersimpan kosong (0 soal) dan otomatis kembali menjadi draf.</p>
                                 </div>
                             )}
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                                 <button
                                     onClick={addQuestion}
-                                    className="flex-1 py-3.5 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl text-xs font-extrabold text-slate-600 dark:text-slate-400 hover:border-[#00897B] dark:hover:border-teal-400 hover:text-[#00897B] dark:hover:text-teal-400 transition-all flex items-center justify-center gap-2 bg-white/60 dark:bg-slate-900/60 cursor-pointer"
+                                    className="flex-1 min-w-[180px] py-3.5 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl text-xs font-extrabold text-slate-600 dark:text-slate-400 hover:border-[#00897B] dark:hover:border-teal-400 hover:text-[#00897B] dark:hover:text-teal-400 transition-all flex items-center justify-center gap-2 bg-white/60 dark:bg-slate-900/60 cursor-pointer"
                                 >
-                                    <Plus size={18} /> Tambah Soal Baru
+                                    <Plus size={18} /> Tambah Soal Manual
+                                </button>
+                                <button
+                                    onClick={() => setAiModalOpen(true)}
+                                    className="px-5 py-3.5 bg-gradient-to-r from-teal-600 to-emerald-500 hover:from-teal-700 hover:to-emerald-600 text-white rounded-2xl text-xs font-extrabold shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.98]"
+                                >
+                                    <Sparkles size={16} /> Buat dengan AI
                                 </button>
                                 {questions.length > 0 && (
                                     <button
@@ -1120,6 +1172,14 @@ export default function FormBuilder() {
                 mode={modalMode}
                 onClose={() => setModalOpen(false)}
                 onInsert={handleInsertFromModal}
+            />
+
+            {/* AI Question Generator Modal */}
+            <AIGeneratorModal
+                isOpen={aiModalOpen}
+                onClose={() => setAiModalOpen(false)}
+                onAddQuestions={handleAddAIQuestions}
+                formTitle={form?.title || ''}
             />
 
             {/* Lightbox Modal */}

@@ -41,7 +41,7 @@ function parseStringToBlocks(rawStr) {
     const text = rawStr.trim();
 
     // Combined regex for code blocks, standalone math blocks
-    const combinedRegex = /<pre><code(?: class="language-([a-zA-Z0-9_#-]+)")?>([\s\S]*?)<\/code><\/pre>|```([a-zA-Z0-9_#-]*)\n([\s\S]*?)```|<p>\$\$([\s\S]*?)\$\$<\/p>|\$\$([\s\S]+?)\$\$/gi;
+    const combinedRegex = /<pre><code(?: class="language-([a-zA-Z0-9_#-]+)")?>([\s\S]*?)<\/code><\/pre>|```([a-zA-Z0-9_#-]*)[ \t\r\n]*([\s\S]*?)```|<p>\$\$([\s\S]*?)\$\$<\/p>|\$\$([\s\S]+?)\$\$/gi;
 
     let lastIndex = 0;
     let match;
