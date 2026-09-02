@@ -37,6 +37,8 @@
 
 `GET /api/forms/{formId}/feedback`
 
+Alias yang setara: `GET /api/forms/{formId}/feedbacks` (keduanya tersedia di backend).
+
 **Headers:** `Authorization: Bearer <token>`
 
 **Response 200:**

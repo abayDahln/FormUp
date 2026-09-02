@@ -140,9 +140,9 @@ POST /api/auth/login
 
 ---
 
-### 3. Refresh Token
+### 4. Refresh Token
 
-Token JWT berlaku **14 hari** (default `Jwt:AccessTokenMinutes` = 20160 menit). Refresh untuk mendapat token baru tanpa login ulang; token yang sudah kedaluwarsa masih bisa di-refresh hingga **7 hari** setelah kedaluwarsa.
+Token JWT berlaku **14 hari** (default `Jwt:AccessTokenMinutes` = 20160 menit). Refresh untuk mendapat token baru tanpa login ulang; token yang sudah kedaluwarsa masih bisa di-refresh hingga **7 hari** setelah kedaluwarsa (*clock skew*).
 
 **Endpoint:**
 ```
@@ -170,7 +170,7 @@ Authorization: Bearer <current-token>
 
 ---
 
-### 4. Lupa Password (Kirim OTP)
+### 5. Lupa Password (Kirim OTP)
 
 **Endpoint:**
 ```
@@ -197,7 +197,7 @@ OTP dikirim via email, berlaku 15 menit.
 
 ---
 
-### 5. Reset Password
+### 6. Reset Password
 
 **Endpoint:**
 ```

@@ -140,9 +140,9 @@ POST /api/auth/login
 
 ---
 
-### 3. Refresh Token
+### 4. Refresh Token
 
-Token JWT berlaku **24 jam** (default `Jwt:AccessTokenMinutes` = 1440 menit). Refresh untuk mendapat token baru tanpa login ulang.
+Token JWT berlaku **14 hari** (default `Jwt:AccessTokenMinutes` = 20160 menit). Refresh untuk mendapat token baru tanpa login ulang; token yang sudah kedaluwarsa masih bisa di-refresh hingga **7 hari** setelah kedaluwarsa (*clock skew*).
 
 **Endpoint:**
 ```
@@ -170,7 +170,7 @@ Authorization: Bearer <current-token>
 
 ---
 
-### 4. Lupa Password (Kirim OTP)
+### 5. Lupa Password (Kirim OTP)
 
 **Endpoint:**
 ```
@@ -197,7 +197,7 @@ OTP dikirim via email, berlaku 15 menit.
 
 ---
 
-### 5. Reset Password
+### 6. Reset Password
 
 **Endpoint:**
 ```
@@ -249,5 +249,5 @@ Di `appsettings.json` atau env var:
 | `Jwt:Key` | `JWT_KEY` | — (wajib, min 32 karakter) |
 | `Jwt:Issuer` | — | `FormUpAPI` |
 | `Jwt:Audience` | — | `FormUpClient` |
-| `Jwt:AccessTokenMinutes` | — | `1440` (24 jam) |
+| `Jwt:AccessTokenMinutes` | — | `20160` (14 hari) |
 

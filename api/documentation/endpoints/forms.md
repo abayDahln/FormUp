@@ -153,6 +153,32 @@
 
 ---
 
+## 5b. Hapus Beberapa Form Sekaligus (Bulk Delete)
+
+`POST /api/forms/bulk-delete`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Soft delete banyak form milik sendiri sekaligus. Form milik user lain di-skip.
+
+**Request:**
+```json
+{
+  "formIds": [1, 2, 3]
+}
+```
+
+**Response 200** (`data` null, jumlah terhapus di `message`):
+```json
+{
+  "status": 200,
+  "message": "2 forms deleted",
+  "data": null
+}
+```
+
+---
+
 ## 6. Upload Banner Form
 
 `POST /api/forms/{id}/banner`

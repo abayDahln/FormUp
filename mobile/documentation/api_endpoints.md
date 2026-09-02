@@ -561,6 +561,32 @@ Butuh JWT. Dipakai builder form untuk mengisi dropdown tipe/status.
 
 ---
 
+## 5b. Hapus Beberapa Form Sekaligus (Bulk Delete)
+
+`POST /api/forms/bulk-delete`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Soft delete banyak form milik sendiri sekaligus. Form milik user lain di-skip.
+
+**Request:**
+```json
+{
+  "formIds": [1, 2, 3]
+}
+```
+
+**Response 200** (`data` null, jumlah terhapus di `message`):
+```json
+{
+  "status": 200,
+  "message": "2 forms deleted",
+  "data": null
+}
+```
+
+---
+
 ## 6. Upload Banner Form
 
 `POST /api/forms/{id}/banner`
@@ -858,6 +884,34 @@ Akses:
 ```
 
 **Jika `showScore = false`:** `score`, `correctCount`, `wrongCount` = 0/null dan per soal `correctAnswer`/`isCorrect` tidak dikirim (hanya jawaban responden).
+
+## 5. Riwayat Attempt Saya pada Satu Form (User Login)
+
+`GET /api/public/forms/{formLink}/my-responses`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Mengembalikan semua attempt user yang sedang login untuk form ini, terbaru lebih dulu — dipakai tab Riwayat (pengelompokan per form) dan pemilih attempt.
+
+**Response 200:**
+```json
+{
+  "status": 200,
+  "message": "OK",
+  "data": [
+    {
+      "responseId": 12,
+      "submittedAt": "2026-08-22T09:15:00Z",
+      "showScore": true,
+      "score": 87.5,
+      "correctCount": 7,
+      "wrongCount": 1
+    }
+  ]
+}
+```
+
+Catatan: `showScore`, `score`, `correctCount`, `wrongCount` mengikuti pengaturan form; `score` `null` jika form tidak menampilkan nilai. Tidak mensyaratkan form masih `published` — riwayat tetap bisa dibuka walau form sudah di-unpublish.
 
 ---
 
@@ -1294,7 +1348,75 @@ Untuk pilihan ganda: kirim `optionId`. Untuk text: kirim `answerValue`.
 
 ---
 
-## 4. Update Status Response (Owner)
+## 4. Hasil Lengkap Response (Owner)
+
+`GET /api/forms/{formId}/responses/{id}/result`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Hasil lengkap satu respons milik responden — format identik dengan endpoint hasil publik (`ResponseScorer.BuildResult`): skor, kunci jawaban, opsi tiap soal, dan `selectedOptions` (semua opsi/teks yang dipilih responden; penting untuk checkbox multi-pilihan). Dipakai screen Respondent Detail.
+
+**Response 200:**
+```json
+{
+  "status": 200,
+  "message": "OK",
+  "data": {
+    "responseId": 1,
+    "formId": 1,
+    "formTitle": "Quiz Matematika",
+    "showScore": true,
+    "score": 87.5,
+    "correctCount": 7,
+    "wrongCount": 1,
+    "totalQuestions": 8,
+    "scorableQuestions": 8,
+    "answeredCount": 8,
+    "answers": [
+      {
+        "questionId": 1,
+        "question": "2+2 berapa?",
+        "typeId": 3,
+        "answerText": "4",
+        "correctAnswer": "4",
+        "isCorrect": true,
+        "options": ["3", "4", "5"],
+        "selectedOptions": ["4"]
+      }
+    ]
+  }
+}
+```
+
+## 5. Attempt Lain Responden yang Sama (Owner)
+
+`GET /api/forms/{formId}/responses/{id}/attempts`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Daftar semua attempt responden yang sama pada form yang sama — dicocokkan via akun login (`respondent_id`); untuk guest memakai pencocokan nama (`respondent_name`). Diurutkan terbaru lebih dulu.
+
+**Response 200:**
+```json
+{
+  "status": 200,
+  "message": "OK",
+  "data": [
+    {
+      "responseId": 12,
+      "submittedAt": "2026-08-22T09:15:00Z",
+      "showScore": true,
+      "score": 87.5,
+      "correctCount": 7,
+      "wrongCount": 1
+    }
+  ]
+}
+```
+
+---
+
+## 6. Update Status Response (Owner)
 
 `PUT /api/responses/{id}/status`
 
@@ -1319,7 +1441,7 @@ Status: 1=new, 2=reviewed, 3=flagged.
 
 ---
 
-## 5. Export Responses (Owner)
+## 7. Export Responses (Owner)
 
 `GET /api/forms/{formId}/responses/export`
 
@@ -1368,6 +1490,8 @@ Kolom: Response ID, Submitted At, Respondent, [jawaban per pertanyaan], Status.
 ## 2. Lihat Feedback Saya (User)
 
 `GET /api/forms/{formId}/feedback`
+
+Alias yang setara: `GET /api/forms/{formId}/feedbacks` (keduanya tersedia di backend).
 
 **Headers:** `Authorization: Bearer <token>`
 

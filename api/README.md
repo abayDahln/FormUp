@@ -1,4 +1,4 @@
-﻿# FormUp API
+# FormUp API
 
 ![.NET](https://img.shields.io/badge/.NET-8.0-blue)
 ![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-8.0-purple)
@@ -12,18 +12,55 @@ Backend REST untuk **FormUp** — platform pembuat form ala Google Forms/Quizizz
 
 ## Daftar Isi
 
-- [Prasyarat](#prasyarat)
-- [Quick Start (Development)](#quick-start-development)
-- [Deployment ke Server Produksi](#deployment-ke-server-produksi)
-- [Troubleshooting](#troubleshooting)
-- [Fitur Utama](#fitur-utama)
-- [Dokumentasi Lengkap](#dokumentasi-lengkap)
-- [Kontribusi](#kontribusi)
-- [Lisensi](#lisensi)
+1. [Pengenalan & Fitur](#1-pengenalan--fitur)
+2. [Tech Stack](#2-tech-stack)
+3. [Instalasi Lengkap](#3-instalasi-lengkap)
+   - [Windows](#31-windows)
+   - [macOS](#32-macos)
+   - [Linux — Ubuntu/Debian](#33-linux--ubuntudebian)
+   - [Linux — Arch](#34-linux--arch)
+   - [Setup Project (Semua OS)](#35-setup-project-semua-os)
+4. [Deployment ke Server Produksi](#4-deployment-ke-server-produksi)
+5. [Troubleshooting](#5-troubleshooting)
+6. [Dokumentasi, Kontribusi & Lisensi](#6-dokumentasi-kontribusi--lisensi)
 
 ---
 
-## Prasyarat
+## 1. Pengenalan & Fitur
+
+### Fitur Utama
+
+- **Kelola form** — CRUD, draft → published → closed, settings (timer, token akses, one-response, jadwal buka/tutup), banner, share link + QR code
+- **Tipe pertanyaan** — essay, pilihan ganda, checkbox, tanggal & waktu, benar/salah
+- **Impor soal** — dari `.xlsx`, `.xls`, `.csv`, `.pdf`, `.docx` dengan alur preview → validasi per baris → simpan; ekstraksi gambar dari dokumen
+- **Kumpulkan respons** — publik via link/QR, guest atau login, proteksi token & rate limiting, anti-bocor kunci jawaban
+- **Analitik & export** — statistik responden, skor otomatis, pagination + pencarian di level database, export CSV/Excel/PDF
+- **Autentikasi** — JWT 14 hari + refresh 7 hari, OTP email, PBKDF2 SHA256 100.000 iterasi
+- **Admin** — kelola user (ban/activate/hapus), moderasi form (takedown/restore), kelola feedback
+
+### Arsitektur
+
+Single project `.csproj` (tanpa class library), 11 controller (`Admin`, `Analytics`, `Auth`, `Feedbacks`, `Forms`, `PublicForms`, `Questions`, `References`, `Responses`, `Templates`, `Users`), `JwtService` + `EmailService` sebagai singleton, response dibungkus `ApiResponse<T>`, soft delete via `deleted_at`, UUID primary key, kolom database `snake_case`.
+
+---
+
+## 2. Tech Stack
+
+| Komponen | Teknologi |
+|----------|-----------|
+| Runtime | .NET 8.0 (ASP.NET Core Web API) |
+| ORM | Entity Framework Core 8 |
+| Database | SQL Server 2019+ (LocalDB/Express/Developer/Docker) |
+| Auth | JWT Bearer + refresh token, OTP email, PBKDF2 SHA256 |
+| Email | SMTP (mis. Gmail App Password) |
+| File storage | `wwwroot/uploads` (disajikan via `UseStaticFiles`) |
+| API docs | Swagger UI dengan JWT auth (`persistAuthorization`) |
+
+---
+
+## 3. Instalasi Lengkap
+
+### Ringkasan Prasyarat (Semua OS)
 
 | Kebutuhan | Versi | Wajib |
 |-----------|-------|-------|
@@ -31,30 +68,30 @@ Backend REST untuk **FormUp** — platform pembuat form ala Google Forms/Quizizz
 | SQL Server | 2019+ | Ya |
 | dotnet-ef tool | 8.x | Ya |
 | Git | terbaru | Ya |
-| Akun SMTP | Gmail App Password | Untuk fitur register/reset password |
+| Akun SMTP | Gmail App Password | Untuk register/reset password |
+| Docker | terbaru | macOS & Arch (SQL Server via Docker) |
 
-Verifikasi instalasi:
+### 3.1 Windows
 
-```bash
-$ dotnet --version      # output: 8.0.xxx
-$ dotnet ef --version   # output: 8.0.x
-```
+#### a. Install .NET SDK 8.0
 
-### Windows
-
-Install .NET SDK:
+Via `winget` (PowerShell):
 
 ```powershell
 > winget install Microsoft.DotNet.SDK.8
 ```
 
-Install salah satu edisi SQL Server:
+Atau download installer dari https://dotnet.microsoft.com/download/dotnet/8.0.
 
-| Opsi | Perintah / Sumber | Cocok untuk |
-|------|-------------------|-------------|
-| LocalDB | Ikut installer [SQL Server Express](https://www.microsoft.com/sql-server/sql-server-downloads), centang LocalDB | Development cepat, tanpa konfigurasi |
-| Express | Installer di atas, mode Basic | Development + production kecil |
-| Developer | Installer di atas, mode Custom → Developer | Fitur lengkap, gratis non-production |
+#### b. Install SQL Server
+
+Download [SQL Server Express](https://www.microsoft.com/sql-server/sql-server-downloads) lalu pilih salah satu edisi:
+
+| Opsi | Cara | Cocok untuk |
+|------|------|-------------|
+| **LocalDB** | Ikut installer, centang LocalDB | Development cepat, tanpa konfigurasi |
+| **Express** | Installer, mode Basic | Development + production kecil |
+| **Developer** | Installer, mode Custom → Developer | Fitur lengkap, gratis non-production |
 
 Pastikan layanan berjalan:
 
@@ -62,15 +99,40 @@ Pastikan layanan berjalan:
 > Get-Service MSSQLSERVER   # Status harus Running
 ```
 
-### macOS
+#### c. Install dotnet-ef
 
-.NET SDK tidak tersedia sebagai native build untuk SQL Server di macOS — database dijalankan lewat Docker.
+```powershell
+> dotnet tool install --global dotnet-ef
+```
+
+Jika `dotnet ef` tidak dikenali, tambahkan `%USERPROFILE%\.dotnet\tools` ke `PATH`.
+
+#### d. Verifikasi
+
+```powershell
+> dotnet --version      # 8.0.xxx
+> dotnet ef --version   # 8.0.x
+```
+
+### 3.2 macOS
+
+> .NET SDK tidak tersedia sebagai native build untuk SQL Server di macOS — database dijalankan lewat **Docker**.
+
+#### a. Install Homebrew (jika belum ada)
+
+```bash
+$ /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+#### b. Install .NET SDK 8.0
 
 ```bash
 $ brew install --cask dotnet-sdk
 ```
 
-Jalankan SQL Server 2022 via container:
+#### c. Install Docker & jalankan SQL Server 2022
+
+Install [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/) (pilih sesuai chip: Apple Silicon atau Intel), lalu:
 
 ```bash
 $ docker run -e "ACCEPT_EULA=Y" \
@@ -81,13 +143,48 @@ $ docker run -e "ACCEPT_EULA=Y" \
 
 > **Catatan**: password SA wajib memenuhi kebijakan kompleksitas SQL Server (huruf besar, huruf kecil, angka, simbol, minimal 8 karakter).
 
-### Linux (Ubuntu 22.04/24.04)
+Verifikasi container berjalan:
+
+```bash
+$ docker ps                                  # formup-sqlserver harus Up
+$ docker logs formup-sqlserver --tail 20     # tunggu "SQL Server is now ready"
+```
+
+#### d. Install dotnet-ef & verifikasi
+
+```bash
+$ dotnet tool install --global dotnet-ef
+$ dotnet --version && dotnet ef --version
+```
+
+Jika `dotnet ef` tidak dikenali, tambahkan `~/.dotnet/tools` ke `PATH` (di `~/.zshrc` atau `~/.bash_profile`):
+
+```bash
+$ export PATH="$PATH:$HOME/.dotnet/tools"
+```
+
+### 3.3 Linux — Ubuntu/Debian
+
+#### Ubuntu 22.04/24.04
 
 ```bash
 $ sudo apt-get update && sudo apt-get install -y dotnet-sdk-8.0
 ```
 
-SQL Server — pilih Docker (paling cepat) atau [instalasi native Ubuntu](https://learn.microsoft.com/en-us/sql/linux/quickstart-install-connect-ubuntu):
+#### Debian 12
+
+Tambahkan repo Microsoft terlebih dahulu:
+
+```bash
+$ sudo apt-get update && sudo apt-get install -y wget
+$ wget https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb
+$ sudo dpkg -i packages-microsoft-prod.deb
+$ sudo apt-get update && sudo apt-get install -y dotnet-sdk-8.0
+```
+
+#### SQL Server — pilih salah satu
+
+**Opsi A — Docker (paling cepat, direkomendasikan):**
 
 ```bash
 $ docker run -e "ACCEPT_EULA=Y" \
@@ -96,21 +193,73 @@ $ docker run -e "ACCEPT_EULA=Y" \
     -d mcr.microsoft.com/mssql/server:2022-latest
 ```
 
-### Semua OS — dotnet-ef
+**Opsi B — native Ubuntu (tidak tersedia untuk Debian):**
+
+Ikuti panduan resmi: https://learn.microsoft.com/en-us/sql/linux/quickstart-install-connect-ubuntu
+
+#### dotnet-ef & verifikasi
 
 ```bash
 $ dotnet tool install --global dotnet-ef
+$ dotnet --version && dotnet ef --version
 ```
 
-Jika `dotnet ef` tidak dikenali, tambahkan `~/.dotnet/tools` (Linux/macOS) atau `%USERPROFILE%\.dotnet\tools` (Windows) ke `PATH`.
+Jika `dotnet ef` tidak dikenali, tambahkan `~/.dotnet/tools` ke `PATH`:
 
----
+```bash
+$ echo 'export PATH="$PATH:$HOME/.dotnet/tools"' >> ~/.bashrc && source ~/.bashrc
+```
 
-## Quick Start (Development)
+### 3.4 Linux — Arch
+
+> SQL Server **tidak tersedia native** untuk Arch — wajib pakai **Docker**.
+
+#### a. Install .NET SDK 8.0
+
+```bash
+$ sudo pacman -S --needed dotnet-sdk-8.0
+```
+
+#### b. Install Docker & jalankan SQL Server 2022
+
+```bash
+$ sudo pacman -S --needed docker docker-compose
+$ sudo systemctl enable --now docker
+$ sudo usermod -aG docker $USER        # logout/login agar docker bisa dipakai tanpa sudo
+
+$ docker run -e "ACCEPT_EULA=Y" \
+    -e "MSSQL_SA_PASSWORD=FormUpStrong!123" \
+    -p 1433:1433 --name formup-sqlserver \
+    -d mcr.microsoft.com/mssql/server:2022-latest
+```
+
+> **Catatan Apple Silicon/ARM**: image `mcr.microsoft.com/mssql/server` resmi hanya tersedia untuk `amd64`. Di mesin ARM (mis. Apple Silicon) gunakan flag `--platform linux/amd64` (berjalan via emulasi, lebih lambat):
+>
+> ```bash
+> $ docker run --platform linux/amd64 -e "ACCEPT_EULA=Y" \
+>     -e "MSSQL_SA_PASSWORD=FormUpStrong!123" \
+>     -p 1433:1433 --name formup-sqlserver \
+>     -d mcr.microsoft.com/mssql/server:2022-latest
+> ```
+
+#### c. dotnet-ef & verifikasi
+
+```bash
+$ dotnet tool install --global dotnet-ef
+$ dotnet --version && dotnet ef --version
+```
+
+Tambahkan `~/.dotnet/tools` ke `PATH` jika perlu:
+
+```bash
+$ echo 'export PATH="$PATH:$HOME/.dotnet/tools"' >> ~/.zshrc && source ~/.zshrc
+```
+
+### 3.5 Setup Project (Semua OS)
 
 Jalankan semua perintah dari folder `api/`.
 
-### 1. Clone & Restore Dependency
+#### 1. Clone & restore dependency
 
 ```bash
 $ git clone <url-repo-anda>.git
@@ -118,12 +267,10 @@ $ cd FormUp/api
 $ dotnet restore
 ```
 
-### 2. Konfigurasi Environment
-
-Salin template lalu isi nilainya:
+#### 2. Konfigurasi environment
 
 ```bash
-$ cp .env.example .env
+$ cp .env.example .env        # Windows: copy .env.example .env
 ```
 
 Isi file `.env`:
@@ -164,11 +311,9 @@ Variabel lengkap:
 
 \* Wajib untuk alur register/login/lupa password.
 
-> **Catatan**: JANGAN menyimpan secret di `appsettings.json` — file itu masuk repository. Gunakan `.env` (gitignored) atau environment variable sistem.
->
 > **Catatan Gmail**: gunakan *App Password*, bukan password akun. Aktifkan 2FA lalu buat di https://myaccount.google.com/apppasswords.
 
-### 3. Migrasi Database
+#### 3. Migrasi database
 
 ```bash
 $ dotnet ef database update
@@ -176,7 +321,7 @@ $ dotnet ef database update
 
 Perintah ini membuat database `FormUpDb` beserta seluruh tabel sesuai migrasi di `Migrations/`.
 
-### 4. Jalankan API
+#### 4. Jalankan API
 
 ```bash
 $ dotnet run
@@ -192,7 +337,7 @@ $ ASPNETCORE_URLS=http://localhost:5050 dotnet run          # Linux/macOS
 > $env:ASPNETCORE_URLS="http://localhost:5050"; dotnet run  # PowerShell
 ```
 
-### 5. Uji Cepat
+#### 5. Uji cepat
 
 Buka Swagger UI di browser, atau daftar user via cURL:
 
@@ -204,9 +349,27 @@ $ curl -X POST http://localhost:5000/api/auth/register \
 
 OTP verifikasi dikirim ke email — selesaikan registrasi via `POST /api/auth/verify-registration`.
 
+#### Perintah EF Core berguna
+
+```bash
+$ dotnet ef migrations add <NamaMigrasi>   # buat migrasi baru
+$ dotnet ef database update                # terapkan migrasi
+$ dotnet ef migrations remove              # batalkan migrasi terakhir
+$ dotnet ef migrations list                # daftar migrasi
+```
+
+#### Kelola container SQL Server (Docker)
+
+```bash
+$ docker stop formup-sqlserver && docker start formup-sqlserver   # stop/start
+$ docker rm -f formup-sqlserver                                    # hapus container
+$ docker exec -it formup-sqlserver /opt/mssql-tools18/bin/sqlcmd \
+    -S localhost -U sa -P "FormUpStrong!123" -C -Q "SELECT @@VERSION"   # uji koneksi
+```
+
 ---
 
-## Deployment ke Server Produksi
+## 4. Deployment ke Server Produksi
 
 Prasyarat server: mesin/VPS Windows atau Linux, akses admin/sudo, domain + DNS mengarah ke server (untuk HTTPS).
 
@@ -219,9 +382,14 @@ Install **runtime** (bukan SDK) dan siapkan SQL Server:
 $ sudo apt-get install -y aspnetcore-runtime-8.0
 ```
 
+```bash
+# Arch — ASP.NET Core Runtime 8
+$ sudo pacman -S --needed aspnet-runtime
+```
+
 Windows: download **ASP.NET Core Runtime 8.0 Hosting Bundle** dari https://dotnet.microsoft.com/download/dotnet/8.0 — wajib jika memakai IIS.
 
-Siapkan SQL Server (native atau Docker — sama seperti bagian Prasyarat), lalu buat database kosong:
+SQL Server di server: native (Ubuntu/Windows) atau Docker (macOS/Arch/Debian) — sama seperti bagian Instalasi. Lalu buat database kosong:
 
 ```sql
 CREATE DATABASE FormUpDb;
@@ -331,6 +499,8 @@ Beri izin tulis untuk upload file:
 $ sudo chown -R www-data:www-data /var/www/formup-api/wwwroot
 ```
 
+> **Arch**: sesuaikan `User=www-data` → `User=http` (user service default di Arch).
+
 #### 🪟 Windows — Windows Service atau IIS
 
 **Opsi A — Windows Service** (tanpa IIS):
@@ -351,7 +521,7 @@ API hanya listen di `localhost:5000` — reverse proxy yang mengeksposnya ke pub
 
 #### Nginx (Linux)
 
-Buat `/etc/nginx/sites-available/formup-api`:
+Buat `/etc/nginx/sites-available/formup-api` (Arch: letakkan di `/etc/nginx/sites-available/` dan tambahkan `include sites-enabled/*;` di `nginx.conf` atau konfigurasi langsung di `nginx.conf`):
 
 ```nginx
 server {
@@ -376,9 +546,9 @@ Aktifkan dan pasang HTTPS Let's Encrypt:
 ```bash
 $ sudo ln -s /etc/nginx/sites-available/formup-api /etc/nginx/sites-enabled/
 $ sudo nginx -t && sudo systemctl reload nginx
-$ sudo apt-get install -y certbot python3-certbot-nginx
+$ sudo apt-get install -y certbot python3-certbot-nginx      # Ubuntu/Debian
 $ sudo certbot --nginx -d api.formup.my.id
-$ sudo ufw allow 'Nginx Full'
+$ sudo ufw allow 'Nginx Full'                                # Ubuntu; Arch: ufw/firewalld sesuai setup
 ```
 
 #### IIS (Windows)
@@ -397,36 +567,27 @@ SSL ditangani langsung oleh IIS melalui site binding HTTPS (import certificate d
 
 ---
 
-## Troubleshooting
+## 5. Troubleshooting
 
-| Error | Penyebab | Solusi |
-|-------|----------|--------|
-| `503 Layanan sedang tidak tersedia` | SQL Server mati — middleware menangkap `SqlException` | Windows: start service `MSSQLSERVER`. Docker: `docker start formup-sqlserver` |
-| `A network-related or instance-specific error` saat migrasi | Connection string salah / DB tidak jalan | Cek `DB_CONNECTION`, cocokkan host/port/kredensial |
-| `Cannot open database "FormUpDb"` | Login tanpa hak membuat DB | Pakai kredensial admin/`sa`, atau jalankan `CREATE DATABASE FormUpDb;` manual |
-| `Login failed for user 'sa'` | Password salah / tidak memenuhi kebijakan kompleksitas | Reset password SA atau perbaiki `DB_CONNECTION` |
-| Aplikasi berhenti saat startup dengan pesan JWT key | `JWT_KEY` masih default atau < 32 karakter | Generate kunci baru (`openssl rand -base64 48`) dan isi di `.env` |
+| Masalah | Penyebab | Solusi |
+|---------|----------|--------|
+| Tidak bisa koneksi ke SQL Server | Service/database belum jalan | Windows: `Get-Service MSSQLSERVER`; Docker: `docker ps`, cek log container |
+| `dotnet ef: command not found` | Tool belum terpasang / PATH | `dotnet tool install --global dotnet-ef`, tambahkan folder tools ke `PATH` |
+| API gagal startup: JWT_KEY | Kunci default / < 32 karakter | Generate kunci acak (`openssl rand -base64 48`) dan isi di `.env` |
 | OTP email tidak terkirim | SMTP kredensial salah / bukan App Password | Buat App Password Gmail (2FA aktif), pastikan `SMTP_*` terisi |
 | `401` terus-menerus dari client | Token kedaluwarsa | Header response berisi `Token-Expired: true` → panggil `POST /api/auth/refresh`, lalu ulangi request |
 | Request frontend diblokir CORS | Origin frontend tidak terdaftar | Tambahkan origin ke array `AllowedOrigins` di `appsettings.json`, restart API |
 | Upload file gagal `413` | Body size dibatasi proxy | Set `client_max_body_size 25M` di Nginx (atau batas request IIS) |
 | Import soal `.docx` gagal dibaca | File rusak / format tidak sesuai template | Unduh template resmi: `GET /api/templates/import-questions?format=csv`; preview akan menampilkan error per baris |
 | `429 Too Many Requests` | Melebihi rate limit (`auth` 10/mnt, `creator` 120/mnt, `submit` 60/mnt, `template` 10/mnt) | Backoff eksponensial, retry setelah jeda |
-| `dotnet ef: command not found` | Tool belum terpasang / PATH | `dotnet tool install --global dotnet-ef`, tambahkan folder tools ke `PATH` |
+| Docker: image SQL Server gagal di ARM | Image resmi hanya amd64 | Tambahkan `--platform linux/amd64` saat `docker run` |
+| `ACCEPT_EULA` error di log Docker | EULA belum disetujui | Pastikan `-e "ACCEPT_EULA=Y"` ada di perintah `docker run` |
 
 ---
 
-## Fitur Utama
+## 6. Dokumentasi, Kontribusi & Lisensi
 
-- **Kelola form** — CRUD, draft → published → closed, settings (timer, token akses, one-response, jadwal buka/tutup), banner, share link + QR code
-- **Tipe pertanyaan** — essay, pilihan ganda, checkbox, tanggal & waktu, benar/salah
-- **Impor soal** — dari `.xlsx`, `.xls`, `.csv`, `.pdf`, `.docx` dengan alur preview → validasi per baris → simpan; ekstraksi gambar dari dokumen
-- **Kumpulkan respons** — publik via link/QR, guest atau login, proteksi token & rate limiting, anti-bocor kunci jawaban
-- **Analitik & export** — statistik responden, skor otomatis, pagination + pencarian di level database, export CSV
-- **Autentikasi** — JWT 14 hari + refresh 7 hari, OTP email, PBKDF2 SHA256 100.000 iterasi
-- **Admin** — kelola user (ban/activate/hapus), moderasi form (takedown/restore), kelola feedback
-
-## Dokumentasi Lengkap
+### Dokumentasi Lengkap
 
 Dokumentasi teknis (Bahasa Indonesia) ada di folder [`documentation/`](./documentation/):
 
@@ -443,7 +604,7 @@ Dokumentasi teknis (Bahasa Indonesia) ada di folder [`documentation/`](./documen
 | [`deployment.md`](./documentation/deployment.md) | Ringkasan setup production |
 | [`future_features.md`](./documentation/future_features.md) | Roadmap fitur |
 
-## Kontribusi
+### Kontribusi
 
 1. Fork repository
 2. Buat branch fitur: `git checkout -b feature/nama-fitur`
@@ -458,6 +619,6 @@ Standar kode:
 - Soft delete via kolom `deleted_at`; kolom database `snake_case` via Fluent API di `FormUpDbContext`
 - Jalankan `dotnet build` sebelum membuat PR (project ini belum memiliki unit test — `dotnet test` akan gagal karena belum ada test project)
 
-## Lisensi
+### Lisensi
 
 Proprietary and confidential.
