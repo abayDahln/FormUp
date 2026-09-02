@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="Assets/FormUpLogoName.png" alt="FormUp" width="420" />
+</p>
+
 # FormUp
 
 ![.NET](https://img.shields.io/badge/.NET-8.0-blue)
