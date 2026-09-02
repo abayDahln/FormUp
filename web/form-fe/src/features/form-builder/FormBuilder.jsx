@@ -18,8 +18,11 @@ import BlockQuestionEditor from '../../components/ui/BlockQuestionEditor';
 import MathAndCodeModal from '../../components/ui/MathAndCodeModal';
 import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.formup.my.id';
-const FRONTEND_BASE_URL = import.meta.env.VITE_FRONTEND_URL || 'https://formup.my.id';
+const envUrl = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = (envUrl !== undefined && envUrl !== '')
+    ? envUrl 
+    : (import.meta.env.DEV ? '' : 'https://api.formup.my.id');
+const FRONTEND_BASE_URL = import.meta.env.VITE_FRONTEND_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://formup.my.id');
 
 const QUESTION_TYPES = [
     { id: 1, label: 'Essay / Short Answer' },
@@ -588,7 +591,7 @@ export default function FormBuilder() {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">Unduh template:</span>
-                                        {['csv', 'xlsx', 'docx (Under Development)'].map(fmt => (
+                                        {['csv', 'xlsx', 'docx'].map(fmt => (
                                             <a
                                                 key={fmt}
                                                 href={templateDownloadUrl(fmt)}

@@ -1,4 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.formup.my.id';
+const envUrl = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = (envUrl !== undefined && envUrl !== '')
+    ? envUrl 
+    : (import.meta.env.DEV ? '' : 'https://api.formup.my.id');
 
 export const getToken = () => {
     if (typeof window === 'undefined') return null;
