@@ -393,7 +393,8 @@ export const adminActivateUser = async (id) => {
     return parseResponse(res);
 };
 export const adminDeleteUser = async (id) => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}/delete`, { method: 'DELETE', headers: authHeaders() });
+    // Backend endpoint: [HttpDelete("users/{id}")] in AdminController.cs
+    const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, { method: 'DELETE', headers: authHeaders() });
     return parseResponse(res);
 };
 export const adminTakedownForm = async (id) => {

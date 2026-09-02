@@ -530,7 +530,7 @@ export default function FormResponsesPage() {
                     >
                         <Eye size={14} /> Respons
                     </button>
-                    <button
+                    {/* <button
                         onClick={() => setActiveTab('feedback')}
                         className={`flex items-center gap-1.5 py-3.5 px-5 text-xs font-extrabold border-b-2 transition-all cursor-pointer ${
                             activeTab === 'feedback' 
@@ -539,7 +539,7 @@ export default function FormResponsesPage() {
                         }`}
                     >
                         <AlertTriangle size={14} /> Laporan Masukan
-                    </button>
+                    </button> */}
                 </div>
 
                 {toast && (

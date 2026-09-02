@@ -787,13 +787,16 @@ export default function FormBuilder() {
                                             </div>
                                         ) : null}
 
-                                        {/* Choices Options (with Formula & Code insertion for Options!) */}
-                                        {needsOptions(q.typeId) && (
+                                                {needsOptions(q.typeId) && (
                                             <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                                                 <div className="flex items-center justify-between">
                                                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Pilihan Jawaban:</label>
                                                     {q.isScorable !== false && (
-                                                        <span className="text-[11px] text-slate-400 dark:text-slate-500">Centang kotak untuk menandai jawaban benar</span>
+                                                        <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                                                            {q.typeId === 2
+                                                                ? '● Pilih 1 jawaban benar (radio)'
+                                                                : '☑ Centang semua jawaban benar'}
+                                                        </span>
                                                     )}
                                                 </div>
                                                 {q.options.map((opt, oIdx) => (
@@ -801,13 +804,37 @@ export default function FormBuilder() {
                                                         <div className="flex items-center gap-2">
                                                             {q.isScorable !== false ? (
                                                                 <label className="flex items-center gap-1 cursor-pointer">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={opt.isCorrect}
-                                                                        onChange={e => updateOption(idx, oIdx, 'isCorrect', e.target.checked)}
-                                                                        className="w-4 h-4 text-[#00897B] rounded shrink-0 cursor-pointer"
-                                                                        title="Tandai sebagai jawaban benar"
-                                                                    />
+                                                                    {q.typeId === 2 ? (
+                                                                        // TASK 3: Multiple Choice → radio (single-select)
+                                                                        <input
+                                                                            type="radio"
+                                                                            name={`correct_q${idx}`}
+                                                                            checked={!!opt.isCorrect}
+                                                                            onChange={() => {
+                                                                                setQuestions(prev => prev.map((qq, qi) => {
+                                                                                    if (qi !== idx) return qq;
+                                                                                    return {
+                                                                                        ...qq,
+                                                                                        options: qq.options.map((o, oi) => ({
+                                                                                            ...o,
+                                                                                            isCorrect: oi === oIdx,
+                                                                                        })),
+                                                                                    };
+                                                                                }));
+                                                                            }}
+                                                                            className="w-4 h-4 shrink-0 cursor-pointer accent-[#00897B]"
+                                                                            title="Tandai sebagai satu-satunya jawaban benar"
+                                                                        />
+                                                                    ) : (
+                                                                        // TASK 3: Checkbox type → checkbox (multi-select unchanged)
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={!!opt.isCorrect}
+                                                                            onChange={e => updateOption(idx, oIdx, 'isCorrect', e.target.checked)}
+                                                                            className="w-4 h-4 text-[#00897B] rounded shrink-0 cursor-pointer"
+                                                                            title="Tandai sebagai jawaban benar"
+                                                                        />
+                                                                    )}
                                                                     {opt.isCorrect && <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">✓ Benar</span>}
                                                                 </label>
                                                             ) : (

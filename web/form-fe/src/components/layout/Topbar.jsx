@@ -46,6 +46,19 @@ export default function Topbar({
         }
     }, [isDark]);
 
+    // Mencegah background page ter-scroll saat menu drawer mobile terbuka
+    useEffect(() => {
+        if (mobileMenuOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [mobileMenuOpen]);
+
     useEffect(() => {
         if (onSearchChange) {
             onSearchChange(debouncedSearch);
@@ -78,9 +91,10 @@ export default function Topbar({
 
     return (
         <>
-            <header className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors">
-                <div className="flex items-center gap-3 w-full sm:flex-1">
-                    {/* MOBILE HAMBURGER BUTTON (BUG-11) */}
+            <header className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between gap-2 sm:gap-4 transition-colors">
+                {/* HAMBURGER + SEARCH CONTAINER */}
+                <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                    {/* MOBILE HAMBURGER BUTTON */}
                     <button
                         type="button"
                         onClick={() => setMobileMenuOpen(true)}
@@ -91,21 +105,22 @@ export default function Topbar({
                     </button>
 
                     {/* SEARCH INPUT */}
-                    <div className="relative flex-1">
+                    <div className="relative flex-1 min-w-0">
                         <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                         <input
                             type="text"
                             value={currentValue}
                             onChange={handleInputChange}
                             placeholder={placeholder}
-                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#00897B] dark:focus:ring-teal-400 transition-all text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium"
+                            className="w-full pl-10 pr-4 py-2 sm:py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#00897B] dark:focus:ring-teal-400 transition-all text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium"
                         />
                     </div>
                 </div>
 
-                <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
-                    {/* TOGGLE DARK MODE */}
-                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                {/* RIGHT CONTROLS */}
+                <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                    {/* TOGGLE DARK MODE (DESKTOP ONLY) */}
+                    <div className="hidden md:flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
                         <button
                             type="button"
                             onClick={() => setIsDark(false)}
@@ -135,7 +150,7 @@ export default function Topbar({
                     {/* USER PROFILE */}
                     <button
                         onClick={() => navigate('/profile')}
-                        className="flex items-center gap-3 pl-3 border-l border-slate-200 dark:border-slate-700 hover:opacity-85 transition-opacity cursor-pointer text-left"
+                        className="flex items-center gap-3 pl-2 sm:pl-3 md:border-l border-slate-200 dark:border-slate-700 hover:opacity-85 transition-opacity cursor-pointer text-left shrink-0"
                         title="Pengaturan Akun"
                     >
                         <div className="text-right hidden sm:block">
@@ -153,9 +168,9 @@ export default function Topbar({
                 </div>
             </header>
 
-            {/* MOBILE DRAWER / SIDEBAR (BUG-11) */}
+            {/* MOBILE DRAWER / SIDEBAR */}
             {mobileMenuOpen && (
-                <div className="fixed inset-0 z-50 md:hidden flex">
+                <div className="fixed inset-0 z-50 md:hidden flex w-screen h-screen">
                     {/* Backdrop */}
                     <div
                         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
@@ -163,8 +178,7 @@ export default function Topbar({
                     />
 
                     {/* Drawer Content */}
-                    <div className="relative w-72 max-w-[85vw] bg-[#005B52] dark:bg-slate-900 text-white flex flex-col justify-between p-6 shadow-2xl z-10 animate-in slide-in-from-left duration-200">
-                        <div className="space-y-6">
+                        <div className="relative w-72 max-w-[85vw] h-full min-h-screen bg-[#005B52] dark:bg-slate-900 text-white flex flex-col justify-between p-6 shadow-2xl z-10 overflow-y-auto animate-in slide-in-from-left duration-200">                        <div className="space-y-6">
                             {/* Header */}
                             <div className="flex items-center justify-between">
                                 <Link to="/dashboard" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3">
@@ -179,6 +193,35 @@ export default function Topbar({
                                     className="p-1.5 text-white/80 hover:text-white rounded-lg cursor-pointer"
                                 >
                                     <X size={20} />
+                                </button>
+                            </div>
+
+                            {/* TOGGLE DARK MODE (MOBILE DRAWER ONLY) */}
+                            <div className="w-full flex items-center bg-black/20 dark:bg-slate-800/80 p-1.5 rounded-xl border border-white/10 dark:border-slate-700/60">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsDark(false)}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        !isDark 
+                                            ? 'bg-white text-amber-500 shadow-md' 
+                                            : 'text-teal-100/70 hover:text-white dark:text-slate-400 dark:hover:text-slate-200'
+                                    }`}
+                                    title="Mode Terang"
+                                >
+                                    <Sun size={18} />
+                                </button>
+                                
+                                <button
+                                    type="button"
+                                    onClick={() => setIsDark(true)}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        isDark 
+                                            ? 'bg-slate-900 text-teal-400 shadow-md' 
+                                            : 'text-teal-100/70 hover:text-white dark:text-slate-400 dark:hover:text-slate-200'
+                                    }`}
+                                    title="Mode Gelap"
+                                >
+                                    <Moon size={18} />
                                 </button>
                             </div>
 
@@ -208,7 +251,7 @@ export default function Topbar({
                         </div>
 
                         {/* Footer & Logout */}
-                        <div className="pt-4 border-t border-white/10 dark:border-slate-800 space-y-3">
+                        <div className="pt-4 mt-6 border-t border-white/10 dark:border-slate-800 space-y-3">
                             <Link
                                 to="/profile"
                                 onClick={() => setMobileMenuOpen(false)}

@@ -220,11 +220,12 @@ const MyForms = () => {
     ];
 
     return (
-        <div className="flex h-screen w-full bg-[#F4F8F7] dark:bg-slate-950 font-sans antialiased text-slate-800 dark:text-slate-100 overflow-hidden transition-colors">
+        <div className="flex h-screen w-full bg-[#F8FAFC] dark:bg-slate-950 font-sans antialiased text-slate-800 dark:text-slate-100 overflow-hidden transition-colors">
             
             <Sidebar />
 
             <div className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto">
+                {/* Full Width Layout - Tanpa max-w-7xl agar tidak kosong kanan kiri */}
                 <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 space-y-6">
 
                     <Topbar 
@@ -233,87 +234,125 @@ const MyForms = () => {
                         placeholder="Cari formulir Anda..." 
                     />
 
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pt-2">
+                    {/* Header & Tabs */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
                         <div>
-                            <h1 className="text-2xl sm:text-[28px] font-bold text-slate-900 dark:text-white tracking-tight">Formulir Saya</h1>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Formulir Saya</h1>
+                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">
                                 Kelola dan pantau seluruh koleksi formulir Anda.
                             </p>
                         </div>
 
-                        <div className="flex items-center bg-slate-200/80 dark:bg-slate-800 p-1.5 rounded-full border border-slate-200 dark:border-slate-700 self-start md:self-auto">
-                            {tabs.map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                                        activeTab === tab.id
-                                            ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-                                    }`}
-                                >
-                                    {tab.label}
-                                </button>
-                            ))}
-                        </div>
+                        <div className="w-full sm:w-auto grid grid-cols-3 sm:flex items-center bg-slate-200/60 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 gap-1">
+                        {tabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`w-full px-2 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer text-center truncate ${
+                                    activeTab === tab.id
+                                        ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-400 shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="bg-[#005B52] dark:bg-teal-950/60 rounded-2xl p-6 text-white shadow-sm relative overflow-hidden md:col-span-2 lg:col-span-1 border border-teal-800/40">
+                    {/* Stats Grid - Diset grid-cols-2 untuk mobile agar 1 baris */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                        <div className="bg-[#005B52] dark:bg-teal-950/70 rounded-2xl p-4 sm:p-5 text-white shadow-xs relative overflow-hidden border border-teal-800/30 flex flex-col justify-between">
                             <div className="relative z-10">
-                                <p className="text-teal-200 font-bold text-[11px] uppercase tracking-wider mb-1">Total Respons</p>
-                                <h2 className="text-3xl font-extrabold tracking-tight">{totalResponses.toLocaleString('id-ID')}</h2>
+                                <p className="text-teal-200/90 font-bold text-[10px] uppercase tracking-wider mb-1">Total Respons</p>
+                                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{totalResponses.toLocaleString('id-ID')}</h2>
                             </div>
-                            <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+                            <div className="absolute -right-6 -bottom-6 w-24 sm:w-28 h-24 sm:h-28 bg-white/10 rounded-full blur-xl pointer-events-none" />
                         </div>
 
-                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm md:col-span-2 lg:col-span-1">
-                            <p className="text-slate-400 dark:text-slate-500 font-bold text-[11px] uppercase tracking-wider mb-1">Formulir Aktif</p>
-                            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">{publishedForms.length}</h2>
-                            <p className="text-[#00897B] dark:text-teal-400 flex items-center text-xs font-bold mt-2">
-                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Aktif & menerima respons
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+                            <div>
+                                <p className="text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-wider mb-1">Formulir Aktif</p>
+                                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">{publishedForms.length}</h2>
+                            </div>
+                            <p className="text-[#00897B] dark:text-teal-400 flex items-center text-[10px] sm:text-xs font-bold mt-2">
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-1 shrink-0" /> Aktif & menerima
                             </p>
                         </div>
                     </div>
 
-                    {/* Bulk-select action bar */}
-                    <div className="flex items-center gap-3">
+                    {/* Selection Controls - Lebih Besar & Jelas */}
+                    <div className="flex items-center justify-between pt-2">
                         <button
-                            onClick={() => { setSelectMode(m => !m); setSelectedIds(new Set()); }}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${selectMode ? 'bg-[#00897B] text-white border-[#00897B]' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-[#00897B] hover:text-[#00897B]'}`}
+                            onClick={() => {
+                                if (!selectMode) {
+                                    setSelectMode(true);
+                                } else {
+                                    toggleSelectAll();
+                                }
+                            }}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold border-2 transition-all cursor-pointer ${
+                                selectMode
+                                    ? 'bg-teal-500 text-white border-teal-500 shadow-sm'
+                                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:border-teal-500 dark:hover:border-teal-400'
+                            }`}
                         >
-                            {selectMode ? <CheckSquare size={13} /> : <Square size={13} />}
-                            {selectMode ? 'Batalkan Pilihan' : 'Pilih Formulir'}
+                            {selectMode && selectedIds.size === pagedForms.length ? (
+                                <CheckSquare size={18} className="text-white" />
+                            ) : (
+                                <Square size={18} />
+                            )}
+                            <span>
+                                {!selectMode
+                                    ? 'Pilih Beberapa'
+                                    : selectedIds.size === pagedForms.length
+                                    ? 'Batal Pilih Semua'
+                                    : 'Pilih Semua'}
+                            </span>
                         </button>
 
-                        {selectMode && pagedForms.length > 0 && (
+                        {selectMode && (
                             <button
-                                onClick={toggleSelectAll}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-[#00897B] hover:text-[#00897B] transition-all cursor-pointer"
+                                onClick={() => {
+                                    setSelectMode(false);
+                                    setSelectedIds(new Set());
+                                }}
+                                className="text-xs sm:text-sm font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white bg-slate-200/60 dark:bg-slate-800 px-3.5 py-2 rounded-xl transition-colors cursor-pointer"
                             >
-                                {selectedIds.size === pagedForms.length ? <CheckSquare size={13} /> : <Square size={13} />}
-                                {selectedIds.size === pagedForms.length ? 'Batalkan Semua' : 'Pilih Semua'}
-                            </button>
-                        )}
-
-                        {selectMode && selectedIds.size > 0 && (
-                            <button
-                                onClick={triggerBulkDelete}
-                                disabled={actionLoading === 'bulk'}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white border border-red-600 transition-all cursor-pointer disabled:opacity-60"
-                            >
-                                <Trash2 size={13} />
-                                Hapus Terpilih ({selectedIds.size})
+                                Selesai
                             </button>
                         )}
                     </div>
 
+                    {/* Floating Bottom Bar - Lebih Tebal & Jelas */}
+                    {selectMode && selectedIds.size > 0 && (
+                        <div className="fixed bottom-5 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md z-50 bg-slate-900/95 dark:bg-slate-800/95 text-white backdrop-blur-lg px-5 py-3.5 rounded-2xl shadow-2xl border border-slate-700 flex items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-5 duration-200">
+                            <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-pulse" />
+                                <span className="text-xs sm:text-sm font-semibold text-slate-200">
+                                    <strong className="text-white font-extrabold text-sm sm:text-base">{selectedIds.size}</strong> dipilih
+                                </span>
+                            </div>
+
+                            <button
+                                onClick={triggerBulkDelete}
+                                disabled={actionLoading === 'bulk'}
+                                className="flex items-center gap-2 bg-rose-600 hover:bg-rose-500 text-white text-xs sm:text-sm font-bold px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md active:scale-95 disabled:opacity-60"
+                            >
+                                <Trash2 size={16} />
+                                Hapus Formulir
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Cards Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" ref={menuRef}>
+                        {/* Create New Form Card */}
                         <div
                             onClick={handleCreateNewForm}
-                            className="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl min-h-[260px] flex flex-col items-center justify-center cursor-pointer hover:border-[#00897B] dark:hover:border-teal-400 transition-colors group shadow-sm p-6 text-center"
+                            className="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl min-h-[240px] flex flex-col items-center justify-center cursor-pointer hover:border-[#00897B] dark:hover:border-teal-400 hover:bg-teal-50/20 dark:hover:bg-teal-950/20 transition-all group p-6 text-center"
                         >
-                            <div className="w-12 h-12 bg-teal-50 dark:bg-teal-950/60 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform text-[#00897B] dark:text-teal-400">
+                            <div className="w-12 h-12 bg-teal-50 dark:bg-teal-950/60 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform text-[#00897B] dark:text-teal-400">
                                 <Plus className="w-6 h-6" />
                             </div>
                             <h3 className="text-slate-900 dark:text-white font-bold text-sm mb-1">
@@ -348,9 +387,9 @@ const MyForms = () => {
                                     <div
                                         key={form.id}
                                         onClick={() => selectMode && toggleSelect(form.id)}
-                                        className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between group ${isActing ? 'opacity-60 pointer-events-none' : ''} ${selectMode ? 'cursor-pointer' : ''} ${isSelected ? 'border-[#00897B] ring-2 ring-[#00897B]/30' : 'border-slate-200/80 dark:border-slate-800'}`}
+                                        className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between group ${isActing ? 'opacity-60 pointer-events-none' : ''} ${selectMode ? 'cursor-pointer' : ''} ${isSelected ? 'border-[#00897B] ring-2 ring-[#00897B]/30' : 'border-slate-200/80 dark:border-slate-800'}`}
                                     >
-                                        <div className="h-36 bg-slate-100 dark:bg-slate-800/80 relative p-4 flex items-start justify-between border-b border-slate-100 dark:border-slate-800 overflow-hidden">
+                                        <div className="h-32 bg-slate-100 dark:bg-slate-800/60 relative p-3 flex items-start justify-between border-b border-slate-100 dark:border-slate-800 overflow-hidden">
                                             {form.bannerImage ? (
                                                 <img 
                                                     src={assetUrl(form.bannerImage)} 
@@ -358,25 +397,25 @@ const MyForms = () => {
                                                     className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                                                 />
                                             ) : (
-                                                <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-teal-50/50 to-blue-50/50 dark:from-slate-800 dark:to-slate-900">
-                                                    <FileText size={32} className="text-[#00897B]/30 dark:text-teal-400/30" />
+                                                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-teal-50/40 to-slate-100 dark:from-slate-800 dark:to-slate-900">
+                                                    <FileText size={32} className="text-[#00897B]/25 dark:text-teal-400/25" />
                                                 </div>
                                             )}
 
-                                            {/* Select checkbox overlay */}
+                                            {/* Checkbox Overlay */}
                                             {selectMode && (
-                                                <div className="absolute top-2 left-2 z-20" onClick={e => { e.stopPropagation(); toggleSelect(form.id); }}>
+                                                <div className="absolute top-2.5 left-2.5 z-20" onClick={e => { e.stopPropagation(); toggleSelect(form.id); }}>
                                                     {isSelected
-                                                        ? <CheckSquare size={20} className="text-[#00897B] bg-white rounded" />
-                                                        : <Square size={20} className="text-slate-400 bg-white/80 rounded" />
+                                                        ? <CheckSquare size={18} className="text-[#00897B] bg-white rounded-md shadow-xs" />
+                                                        : <Square size={18} className="text-slate-400 bg-white/90 rounded-md shadow-xs" />
                                                     }
                                                 </div>
                                             )}
 
-                                            <span className={`relative z-10 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider shadow-xs ${selectMode ? 'ml-6' : ''} ${
+                                            <span className={`relative z-10 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wide shadow-xs ${selectMode ? 'ml-6' : ''} ${
                                                 isPublished 
-                                                    ? 'bg-teal-600 text-white' 
-                                                    : 'bg-slate-800/90 text-white backdrop-blur-xs'
+                                                    ? 'bg-emerald-600 text-white' 
+                                                    : 'bg-slate-800/80 text-white backdrop-blur-md'
                                             }`}>
                                                 {isPublished ? 'Dipublikasikan' : 'Draf'}
                                             </span>
@@ -384,17 +423,17 @@ const MyForms = () => {
                                             <div className="relative z-10 ml-auto">
                                                 <button
                                                     onClick={() => setOpenMenuId(openMenuId === form.id ? null : form.id)}
-                                                    className="p-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-full text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 shadow-sm transition-all cursor-pointer"
+                                                    className="p-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-lg text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-all cursor-pointer"
                                                 >
                                                     <MoreVertical className="w-4 h-4" />
                                                 </button>
 
-                                                {/* Dropdown Menu */}
+                                                {/* Menu Dropdown */}
                                                 {openMenuId === form.id && (
                                                     <div className="absolute right-0 top-8 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 py-1 overflow-hidden">
                                                         <button
                                                             onClick={() => triggerDelete(form.id)}
-                                                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                                                            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                                                         >
                                                             <Trash2 className="w-3.5 h-3.5" /> Hapus
                                                         </button>
@@ -404,29 +443,29 @@ const MyForms = () => {
                                         </div>
 
                                         <div className="p-4 flex flex-col flex-1 space-y-3">
-                                            <div>
-                                                <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight line-clamp-1 group-hover:text-[#00897B] dark:group-hover:text-teal-400 transition-colors">
-                                                    {form.title || 'Formulir Tanpa Judul'}
-                                                </h3>
-                                            </div>
+                                            <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-snug line-clamp-1 group-hover:text-[#00897B] dark:group-hover:text-teal-400 transition-colors">
+                                                {form.title || 'Formulir Tanpa Judul'}
+                                            </h3>
+
                                             <div className="flex items-center gap-3 text-xs font-medium text-slate-400 dark:text-slate-500">
                                                 <span className="flex items-center gap-1">
-                                                    <MessageSquare className="w-3.5 h-3.5" /> {responseCount} Respons
+                                                    <MessageSquare className="w-3.5 h-3.5 shrink-0" /> {responseCount}
                                                 </span>
                                                 <span className="flex items-center gap-1">
-                                                    <Calendar className="w-3.5 h-3.5" /> {createdDate}
+                                                    <Calendar className="w-3.5 h-3.5 shrink-0" /> {createdDate}
                                                 </span>
                                             </div>
-                                            <div className="mt-auto flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+
+                                            <div className="mt-auto flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                                                 <button
                                                     onClick={() => navigate(`/forms/${form.id}/edit`)}
-                                                    className="flex-1 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold py-1.5 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-colors cursor-pointer"
+                                                    className="flex-1 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold py-1.5 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-colors cursor-pointer"
                                                 >
                                                     <Edit3 className="w-3.5 h-3.5" /> Edit
                                                 </button>
                                                 <button
                                                     onClick={() => navigate(`/forms/${form.id}/responses`)}
-                                                    className="flex-1 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold py-1.5 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-colors cursor-pointer"
+                                                    className="flex-1 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold py-1.5 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-colors cursor-pointer"
                                                 >
                                                     <Eye className="w-3.5 h-3.5" /> Respons
                                                 </button>
@@ -438,7 +477,7 @@ const MyForms = () => {
                         )}
                     </div>
 
-                    {/* Pagination Controls */}
+                    {/* Pagination */}
                     {totalPages > 1 && (
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200/80 dark:border-slate-800">
                             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
@@ -481,7 +520,6 @@ const MyForms = () => {
                 </main>
             </div>
 
-            {/* 5. Render Komponen ConfirmModal di sini */}
             <ConfirmModal 
                 isOpen={confirmModal.isOpen}
                 onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}

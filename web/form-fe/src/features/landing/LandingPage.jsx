@@ -9,6 +9,7 @@ import {
   FileText, CheckCircle2
 } from 'lucide-react';
 import { isAuthenticated } from '../../services/apiService';
+import logo from "../../assets/logo.png";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -222,31 +223,41 @@ export default function LandingPage() {
       `}</style>
 
       {/* ── NAVBAR ────────────────────────────────────────── */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 px-6 py-4 ${
+      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 px-6 py-3.5 ${
         scrolled 
-          ? 'bg-[#06080D]/85 backdrop-blur-xl border-b border-white/[0.06] shadow-2xl shadow-black/50' 
+          ? 'bg-[#06080D]/80 backdrop-blur-md border-b border-white/[0.08] shadow-lg shadow-black/20' 
           : 'bg-transparent'
       }`}>
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link to="/" className="text-xl font-black tracking-tight text-white flex items-center gap-1.5 group">
-            <span>Form</span>
-            <span className="text-[#00C4B4] transition-colors">Up</span>
+          
+          {/* Branding & Logo */}
+          <Link to="/" className="flex items-center gap-2.5 group select-none">
+            <img 
+              src={logo} 
+              alt="FormUp Logo" 
+              className="w-8 h-8 object-contain transition-transform duration-300 group-hover:scale-105" 
+            />
+            <span className="text-xl font-black tracking-tight text-white flex items-center">
+              Form<span className="text-[#00C4B4]">Up</span>
+            </span>
           </Link>
 
-          <div className="flex items-center gap-3">
+          {/* Right Action Buttons */}
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link 
               to="/login" 
-              className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors"
+              className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors duration-200"
             >
               Masuk
             </Link>
             <Link 
               to="/register" 
-              className="px-5 py-2 text-xs font-bold text-slate-950 bg-[#00C4B4] hover:bg-[#00E5D0] rounded-full transition-all duration-200 hover:scale-[1.03] shadow-lg shadow-teal-500/20"
+              className="px-4 sm:px-5 py-2 text-xs font-bold text-slate-950 bg-[#00C4B4] hover:bg-[#00E5D0] active:scale-95 rounded-full transition-all duration-200 shadow-md shadow-[#00C4B4]/20 hover:shadow-[#00C4B4]/30 flex items-center justify-center"
             >
               Daftar Gratis
             </Link>
           </div>
+
         </div>
       </nav>
 
@@ -269,14 +280,16 @@ export default function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
-            <a 
-              href="#download"
-              className="w-full sm:w-auto px-8 py-3.5 bg-[#00C4B4] hover:bg-[#00E5D0] text-slate-950 text-xs font-extrabold rounded-full transition-all duration-200 hover:-translate-y-0.5 shadow-xl shadow-teal-500/25 flex items-center justify-center gap-2 group cursor-pointer"
-            >
-              <Smartphone size={16} />
-              <span>Download Mobile App</span>
-              <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-            </a>
+          <a 
+            href="https://github.com/abayDahln/FormUp/releases/download/v1.0.0/FormUp.apk"
+            download="FormUp.apk"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full sm:w-auto px-8 py-3.5 bg-[#00C4B4] hover:bg-[#00E5D0] text-slate-950 text-xs font-extrabold rounded-full transition-all duration-200 hover:-translate-y-0.5 shadow-xl shadow-teal-500/25 flex items-center justify-center gap-2 group cursor-pointer"
+          >
+            <Smartphone size={16} />
+            <span>Download Mobile App</span>
+          </a>
 
             <Link 
               to="/login"
@@ -522,8 +535,7 @@ export default function LandingPage() {
               to="/register"
               className="px-8 py-3.5 bg-[#00C4B4] hover:bg-[#00E5D0] text-slate-950 text-xs font-black rounded-full shadow-xl shadow-teal-500/20 transition-all hover:scale-[1.03] flex items-center justify-center gap-2"
             >
-              <span>Mulai Sekarang — Gratis</span>
-              <ArrowRight size={14} />
+              <span>Mulai Sekarang</span>
             </Link>
 
             <Link

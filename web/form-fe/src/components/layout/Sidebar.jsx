@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { getLocalUser, clearSession } from '../../services/apiService';
+import logo from '../../assets/logo.png';
 
 export default function Sidebar() {
     const navigate = useNavigate();
@@ -41,7 +42,11 @@ export default function Sidebar() {
                 {/* Brand Logo */}
                 <Link to="/dashboard" className="flex items-center gap-3 group">
                     <div className="p-2.5 bg-white/15 dark:bg-white/10 rounded-xl group-hover:bg-white/25 transition-all">
-                        <FileText size={22} className="text-white" />
+                        <img 
+                            src={logo} 
+                            alt="FormUp Logo" 
+                            className="w-6 h-6 object-contain" 
+                        />
                     </div>
                     <div>
                         <h1 className="text-xl font-extrabold tracking-tight leading-none text-white">FormUp</h1>
