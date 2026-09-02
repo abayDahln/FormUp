@@ -298,75 +298,95 @@ export default function AdminDashboardPage() {
 
                 <div className="p-6 max-w-6xl mx-auto w-full space-y-6">
 
-                    {/* Stats Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex items-center justify-between">
-                            <div>
-                                <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Pengguna Terdaftar</p>
-                                <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">{users.length}</h3>
-                            </div>
-                            <div className="p-3 bg-teal-50 dark:bg-teal-950/60 rounded-xl text-[#00897B] dark:text-teal-400">
-                                <Users size={22} />
-                            </div>
-                        </div>
+                    {/* Stat Cards - Berjejer 1 baris di semua ukuran layar */}
+<div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
+    {/* Card 1: Pengguna Terdaftar */}
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-3 sm:p-5 shadow-xs flex items-center gap-2 sm:gap-4">
+        <div className="p-2 sm:p-3 bg-teal-50 dark:bg-teal-950/50 text-[#00897B] rounded-xl shrink-0">
+            <Users size={18} className="sm:w-6 sm:h-6" />
+        </div>
+        <div className="min-w-0 flex-1">
+            <p className="text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
+                Pengguna Terdaftar
+            </p>
+            <h3 className="text-sm sm:text-2xl font-bold text-slate-800 dark:text-slate-100 truncate">
+                {users.length}
+            </h3>
+        </div>
+    </div>
 
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex items-center justify-between">
-                            <div>
-                                <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Formulir Global</p>
-                                <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">{forms.length}</h3>
-                            </div>
-                            <div className="p-3 bg-blue-50 dark:bg-blue-950/60 rounded-xl text-blue-600 dark:text-blue-400">
-                                <FileText size={22} />
-                            </div>
-                        </div>
+    {/* Card 2: Formulir Aktif */}
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-3 sm:p-5 shadow-xs flex items-center gap-2 sm:gap-4">
+        <div className="p-2 sm:p-3 bg-teal-50 dark:bg-teal-950/50 text-[#00897B] rounded-xl shrink-0">
+            <FileText size={18} className="sm:w-6 sm:h-6" />
+        </div>
+        <div className="min-w-0 flex-1">
+            <p className="text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
+                Formulir Aktif
+            </p>
+            <h3 className="text-sm sm:text-2xl font-bold text-slate-800 dark:text-slate-100 truncate">
+                {forms.length}
+            </h3>
+        </div>
+    </div>
 
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex items-center justify-between">
-                            <div>
-                                <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Laporan & Umpan Balik</p>
-                                <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">{feedbacks.length}</h3>
-                            </div>
-                            <div className="p-3 bg-amber-50 dark:bg-amber-950/60 rounded-xl text-amber-600 dark:text-amber-400">
-                                <MessageSquare size={22} />
-                            </div>
-                        </div>
+    {/* Card 3: Umpan Balik */}
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-3 sm:p-5 shadow-xs flex items-center gap-2 sm:gap-4">
+        <div className="p-2 sm:p-3 bg-teal-50 dark:bg-teal-950/50 text-[#00897B] rounded-xl shrink-0">
+            <MessageSquare size={18} className="sm:w-6 sm:h-6" />
+        </div>
+        <div className="min-w-0 flex-1">
+            <p className="text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
+                Umpan Balik Masuk
+            </p>
+            <h3 className="text-sm sm:text-2xl font-bold text-slate-800 dark:text-slate-100 truncate">
+                {feedbacks.length}
+            </h3>
+        </div>
+                    </div>
                     </div>
 
                     {/* Tab Navigation & Search */}
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
-                        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-3 sm:p-4 flex flex-col md:flex-row items-center justify-between gap-3 shadow-xs">
+                        
+                        {/* Menggunakan grid 3 kolom pada mobile agar ketiga card/tombol sejajar & presisi */}
+                        <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-1.5 sm:gap-2 w-full md:w-auto">
                             <button
                                 onClick={() => setActiveTab('users')}
-                                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                                className={`px-2 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-extrabold transition-all cursor-pointer text-center whitespace-nowrap overflow-hidden text-ellipsis ${
                                     activeTab === 'users' 
                                         ? 'bg-[#00897B] text-white shadow-xs' 
-                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                                 }`}
                             >
-                                Kelola Pengguna ({users.length})
+                                Pengguna ({users.length})
                             </button>
+
                             <button
                                 onClick={() => setActiveTab('forms')}
-                                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                                className={`px-2 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-extrabold transition-all cursor-pointer text-center whitespace-nowrap overflow-hidden text-ellipsis ${
                                     activeTab === 'forms' 
                                         ? 'bg-[#00897B] text-white shadow-xs' 
-                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                                 }`}
                             >
-                                Kelola Formulir ({forms.length})
+                                Formulir ({forms.length})
                             </button>
+
                             <button
                                 onClick={() => setActiveTab('feedback')}
-                                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                                className={`px-2 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-extrabold transition-all cursor-pointer text-center whitespace-nowrap overflow-hidden text-ellipsis ${
                                     activeTab === 'feedback' 
                                         ? 'bg-[#00897B] text-white shadow-xs' 
-                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                                 }`}
                             >
                                 Umpan Balik ({feedbacks.length})
                             </button>
                         </div>
 
-                        <div className="relative w-full sm:w-64">
+                        {/* Input Pencarian */}
+                        <div className="relative w-full md:w-64">
                             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                                 type="text"

@@ -114,34 +114,35 @@ export default function History() {
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-                        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                            <div className="space-y-2">
-                                <div className="p-2.5 bg-teal-50 dark:bg-teal-950/60 w-fit rounded-xl text-[#00897B] dark:text-teal-400">
-                                    <FileText size={22} />
+                    {/* Stat cards dibuat sejajar 2 kolom di mobile */}
+                    <div className="grid grid-cols-2 md:grid-cols-2 gap-3 sm:gap-6 w-full">
+                        <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                            <div className="space-y-1 sm:space-y-2">
+                                <div className="p-2 sm:p-2.5 bg-teal-50 dark:bg-teal-950/60 w-fit rounded-xl text-[#00897B] dark:text-teal-400">
+                                    <FileText size={18} className="sm:w-[22px] sm:h-[22px]" />
                                 </div>
-                                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Formulir Terkirim</p>
-                                <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">{submittedForms.length}</h3>
+                                <p className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Formulir Terkirim</p>
+                                <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">{submittedForms.length}</h3>
                             </div>
                         </div>
 
-                        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                            <div className="space-y-2">
-                                <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/60 w-fit rounded-xl text-indigo-500 dark:text-indigo-400">
-                                    <Award size={22} />
+                        <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                            <div className="space-y-1 sm:space-y-2">
+                                <div className="p-2 sm:p-2.5 bg-indigo-50 dark:bg-indigo-950/60 w-fit rounded-xl text-indigo-500 dark:text-indigo-400">
+                                    <Award size={18} className="sm:w-[22px] sm:h-[22px]" />
                                 </div>
-                                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Formulir Dibuat</p>
-                                <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white">{createdForms.length}</h3>
+                                <p className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Formulir Dibuat</p>
+                                <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">{createdForms.length}</h3>
                             </div>
                         </div>
                     </div>
 
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden w-full">
 
-                        <div className="flex border-b border-slate-200 dark:border-slate-800 px-6 pt-4 gap-8">
+                        <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 pt-4 gap-4 sm:gap-8">
                             <button
                                 onClick={() => setActiveTab('submitted')}
-                                className={`pb-4 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+                                className={`pb-4 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
                                     activeTab === 'submitted'
                                         ? 'border-[#00897B] text-[#00897B] dark:border-teal-400 dark:text-teal-400'
                                         : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
@@ -151,7 +152,7 @@ export default function History() {
                             </button>
                             <button
                                 onClick={() => setActiveTab('created')}
-                                className={`pb-4 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+                                className={`pb-4 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
                                     activeTab === 'created'
                                         ? 'border-[#00897B] text-[#00897B] dark:border-teal-400 dark:text-teal-400'
                                         : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
@@ -169,58 +170,102 @@ export default function History() {
                                     {searchQuery ? `Tidak ada pengiriman formulir yang cocok dengan "${searchQuery}".` : 'Anda belum pernah mengirimkan formulir.'}
                                 </div>
                             ) : (
-                                <div className="overflow-x-auto w-full">
-                                    <table className="w-full text-left border-collapse text-sm">
-                                        <thead>
-                                            <tr className="bg-slate-50 dark:bg-slate-800/60 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
-                                                <th className="py-4 px-6">Judul Formulir</th>
-                                                <th className="py-4 px-6">Waktu Pengiriman</th>
-                                                <th className="py-4 px-6">Skor</th>
-                                                <th className="py-4 px-6">Status</th>
-                                                <th className="py-4 px-6 text-right">Aksi</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                            {filteredSubmitted.map((item) => (
-                                                <tr key={item.responseId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                                                    <td className="py-4 px-6">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-500 dark:text-slate-400">
-                                                                <FileText size={18} />
-                                                            </div>
-                                                            <span className="font-bold text-slate-900 dark:text-white">{item.formTitle || '—'}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="py-4 px-6 text-slate-500 dark:text-slate-400 font-medium">
-                                                        {formatDate(item.submittedAt)}
-                                                    </td>
-                                                    <td className="py-4 px-6">
-                                                        {item.showScore && item.score != null ? (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 border border-teal-200 dark:border-teal-800">
-                                                                <Award size={12} /> {item.score}%
+                                <>
+                                    {/* Mobile List View - Ringkas & Hemat Tempat */}
+                                    <div className="divide-y divide-slate-100 dark:divide-slate-800 sm:hidden">
+                                        {filteredSubmitted.map((item) => (
+                                            <div key={item.responseId} className="p-3.5 flex items-center justify-between gap-3 active:bg-slate-50 dark:active:bg-slate-800/50">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-500 dark:text-slate-400 shrink-0">
+                                                        <FileText size={16} />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="font-bold text-slate-900 dark:text-white text-xs truncate">
+                                                            {item.formTitle || '—'}
+                                                        </p>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                                                                {formatDate(item.submittedAt)}
                                                             </span>
-                                                        ) : (
-                                                            <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">—</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="py-4 px-6">
-                                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${getStatusBadge(item.status)}`}>
-                                                            {getStatusLabel(item.status)}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-4 px-6 text-right">
-                                                        <button
-                                                            onClick={() => navigate(`/f/${item.formLink}/result/${item.responseId}`)}
-                                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#00897B] dark:text-teal-400 hover:underline cursor-pointer"
-                                                        >
-                                                            <Eye size={14} /> Lihat Hasil
-                                                        </button>
-                                                    </td>
+                                                            {item.showScore && item.score != null && (
+                                                                <span className="text-[10px] font-extrabold text-[#00897B] dark:text-teal-400">
+                                                                    • {item.score}%
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${getStatusBadge(item.status)}`}>
+                                                        {getStatusLabel(item.status)}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => navigate(`/f/${item.formLink}/result/${item.responseId}`)}
+                                                        className="p-1.5 text-[#00897B] dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/60 rounded-lg cursor-pointer"
+                                                        title="Lihat Hasil"
+                                                    >
+                                                        <Eye size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Desktop Table View */}
+                                    <div className="hidden sm:block overflow-x-auto w-full">
+                                        <table className="w-full text-left border-collapse text-sm">
+                                            <thead>
+                                                <tr className="bg-slate-50 dark:bg-slate-800/60 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
+                                                    <th className="py-4 px-6">Judul Formulir</th>
+                                                    <th className="py-4 px-6">Waktu Pengiriman</th>
+                                                    <th className="py-4 px-6">Skor</th>
+                                                    <th className="py-4 px-6">Status</th>
+                                                    <th className="py-4 px-6 text-right">Aksi</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                {filteredSubmitted.map((item) => (
+                                                    <tr key={item.responseId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                                        <td className="py-4 px-6">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-500 dark:text-slate-400">
+                                                                    <FileText size={18} />
+                                                                </div>
+                                                                <span className="font-bold text-slate-900 dark:text-white">{item.formTitle || '—'}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4 px-6 text-slate-500 dark:text-slate-400 font-medium">
+                                                            {formatDate(item.submittedAt)}
+                                                        </td>
+                                                        <td className="py-4 px-6">
+                                                            {item.showScore && item.score != null ? (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 border border-teal-200 dark:border-teal-800">
+                                                                    <Award size={12} /> {item.score}%
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">—</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-4 px-6">
+                                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${getStatusBadge(item.status)}`}>
+                                                                {getStatusLabel(item.status)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-4 px-6 text-right">
+                                                            <button
+                                                                onClick={() => navigate(`/f/${item.formLink}/result/${item.responseId}`)}
+                                                                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#00897B] dark:text-teal-400 hover:underline cursor-pointer"
+                                                            >
+                                                                <Eye size={14} /> Lihat Hasil
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </>
                             )
                         ) : (
                             filteredCreated.length === 0 ? (
@@ -228,62 +273,111 @@ export default function History() {
                                     {searchQuery ? `Tidak ada formulir yang cocok dengan "${searchQuery}".` : 'Belum ada formulir yang dibuat.'}
                                 </div>
                             ) : (
-                                <div className="overflow-x-auto w-full">
-                                    <table className="w-full text-left border-collapse text-sm">
-                                        <thead>
-                                            <tr className="bg-slate-50 dark:bg-slate-800/60 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
-                                                <th className="py-4 px-6">Judul Formulir</th>
-                                                <th className="py-4 px-6">Status</th>
-                                                <th className="py-4 px-6">Dibuat</th>
-                                                <th className="py-4 px-6">Total Respons</th>
-                                                <th className="py-4 px-6 text-right">Aksi</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                            {filteredCreated.map((form) => (
-                                                <tr key={form.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                                                    <td className="py-4 px-6">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="p-2 bg-teal-50 dark:bg-teal-950/60 rounded-xl text-[#00897B] dark:text-teal-400">
-                                                                <FileText size={18} />
-                                                            </div>
-                                                            <span className="font-bold text-slate-900 dark:text-white">{form.title || 'Formulir Tanpa Judul'}</span>
+                                <>
+                                    {/* Mobile List View - Ringkas & Hemat Tempat */}
+                                    <div className="divide-y divide-slate-100 dark:divide-slate-800 sm:hidden">
+                                        {filteredCreated.map((form) => (
+                                            <div key={form.id} className="p-3.5 flex items-center justify-between gap-3 active:bg-slate-50 dark:active:bg-slate-800/50">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className="p-2 bg-teal-50 dark:bg-teal-950/60 rounded-xl text-[#00897B] dark:text-teal-400 shrink-0">
+                                                        <FileText size={16} />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="font-bold text-slate-900 dark:text-white text-xs truncate">
+                                                            {form.title || 'Formulir Tanpa Judul'}
+                                                        </p>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                                                                {formatDate(form.createdAt)}
+                                                            </span>
+                                                            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                                                                • {form.responseCount ?? 0} Resp
+                                                            </span>
                                                         </div>
-                                                    </td>
-                                                    <td className="py-4 px-6">
-                                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${getStatusBadge(form.status)}`}>
-                                                            {getStatusLabel(form.status)}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-4 px-6 text-slate-500 dark:text-slate-400 font-medium">
-                                                        {formatDate(form.createdAt)}
-                                                    </td>
-                                                    <td className="py-4 px-6 font-bold text-slate-800 dark:text-slate-200">
-                                                        {form.responseCount ?? 0}
-                                                    </td>
-                                                    <td className="py-4 px-6 text-right">
-                                                        <div className="flex items-center justify-end gap-2">
-                                                            <button
-                                                                onClick={() => navigate(`/forms/${form.id}/edit`)}
-                                                                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg transition-colors cursor-pointer"
-                                                                title="Edit Formulir"
-                                                            >
-                                                                <Edit3 size={16} />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => navigate(`/forms/${form.id}/responses`)}
-                                                                className="p-1.5 text-slate-400 hover:text-[#00897B] dark:hover:text-teal-400 rounded-lg transition-colors cursor-pointer"
-                                                                title="Lihat Respons"
-                                                            >
-                                                                <BarChart2 size={16} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${getStatusBadge(form.status)}`}>
+                                                        {getStatusLabel(form.status)}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => navigate(`/forms/${form.id}/edit`)}
+                                                        className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                                                        title="Edit Formulir"
+                                                    >
+                                                        <Edit3 size={15} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => navigate(`/forms/${form.id}/responses`)}
+                                                        className="p-1.5 text-slate-400 hover:text-[#00897B] dark:hover:text-teal-400 cursor-pointer"
+                                                        title="Lihat Respons"
+                                                    >
+                                                        <BarChart2 size={15} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Desktop Table View */}
+                                    <div className="hidden sm:block overflow-x-auto w-full">
+                                        <table className="w-full text-left border-collapse text-sm">
+                                            <thead>
+                                                <tr className="bg-slate-50 dark:bg-slate-800/60 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
+                                                    <th className="py-4 px-6">Judul Formulir</th>
+                                                    <th className="py-4 px-6">Status</th>
+                                                    <th className="py-4 px-6">Dibuat</th>
+                                                    <th className="py-4 px-6">Total Respons</th>
+                                                    <th className="py-4 px-6 text-right">Aksi</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                {filteredCreated.map((form) => (
+                                                    <tr key={form.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                                        <td className="py-4 px-6">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="p-2 bg-teal-50 dark:bg-teal-950/60 rounded-xl text-[#00897B] dark:text-teal-400">
+                                                                    <FileText size={18} />
+                                                                </div>
+                                                                <span className="font-bold text-slate-900 dark:text-white">{form.title || 'Formulir Tanpa Judul'}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4 px-6">
+                                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${getStatusBadge(form.status)}`}>
+                                                                {getStatusLabel(form.status)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-4 px-6 text-slate-500 dark:text-slate-400 font-medium">
+                                                            {formatDate(form.createdAt)}
+                                                        </td>
+                                                        <td className="py-4 px-6 font-bold text-slate-800 dark:text-slate-200">
+                                                            {form.responseCount ?? 0}
+                                                        </td>
+                                                        <td className="py-4 px-6 text-right">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => navigate(`/forms/${form.id}/edit`)}
+                                                                    className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg transition-colors cursor-pointer"
+                                                                    title="Edit Formulir"
+                                                                >
+                                                                    <Edit3 size={16} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => navigate(`/forms/${form.id}/responses`)}
+                                                                    className="p-1.5 text-slate-400 hover:text-[#00897B] dark:hover:text-teal-400 rounded-lg transition-colors cursor-pointer"
+                                                                    title="Lihat Respons"
+                                                                >
+                                                                    <BarChart2 size={16} />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </>
                             )
                         )}
 
