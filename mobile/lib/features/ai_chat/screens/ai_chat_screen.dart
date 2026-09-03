@@ -58,8 +58,17 @@ class ChatMessage {
   Map<String, dynamic>? actionJson;
   bool actionExecuted = false;
   String? actionResult;
+  /// Non-null hanya selama bubble ini sedang di-stream: chunk terbaru
+  /// ditulis ke [stream] agar HANYA bubble ini yang rebuild
+  /// (via ValueListenableBuilder), bukan seluruh ListView.
+  ValueNotifier<String>? stream;
   ChatMessage({required this.role, required this.text, DateTime? time, this.actionJson})
       : time = time ?? DateTime.now();
+
+  void disposeStream() {
+    stream?.dispose();
+    stream = null;
+  }
 }
 
 class AiChatScreen extends StatefulWidget {
@@ -319,6 +328,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     if (!mounted) return;
+    await _stopActiveStream();
     setState(() {
       _currentSessionId = id;
       _messages.clear();
@@ -327,7 +337,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
     // Jangan langsung upsert kosong — akan tersimpan otomatis saat prompt pertama dikirim (_persistCurrent)
   }
 
+  /// Hentikan stream aktif + buang notifier live (dipakai saat ganti/
+  /// hapus sesi agar tidak ada listener yatim yang menulis ke pesan lama).
+  Future<void> _stopActiveStream() async {
+    await _sub?.cancel();
+    _sub = null;
+    for (final m in _messages) {
+      m.disposeStream();
+    }
+    if (mounted && _streaming) setState(() => _streaming = false);
+  }
+
   Future<void> _switchSession(String id) async {
+    await _stopActiveStream();
     final all = await AiChatHistoryService.loadAll();
     final target = all.firstWhere((e) => e.id == id, orElse: () => all.first);
     if (!mounted) return;
@@ -345,6 +367,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   Future<void> _deleteSession(String id) async {
     await AiChatHistoryService.delete(id);
     if (_currentSessionId == id) {
+      await _stopActiveStream();
       setState(() {
         _messages.clear();
         _currentSessionId = null;
@@ -366,7 +389,26 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _controller.dispose();
     _scroll.dispose();
     _sub?.cancel();
+    for (final m in _messages) {
+      m.disposeStream();
+    }
     super.dispose();
+  }
+
+  /// True jika user sedang di (atau sangat dekat dengan) dasar chat.
+  /// Auto-follow saat streaming HANYA berjalan bila ini true —
+  /// user yang sengaja scroll ke atas tidak dirampas posisinya.
+  bool get _isAtBottom {
+    if (!_scroll.hasClients) return true;
+    final pos = _scroll.position;
+    return pos.maxScrollExtent - _scroll.offset <= 80;
+  }
+
+  /// Ikuti teks streaming: lompat sinkron ke extent terbaru (tanpa
+  /// animasi per-chunk agar tidak jank/antrean animateTo).
+  void _followStream() {
+    if (!_scroll.hasClients) return;
+    _scroll.jumpTo(_scroll.position.maxScrollExtent);
   }
 
   /// Listener scroll: kontrol visibilitas FAB scroll-to-bottom.
@@ -529,20 +571,37 @@ class _AiChatScreenState extends State<AiChatScreen> {
       return {'role': m.role, 'text': m.text};
     }).toList();
     final botMsg = ChatMessage(role: 'model', text: '');
+    // Lampirkan notifier live: chunk ditulis ke sini TANPA setState,
+    // sehingga hanya bubble ini yang rebuild via ValueListenableBuilder.
+    botMsg.stream = ValueNotifier<String>('');
     setState(() {
       _messages.add(botMsg);
       _streaming = true;
     });
 
     final buffer = StringBuffer();
+    // Batalkan stream sebelumnya bila masih hidup (anti tumpuk listener).
+    await _sub?.cancel();
+    _sub = null;
     try {
+      // **1. Stream-Based API Handling:** SSE/chunked dari endpoint
+      // streamGenerateContent?alt=sse diparse per-baris `data:` di
+      // GeminiService.streamChat dan di-yield per token/chunk.
       _sub = GeminiService.streamChat(history).listen(
         (chunk) {
+          // **2. Smooth rendering:** append ke buffer + push ke notifier.
+          // ValueNotifier menggabungkan update sinkron beruntun menjadi
+          // satu rebuild bubble — tanpa setState(), tanpa rebuild ListView.
           buffer.write(chunk);
-          setState(() => botMsg.text = buffer.toString());
-          _scrollToBottom();
+          botMsg.stream?.value = buffer.toString();
+          // **3. Auto-scroll bersyarat:** ikuti hanya bila user di dasar.
+          if (_isAtBottom) _followStream();
         },
         onDone: () async {
+          final full = buffer.toString();
+          botMsg.text = full;
+          botMsg.disposeStream();
+          if (!mounted) return;
           setState(() => _streaming = false);
           await _persistCurrent();
           final action = _extractJson(botMsg.text);
@@ -583,27 +642,28 @@ class _AiChatScreenState extends State<AiChatScreen> {
           await _persistCurrent();
         },
         onError: (e) async {
+          // Fallback non-stream bila SSE gagal di tengah jalan.
           try {
             final full = await GeminiService.generateOnce(history);
-            setState(() {
-              botMsg.text = full;
-              _streaming = false;
-            });
+            botMsg.text = full;
+            botMsg.disposeStream();
+            if (!mounted) return;
+            setState(() => _streaming = false);
             await _persistCurrent();
           } catch (e2) {
-            setState(() {
-              botMsg.text = 'Error: ${_friendlyError(e)}';
-              _streaming = false;
-            });
+            botMsg.text = 'Error: ${_friendlyError(e)}';
+            botMsg.disposeStream();
+            if (!mounted) return;
+            setState(() => _streaming = false);
           }
         },
         cancelOnError: false,
       );
     } catch (e) {
-      setState(() {
-        botMsg.text = 'Error: ${_friendlyError(e)}';
-        _streaming = false;
-      });
+      botMsg.text = 'Error: ${_friendlyError(e)}';
+      botMsg.disposeStream();
+      if (!mounted) return;
+      setState(() => _streaming = false);
     }
   }
 
@@ -863,16 +923,20 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           border: isUser ? null : Border.all(color: const Color(0xFFBDC9C8)),
                         ),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          if (!isUser && _streaming && i == _messages.length - 1 && m.text.isEmpty)
+                          if (isUser)
+                            SelectableText(m.text.isEmpty ? '...' : m.text, style: const TextStyle(fontSize: 13, color: Colors.white))
+                          else if (m.stream != null)
+                            // Bubble AKTIF: rebuild terisolasi via notifier —
+                            // sisa ListView tidak ikut rebuild per chunk.
+                            _StreamingAiText(notifier: m.stream!)
+                          else if (_streaming && i == _messages.length - 1 && m.text.isEmpty)
                             const Row(children: [SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Text('AI mengetik...', style: TextStyle(fontSize: 11, color: Colors.black54))])
                           else
-                            isUser
-                                ? SelectableText(m.text.isEmpty ? '...' : m.text, style: const TextStyle(fontSize: 13, color: Colors.white))
-                                // Render jawaban AI sebagai markdown (bold, list, tabel, code block, LaTeX)
-                                : GptMarkdown(
-                                    m.text.isEmpty ? '...' : m.text,
-                                    style: const TextStyle(fontSize: 13, color: Colors.black87),
-                                  ),
+                            // Render jawaban AI sebagai markdown (bold, list, tabel, code block, LaTeX)
+                            GptMarkdown(
+                              m.text.isEmpty ? '...' : m.text,
+                              style: const TextStyle(fontSize: 13, color: Colors.black87),
+                            ),
                           if (m.actionJson != null) ...[
                             const SizedBox(height: 8),
                             Container(
@@ -1118,6 +1182,31 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 ),
               ),
       ]),
+    );
+  }
+}
+
+class _StreamingAiText extends StatelessWidget {
+  /// Notifier live dari bubble yang sedang di-stream.
+  /// ValueListenableBuilder memastikan HANYA widget ini yang rebuild
+  /// setiap chunk tiba — ListView & bubble lain tidak tersentuh,
+  /// sehingga tidak ada frame drop / text jumping dari rebuild massal.
+  final ValueNotifier<String> notifier;
+  const _StreamingAiText({required this.notifier});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<String>(
+      valueListenable: notifier,
+      builder: (ctx, text, _) {
+        if (text.isEmpty) {
+          return const Row(children: [SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Text('AI mengetik...', style: TextStyle(fontSize: 11, color: Colors.black54))]);
+        }
+        return GptMarkdown(
+          text,
+          style: const TextStyle(fontSize: 13, color: Colors.black87),
+        );
+      },
     );
   }
 }
