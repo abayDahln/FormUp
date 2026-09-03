@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 
-/// Pemutar audio soal
+/// Pemutar audio soal - mendukung play ulang & seek ke durasi tertentu.
 class QuestionAudioPlayer extends StatefulWidget {
   final String? url;
   final Uint8List? bytes;
@@ -26,6 +26,7 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
   final AudioPlayer _player = AudioPlayer();
   bool _playing = false;
   bool _loading = true;
+  bool _seeking = false; // user sedang menggeser slider
   Duration? _duration;
   Duration _position = Duration.zero;
 
@@ -40,13 +41,17 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
       if (mounted) setState(() => _duration = d);
     });
     _player.onPositionChanged.listen((p) {
-      if (mounted) setState(() => _position = p);
+      if (mounted && !_seeking) setState(() => _position = p);
     });
-    _player.onPlayerComplete.listen((_) {
+    _player.onPlayerComplete.listen((_) async {
+      // Kunci agar play ulang selalu berhasil: kembalikan posisi ke awal
+      // lalu pause, sehingga player tidak tertahan di state stopped.
+      await _player.seek(Duration.zero);
+      await _player.pause();
       if (mounted) {
         setState(() {
-          _position = Duration.zero;
           _playing = false;
+          _position = Duration.zero;
         });
       }
     });
@@ -75,9 +80,22 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
     if (_playing) {
       await _player.pause();
     } else {
-      await _player.resume();
+      // Pastikan player aktif sebelum resume (aman untuk semua state).
+      try {
+        await _player.resume();
+      } catch (_) {
+        await _player.stop();
+        await _player.seek(_position);
+        await _player.resume();
+      }
     }
   }
+
+  Future<void> _onSeek(Duration target) async {
+    await _player.seek(target);
+    if (mounted) setState(() => _position = target);
+  }
+
 
   String _fmt(Duration d) {
     final m = d.inMinutes.toString().padLeft(2, '0');
@@ -90,23 +108,12 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
     final maxMs = (_duration ?? Duration.zero).inMilliseconds;
     final posMs = _position.inMilliseconds.clamp(0, maxMs).toDouble();
     final progress = maxMs == 0 ? 0.0 : (posMs / maxMs).clamp(0.0, 1.0);
+    final hasDuration = maxMs > 0;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFF7FFFD), Color(0xFFE6F8F4)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF7ECFC0), width: 1.2),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A018081),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
+        border: Border.all(color: kAuthPrimary, width: 1),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: _loading
           ? Row(
@@ -126,7 +133,7 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Text(
-                        "Mempersiapkan pratinjau audio",
+                        'Mempersiapkan pratinjau audio',
                         style: TextStyle(
                           fontSize: 12,
                           color: Color(0xFF123B36),
@@ -159,16 +166,9 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
                   child: Container(
                     width: 44,
                     height: 44,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF018081),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF018081),
                       shape: BoxShape.circle,
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x2A018081),
-                          blurRadius: 10,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
                     ),
                     child: Icon(
                       _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
@@ -183,7 +183,7 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        "Audio Soal",
+                        'Audio Soal',
                         style: TextStyle(
                           fontSize: 12,
                           color: Color(0xFF123B36),
@@ -204,24 +204,56 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
                         ),
                       ],
                       const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
-                        child: SizedBox(
-                          height: 4,
-                          child: LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 4,
-                            backgroundColor: const Color(0xFFBFE9E1),
-                            valueColor: const AlwaysStoppedAnimation<Color>(kAuthPrimary),
+                      // Slider agar posisi audio bisa digeser bebas
+                      if (hasDuration)
+                        SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            trackHeight: 4,
+                            thumbShape:
+                                const RoundSliderThumbShape(enabledThumbRadius: 7),
+                            overlayShape:
+                                const RoundSliderOverlayShape(overlayRadius: 12),
+                            padding: EdgeInsets.zero,
+                          ),
+                          child: Slider(
+                            value: posMs,
+                            max: maxMs.toDouble(),
+                            onChangeStart: (_) {
+                              if (mounted) setState(() => _seeking = true);
+                            },
+                            onChanged: (value) {
+                              if (mounted) {
+                                setState(() =>
+                                    _position = Duration(milliseconds: value.round()));
+                              }
+                            },
+                            onChangeEnd: (value) async {
+                              await _onSeek(Duration(milliseconds: value.round()));
+                              if (mounted) setState(() => _seeking = false);
+                            },
+                            activeColor: kAuthPrimary,
+                            inactiveColor: const Color(0xFFBFE9E1),
+                          ),
+                        )
+                      else
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: SizedBox(
+                            height: 4,
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              minHeight: 4,
+                              backgroundColor: const Color(0xFFBFE9E1),
+                              valueColor: const AlwaysStoppedAnimation<Color>(kAuthPrimary),
+                            ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  '${_fmt(_position)} / ${maxMs == 0 ? '--:--' : _fmt(_duration!)}',
+                  '${_fmt(_position)} / ${hasDuration ? _fmt(_duration!) : '--:--'}',
                   style: const TextStyle(
                     fontSize: 11,
                     color: Color(0xFF123B36),
