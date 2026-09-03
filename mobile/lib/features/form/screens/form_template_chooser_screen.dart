@@ -158,21 +158,33 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
         await FormService.updateSettings(formId, tpl.settings);
       }
       if (tpl.questions.isNotEmpty) {
-        final payload = [
-          for (var i = 0; i < tpl.questions.length; i++)
-            {
-              'typeId': tpl.questions[i]['typeId'],
-              'question': tpl.questions[i]['question'],
-              'questionFormat': 'html',
-              'questionOrder': i + 1,
-              'isRequired': tpl.questions[i]['isRequired'] ?? true,
-              'correctAnswer': tpl.questions[i]['correctAnswer'],
-              'options': [
-                for (var j = 0; j < (tpl.questions[i]['options'] as List).length; j++)
-                  {'optionText': (tpl.questions[i]['options'][j] as Map)['optionText'] ?? '', 'isCorrect': (tpl.questions[i]['options'][j] as Map)['isCorrect'] == true, 'optionOrder': j + 1},
-              ],
-            },
-        ];
+        // Samakan dengan buildQuestionsPayload(): hanya kirim points/correctAnswer/isCorrect jika scorable
+        final payload = <Map<String, dynamic>>[];
+        for (var i = 0; i < tpl.questions.length; i++) {
+          final q = tpl.questions[i];
+          final rawCorrect = (q['correctAnswer'] as String?)?.trim() ?? '';
+          final opts = (q['options'] as List? ?? []);
+          final hasCorrectOption = opts.any((o) => (o as Map)['isCorrect'] == true);
+          final hasPoints = q['points'] != null;
+          final isScorable = hasPoints || rawCorrect.isNotEmpty || hasCorrectOption;
+          payload.add({
+            'typeId': q['typeId'],
+            'question': q['question'],
+            'questionFormat': 'html',
+            'questionOrder': i + 1,
+            'isRequired': q['isRequired'] ?? true,
+            'points': isScorable ? q['points'] : null,
+            if (isScorable && rawCorrect.isNotEmpty) 'correctAnswer': rawCorrect,
+            'options': [
+              for (var j = 0; j < opts.length; j++)
+                {
+                  'optionText': (opts[j] as Map)['optionText'] ?? '',
+                  'isCorrect': isScorable ? (opts[j] as Map)['isCorrect'] == true : false,
+                  'optionOrder': j + 1,
+                },
+            ],
+          });
+        }
         await FormService.saveQuestions(formId, payload);
       }
       // _invalidateCaches() sudah bump formsVersion
