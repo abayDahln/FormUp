@@ -479,19 +479,48 @@ class FormService {
     _invalidateCaches();
   }
 
-  /// GET /forms/{id}/questions
-  static Future<List<QuestionData>> getQuestions(int formId) async {
+  /// GET /forms/{id}/questions — paginated, search support
+  static Future<PagedResult<QuestionData>> getQuestionsPaged(
+    int formId, {
+    int? page,
+    int? pageSize,
+    String? search,
+  }) async {
+    final params = <String>[
+      if (page != null && pageSize != null) 'page=$page',
+      if (page != null && pageSize != null) 'pageSize=$pageSize',
+      if (search != null && search.trim().isNotEmpty)
+        'search=${Uri.encodeQueryComponent(search.trim())}',
+    ];
+    final query = params.isEmpty ? '' : '?${params.join('&')}';
     return ApiCache.get(
-      'forms:questions:$_scope:$formId:${formsVersion.value}',
+      'forms:questions:$_scope:$formId:$query:${formsVersion.value}',
       const Duration(seconds: 60),
       () async {
-        final json = await AuthService.get('/forms/$formId/questions');
-        return [
-          for (final q in json['data'] as List<dynamic>? ?? [])
-            QuestionData.fromJson(q as Map<String, dynamic>),
-        ];
+        final json = await AuthService.get('/forms/$formId/questions$query');
+        final data = json['data'];
+        if (data is List) {
+          final items = [
+            for (final q in data) QuestionData.fromJson(q as Map<String, dynamic>),
+          ];
+          return PagedResult(items: items, total: items.length);
+        }
+        final map = data as Map<String, dynamic>;
+        return PagedResult(
+          items: [
+            for (final q in map['items'] as List<dynamic>? ?? [])
+              QuestionData.fromJson(q as Map<String, dynamic>),
+          ],
+          total: map['total'] as int? ?? 0,
+        );
       },
     );
+  }
+
+  /// GET /forms/{id}/questions — legacy tanpa pagination (dipakai form builder)
+  static Future<List<QuestionData>> getQuestions(int formId) async {
+    final paged = await getQuestionsPaged(formId);
+    return paged.items;
   }
 
   /// POST /forms/{id}/questions
@@ -560,15 +589,21 @@ class FormService {
     );
   }
 
-  /// GET /forms/{id}/responses
+  /// GET /forms/{id}/responses — paginated + search
   static Future<PagedResult<ResponseListItemData>> getResponses(
     int formId, {
     int? page,
     int? pageSize,
+    String? search,
   }) async {
-    final path = page != null && pageSize != null
-        ? '/forms/$formId/responses?page=$page&pageSize=$pageSize'
-        : '/forms/$formId/responses';
+    final params = <String>[
+      if (page != null && pageSize != null) 'page=$page',
+      if (page != null && pageSize != null) 'pageSize=$pageSize',
+      if (search != null && search.trim().isNotEmpty)
+        'search=${Uri.encodeQueryComponent(search.trim())}',
+    ];
+    final query = params.isEmpty ? '' : '?${params.join('&')}';
+    final path = '/forms/$formId/responses$query';
     return ApiCache.get(
       'forms:responses:$_scope:$formId:$path',
       const Duration(seconds: 15),
@@ -672,11 +707,41 @@ class FormService {
     }
   }
 
-  /// GET /forms/{formId}/feedbacks
+  /// GET /forms/{formId}/feedbacks — paginated + search
+  static Future<PagedResult<FormFeedbackItem>> getFormFeedbacksPaged(
+    int formId, {
+    int? page,
+    int? pageSize,
+    String? search,
+  }) async {
+    final params = <String>[
+      if (page != null && pageSize != null) 'page=$page',
+      if (page != null && pageSize != null) 'pageSize=$pageSize',
+      if (search != null && search.trim().isNotEmpty)
+        'search=${Uri.encodeQueryComponent(search.trim())}',
+    ];
+    final query = params.isEmpty ? '' : '?${params.join('&')}';
+    // Bypass cache for paginated admin view — feedback sering bertambah
+    final json = await AuthService.get('/forms/$formId/feedbacks$query');
+    final data = json['data'];
+    if (data is List) {
+      final items = data.map((e) => FormFeedbackItem.fromJson(e as Map<String, dynamic>)).toList();
+      return PagedResult(items: items, total: items.length);
+    }
+    final map = data as Map<String, dynamic>;
+    return PagedResult(
+      items: [
+        for (final e in map['items'] as List<dynamic>? ?? [])
+          FormFeedbackItem.fromJson(e as Map<String, dynamic>),
+      ],
+      total: map['total'] as int? ?? 0,
+    );
+  }
+
+  /// GET /forms/{formId}/feedbacks — legacy list (dipakai owner form)
   static Future<List<FormFeedbackItem>> getFormFeedbacks(int formId) async {
-    final json = await AuthService.get('/forms/$formId/feedbacks');
-    final list = json['data'] as List<dynamic>? ?? [];
-    return list.map((item) => FormFeedbackItem.fromJson(item as Map<String, dynamic>)).toList();
+    final paged = await getFormFeedbacksPaged(formId);
+    return paged.items;
   }
 
   /// GET /forms/{id}/analytics

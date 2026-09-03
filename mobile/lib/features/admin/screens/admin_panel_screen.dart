@@ -25,7 +25,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 2,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -46,7 +46,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  'User, form, dan feedback platform',
+                  'Kelola user, form, dan feedback',
                   style: TextStyle(fontSize: 13, color: Colors.black54),
                 ),
               ],
@@ -68,7 +68,6 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
               tabs: [
                 Tab(text: 'User'),
                 Tab(text: 'Form'),
-                Tab(text: 'Feedback'),
               ],
             ),
           ),
@@ -78,7 +77,6 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
               children: [
                 _AdminUsersTab(),
                 _AdminFormsTab(),
-                _AdminFeedbackTab(),
               ],
             ),
           ),
