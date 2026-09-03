@@ -31,22 +31,35 @@ public class ResponsesController : ControllerBase
     }
 
     [HttpGet("api/forms/{formId}/responses")]
-    public async Task<ActionResult<ApiResponse<object>>> GetAll(int formId, [FromQuery] int? page, [FromQuery] int? pageSize)
+    public async Task<ActionResult<ApiResponse<object>>> GetAll(int formId, [FromQuery] int? page, [FromQuery] int? pageSize, [FromQuery] string? search)
     {
         var user = await GetCurrentUser();
         if (user == null)
             return Unauthorized(new ApiResponse<object>(401, "User not found"));
 
         var form = await _db.Forms
-            .FirstOrDefaultAsync(f => f.Id == formId && f.UserId == user.Id && f.DeletedAt == null);
+            .FirstOrDefaultAsync(f => f.Id == formId && f.DeletedAt == null);
 
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        var query = _db.Responses
-            .Include(r => r.Status)
-            .Include(r => r.Respondent)
-            .Where(r => r.FormId == formId)
+        // Owner or ADMIN can view responses
+        if (form.UserId != user.Id && user.Role != "ADMIN")
+            return NotFound(new ApiResponse<object>(404, "Form not found"));
+
+        var baseQuery = _db.Responses
+            .Where(r => r.FormId == formId);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            baseQuery = baseQuery.Where(r =>
+                (r.Respondent != null && r.Respondent.Fullname != null && r.Respondent.Fullname.Contains(s)) ||
+                (r.Respondent != null && r.Respondent.Email != null && r.Respondent.Email.Contains(s)) ||
+                (r.RespondentName != null && r.RespondentName.Contains(s)));
+        }
+
+        var query = baseQuery
             .OrderByDescending(r => r.SubmittedAt)
             .Select(r => new ResponseListItem
             {
@@ -56,20 +69,22 @@ public class ResponsesController : ControllerBase
                 SubmittedAt = r.SubmittedAt ?? r.CreatedAt ?? DateTime.UtcNow,
             });
 
-        if (page.HasValue && pageSize.HasValue && pageSize > 0)
+        if (page.HasValue && pageSize.HasValue && pageSize.Value > 0)
         {
+            var p = Math.Max(1, page.Value);
+            var ps = Math.Clamp(pageSize.Value, 1, 100);
             var total = await query.CountAsync();
             var items = await query
-                .Skip((page.Value - 1) * pageSize.Value)
-                .Take(pageSize.Value)
+                .Skip((p - 1) * ps)
+                .Take(ps)
                 .ToListAsync();
 
             return Ok(new ApiResponse<object>(200, "OK", new
             {
                 items,
                 total,
-                page = page.Value,
-                pageSize = pageSize.Value,
+                page = p,
+                pageSize = ps,
             }));
         }
 

@@ -27,7 +27,10 @@ public class QuestionsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<object>>> GetAll(int formId)
+    public async Task<ActionResult<ApiResponse<object>>> GetAll(int formId,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        [FromQuery] string? search)
     {
         var user = await GetCurrentUser();
         if (user == null)
@@ -44,10 +47,37 @@ public class QuestionsController : ControllerBase
         if (form.UserId != user.Id && user.Role != "ADMIN")
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        var questions = await _db.Questions
+        var query = _db.Questions
+            .Where(q => q.FormId == formId && q.DeletedAt == null);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(q => q.Question1.Contains(s));
+        }
+
+        var ordered = query.OrderBy(q => q.QuestionOrder);
+
+        if (page.HasValue && pageSize.HasValue && pageSize.Value > 0)
+        {
+            var p = Math.Max(1, page.Value);
+            var ps = Math.Clamp(pageSize.Value, 1, 100);
+            var total = await ordered.CountAsync();
+            var paged = await ordered
+                .Include(q => q.OptionQuestions.OrderBy(o => o.OptionOrder))
+                .Skip((p - 1) * ps).Take(ps)
+                .ToListAsync();
+            return Ok(new ApiResponse<object>(200, "OK", new
+            {
+                items = paged.Select(MapQuestion).ToList(),
+                total,
+                page = p,
+                pageSize = ps
+            }));
+        }
+
+        var questions = await ordered
             .Include(q => q.OptionQuestions.OrderBy(o => o.OptionOrder))
-            .Where(q => q.FormId == formId && q.DeletedAt == null)
-            .OrderBy(q => q.QuestionOrder)
             .ToListAsync();
 
         return Ok(new ApiResponse<object>(200, "OK", questions.Select(MapQuestion).ToList()));

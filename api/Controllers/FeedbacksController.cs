@@ -111,7 +111,10 @@ public class FeedbacksController : ControllerBase
 
     [HttpGet("forms/{formId}/feedbacks")]
     [Authorize]
-    public async Task<ActionResult<ApiResponse<object>>> GetFormFeedbacks(int formId)
+    public async Task<ActionResult<ApiResponse<object>>> GetFormFeedbacks(int formId,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        [FromQuery] string? search)
     {
         var user = await GetCurrentUser();
         if (user == null)
@@ -124,9 +127,20 @@ public class FeedbacksController : ControllerBase
         if (form.UserId != user.Id && user.Role != "ADMIN")
             return Forbid();
 
-        var feedbacks = await _db.Feedbacks
-            .Include(f => f.User)
-            .Where(f => f.FormId == formId)
+        var query = _db.Feedbacks
+            .Where(f => f.FormId == formId);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(f =>
+                (f.Reason != null && f.Reason.Contains(s)) ||
+                (f.Description != null && f.Description.Contains(s)) ||
+                (f.User != null && f.User.Fullname != null && f.User.Fullname.Contains(s)) ||
+                (f.User != null && f.User.Email != null && f.User.Email.Contains(s)));
+        }
+
+        var projected = query
             .OrderByDescending(f => f.CreatedAt)
             .Select(f => new FeedbackResponse
             {
@@ -138,10 +152,19 @@ public class FeedbacksController : ControllerBase
                 Reason = f.Reason,
                 Description = f.Description,
                 CreatedAt = f.CreatedAt ?? DateTime.MinValue,
-            })
-            .ToListAsync();
+            });
 
-        return Ok(new ApiResponse<object>(200, "OK", feedbacks));
+        if (page.HasValue && pageSize.HasValue && pageSize.Value > 0)
+        {
+            var p = Math.Max(1, page.Value);
+            var ps = Math.Clamp(pageSize.Value, 1, 100);
+            var total = await projected.CountAsync();
+            var items = await projected.Skip((p - 1) * ps).Take(ps).ToListAsync();
+            return Ok(new ApiResponse<object>(200, "OK", new { items, total, page = p, pageSize = ps }));
+        }
+
+        var all = await projected.ToListAsync();
+        return Ok(new ApiResponse<object>(200, "OK", all));
     }
 
     [HttpGet("admin/feedback")]
