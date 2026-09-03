@@ -10,6 +10,46 @@ import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/features/ai_chat/widgets/ai_model_picker.dart';
 import 'package:form_up/core/router/app_router.dart';
+import 'package:gpt_markdown/gpt_markdown.dart';
+
+/// Controller dengan highlight background untuk teks @mention.
+class MentionHighlightController extends TextEditingController {
+  /// Token mention aktif (tanpa '@'), di-set dari state screen.
+  List<String> mentionTokens = [];
+
+  @override
+  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
+    if (mentionTokens.isEmpty) {
+      return super.buildTextSpan(context: context, style: style, withComposing: withComposing);
+    }
+    final spans = <InlineSpan>[];
+    var remaining = text;
+    while (remaining.isNotEmpty) {
+      int? best;
+      String? bestTok;
+      for (final t in mentionTokens) {
+        final i = remaining.indexOf(t);
+        if (i != -1 && (best == null || i < best)) {
+          best = i;
+          bestTok = t;
+        }
+      }
+      if (best == null || bestTok == null) break;
+      if (best > 0) spans.add(TextSpan(text: remaining.substring(0, best)));
+      spans.add(TextSpan(
+        text: remaining.substring(best, best + bestTok.length),
+        style: (style ?? const TextStyle()).merge(const TextStyle(
+          backgroundColor: Color(0x298FB5B3), // teal lembut ~16%
+          color: Color(0xFF018081),
+          fontWeight: FontWeight.w600,
+        )),
+      ));
+      remaining = remaining.substring(best + bestTok.length);
+    }
+    if (remaining.isNotEmpty) spans.add(TextSpan(text: remaining));
+    return TextSpan(style: style, children: spans);
+  }
+}
 
 class ChatMessage {
   final String role; // user | model
@@ -30,7 +70,7 @@ class AiChatScreen extends StatefulWidget {
 }
 
 class _AiChatScreenState extends State<AiChatScreen> {
-  final _controller = TextEditingController();
+  final _controller = MentionHighlightController();
   final _scroll = ScrollController();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final List<ChatMessage> _messages = [];
@@ -45,12 +85,18 @@ class _AiChatScreenState extends State<AiChatScreen> {
   List<FormData> _mentionCandidates = [];
   String _mentionQuery = '';
   int _mentionStart = -1;
-  final Set<int> _pickedMentionIds = {};
+  bool _isMentionActive = false;
+  // id -> label yang tampil di text field (dipotong 1-2 kata)
+  final Map<int, String> _pickedMentions = {};
+  String _lastText = '';
+  // FAB scroll-to-bottom: muncul jika user sudah scroll ke atas > 1 layar & belum di paling bawah
+  bool _showFab = false;
 
   @override
   void initState() {
     super.initState();
     _controller.addListener(_onTextChanged);
+    _scroll.addListener(_onScroll);
     _loadSessions();
     _loadAllForms();
     // Toast sekali saat baru membuka app & membuka screen AI chat jika key belum diatur
@@ -80,73 +126,155 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
   }
 
-  Future<void> _loadAllForms() async {
+  bool _isLoadingForms = false;
+  bool _formsLoadFailed = false;
+  String? _formsLoadError;
+
+  Future<void> _loadAllForms({bool force = false}) async {
+    if (_isLoadingForms) return;
+    // jika sebelumnya gagal, jangan retry terus — hanya retry saat dipaksa (ketik '@' lagi)
+    if (_formsLoadFailed && !force) return;
+    _isLoadingForms = true;
+    _formsLoadFailed = false;
     try {
       final forms = await FormService.getMyForms();
+      _formsLoadError = null;
       if (mounted) setState(() => _allForms = forms);
-    } catch (_) {}
+    } catch (e) {
+      _formsLoadFailed = true;
+      _formsLoadError = AuthService.errorMessage(e);
+      debugPrint('[AiChat] Gagal memuat daftar form untuk mention: $e');
+      if (mounted) setState(() {});
+    } finally {
+      _isLoadingForms = false;
+      // re-evaluasi kandidat setelah forms selesai dimuat
+      if (mounted && _isMentionActive) _onTextChanged();
+    }
+  }
+
+  /// Tampilkan pesan error apa adanya (membongkar prefix "Exception: ")
+  /// supaya pesan asli dari Gemini (mis. "Not Found", "API key not valid") terlihat jelas.
+  String _friendlyError(Object e) {
+    var s = e.toString();
+    if (s.startsWith('Exception: ')) s = s.substring('Exception: '.length);
+    return s;
+  }
+
+  /// Label mention pendek: maksimal 2 kata pertama, lalu dipotong dengan "..."
+  String _mentionLabel(FormData f) {
+    final words = f.title.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    if (words.isEmpty) return 'form';
+    var s = words.take(2).join(' ');
+    if (words.length > 2) s = '$s...';
+    if (s.length > 20) s = '${s.substring(0, 17)}...';
+    return s;
   }
 
   void _onTextChanged() {
     final text = _controller.text;
+    final prev = _lastText;
+    _lastText = text;
+    // sinkronkan token highlight
+    _controller.mentionTokens = _pickedMentions.values.where((l) => text.contains('@$l')).toList();
+    // buang picked yang tokennya sudah tidak ada di teks (mis. select-all delete / cut)
+    if (_pickedMentions.isNotEmpty) {
+      final stale = _pickedMentions.keys.where((id) => !text.contains('@${_pickedMentions[id]}')).toList();
+      if (stale.isNotEmpty) {
+        setState(() { for (final id in stale) { _pickedMentions.remove(id); } });
+      }
+    }
+
+    // Backspace: jika 1 karakter dihapus dan karakter itu ada di dalam token mention,
+    // hapus seluruh mention sekaligus (alasan: "@label" yang sebagian tidak bermakna)
+    if (text.length == prev.length - 1 && _pickedMentions.isNotEmpty) {
+      final sel = _controller.selection;
+      final removedAt = sel.isValid && sel.baseOffset >= 0 ? sel.baseOffset : -1;
+      if (removedAt >= 0) {
+        for (final entry in _pickedMentions.entries) {
+          final token = '@${entry.value}';
+          final idx = prev.indexOf(token);
+          if (idx != -1 && removedAt > idx && removedAt <= idx + token.length) {
+            var end = idx + token.length;
+            if (end < prev.length && prev[end] == ' ') end++;
+            final newText = prev.substring(0, idx) + prev.substring(end);
+            setState(() {
+              _pickedMentions.remove(entry.key);
+              _lastText = newText;
+              _controller.mentionTokens = _pickedMentions.values.where((l) => newText.contains('@$l')).toList();
+            });
+            _controller.value = TextEditingValue(
+              text: newText,
+              selection: TextSelection.collapsed(offset: idx.clamp(0, newText.length)),
+            );
+            return;
+          }
+        }
+      }
+    }
+
     final sel = _controller.selection;
     if (!sel.isValid || sel.baseOffset < 0) {
-      if (_mentionCandidates.isNotEmpty) setState(() => _mentionCandidates = []);
+      if (_isMentionActive) setState(() { _isMentionActive = false; _mentionCandidates = []; });
       return;
     }
     final cursor = sel.baseOffset;
     final before = text.substring(0, cursor);
     final atIndex = before.lastIndexOf('@');
     if (atIndex == -1) {
-      if (_mentionCandidates.isNotEmpty) setState(() => _mentionCandidates = []);
+      if (_isMentionActive) setState(() { _isMentionActive = false; _mentionCandidates = []; });
       return;
     }
     // jika ada spasi/newline antara @ dan cursor dengan jarak > 30, anggap bukan mention
     final query = before.substring(atIndex + 1);
     if (query.contains(' ') || query.contains('\n') || query.length > 30) {
-      if (_mentionCandidates.isNotEmpty) setState(() => _mentionCandidates = []);
+      if (_isMentionActive) setState(() { _isMentionActive = false; _mentionCandidates = []; });
       return;
     }
-    // valid mention query
+    // valid mention query — '@' saja tampilkan semua, '@pemrograman' filter, tooltip scrollable
     _mentionStart = atIndex;
     _mentionQuery = query.toLowerCase();
+    _isMentionActive = true;
+    // refresh forms jika kosong (user baru buat form) — force retry saat user mengetik '@' lagi
+    if (_allForms.isEmpty && !_isLoadingForms) {
+      _loadAllForms(force: _formsLoadFailed);
+    }
     final candidates = _allForms.where((f) {
       final t = f.title.toLowerCase();
       return _mentionQuery.isEmpty || t.contains(_mentionQuery);
-    }).take(6).toList();
+    }).toList();
     setState(() => _mentionCandidates = candidates);
   }
 
   void _selectMention(FormData form) {
+    if (_mentionStart < 0 || _mentionStart >= _controller.text.length) return;
     final text = _controller.text;
+    final cursor = _controller.selection.isValid && _controller.selection.baseOffset >= 0
+        ? _controller.selection.baseOffset
+        : text.length;
     final before = text.substring(0, _mentionStart);
-    final after = text.substring(_controller.selection.baseOffset);
-    final mention = '@${form.title} ';
+    final after = cursor <= text.length ? text.substring(cursor) : '';
+    final mention = '@${_mentionLabel(form)} ';
     final newText = '$before$mention$after';
     _controller.value = TextEditingValue(
       text: newText,
       selection: TextSelection.collapsed(offset: (before + mention).length),
     );
-    _pickedMentionIds.add(form.id);
-    setState(() => _mentionCandidates = []);
+    _lastText = newText;
+    _controller.mentionTokens = [..._controller.mentionTokens, _mentionLabel(form)];
+    _pickedMentions[form.id] = _mentionLabel(form);
+    setState(() { _mentionCandidates = []; _isMentionActive = false; });
   }
 
   List<int> _extractMentionIds(String text) {
-    // Deteksi via picked ids yang masih ada di text, fallback scan judul
+    // Deteksi via picked ids yang masih ada di text (pakai label pendek), fallback scan label judul
     final ids = <int>[];
-    for (final id in _pickedMentionIds) {
-      FormData? f;
-      try {
-        f = _allForms.firstWhere((e) => e.id == id);
-      } catch (_) {
-        f = null;
-      }
-      if (f != null && text.contains('@${f.title}')) ids.add(id);
+    for (final entry in _pickedMentions.entries) {
+      if (text.contains('@${entry.value}')) ids.add(entry.key);
     }
-    // jika tidak ada yang terdeteksi tapi ada @ manual, coba match judul
+    // fallback: hanya match '@label' persis, jangan judul polos (hindari konteks palsu)
     if (ids.isEmpty && text.contains('@')) {
       for (final f in _allForms) {
-        if (text.contains('@${f.title}') || text.toLowerCase().contains(f.title.toLowerCase())) {
+        if (text.contains('@${_mentionLabel(f)}')) {
           ids.add(f.id);
           if (ids.length >= 3) break;
         }
@@ -208,6 +336,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
         ..clear()
         ..addAll(target.messages.map((m) => ChatMessage(role: m.role, text: m.text)));
     });
+    // Langsung tampilkan chat terbaru (paling bawah) saat ganti sesi
+    _showFab = false;
+    _scrollToBottom(immediate: true);
   }
 
   Future<void> _deleteSession(String id) async {
@@ -237,9 +368,26 @@ class _AiChatScreenState extends State<AiChatScreen> {
     super.dispose();
   }
 
-  void _scrollToBottom() {
+  /// Listener scroll: kontrol visibilitas FAB scroll-to-bottom.
+  /// Muncul jika sudah scroll melebihi 1 layar dari atas & belum di paling bawah.
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+    final pos = _scroll.position;
+    final show = pos.viewportDimension > 0 &&
+        _scroll.offset > pos.viewportDimension &&
+        _scroll.offset < pos.maxScrollExtent - 32;
+    if (show != _showFab && mounted) setState(() => _showFab = show);
+  }
+
+  void _scrollToBottom({bool immediate = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      if (!_scroll.hasClients) return;
+      final target = _scroll.position.maxScrollExtent;
+      if (immediate) {
+        _scroll.jumpTo(target);
+      } else {
+        _scroll.animateTo(target, duration: const Duration(milliseconds: 400), curve: Curves.easeOutCubic);
+      }
     });
   }
 
@@ -330,7 +478,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final displayText = rawText;
     final sendText = extraContext != null && extraContext.isNotEmpty ? '$extraContext\n\nPertanyaan user: $rawText' : rawText;
     // bersihkan mention picker
-    setState(() => _mentionCandidates = []);
+    setState(() {
+      _mentionCandidates = [];
+      _isMentionActive = false;
+      _pickedMentions.clear(); // jangan bawa mention pesan sebelumnya ke pesan berikutnya
+    });
 
     final userMsg = ChatMessage(role: 'user', text: displayText);
     setState(() {
@@ -411,7 +563,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             await _persistCurrent();
           } catch (e2) {
             setState(() {
-              botMsg.text = 'Error: ${AuthService.errorMessage(e)}';
+              botMsg.text = 'Error: ${_friendlyError(e)}';
               _streaming = false;
             });
           }
@@ -420,7 +572,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       );
     } catch (e) {
       setState(() {
-        botMsg.text = 'Error: ${AuthService.errorMessage(e)}';
+        botMsg.text = 'Error: ${_friendlyError(e)}';
         _streaming = false;
       });
     }
@@ -633,7 +785,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
         SafeArea(
           bottom: false,
           child: Container(
-            color: kAppBg,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [kAppBg, kAppBg.withValues(alpha: 0.75), kAppBg.withValues(alpha: 0)],
+              ),
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(children: [
               if (widget.embedded)
@@ -649,9 +807,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
           ),
         ),
         Expanded(
-          child: _messages.isEmpty
-              ? Center(
-                  child: Padding(
+          child: Stack(
+            children: [
+              if (_messages.isEmpty)
+                Center(
+                  child: SingleChildScrollView(
                     padding: const EdgeInsets.all(32),
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
                       Container(
@@ -672,9 +832,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
                     ]),
                   ),
                 )
-              : ListView.separated(
+              else
+                ListView.separated(
                   controller: _scroll,
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 130),
                   itemCount: _messages.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (ctx, i) {
@@ -698,7 +859,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           if (!isUser && _streaming && i == _messages.length - 1 && m.text.isEmpty)
                             const Row(children: [SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Text('AI mengetik...', style: TextStyle(fontSize: 11, color: Colors.black54))])
                           else
-                            SelectableText(m.text.isEmpty ? '...' : m.text, style: TextStyle(fontSize: 13, color: isUser ? Colors.white : Colors.black87)),
+                            isUser
+                                ? SelectableText(m.text.isEmpty ? '...' : m.text, style: const TextStyle(fontSize: 13, color: Colors.white))
+                                // Render jawaban AI sebagai markdown (bold, list, tabel, code block, LaTeX)
+                                : GptMarkdown(
+                                    m.text.isEmpty ? '...' : m.text,
+                                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                                  ),
                           if (m.actionJson != null) ...[
                             const SizedBox(height: 8),
                             Container(
@@ -715,11 +882,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
                                       try {
                                         await _executeAction(m.actionJson!);
                                         setState(() { m.actionExecuted = true; m.actionResult = 'Berhasil'; });
-                                        showAuthToast(context, 'Berhasil');
+                                        if (context.mounted) showAuthToast(context, 'Berhasil');
                                         await _persistCurrent();
                                       } catch (e) {
                                         setState(() => m.actionResult = 'Gagal: $e');
-                                        showAuthToast(context, '$e', isError: true);
+                                        if (context.mounted) showAuthToast(context, '$e', isError: true);
                                       }
                                     },
                                     child: const Text('Jalankan', style: TextStyle(fontSize: 11)),
@@ -734,74 +901,151 @@ class _AiChatScreenState extends State<AiChatScreen> {
                     );
                   },
                 ),
-        ),
-        // @mention autocomplete
-        if (_mentionCandidates.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFBDC9C8)), boxShadow: softShadow()),
-            constraints: const BoxConstraints(maxHeight: 180),
-            child: ListView.separated(
-              shrinkWrap: true,
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              itemCount: _mentionCandidates.length,
-              separatorBuilder: (_, _) => const Divider(height: 1, indent: 12, endIndent: 12),
-              itemBuilder: (ctx, i) {
-                final f = _mentionCandidates[i];
-                return ListTile(
-                  dense: true,
-                  leading: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: kPrimarySoft, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.description_outlined, size: 14, color: kAuthPrimary)),
-                  title: Text(f.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  subtitle: Text('#${f.id} • ${f.status}', style: const TextStyle(fontSize: 10, color: Colors.black54)),
-                  onTap: () => _selectMention(f),
-                );
-              },
+              // Footer overlay: gradient memudar dari transparan ke kAppBg (chat terlihat fade di bawahnya)
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [kAppBg.withValues(alpha: 0), kAppBg.withValues(alpha: 0.9), kAppBg],
+                      stops: const [0.0, 0.35, 1.0],
+                    ),
+                  ),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+        // @mention autocomplete — tooltip scrollable berisi semua form, filter saat "@pemrograman"
+        if (_isMentionActive)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Material(
+              color: Colors.white,
+              elevation: 4,
+              shadowColor: Colors.black26,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFFBDC9C8))),
+              clipBehavior: Clip.antiAlias,
+              child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: _mentionCandidates.isEmpty
+                ? InkWell(
+                    onTap: _formsLoadFailed ? () => _loadAllForms(force: true) : null,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      child: Row(children: [
+                        Icon(
+                          _formsLoadFailed ? Icons.error_outline : Icons.search_off,
+                          size: 16,
+                          color: _formsLoadFailed ? Colors.red : Colors.black45,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _formsLoadFailed
+                                ? 'Gagal memuat form: $_formsLoadError — ketuk untuk coba lagi'
+                                : _isLoadingForms
+                                    ? 'Memuat form...'
+                                    : _mentionQuery.isEmpty
+                                        ? 'Kamu belum punya form'
+                                        : 'Tidak ada form dengan judul "@$_mentionQuery"',
+                            style: const TextStyle(fontSize: 11, color: Colors.black54),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  )
+                : Scrollbar(
+                    thumbVisibility: true,
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      primary: false,
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      itemCount: _mentionCandidates.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1, indent: 12, endIndent: 12),
+                      itemBuilder: (ctx, i) {
+                        final f = _mentionCandidates[i];
+                        return ListTile(
+                          dense: true,
+                          leading: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: kPrimarySoft, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.description_outlined, size: 14, color: kAuthPrimary)),
+                          title: Text(f.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          subtitle: Text('#${f.id} • ${f.status}', style: const TextStyle(fontSize: 10, color: Colors.black54)),
+                          onTap: () => _selectMention(f),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
-        // Hint untuk @mention
-        if (_mentionCandidates.isEmpty && _controller.text.contains('@'))
+        // Hint untuk @mention (ketika tidak aktif)
+        if (!_isMentionActive && _controller.text.contains('@'))
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Row(children: [
               const Icon(Icons.alternate_email, size: 12, color: Colors.black45),
               const SizedBox(width: 6),
-              Expanded(child: Text(_pickedMentionIds.isEmpty ? 'Ketik @ untuk mention form' : 'Mention: ${_pickedMentionIds.length} form terpilih', style: const TextStyle(fontSize: 10, color: Colors.black54))),
-              if (_pickedMentionIds.isNotEmpty)
-                GestureDetector(onTap: () => setState(() => _pickedMentionIds.clear()), child: const Text('Hapus', style: TextStyle(fontSize: 10, color: Colors.red))),
+              Expanded(child: Text(_pickedMentions.isEmpty ? 'Ketik @ untuk mention form' : 'Mention: ${_pickedMentions.length} form terpilih', style: const TextStyle(fontSize: 10, color: Colors.black54))),
+              if (_pickedMentions.isNotEmpty)
+                GestureDetector(onTap: () => setState(() { _pickedMentions.clear(); _controller.mentionTokens = []; }), child: const Text('Hapus', style: TextStyle(fontSize: 10, color: Colors.red))),
             ]),
           ),
-        SafeArea(
-          top: false,
-          child: Container(
-            color: kAppBg,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-            child: Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  minLines: 1,
-                  maxLines: 4,
-                  decoration: InputDecoration(
-                    hintText: _streaming ? 'AI sedang menjawab...' : 'Ketik @ untuk mention form...',
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-                    hintStyle: const TextStyle(fontSize: 13, color: Colors.black45),
+                SafeArea(
+                  top: false,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                    child: TextField(
+                      controller: _controller,
+                      minLines: 1,
+                      maxLines: 4,
+                      textInputAction: TextInputAction.send,
+                      enabled: !_streaming,
+                      onSubmitted: (_) => _send(),
+                      decoration: InputDecoration(
+                        hintText: _streaming ? 'AI sedang menjawab...' : 'Ketik @ untuk mention form...',
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.fromLTRB(18, 12, 8, 12),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
+                        hintStyle: const TextStyle(fontSize: 13, color: Colors.black45),
+                        // Tombol send menyatu di dalam field (kanan)
+                        suffixIcon: Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: IconButton(
+                            onPressed: _streaming ? null : _send,
+                            style: IconButton.styleFrom(backgroundColor: kAuthPrimary, foregroundColor: Colors.white),
+                            iconSize: 18,
+                            icon: _streaming
+                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : const Icon(Icons.arrow_upward),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  enabled: !_streaming,
-                  onSubmitted: (_) => _send(),
+                ),
+                  ]),
                 ),
               ),
-              const SizedBox(width: 8),
-              FilledButton(
-                onPressed: _streaming ? null : _send,
-                style: FilledButton.styleFrom(shape: const CircleBorder(), padding: const EdgeInsets.all(12), backgroundColor: kAuthPrimary),
-                child: _streaming
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.send, size: 18, color: Colors.white),
+              // FAB scroll-to-chat-terbaru (muncul saat user jauh di atas, hilang di paling bawah)
+              Positioned(
+                right: 16,
+                bottom: 170,
+                child: IgnorePointer(
+                  ignoring: !_showFab,
+                  child: AnimatedOpacity(
+                    opacity: _showFab ? 1 : 0,
+                    duration: const Duration(milliseconds: 150),
+                    child: FloatingActionButton.small(
+                      heroTag: 'aiChatScrollToBottom',
+                      backgroundColor: Colors.white,
+                      foregroundColor: kAuthPrimary,
+                      elevation: 3,
+                      onPressed: () => _scrollToBottom(),
+                      child: const Icon(Icons.arrow_downward, size: 20),
+                    ),
+                  ),
+                ),
               ),
-            ]),
+            ],
           ),
         ),
       ]),

@@ -1,40 +1,60 @@
+import 'dart:convert';
+
 import 'package:form_up/core/services/form_service.dart';
 
 class AiFormContextService {
   /// Bangun blok konteks untuk AI dari daftar formId yang di-mention.
-  /// Hanya ambil metadata ringan (judul, deskripsi, jumlah soal, tipe) + daftar pertanyaan ringkas.
+  /// Metadata ringan + skema JSON form (untuk analisis/edit struktur oleh AI).
   static Future<String> buildContext(List<int> formIds) async {
     if (formIds.isEmpty) return '';
     final buffer = StringBuffer();
     buffer.writeln('<FORM_CONTEXT>');
+    buffer.writeln('Berikut form yang di-mention user. Gunakan skema JSON di bawah untuk menganalisis atau mengedit form.');
     for (final id in formIds) {
       try {
         final form = await FormService.getForm(id);
-        final settings = form['settings'] as Map<String, dynamic>?;
+        final settings = form['settings'] as Map<String, dynamic>? ?? {};
         final title = form['title'] as String? ?? 'Tanpa judul';
         final desc = form['description'] as String? ?? '';
         final formLink = form['formLink'] as String? ?? '';
         final status = form['status'] as String? ?? '';
-        buffer.writeln('Form #$id: $title (link: $formLink, status: $status)');
-        if (desc.isNotEmpty) buffer.writeln('Deskripsi: ${_stripHtml(desc).substring(0, desc.length > 300 ? 300 : desc.length)}');
-        if (settings != null) {
-          buffer.writeln('Settings: ${settings.toString()}');
+        buffer.writeln();
+        buffer.writeln('## Form #$id: $title (link: $formLink, status: $status)');
+        if (desc.isNotEmpty) {
+          final clean = _stripHtml(desc);
+          buffer.writeln('Deskripsi: ${clean.length > 300 ? '${clean.substring(0, 300)}...' : clean}');
         }
         // Ambil questions
         try {
           final qs = await FormService.getQuestions(id);
-          buffer.writeln('Jumlah soal: ${qs.length}');
-          for (var i = 0; i < qs.length && i < 15; i++) {
-            final q = qs[i];
-            final qText = _stripHtml(q.question);
-            final short = qText.length > 80 ? '${qText.substring(0, 80)}...' : qText;
-            buffer.writeln('  ${i + 1}. [type:${q.typeId}] $short ${q.options.isNotEmpty ? "opsi:${q.options.map((o) => o.optionText).join(", ")}" : ""}');
-          }
-          if (qs.length > 15) buffer.writeln('  ... dan ${qs.length - 15} soal lagi');
-        } catch (_) {
-          buffer.writeln('Gagal ambil soal form $id');
+          // Blok JSON skema — format machine-readable agar AI mudah mengedit struktur
+          final schema = {
+            'formId': id,
+            'title': title,
+            'description': desc,
+            'settings': settings,
+            'questions': [
+              for (final q in qs)
+                {
+                  'id': q.id,
+                  'typeId': q.typeId,
+                  'question': _stripHtml(q.question),
+                  'order': q.questionOrder,
+                  if (q.isRequired != null) 'required': q.isRequired,
+                  if (q.correctAnswer != null) 'correctAnswer': q.correctAnswer,
+                  if (q.points != null) 'points': q.points,
+                  'options': [for (final o in q.options) o.optionText],
+                },
+            ],
+          };
+          final encoder = JsonEncoder.withIndent('  ');
+          buffer.writeln('Skema JSON:');
+          buffer.writeln('```json');
+          buffer.writeln(encoder.convert(schema));
+          buffer.writeln('```');
+        } catch (e) {
+          buffer.writeln('Gagal ambil soal form $id: $e');
         }
-        buffer.writeln('---');
       } catch (e) {
         buffer.writeln('Form #$id: gagal dimuat ($e)');
       }

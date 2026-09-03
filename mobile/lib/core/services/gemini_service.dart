@@ -100,13 +100,11 @@ class GeminiService {
   ];
 
   static String _mapDisplayToId(String display) {
+    // Alias stabil: selalu menunjuk model generasi terbaru yang tersedia di API
+    // (menghindari 404 karena model lama di-retire, mis. gemini-2.0-flash)
     final v = display.toLowerCase();
-    if (v.contains('2.5') && v.contains('lite')) return 'gemini-2.0-flash-lite';
-    if (v.contains('2.5')) return 'gemini-2.0-flash';
-    if (v.contains('3.1') && v.contains('lite')) return 'gemini-2.0-flash-lite';
-    if (v.contains('3')) return 'gemini-2.0-flash';
-    if (v.contains('2.0')) return 'gemini-2.0-flash';
-    return 'gemini-2.0-flash';
+    if (v.contains('lite')) return 'gemini-flash-lite-latest';
+    return 'gemini-flash-latest';
   }
 
   static String get selectedModelDisplay {
@@ -168,7 +166,7 @@ Aturan:
       throw Exception('GEMINI_API_KEY belum diatur. Buka AI Chat > Atur API Key untuk menyimpannya di aplikasi.');
     }
     final effectiveModel = selectedModelId;
-    final uri = Uri.parse('$_baseUrl/models/$effectiveModel:streamGenerateContent?alt=sse&key=$_apiKey');
+    final uri = Uri.parse('$_baseUrl/models/$effectiveModel:streamGenerateContent?alt=sse');
     // Build contents
     final contents = <Map<String, dynamic>>[];
     for (final m in history) {
@@ -195,6 +193,7 @@ Aturan:
 
     final request = http.Request('POST', uri);
     request.headers['Content-Type'] = 'application/json';
+    request.headers['X-goog-api-key'] = _apiKey; // auth via header (format resmi), bukan query param
     request.body = body;
 
     final streamed = await request.send();
@@ -240,7 +239,7 @@ Aturan:
   static Future<String> generateOnce(List<Map<String, String>> history) async {
     if (!hasKey) throw Exception('GEMINI_API_KEY belum diatur. Atur di AI Chat > API Key.');
     final effectiveModel = selectedModelId;
-    final uri = Uri.parse('$_baseUrl/models/$effectiveModel:generateContent?key=$_apiKey');
+    final uri = Uri.parse('$_baseUrl/models/$effectiveModel:generateContent');
     final contents = <Map<String, dynamic>>[
       for (final m in history)
         {
@@ -251,7 +250,10 @@ Aturan:
         }
     ];
     final res = await http.post(uri,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'X-goog-api-key': _apiKey, // auth via header (format resmi), bukan query param
+        },
         body: jsonEncode({
           'systemInstruction': {
             'parts': [
