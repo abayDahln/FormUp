@@ -15,6 +15,13 @@ public partial class RespondentAnswer
 
     public string? AnswerValue { get; set; }
 
+    // AI-4: Smart Scoring Essay - manual override per answer (previously blocked, no endpoint)
+    public double? ManualScore { get; set; }
+
+    public bool? IsCorrectOverride { get; set; }
+
+    public string? OverrideNote { get; set; }
+
     public DateTime? CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }

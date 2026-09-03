@@ -116,6 +116,14 @@ public class FormsController : ControllerBase
                 RequiredLogin = form.FormSetting.RequiredLogin,
                 OpenFormTime = form.FormSetting.OpenFormTime,
                 CloseFormTime = form.FormSetting.CloseFormTime,
+                IsExamMode = form.FormSetting.IsExamMode,
+                DisableCopyPaste = form.FormSetting.DisableCopyPaste,
+                DetectTabSwitch = form.FormSetting.DetectTabSwitch,
+                AutoSubmitOnTabSwitch = form.FormSetting.AutoSubmitOnTabSwitch,
+                MaxTabSwitch = form.FormSetting.MaxTabSwitch,
+                ThemePrimaryColor = form.FormSetting.ThemePrimaryColor,
+                ThemeBackgroundColor = form.FormSetting.ThemeBackgroundColor,
+                ThemeConfig = form.FormSetting.ThemeConfig,
             },
             CreatedAt = form.CreatedAt,
             UpdatedAt = form.UpdatedAt,
@@ -367,6 +375,47 @@ public class FormsController : ControllerBase
             form.FormSetting.FormTypeId = request.FormTypeId.Value;
         }
 
+        // FEAT-6: exam mode
+        if (request.IsExamMode.HasValue)
+            form.FormSetting.IsExamMode = request.IsExamMode.Value;
+        if (request.DisableCopyPaste.HasValue)
+            form.FormSetting.DisableCopyPaste = request.DisableCopyPaste.Value;
+        if (request.DetectTabSwitch.HasValue)
+            form.FormSetting.DetectTabSwitch = request.DetectTabSwitch.Value;
+        if (request.AutoSubmitOnTabSwitch.HasValue)
+            form.FormSetting.AutoSubmitOnTabSwitch = request.AutoSubmitOnTabSwitch.Value;
+        if (request.MaxTabSwitch.HasValue)
+        {
+            if (request.MaxTabSwitch.Value < 0 || request.MaxTabSwitch.Value > 100)
+                return BadRequest(new ApiResponse<object>(400, "MaxTabSwitch must be 0-100"));
+            form.FormSetting.MaxTabSwitch = request.MaxTabSwitch.Value;
+        }
+
+        // FEAT-9: theme
+        if (request.ThemePrimaryColor != null)
+        {
+            if (request.ThemePrimaryColor != "" && !System.Text.RegularExpressions.Regex.IsMatch(request.ThemePrimaryColor, "^#[0-9A-Fa-f]{6}$"))
+                return BadRequest(new ApiResponse<object>(400, "ThemePrimaryColor must be hex #RRGGBB"));
+            form.FormSetting.ThemePrimaryColor = string.IsNullOrWhiteSpace(request.ThemePrimaryColor) ? null : request.ThemePrimaryColor;
+        }
+        if (request.ThemeBackgroundColor != null)
+        {
+            if (request.ThemeBackgroundColor != "" && !System.Text.RegularExpressions.Regex.IsMatch(request.ThemeBackgroundColor, "^#[0-9A-Fa-f]{6}$"))
+                return BadRequest(new ApiResponse<object>(400, "ThemeBackgroundColor must be hex #RRGGBB"));
+            form.FormSetting.ThemeBackgroundColor = string.IsNullOrWhiteSpace(request.ThemeBackgroundColor) ? null : request.ThemeBackgroundColor;
+        }
+        if (request.ThemeConfig != null)
+        {
+            if (request.ThemeConfig.Length > 10000)
+                return BadRequest(new ApiResponse<object>(400, "ThemeConfig too large"));
+            if (!string.IsNullOrWhiteSpace(request.ThemeConfig))
+            {
+                try { System.Text.Json.JsonDocument.Parse(request.ThemeConfig); }
+                catch { return BadRequest(new ApiResponse<object>(400, "ThemeConfig must be valid JSON")); }
+            }
+            form.FormSetting.ThemeConfig = string.IsNullOrWhiteSpace(request.ThemeConfig) ? null : request.ThemeConfig;
+        }
+
         form.FormSetting.UpdatedAt = DateTime.UtcNow;
         form.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
@@ -382,6 +431,14 @@ public class FormsController : ControllerBase
             RequiredLogin = form.FormSetting.RequiredLogin,
             OpenFormTime = form.FormSetting.OpenFormTime,
             CloseFormTime = form.FormSetting.CloseFormTime,
+            IsExamMode = form.FormSetting.IsExamMode,
+            DisableCopyPaste = form.FormSetting.DisableCopyPaste,
+            DetectTabSwitch = form.FormSetting.DetectTabSwitch,
+            AutoSubmitOnTabSwitch = form.FormSetting.AutoSubmitOnTabSwitch,
+            MaxTabSwitch = form.FormSetting.MaxTabSwitch,
+            ThemePrimaryColor = form.FormSetting.ThemePrimaryColor,
+            ThemeBackgroundColor = form.FormSetting.ThemeBackgroundColor,
+            ThemeConfig = form.FormSetting.ThemeConfig,
         }));
     }
 

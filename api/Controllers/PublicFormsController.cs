@@ -71,6 +71,14 @@ public class PublicFormsController : ControllerBase
             RandomizeQuestions = form.FormSetting?.RandomizeQuestions,
             OpenFormTime = form.FormSetting?.OpenFormTime,
             CloseFormTime = form.FormSetting?.CloseFormTime,
+            IsExamMode = form.FormSetting?.IsExamMode,
+            DisableCopyPaste = form.FormSetting?.DisableCopyPaste,
+            DetectTabSwitch = form.FormSetting?.DetectTabSwitch,
+            AutoSubmitOnTabSwitch = form.FormSetting?.AutoSubmitOnTabSwitch,
+            MaxTabSwitch = form.FormSetting?.MaxTabSwitch,
+            ThemePrimaryColor = form.FormSetting?.ThemePrimaryColor,
+            ThemeBackgroundColor = form.FormSetting?.ThemeBackgroundColor,
+            ThemeConfig = form.FormSetting?.ThemeConfig,
             QuestionCount = questionCount,
         }));
     }

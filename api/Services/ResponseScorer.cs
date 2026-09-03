@@ -141,6 +141,13 @@ public static class ResponseScorer
             question);
     }
 
+    private static bool? IsAnswerCorrectWithOverride(IEnumerable<RespondentAnswer> answerRows, Question question)
+    {
+        var overrideRow = answerRows.FirstOrDefault(a => a.IsCorrectOverride.HasValue);
+        if (overrideRow != null) return overrideRow.IsCorrectOverride;
+        return IsAnswerCorrectInternal(answerRows, question);
+    }
+
     private static bool? IsAnswerCorrectInternal(IEnumerable<RespondentAnswer> answerRows, Question question)
     {
         if (!HasDefinedCorrectAnswer(question))
@@ -201,19 +208,29 @@ public static class ResponseScorer
             if (answerRows.Count > 0)
                 answeredCount++;
 
-            var isCorrect = showScore ? IsAnswerCorrect(answerRows, q) : null;
+            var isCorrect = showScore ? IsAnswerCorrectWithOverride(answerRows, q) : null;
             if (isCorrect == true)
                 correctCount++;
+
+            var primary = answer ?? answerRows.FirstOrDefault();
+            double? earned = null;
+            if (primary?.ManualScore.HasValue == true) earned = primary.ManualScore;
+            else if (isCorrect == true) earned = (double?)(q.Points ?? 1);
 
             answers.Add(new ResultAnswer
             {
                 QuestionId = q.Id,
+                AnswerId = primary?.Id ?? 0,
                 Question = q.Question1,
                 QuestionFormat = q.QuestionFormat ?? RichTextValidation.FormatOf(q.Question1),
                 TypeId = q.TypeId,
                 AnswerText = GetAnswerText(answerRows, q),
                 CorrectAnswer = showScore ? GetCorrectAnswerText(q) : null,
                 IsCorrect = isCorrect,
+                ManualScore = primary?.ManualScore,
+                IsCorrectOverride = primary?.IsCorrectOverride,
+                OverrideNote = primary?.OverrideNote,
+                EarnedPoints = earned,
                 Options = q.OptionQuestions
                     .OrderBy(o => o.OptionOrder)
                     .Where(o => !string.IsNullOrEmpty(o.OptionText))
@@ -238,19 +255,39 @@ public static class ResponseScorer
                 foreach (var q in questions)
                 {
                     var ansRows = response.RespondentAnswers.Where(a => a.QuestionId == q.Id).ToList();
-                    if (IsAnswerCorrect(ansRows, q) == true)
-                    {
+                    var primary = ansRows.FirstOrDefault();
+                    if (primary?.ManualScore.HasValue == true)
+                        earnedPoints += primary.ManualScore.Value;
+                    else if (IsAnswerCorrectWithOverride(ansRows, q) == true)
                         earnedPoints += (q.Points ?? 1);
-                    }
                 }
                 score = Math.Round(earnedPoints, 1);
             }
             else
             {
-                var scoringDivisor = GetScoringDivisor(questions);
-                score = scoringDivisor > 0
-                    ? Math.Min(100.0, Math.Round((double)correctCount / scoringDivisor * 100, 1))
-                    : null;
+                // If any manual scores exist, prefer sum of manual + correct for non-manual
+                var hasManual = response.RespondentAnswers.Any(a => a.ManualScore.HasValue);
+                if (hasManual)
+                {
+                    double earnedPoints = 0;
+                    foreach (var q in questions)
+                    {
+                        var ansRows = response.RespondentAnswers.Where(a => a.QuestionId == q.Id).ToList();
+                        var primary = ansRows.FirstOrDefault();
+                        if (primary?.ManualScore.HasValue == true)
+                            earnedPoints += primary.ManualScore.Value;
+                        else if (IsAnswerCorrectWithOverride(ansRows, q) == true)
+                            earnedPoints += 1;
+                    }
+                    score = Math.Round(earnedPoints, 1);
+                }
+                else
+                {
+                    var scoringDivisor = GetScoringDivisor(questions);
+                    score = scoringDivisor > 0
+                        ? Math.Min(100.0, Math.Round((double)correctCount / scoringDivisor * 100, 1))
+                        : null;
+                }
             }
         }
 

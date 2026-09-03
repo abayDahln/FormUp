@@ -27,6 +27,24 @@ public partial class FormSetting
 
     public DateTime? CloseFormTime { get; set; }
 
+    // FEAT-6: Mode Ujian - persistent flags (previously blocked, now stored typed)
+    public bool? IsExamMode { get; set; }
+
+    public bool? DisableCopyPaste { get; set; }
+
+    public bool? DetectTabSwitch { get; set; }
+
+    public bool? AutoSubmitOnTabSwitch { get; set; }
+
+    public int? MaxTabSwitch { get; set; }
+
+    // FEAT-9: Custom Theme per-form - typed fields (previously blocked)
+    public string? ThemePrimaryColor { get; set; }
+
+    public string? ThemeBackgroundColor { get; set; }
+
+    public string? ThemeConfig { get; set; }
+
     public DateTime? CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }

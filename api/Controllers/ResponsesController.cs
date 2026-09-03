@@ -111,6 +111,7 @@ public class ResponsesController : ControllerBase
             SubmittedAt = response.SubmittedAt ?? response.CreatedAt ?? DateTime.UtcNow,
             Answers = response.RespondentAnswers.Select(a => new AnswerDetail
             {
+                Id = a.Id,
                 QuestionId = a.QuestionId,
                 Question = a.Question?.Question1 ?? "",
                 QuestionFormat = a.Question == null
@@ -120,6 +121,9 @@ public class ResponsesController : ControllerBase
                 OptionId = a.OptionId,
                 OptionText = a.Option?.OptionText,
                 AnswerValue = a.AnswerValue,
+                ManualScore = a.ManualScore,
+                IsCorrectOverride = a.IsCorrectOverride,
+                OverrideNote = a.OverrideNote,
             }).ToList(),
         };
 
@@ -257,6 +261,68 @@ public class ResponsesController : ControllerBase
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Status updated"));
+    }
+
+    // AI-4: override skor per-jawaban (essay / manual grading) - replaces localStorage-only flow
+    [HttpPut("api/responses/{id}/answers/{answerId}/score")]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateAnswerScore(int id, int answerId, [FromBody] UpdateAnswerScoreRequest request)
+    {
+        var user = await GetCurrentUser();
+        if (user == null)
+            return Unauthorized(new ApiResponse<object>(401, "User not found"));
+
+        var answer = await _db.RespondentAnswers
+            .Include(a => a.Response).ThenInclude(r => r.Form)
+            .FirstOrDefaultAsync(a => a.Id == answerId && a.ResponseId == id);
+        if (answer == null)
+            return NotFound(new ApiResponse<object>(404, "Answer not found"));
+
+        if (answer.Response.Form == null || answer.Response.Form.UserId != user.Id)
+            return Forbid();
+
+        if (request.ManualScore.HasValue && (request.ManualScore < 0 || request.ManualScore > 1000))
+            return BadRequest(new ApiResponse<object>(400, "ManualScore out of range"));
+
+        answer.ManualScore = request.ManualScore;
+        answer.IsCorrectOverride = request.IsCorrectOverride;
+        answer.OverrideNote = string.IsNullOrWhiteSpace(request.OverrideNote) ? null : request.OverrideNote.Trim();
+        answer.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return Ok(new ApiResponse<object>(200, "Score updated", new { answer.Id, answer.ManualScore, answer.IsCorrectOverride }));
+    }
+
+    [HttpPut("api/responses/{id}/scores")]
+    public async Task<ActionResult<ApiResponse<object>>> BulkUpdateScores(int id, [FromBody] BulkScoreOverrideRequest request)
+    {
+        var user = await GetCurrentUser();
+        if (user == null)
+            return Unauthorized(new ApiResponse<object>(401, "User not found"));
+
+        var response = await _db.Responses
+            .Include(r => r.Form)
+            .Include(r => r.RespondentAnswers)
+            .FirstOrDefaultAsync(r => r.Id == id);
+        if (response == null)
+            return NotFound(new ApiResponse<object>(404, "Response not found"));
+        if (response.Form == null || response.Form.UserId != user.Id)
+            return Forbid();
+
+        if (request.Overrides == null || request.Overrides.Count == 0)
+            return BadRequest(new ApiResponse<object>(400, "No overrides provided"));
+
+        var map = response.RespondentAnswers.ToDictionary(a => a.Id);
+        foreach (var o in request.Overrides)
+        {
+            if (!map.TryGetValue(o.AnswerId, out var ans)) continue;
+            if (o.ManualScore.HasValue && (o.ManualScore < 0 || o.ManualScore > 1000))
+                return BadRequest(new ApiResponse<object>(400, $"ManualScore out of range for answer {o.AnswerId}"));
+            ans.ManualScore = o.ManualScore;
+            ans.IsCorrectOverride = o.IsCorrectOverride;
+            ans.OverrideNote = string.IsNullOrWhiteSpace(o.OverrideNote) ? null : o.OverrideNote.Trim();
+            ans.UpdatedAt = DateTime.UtcNow;
+        }
+        await _db.SaveChangesAsync();
+        return Ok(new ApiResponse<object>(200, "Scores updated"));
     }
 
     [HttpGet("api/forms/{formId}/responses/export")]

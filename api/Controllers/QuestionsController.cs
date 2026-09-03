@@ -627,20 +627,30 @@ public class QuestionsController : ControllerBase
                     // mengisi FK otomatis setelah Id soal ter-generate saat SaveChanges.
                     var options = row.Options.Select((opt, i) =>
                     {
+                            // Preserve KaTeX/code characters verbatim - only outer trim
                         var cleanOpt = opt.Trim();
+                        // Strip markdown/WS artifacts but keep $, \, {, }, ` for KaTeX/code (BUG-2)
                         var isCorrect = false;
                         if (!string.IsNullOrWhiteSpace(row.CorrectAnswer))
                         {
-                            var ca = row.CorrectAnswer.Trim();
-                            if (string.Equals(cleanOpt, ca, StringComparison.OrdinalIgnoreCase))
-                                isCorrect = true;
-                            else if (cleanOpt.Length > 3 && (cleanOpt[1] == '.' || cleanOpt[1] == ')') &&
-                                     string.Equals(cleanOpt[2..].Trim(), ca, StringComparison.OrdinalIgnoreCase))
-                                isCorrect = true;
-                            else if (ca.Length >= 1 && char.ToUpper(ca[0]) >= 'A' && char.ToUpper(ca[0]) - 'A' == i)
-                                isCorrect = true;
-                            else if (int.TryParse(ca, out var num) && num == i + 1)
-                                isCorrect = true;
+                            var rawCa = row.CorrectAnswer.Trim();
+                            // Normalize: remove surrounding *, `, $ markers that users may add
+                            var ca = rawCa.Trim().Trim('*', '`', '$', '"', '\'').Trim();
+                            // Support comma-separated multiple correct answers (e.g. "A,C" or "1,3")
+                            var caParts = ca.Split(new[] { ',', '|' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                            foreach (var part in caParts)
+                            {
+                                var p = part.Trim().Trim('*', '`').Trim();
+                                if (string.Equals(cleanOpt, p, StringComparison.OrdinalIgnoreCase)) { isCorrect = true; break; }
+                                // Prefix form "A. option text"
+                                if (cleanOpt.Length > 3 && (cleanOpt[1] == '.' || cleanOpt[1] == ')' || cleanOpt[1] == ':') &&
+                                     string.Equals(cleanOpt[2..].Trim(), p, StringComparison.OrdinalIgnoreCase)) { isCorrect = true; break; }
+                                if (p.Length >= 1 && char.ToUpper(p[0]) >= 'A' && char.ToUpper(p[0]) <= 'E' && p.Length == 1 && char.ToUpper(p[0]) - 'A' == i) { isCorrect = true; break; }
+                                if (int.TryParse(p, out var num) && num == i + 1) { isCorrect = true; break; }
+                                // Fallback: stripped prefix comparison
+                                var strippedOpt = cleanOpt.Length > 2 && (cleanOpt[1] == '.' || cleanOpt[1] == ')') ? cleanOpt[2..].Trim() : cleanOpt;
+                                if (string.Equals(strippedOpt, p, StringComparison.OrdinalIgnoreCase)) { isCorrect = true; break; }
+                            }
                         }
 
                         return new OptionQuestion
@@ -1034,7 +1044,11 @@ public class QuestionsController : ControllerBase
                 var raw = row.Cell(optCol).GetString().Trim();
                 if (!string.IsNullOrEmpty(raw))
                 {
-                    importRow.Options = raw.Split(new[] { '|', '\n', ';' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
+                    // BUG-2 fix: split primarily on '|' and newline to preserve KaTeX ';' and code blocks
+                    // Support both '|' and line-break; ';' only if no '|' present (legacy)
+                    var hasPipe = raw.Contains('|');
+                    var separators = hasPipe ? new[] { '|', '\n' } : new[] { '|', '\n', ';' };
+                    importRow.Options = raw.Split(separators, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
                 }
             }
 
@@ -1145,7 +1159,9 @@ public class QuestionsController : ControllerBase
                 var raw = values[optIdx].Trim();
                 if (!string.IsNullOrEmpty(raw))
                 {
-                    importRow.Options = raw.Split(new[] { '|', '\n', ';' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
+                    var hasPipe = raw.Contains('|');
+                    var separators = hasPipe ? new[] { '|', '\n' } : new[] { '|', '\n', ';' };
+                    importRow.Options = raw.Split(separators, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
                 }
             }
 

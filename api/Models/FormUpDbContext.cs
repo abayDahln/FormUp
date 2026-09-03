@@ -131,6 +131,26 @@ public partial class FormUpDbContext : DbContext
                 .HasDefaultValue(false)
                 .HasColumnName("show_score");
             entity.Property(e => e.TimerDuration).HasColumnName("timer_duration");
+            entity.Property(e => e.IsExamMode)
+                .HasDefaultValue(false)
+                .HasColumnName("is_exam_mode");
+            entity.Property(e => e.DisableCopyPaste)
+                .HasDefaultValue(false)
+                .HasColumnName("disable_copy_paste");
+            entity.Property(e => e.DetectTabSwitch)
+                .HasDefaultValue(false)
+                .HasColumnName("detect_tab_switch");
+            entity.Property(e => e.AutoSubmitOnTabSwitch)
+                .HasDefaultValue(false)
+                .HasColumnName("auto_submit_on_tab_switch");
+            entity.Property(e => e.MaxTabSwitch).HasColumnName("max_tab_switch");
+            entity.Property(e => e.ThemePrimaryColor)
+                .HasMaxLength(20)
+                .HasColumnName("theme_primary_color");
+            entity.Property(e => e.ThemeBackgroundColor)
+                .HasMaxLength(20)
+                .HasColumnName("theme_background_color");
+            entity.Property(e => e.ThemeConfig).HasColumnName("theme_config");
             entity.Property(e => e.UpdatedAt)
                 .HasColumnType("datetime")
                 .HasColumnName("updated_at");
@@ -278,6 +298,11 @@ public partial class FormUpDbContext : DbContext
 
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.AnswerValue).HasColumnName("answer_value");
+            entity.Property(e => e.ManualScore).HasColumnName("manual_score");
+            entity.Property(e => e.IsCorrectOverride).HasColumnName("is_correct_override");
+            entity.Property(e => e.OverrideNote)
+                .HasMaxLength(500)
+                .HasColumnName("override_note");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("(getutcdate())")
                 .HasColumnType("datetime")

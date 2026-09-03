@@ -62,6 +62,16 @@ public class FormSettingDto
     public bool? RequiredLogin { get; set; }
     public DateTime? OpenFormTime { get; set; }
     public DateTime? CloseFormTime { get; set; }
+    // FEAT-6
+    public bool? IsExamMode { get; set; }
+    public bool? DisableCopyPaste { get; set; }
+    public bool? DetectTabSwitch { get; set; }
+    public bool? AutoSubmitOnTabSwitch { get; set; }
+    public int? MaxTabSwitch { get; set; }
+    // FEAT-9
+    public string? ThemePrimaryColor { get; set; }
+    public string? ThemeBackgroundColor { get; set; }
+    public string? ThemeConfig { get; set; }
 }
 
 public class UpdateFormSettingsRequest
@@ -75,6 +85,16 @@ public class UpdateFormSettingsRequest
     public bool? RequiredLogin { get; set; }
     public DateTime? OpenFormTime { get; set; }
     public DateTime? CloseFormTime { get; set; }
+    // FEAT-6
+    public bool? IsExamMode { get; set; }
+    public bool? DisableCopyPaste { get; set; }
+    public bool? DetectTabSwitch { get; set; }
+    public bool? AutoSubmitOnTabSwitch { get; set; }
+    public int? MaxTabSwitch { get; set; }
+    // FEAT-9
+    public string? ThemePrimaryColor { get; set; }
+    public string? ThemeBackgroundColor { get; set; }
+    public string? ThemeConfig { get; set; }
 }
 
 public class PublicFormDetails
@@ -96,6 +116,15 @@ public class PublicFormDetails
         public bool? RandomizeQuestions { get; set; }
         public DateTime? OpenFormTime { get; set; }
         public DateTime? CloseFormTime { get; set; }
+        // FEAT-6 & FEAT-9 exposed to public runner
+        public bool? IsExamMode { get; set; }
+        public bool? DisableCopyPaste { get; set; }
+        public bool? DetectTabSwitch { get; set; }
+        public bool? AutoSubmitOnTabSwitch { get; set; }
+        public int? MaxTabSwitch { get; set; }
+        public string? ThemePrimaryColor { get; set; }
+        public string? ThemeBackgroundColor { get; set; }
+        public string? ThemeConfig { get; set; }
         public int QuestionCount { get; set; }
     }
 

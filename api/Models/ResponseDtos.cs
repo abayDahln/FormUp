@@ -35,6 +35,7 @@ public class ResponseDetail
 
 public class AnswerDetail
 {
+    public int Id { get; set; }
     public int QuestionId { get; set; }
     public string Question { get; set; } = null!;
     public string? QuestionFormat { get; set; }
@@ -42,6 +43,9 @@ public class AnswerDetail
     public int? OptionId { get; set; }
     public string? OptionText { get; set; }
     public string? AnswerValue { get; set; }
+    public double? ManualScore { get; set; }
+    public bool? IsCorrectOverride { get; set; }
+    public string? OverrideNote { get; set; }
 }
 
 public class UpdateResponseStatusRequest
@@ -67,14 +71,19 @@ public class ResponseResult
 public class ResultAnswer
 {
     public int QuestionId { get; set; }
+    public int AnswerId { get; set; }
     public string Question { get; set; } = null!;
     public string? QuestionFormat { get; set; }
     public int TypeId { get; set; }
     public string? AnswerText { get; set; }
     public string? CorrectAnswer { get; set; }
     public bool? IsCorrect { get; set; }
+    public double? ManualScore { get; set; }
+    public bool? IsCorrectOverride { get; set; }
+    public string? OverrideNote { get; set; }
     public List<string> Options { get; set; } = new();
     public List<string> SelectedOptions { get; set; } = new();
+    public double? EarnedPoints { get; set; }
 }
 
 public class MyAttemptDto
@@ -85,4 +94,24 @@ public class MyAttemptDto
     public double? Score { get; set; }
     public int CorrectCount { get; set; }
     public int WrongCount { get; set; }
+}
+
+public class UpdateAnswerScoreRequest
+{
+    public double? ManualScore { get; set; }
+    public bool? IsCorrectOverride { get; set; }
+    public string? OverrideNote { get; set; }
+}
+
+public class BulkScoreOverrideRequest
+{
+    public List<AnswerScoreOverrideItem> Overrides { get; set; } = new();
+}
+
+public class AnswerScoreOverrideItem
+{
+    public int AnswerId { get; set; }
+    public double? ManualScore { get; set; }
+    public bool? IsCorrectOverride { get; set; }
+    public string? OverrideNote { get; set; }
 }
