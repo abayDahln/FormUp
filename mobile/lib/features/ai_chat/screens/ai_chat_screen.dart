@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:form_up/core/services/ai_chat_history_service.dart';
+import 'package:form_up/core/services/ai_form_context_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/gemini_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/ai_chat_icon.dart';
+import 'package:form_up/features/ai_chat/widgets/ai_model_picker.dart';
 import 'package:form_up/core/router/app_router.dart';
 
 class ChatMessage {
@@ -38,10 +40,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
   StreamSubscription<String>? _sub;
   static bool _shownInitialMissingKeyToast = false;
 
+  // Agent: @mention & model picker
+  List<FormData> _allForms = [];
+  List<FormData> _mentionCandidates = [];
+  String _mentionQuery = '';
+  int _mentionStart = -1;
+  final Set<int> _pickedMentionIds = {};
+
   @override
   void initState() {
     super.initState();
+    _controller.addListener(_onTextChanged);
     _loadSessions();
+    _loadAllForms();
     // Toast sekali saat baru membuka app & membuka screen AI chat jika key belum diatur
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_shownInitialMissingKeyToast && !GeminiService.hasKey && mounted) {
@@ -67,6 +78,81 @@ class _AiChatScreenState extends State<AiChatScreen> {
       // load most recent
       await _switchSession(_sessions.first.id);
     }
+  }
+
+  Future<void> _loadAllForms() async {
+    try {
+      final forms = await FormService.getMyForms();
+      if (mounted) setState(() => _allForms = forms);
+    } catch (_) {}
+  }
+
+  void _onTextChanged() {
+    final text = _controller.text;
+    final sel = _controller.selection;
+    if (!sel.isValid || sel.baseOffset < 0) {
+      if (_mentionCandidates.isNotEmpty) setState(() => _mentionCandidates = []);
+      return;
+    }
+    final cursor = sel.baseOffset;
+    final before = text.substring(0, cursor);
+    final atIndex = before.lastIndexOf('@');
+    if (atIndex == -1) {
+      if (_mentionCandidates.isNotEmpty) setState(() => _mentionCandidates = []);
+      return;
+    }
+    // jika ada spasi/newline antara @ dan cursor dengan jarak > 30, anggap bukan mention
+    final query = before.substring(atIndex + 1);
+    if (query.contains(' ') || query.contains('\n') || query.length > 30) {
+      if (_mentionCandidates.isNotEmpty) setState(() => _mentionCandidates = []);
+      return;
+    }
+    // valid mention query
+    _mentionStart = atIndex;
+    _mentionQuery = query.toLowerCase();
+    final candidates = _allForms.where((f) {
+      final t = f.title.toLowerCase();
+      return _mentionQuery.isEmpty || t.contains(_mentionQuery);
+    }).take(6).toList();
+    setState(() => _mentionCandidates = candidates);
+  }
+
+  void _selectMention(FormData form) {
+    final text = _controller.text;
+    final before = text.substring(0, _mentionStart);
+    final after = text.substring(_controller.selection.baseOffset);
+    final mention = '@${form.title} ';
+    final newText = '$before$mention$after';
+    _controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: (before + mention).length),
+    );
+    _pickedMentionIds.add(form.id);
+    setState(() => _mentionCandidates = []);
+  }
+
+  List<int> _extractMentionIds(String text) {
+    // Deteksi via picked ids yang masih ada di text, fallback scan judul
+    final ids = <int>[];
+    for (final id in _pickedMentionIds) {
+      FormData? f;
+      try {
+        f = _allForms.firstWhere((e) => e.id == id);
+      } catch (_) {
+        f = null;
+      }
+      if (f != null && text.contains('@${f.title}')) ids.add(id);
+    }
+    // jika tidak ada yang terdeteksi tapi ada @ manual, coba match judul
+    if (ids.isEmpty && text.contains('@')) {
+      for (final f in _allForms) {
+        if (text.contains('@${f.title}') || text.toLowerCase().contains(f.title.toLowerCase())) {
+          ids.add(f.id);
+          if (ids.length >= 3) break;
+        }
+      }
+    }
+    return ids.toSet().toList();
   }
 
   Future<void> _persistCurrent() async {
@@ -144,6 +230,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   @override
   void dispose() {
+    _controller.removeListener(_onTextChanged);
     _controller.dispose();
     _scroll.dispose();
     _sub?.cancel();
@@ -219,8 +306,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   Future<void> _send() async {
-    final text = _controller.text.trim();
-    if (text.isEmpty || _streaming) return;
+    final rawText = _controller.text.trim();
+    if (rawText.isEmpty || _streaming) return;
     if (!GeminiService.hasKey) {
       showAuthToast(context, 'GEMINI_API_KEY belum diatur', isError: true);
       _showApiKeyDialog();
@@ -228,7 +315,24 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
     // ensure session exists
     if (_currentSessionId == null) await _newSession();
-    final userMsg = ChatMessage(role: 'user', text: text);
+    // Agent: deteksi @mention dan bangun konteks form
+    final mentionIds = _extractMentionIds(rawText);
+    String? extraContext;
+    if (mentionIds.isNotEmpty) {
+      try {
+        extraContext = await AiFormContextService.buildContext(mentionIds);
+      } catch (_) {}
+    } else if (rawText.toLowerCase().contains('form saya') || rawText.toLowerCase().contains('list form') || rawText.toLowerCase().contains('daftar form')) {
+      try {
+        extraContext = await AiFormContextService.buildAllFormsSummary();
+      } catch (_) {}
+    }
+    final displayText = rawText;
+    final sendText = extraContext != null && extraContext.isNotEmpty ? '$extraContext\n\nPertanyaan user: $rawText' : rawText;
+    // bersihkan mention picker
+    setState(() => _mentionCandidates = []);
+
+    final userMsg = ChatMessage(role: 'user', text: displayText);
     setState(() {
       _messages.add(userMsg);
       _controller.clear();
@@ -236,7 +340,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _scrollToBottom();
     await _persistCurrent();
 
-    final history = _messages.map((m) => {'role': m.role, 'text': m.text}).toList();
+    // history yang dikirim ke AI pakai sendText untuk pesan terakhir, tapi simpan displayText
+    final history = _messages.map((m) {
+      if (m == userMsg && sendText != displayText) {
+        return {'role': m.role, 'text': sendText};
+      }
+      return {'role': m.role, 'text': m.text};
+    }).toList();
     final botMsg = ChatMessage(role: 'model', text: '');
     setState(() {
       _messages.add(botMsg);
@@ -400,9 +510,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
             child: Row(children: [
               const AiChatIcon(color: kAuthPrimary, size: 26, filled: true),
               const SizedBox(width: 10),
-              const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('FormUp AI', style: TextStyle(fontFamily: kFontBold, fontSize: 16, color: Colors.black87)),
-                Text('Gemini 2.0 Flash', style: TextStyle(fontSize: 11, color: Colors.black54)),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('FormUp AI', style: TextStyle(fontFamily: kFontBold, fontSize: 16, color: Colors.black87)),
+                Text(GeminiService.selectedModelDisplay, style: const TextStyle(fontSize: 11, color: Colors.black54)),
               ]),
               const Spacer(),
               IconButton(
@@ -533,6 +643,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
               const AiChatIcon(color: kAuthPrimary, size: 20, filled: true),
               const SizedBox(width: 8),
               const Text('AI Chat', style: TextStyle(fontFamily: kFontBold, fontSize: 16, color: Colors.black87)),
+              const Spacer(),
+              AiModelPicker(onChanged: () => setState(() {})),
             ]),
           ),
         ),
@@ -623,6 +735,41 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   },
                 ),
         ),
+        // @mention autocomplete
+        if (_mentionCandidates.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFBDC9C8)), boxShadow: softShadow()),
+            constraints: const BoxConstraints(maxHeight: 180),
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              itemCount: _mentionCandidates.length,
+              separatorBuilder: (_, _) => const Divider(height: 1, indent: 12, endIndent: 12),
+              itemBuilder: (ctx, i) {
+                final f = _mentionCandidates[i];
+                return ListTile(
+                  dense: true,
+                  leading: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: kPrimarySoft, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.description_outlined, size: 14, color: kAuthPrimary)),
+                  title: Text(f.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  subtitle: Text('#${f.id} • ${f.status}', style: const TextStyle(fontSize: 10, color: Colors.black54)),
+                  onTap: () => _selectMention(f),
+                );
+              },
+            ),
+          ),
+        // Hint untuk @mention
+        if (_mentionCandidates.isEmpty && _controller.text.contains('@'))
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(children: [
+              const Icon(Icons.alternate_email, size: 12, color: Colors.black45),
+              const SizedBox(width: 6),
+              Expanded(child: Text(_pickedMentionIds.isEmpty ? 'Ketik @ untuk mention form' : 'Mention: ${_pickedMentionIds.length} form terpilih', style: const TextStyle(fontSize: 10, color: Colors.black54))),
+              if (_pickedMentionIds.isNotEmpty)
+                GestureDetector(onTap: () => setState(() => _pickedMentionIds.clear()), child: const Text('Hapus', style: TextStyle(fontSize: 10, color: Colors.red))),
+            ]),
+          ),
         SafeArea(
           top: false,
           child: Container(
@@ -635,11 +782,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   minLines: 1,
                   maxLines: 4,
                   decoration: InputDecoration(
-                    hintText: _streaming ? 'AI sedang menjawab...' : 'Ketik pesan...',
+                    hintText: _streaming ? 'AI sedang menjawab...' : 'Ketik @ untuk mention form...',
                     filled: true,
-                    fillColor: const Color(0xFFF0F4F4),
+                    fillColor: Colors.white,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                    hintStyle: const TextStyle(fontSize: 13, color: Colors.black45),
                   ),
                   enabled: !_streaming,
                   onSubmitted: (_) => _send(),

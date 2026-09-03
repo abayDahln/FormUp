@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
 /// Layanan Google AI Studio (Gemini) untuk AI Chat.
@@ -18,7 +19,7 @@ class GeminiService {
   static String? _userKey;
   static bool _initialized = false;
 
-  /// Muat key yang tersimpan user (panggil di main sebelum runApp)
+  /// Muat key & model yang tersimpan user (panggil di main sebelum runApp)
   static Future<void> init() async {
     if (_initialized) return;
     try {
@@ -27,6 +28,7 @@ class GeminiService {
     } catch (_) {
       _userKey = null;
     }
+    await _loadModel();
     _initialized = true;
   }
 
@@ -82,15 +84,70 @@ class GeminiService {
     return '${k.substring(0, 6)}****${k.substring(k.length - 4)}';
   }
 
-  static const _model = 'gemini-2.0-flash';
+  static const _modelStorageKey = 'gemini_selected_model';
+  static String _selectedModel = 'gemini-2.0-flash';
   static const _baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
 
+  /// Daftar model yang diminta user (tampilkan apa adanya, map ke id API valid)
+  static const List<String> availableModels = [
+    'Gemini 2.5 Flash',
+    'Gemini 2.5 Flash Lite',
+    'Gemini 3.5 Flash',
+    'Gemini 3.6 Flash',
+    'Gemini 3.7 Flash',
+    'Gemini 3.1 Flash Lite',
+    'Gemini 3 Flash',
+  ];
+
+  static String _mapDisplayToId(String display) {
+    final v = display.toLowerCase();
+    if (v.contains('2.5') && v.contains('lite')) return 'gemini-2.0-flash-lite';
+    if (v.contains('2.5')) return 'gemini-2.0-flash';
+    if (v.contains('3.1') && v.contains('lite')) return 'gemini-2.0-flash-lite';
+    if (v.contains('3')) return 'gemini-2.0-flash';
+    if (v.contains('2.0')) return 'gemini-2.0-flash';
+    return 'gemini-2.0-flash';
+  }
+
+  static String get selectedModelDisplay {
+    // reverse map id -> display kalau perlu, tapi simpan display langsung
+    if (availableModels.contains(_selectedModel)) return _selectedModel;
+    // id style -> display
+    final id = _selectedModel;
+    if (id == 'gemini-2.0-flash-lite') return 'Gemini 2.5 Flash Lite';
+    return 'Gemini 2.5 Flash';
+  }
+
+  static String get selectedModelId => _mapDisplayToId(_selectedModel);
+
+  static Future<void> setModel(String display) async {
+    final v = display.trim();
+    if (!availableModels.contains(v)) return;
+    _selectedModel = v;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_modelStorageKey, v);
+    } catch (_) {}
+  }
+
+  static Future<void> _loadModel() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_modelStorageKey);
+      if (saved != null && availableModels.contains(saved)) {
+        _selectedModel = saved;
+      }
+    } catch (_) {}
+  }
+
   static const _systemPrompt = '''
-Kamu adalah Asisten FormUp - AI pembuat & pengedit formulir.
-Tugas: membantu user membuat dan mengedit form secara otomatis via percakapan.
+Kamu adalah Asisten FormUp - AI Agent pembuat & pengedit formulir yang bisa membaca semua form milik user.
+Tugas: membantu user membuat, membaca, dan mengedit form secara otomatis via percakapan.
 
 Aturan:
 - Jawab dengan Bahasa Indonesia yang ramah.
+- Jika user mention form dengan @ (mis. @Judul Form), kamu akan menerima blok <FORM_CONTEXT> berisi detail form tersebut. Gunakan itu untuk menjawab akurat, jangan halusinasi ID/judul/soal.
+- Jika user minta list form tanpa mention, jawab berdasarkan konteks yang diberikan (jika ada).
 - Ketika user meminta membuat/mengedit form, selipkan BLOK JSON terstruktur agar aplikasi bisa mengeksekusi otomatis.
 - Format JSON harus dalam code fence ```json dan valid:
   // Membuat form baru
@@ -110,7 +167,8 @@ Aturan:
     if (!hasKey) {
       throw Exception('GEMINI_API_KEY belum diatur. Buka AI Chat > Atur API Key untuk menyimpannya di aplikasi.');
     }
-    final uri = Uri.parse('$_baseUrl/models/$_model:streamGenerateContent?alt=sse&key=$_apiKey');
+    final effectiveModel = selectedModelId;
+    final uri = Uri.parse('$_baseUrl/models/$effectiveModel:streamGenerateContent?alt=sse&key=$_apiKey');
     // Build contents
     final contents = <Map<String, dynamic>>[];
     for (final m in history) {
@@ -181,7 +239,8 @@ Aturan:
   /// Fallback non-stream: hasil lengkap sekaligus (dipakai jika stream gagal)
   static Future<String> generateOnce(List<Map<String, String>> history) async {
     if (!hasKey) throw Exception('GEMINI_API_KEY belum diatur. Atur di AI Chat > API Key.');
-    final uri = Uri.parse('$_baseUrl/models/$_model:generateContent?key=$_apiKey');
+    final effectiveModel = selectedModelId;
+    final uri = Uri.parse('$_baseUrl/models/$effectiveModel:generateContent?key=$_apiKey');
     final contents = <Map<String, dynamic>>[
       for (final m in history)
         {
