@@ -169,6 +169,95 @@ class FormMakerSettingsCard extends StatelessWidget {
             onChanged();
           },
         ),
+        const Divider(height: 24),
+        _settingsLabel("Mode Ujian (FEAT-6)"),
+        _SettingSwitch(
+          "Mode ujian",
+          "Aktifkan pembatasan ujian",
+          c.isExamMode,
+          (v) {
+            c.isExamMode = v;
+            if (!v) {
+              c.disableCopyPaste = false;
+              c.detectTabSwitch = false;
+              c.autoSubmitOnTabSwitch = false;
+            }
+            onChanged();
+          },
+        ),
+        if (c.isExamMode) ...[
+          _SettingSwitch(
+            "Cegah salin-tempel",
+            "Nonaktifkan copy-paste saat mengerjakan",
+            c.disableCopyPaste,
+            (v) {
+              c.disableCopyPaste = v;
+              onChanged();
+            },
+          ),
+          _SettingSwitch(
+            "Deteksi pindah tab",
+            "Peringatan saat keluar aplikasi",
+            c.detectTabSwitch,
+            (v) {
+              c.detectTabSwitch = v;
+              onChanged();
+            },
+          ),
+          _SettingSwitch(
+            "Auto submit saat pindah",
+            "Otomatis kumpulkan saat deteksi keluar",
+            c.autoSubmitOnTabSwitch,
+            (v) {
+              c.autoSubmitOnTabSwitch = v;
+              onChanged();
+            },
+          ),
+          const SizedBox(height: 6),
+          _settingsLabel("Batas pindah tab (0=tanpa batas)"),
+          TextField(
+            controller: TextEditingController(text: c.maxTabSwitch?.toString() ?? ''),
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: _fieldDecoration("Misal: 3"),
+            onChanged: (v) {
+              c.maxTabSwitch = int.tryParse(v);
+              onChanged();
+            },
+          ),
+        ],
+        const Divider(height: 24),
+        _settingsLabel("Tema Per-Form (FEAT-9)"),
+        _settingsLabel("Warna primer (#RRGGBB)"),
+        TextField(
+          controller: TextEditingController(text: c.themePrimaryColor ?? ''),
+          decoration: _fieldDecoration("#2A9D8F"),
+          onChanged: (v) {
+            c.themePrimaryColor = v.trim().isEmpty ? null : v.trim();
+            onChanged();
+          },
+        ),
+        const SizedBox(height: 8),
+        _settingsLabel("Warna background (#RRGGBB)"),
+        TextField(
+          controller: TextEditingController(text: c.themeBackgroundColor ?? ''),
+          decoration: _fieldDecoration("#E1F9F4"),
+          onChanged: (v) {
+            c.themeBackgroundColor = v.trim().isEmpty ? null : v.trim();
+            onChanged();
+          },
+        ),
+        const SizedBox(height: 8),
+        _settingsLabel("Konfigurasi tema (JSON opsional)"),
+        TextField(
+          controller: TextEditingController(text: c.themeConfig ?? ''),
+          maxLines: 3,
+          decoration: _fieldDecoration('{"font":"Inter"}'),
+          onChanged: (v) {
+            c.themeConfig = v.trim().isEmpty ? null : v.trim();
+            onChanged();
+          },
+        ),
       ],
     );
 

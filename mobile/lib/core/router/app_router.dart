@@ -33,6 +33,8 @@ import 'package:form_up/features/form_runner/screens/form_start_screen.dart';
 import 'package:form_up/features/home/screens/qrcode_scanner_screen.dart';
 import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/services/form_service.dart';
+import 'package:form_up/features/ai_chat/screens/ai_chat_screen.dart';
+import 'package:form_up/features/ai_chat/screens/ai_settings_screen.dart';
 
 /// Route halaman deklaratif (Navigator 2.0)
 enum AppPage {
@@ -64,6 +66,8 @@ enum AppPage {
   adminFormDetail,
   adminFeedbackDetail,
   settings,
+  aiChat,
+  aiSettings,
 }
 
 class AppRoute {
@@ -395,6 +399,10 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
         );
       case AppPage.settings:
         return const SettingsScreen();
+      case AppPage.aiChat:
+        return const AiChatScreen();
+      case AppPage.aiSettings:
+        return const AiSettingsScreen();
     }
   }
 }
@@ -436,6 +444,8 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       'form-respon' => const AppRoute(AppPage.formRespon),
       'form-feedbacks' => const AppRoute(AppPage.formFeedbacks),
       'settings' => const AppRoute(AppPage.settings),
+      'ai-chat' => const AppRoute(AppPage.aiChat),
+      'ai-settings' => const AppRoute(AppPage.aiSettings),
       _ => const AppRoute(AppPage.login),
     };
   }
@@ -471,6 +481,8 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       AppPage.adminFormDetail => 'admin-form',
       AppPage.adminFeedbackDetail => 'admin-feedback',
       AppPage.settings => 'settings',
+      AppPage.aiChat => 'ai-chat',
+      AppPage.aiSettings => 'ai-settings',
     };
     return RouteInformation(uri: Uri.parse('/$name'));
   }

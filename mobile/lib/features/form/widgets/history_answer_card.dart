@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/widgets/answer_fields.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -9,13 +11,70 @@ class HistoryAnswerCard extends StatelessWidget {
   final int index;
   final PublicResultAnswer answer;
   final bool showScore;
+  final int? responseId;
+  final int? formId;
+  final VoidCallback? onScoreUpdated;
 
   const HistoryAnswerCard({
     super.key,
     required this.index,
     required this.answer,
     required this.showScore,
+    this.responseId,
+    this.formId,
+    this.onScoreUpdated,
   });
+
+  Future<void> _showGradeDialog(BuildContext context) async {
+    if (responseId == null || answer.answerId == 0) {
+      showAuthToast(context, 'ID jawaban tidak tersedia', isError: true);
+      return;
+    }
+    final scoreCtrl = TextEditingController(text: answer.manualScore?.toString() ?? answer.earnedPoints?.toString() ?? '');
+    bool? isCorrect = answer.isCorrectOverride ?? answer.isCorrect;
+    final noteCtrl = TextEditingController(text: answer.overrideNote ?? '');
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSt) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Nilai Manual (AI-4)', style: TextStyle(fontFamily: kFontBold, fontSize: 14)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: scoreCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Skor manual (kosongkan untuk auto)')),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<bool?>(
+            initialValue: isCorrect,
+            decoration: const InputDecoration(labelText: 'Koreksi Benar/Salah'),
+            items: const [
+              DropdownMenuItem(value: null, child: Text('Auto')),
+              DropdownMenuItem(value: true, child: Text('Benar')),
+              DropdownMenuItem(value: false, child: Text('Salah')),
+            ],
+            onChanged: (v) => setSt(() => isCorrect = v),
+          ),
+          const SizedBox(height: 12),
+          TextField(controller: noteCtrl, decoration: const InputDecoration(labelText: 'Catatan (opsional)')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, {'score': scoreCtrl.text, 'isCorrect': isCorrect, 'note': noteCtrl.text}), child: const Text('Simpan')),
+        ],
+      )),
+    );
+    if (result == null) return;
+    try {
+      final rawScore = (result['score'] as String).trim();
+      final manualScore = rawScore.isEmpty ? null : double.tryParse(rawScore);
+      if (rawScore.isNotEmpty && manualScore == null) {
+        showAuthToast(context, 'Skor harus angka', isError: true);
+        return;
+      }
+      await FormService.updateAnswerScore(responseId!, answer.answerId, manualScore: manualScore, isCorrectOverride: result['isCorrect'] as bool?, overrideNote: (result['note'] as String).trim().isEmpty ? null : (result['note'] as String).trim());
+      showAuthToast(context, 'Nilai diperbarui');
+      onScoreUpdated?.call();
+    } catch (e) {
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +203,31 @@ class HistoryAnswerCard extends StatelessWidget {
               ),
             ),
           ],
+          if (a.manualScore != null || a.earnedPoints != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: const Color(0xFFF0F4F4), borderRadius: BorderRadius.circular(8)),
+              child: Row(children: [
+                const Icon(Icons.star, size: 14, color: Colors.black54),
+                const SizedBox(width: 6),
+                Text('Poin: ${a.manualScore ?? a.earnedPoints}', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                if (a.isCorrectOverride != null) ...[
+                  const SizedBox(width: 8),
+                  Chip(label: Text(a.isCorrectOverride! ? 'Override: Benar' : 'Override: Salah', style: const TextStyle(fontSize: 10)), visualDensity: VisualDensity.compact),
+                ],
+              ]),
+            ),
+          ],
+          if (responseId != null && formId != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => _showGradeDialog(context),
+                icon: const Icon(Icons.edit, size: 14),
+                label: const Text('Nilai Manual', style: TextStyle(fontSize: 12)),
+              ),
+            ),
         ],
       ),
     );

@@ -20,6 +20,16 @@ class FormMakerSnapshot {
   final String token;
   final String customLink;
   final String? bannerImage;
+  // FEAT-6
+  final bool isExamMode;
+  final bool disableCopyPaste;
+  final bool detectTabSwitch;
+  final bool autoSubmitOnTabSwitch;
+  final int? maxTabSwitch;
+  // FEAT-9
+  final String? themePrimaryColor;
+  final String? themeBackgroundColor;
+  final String? themeConfig;
 
   const FormMakerSnapshot({
     required this.title,
@@ -35,6 +45,14 @@ class FormMakerSnapshot {
     required this.token,
     required this.customLink,
     required this.bannerImage,
+    this.isExamMode = false,
+    this.disableCopyPaste = false,
+    this.detectTabSwitch = false,
+    this.autoSubmitOnTabSwitch = false,
+    this.maxTabSwitch,
+    this.themePrimaryColor,
+    this.themeBackgroundColor,
+    this.themeConfig,
   });
 }
 
@@ -57,6 +75,18 @@ class FormMakerController {
   bool requiredLogin = false;
   DateTime? openFormTime;
   DateTime? closeFormTime;
+
+  // FEAT-6: Mode Ujian
+  bool isExamMode = false;
+  bool disableCopyPaste = false;
+  bool detectTabSwitch = false;
+  bool autoSubmitOnTabSwitch = false;
+  int? maxTabSwitch;
+
+  // FEAT-9: Custom Theme per-form
+  String? themePrimaryColor;
+  String? themeBackgroundColor;
+  String? themeConfig;
 
   String? bannerImage;
   Uint8List? newBanner;
@@ -97,6 +127,14 @@ class FormMakerController {
         : bannerCleared
         ? ''
         : bannerImage,
+    isExamMode: isExamMode,
+    disableCopyPaste: disableCopyPaste,
+    detectTabSwitch: detectTabSwitch,
+    autoSubmitOnTabSwitch: autoSubmitOnTabSwitch,
+    maxTabSwitch: maxTabSwitch,
+    themePrimaryColor: themePrimaryColor,
+    themeBackgroundColor: themeBackgroundColor,
+    themeConfig: themeConfig,
   );
 
   bool get hasChanges {
@@ -115,7 +153,15 @@ class FormMakerController {
         base.timer != cur.timer ||
         base.token != cur.token ||
         base.customLink != cur.customLink ||
-        base.bannerImage != cur.bannerImage;
+        base.bannerImage != cur.bannerImage ||
+        base.isExamMode != cur.isExamMode ||
+        base.disableCopyPaste != cur.disableCopyPaste ||
+        base.detectTabSwitch != cur.detectTabSwitch ||
+        base.autoSubmitOnTabSwitch != cur.autoSubmitOnTabSwitch ||
+        base.maxTabSwitch != cur.maxTabSwitch ||
+        base.themePrimaryColor != cur.themePrimaryColor ||
+        base.themeBackgroundColor != cur.themeBackgroundColor ||
+        base.themeConfig != cur.themeConfig;
   }
 
   // Konversi ke UTC sebelum dikirim ke API agar tidak terjadi double-conversion timezone.
@@ -145,6 +191,16 @@ class FormMakerController {
     requiredLogin = settings?['requiredLogin'] == true;
     openFormTime = _parseApiDateTime(rawOpen);
     closeFormTime = _parseApiDateTime(rawClose);
+    // FEAT-6
+    isExamMode = settings?['isExamMode'] == true;
+    disableCopyPaste = settings?['disableCopyPaste'] == true;
+    detectTabSwitch = settings?['detectTabSwitch'] == true;
+    autoSubmitOnTabSwitch = settings?['autoSubmitOnTabSwitch'] == true;
+    maxTabSwitch = settings?['maxTabSwitch'] as int?;
+    // FEAT-9
+    themePrimaryColor = settings?['themePrimaryColor'] as String?;
+    themeBackgroundColor = settings?['themeBackgroundColor'] as String?;
+    themeConfig = settings?['themeConfig'] as String?;
     openTimeAlreadySet = openFormTime != null;
     if (settings?['timerDuration'] is int) {
       final timerSeconds = settings!['timerDuration'] as int;
@@ -171,6 +227,7 @@ class FormMakerController {
     final timerValue = int.tryParse(timerController.text.trim());
     final curToken = tokenController.text.trim();
     final baseToken = baseline?.token ?? '';
+    final base = baseline;
     final payload = <String, dynamic>{
       'formTypeId': formTypeId,
       'showScore': showScore,
@@ -183,6 +240,16 @@ class FormMakerController {
         'openFormTime': _toUtcIso8601(openFormTime!),
       if (closeFormTime != null)
         'closeFormTime': _toUtcIso8601(closeFormTime!),
+      // FEAT-6: only send if changed from baseline (avoid overwriting unintentionally)
+      if (base == null || base.isExamMode != isExamMode) 'isExamMode': isExamMode,
+      if (base == null || base.disableCopyPaste != disableCopyPaste) 'disableCopyPaste': disableCopyPaste,
+      if (base == null || base.detectTabSwitch != detectTabSwitch) 'detectTabSwitch': detectTabSwitch,
+      if (base == null || base.autoSubmitOnTabSwitch != autoSubmitOnTabSwitch) 'autoSubmitOnTabSwitch': autoSubmitOnTabSwitch,
+      if (base == null || base.maxTabSwitch != maxTabSwitch) 'maxTabSwitch': maxTabSwitch,
+      // FEAT-9: theme
+      if (base == null || base.themePrimaryColor != themePrimaryColor) 'themePrimaryColor': themePrimaryColor,
+      if (base == null || base.themeBackgroundColor != themeBackgroundColor) 'themeBackgroundColor': themeBackgroundColor,
+      if (base == null || base.themeConfig != themeConfig) 'themeConfig': themeConfig,
     };
     // Token: kirim hanya jika berubah agar bisa menghapus (kirim null) atau menambah.
     if (curToken != baseToken) {

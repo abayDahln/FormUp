@@ -19,6 +19,16 @@ class PublicFormInfo {
   final bool? randomizeQuestions;
   final DateTime? openFormTime;
   final DateTime? closeFormTime;
+  // FEAT-6: exam mode
+  final bool? isExamMode;
+  final bool? disableCopyPaste;
+  final bool? detectTabSwitch;
+  final bool? autoSubmitOnTabSwitch;
+  final int? maxTabSwitch;
+  // FEAT-9: theme
+  final String? themePrimaryColor;
+  final String? themeBackgroundColor;
+  final String? themeConfig;
 
   const PublicFormInfo({
     required this.id,
@@ -36,6 +46,14 @@ class PublicFormInfo {
     this.randomizeQuestions,
     this.openFormTime,
     this.closeFormTime,
+    this.isExamMode,
+    this.disableCopyPaste,
+    this.detectTabSwitch,
+    this.autoSubmitOnTabSwitch,
+    this.maxTabSwitch,
+    this.themePrimaryColor,
+    this.themeBackgroundColor,
+    this.themeConfig,
   });
 
   factory PublicFormInfo.fromJson(Map<String, dynamic> json) => PublicFormInfo(
@@ -54,6 +72,14 @@ class PublicFormInfo {
     randomizeQuestions: json['randomizeQuestions'] as bool?,
     openFormTime: _parseDate(json['openFormTime']),
     closeFormTime: _parseDate(json['closeFormTime']),
+    isExamMode: json['isExamMode'] as bool?,
+    disableCopyPaste: json['disableCopyPaste'] as bool?,
+    detectTabSwitch: json['detectTabSwitch'] as bool?,
+    autoSubmitOnTabSwitch: json['autoSubmitOnTabSwitch'] as bool?,
+    maxTabSwitch: json['maxTabSwitch'] as int?,
+    themePrimaryColor: json['themePrimaryColor'] as String?,
+    themeBackgroundColor: json['themeBackgroundColor'] as String?,
+    themeConfig: json['themeConfig'] as String?,
   );
 }
 
@@ -124,21 +150,31 @@ class PublicQuestion {
 
 class PublicResultAnswer {
   final int questionId;
+  final int answerId;
   final String question;
   final int typeId;
   final String? answerText;
   final String? correctAnswer;
   final bool? isCorrect;
+  final double? manualScore;
+  final bool? isCorrectOverride;
+  final String? overrideNote;
+  final double? earnedPoints;
   final List<String> options;
   final List<String> selectedOptions;
 
   const PublicResultAnswer({
     required this.questionId,
+    this.answerId = 0,
     required this.question,
     required this.typeId,
     this.answerText,
     this.correctAnswer,
     this.isCorrect,
+    this.manualScore,
+    this.isCorrectOverride,
+    this.overrideNote,
+    this.earnedPoints,
     this.options = const [],
     this.selectedOptions = const [],
   });
@@ -147,10 +183,15 @@ class PublicResultAnswer {
       PublicResultAnswer(
         questionId: json['questionId'] as int,
         question: json['question'] as String? ?? '',
+        answerId: json['answerId'] as int? ?? json['id'] as int? ?? 0,
         typeId: json['typeId'] as int,
         answerText: json['answerText'] as String?,
         correctAnswer: json['correctAnswer'] as String?,
         isCorrect: json['isCorrect'] as bool?,
+        manualScore: (json['manualScore'] as num?)?.toDouble(),
+        isCorrectOverride: json['isCorrectOverride'] as bool?,
+        overrideNote: json['overrideNote'] as String?,
+        earnedPoints: (json['earnedPoints'] as num?)?.toDouble(),
         options: [
           for (final o in json['options'] as List<dynamic>? ?? [])
             o as String? ?? '',

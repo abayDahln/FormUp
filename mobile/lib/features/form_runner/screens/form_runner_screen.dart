@@ -48,7 +48,11 @@ class _FormRunnerScreenState extends State<FormRunnerScreen> {
   int? _timerSeconds;
 
   void _onInfoLoaded(PublicFormInfo info) {
-    if (mounted) setState(() => _timerSeconds = info.timerDuration);
+    if (mounted) {
+      setState(() {
+        _timerSeconds = info.timerDuration;
+      });
+    }
   }
 
   void _onTimerExpired() {
@@ -70,22 +74,27 @@ class _FormRunnerScreenState extends State<FormRunnerScreen> {
   }
 }
 
-class FormRunnerViewState extends State<FormRunnerView> {
+class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObserver {
   AppRouterDelegate? _router;
   final FormRunnerController _c = FormRunnerController();
 
   _RunnerStep _step = _RunnerStep.code;
   bool _loading = false;
   bool _submitting = false;
+  int _tabSwitchCount = 0;
 
   // ID soal wajib yang belum dijawab (untuk indikator merah saat submit gagal).
   final Set<int> _errorQuestionIds = {};
 
   bool get _isLoggedIn => _c.isLoggedIn;
+  bool get _examActive => _c.info?.isExamMode == true;
+  bool get _disableCopy => _c.info?.disableCopyPaste == true;
+  bool get _detectSwitch => _c.info?.detectTabSwitch == true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (widget.initialToken != null && widget.initialToken!.isNotEmpty) {
       _c.tokenController.text = widget.initialToken!;
     }
@@ -103,7 +112,29 @@ class FormRunnerViewState extends State<FormRunnerView> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_examActive || !_detectSwitch || _step != _RunnerStep.fill) return;
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _tabSwitchCount++;
+      final maxSwitch = _c.info?.maxTabSwitch;
+      final autoSubmit = _c.info?.autoSubmitOnTabSwitch == true;
+      if (maxSwitch != null && maxSwitch > 0 && _tabSwitchCount >= maxSwitch && autoSubmit) {
+        _autoSubmit();
+        if (mounted) showAuthToast(context, 'Batas pindah aplikasi tercapai - jawaban otomatis dikirim', isError: true);
+        return;
+      }
+      if (mounted) {
+        showAuthToast(context, 'Peringatan mode ujian: jangan keluar aplikasi ($_tabSwitchCount${maxSwitch != null && maxSwitch>0 ? '/$maxSwitch' : ''})', isError: true);
+        if (autoSubmit && maxSwitch == null) {
+          // optional: tidak langsung submit jika tanpa batas
+        }
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _router?.popBackGuard();
     _c.dispose();
     super.dispose();
@@ -370,23 +401,17 @@ class FormRunnerViewState extends State<FormRunnerView> {
     await _submitInternal(returnToStartScreen: true);
   }
 
+  Color? _parseHex(String? hex) {
+    if (hex == null || !hex.startsWith('#') || hex.length != 7) return null;
+    try { return Color(int.parse(hex.substring(1), radix: 16) + 0xFF000000); } catch (_) { return null; }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const AppLoadingOverlay();
-    return switch (_step) {
-      _RunnerStep.code => RunnerCodeStep(
-          showTitle: widget.showTitle,
-          codeController: _c.codeController,
-          tokenController: _c.tokenController,
-          nameController: _c.nameController,
-          info: _c.info,
-          loading: _loading,
-          requiresToken: _c.requiresToken,
-          isLoggedIn: _isLoggedIn,
-          onSubmitCode: _submitCode,
-          onLoadQuestions: _loadQuestions,
-        ),
-      _RunnerStep.fill => RunnerFillStep(
+    // FEAT-9: apply theme background if present
+    final themeBg = _parseHex(_c.info?.themeBackgroundColor);
+    Widget fillWidget = RunnerFillStep(
           info: _c.info!,
           store: _c.store,
           questions: _c.questions,
@@ -401,6 +426,52 @@ class FormRunnerViewState extends State<FormRunnerView> {
           onAnswerChanged: (qid) =>
               setState(() => _errorQuestionIds.remove(qid)),
           onPickDateTime: _pickDateTime,
+        );
+    // FEAT-6: wrap disabled copy-paste via SelectionContainer disabled
+    if (_disableCopy && _step == _RunnerStep.fill) {
+      fillWidget = SelectionContainer.disabled(child: fillWidget);
+    }
+    if (themeBg != null && _step == _RunnerStep.fill) {
+      fillWidget = Container(color: themeBg, child: fillWidget);
+    }
+    return switch (_step) {
+      _RunnerStep.code => RunnerCodeStep(
+          showTitle: widget.showTitle,
+          codeController: _c.codeController,
+          tokenController: _c.tokenController,
+          nameController: _c.nameController,
+          info: _c.info,
+          loading: _loading,
+          requiresToken: _c.requiresToken,
+          isLoggedIn: _isLoggedIn,
+          onSubmitCode: _submitCode,
+          onLoadQuestions: _loadQuestions,
+        ),
+      _RunnerStep.fill => Column(
+          children: [
+            if (_examActive)
+              Container(
+                width: double.infinity,
+                color: Colors.red.shade700,
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.shield_outlined, size: 16, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _detectSwitch
+                            ? 'Mode Ujian aktif • Jangan keluar aplikasi ($_tabSwitchCount${_c.info?.maxTabSwitch != null && _c.info!.maxTabSwitch! > 0 ? '/${_c.info!.maxTabSwitch}' : ''})'
+                            : 'Mode Ujian aktif',
+                        style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    if (_disableCopy) const Icon(Icons.content_copy, size: 12, color: Colors.white70),
+                  ],
+                ),
+              ),
+            Expanded(child: fillWidget),
+          ],
         ),
     };
   }

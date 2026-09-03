@@ -4,12 +4,14 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/services/gemini_service.dart';
 import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env', isOptional: true);
+  await GeminiService.init();
   NetworkStatus.configure(apiBaseUrl);
   await NetworkStatus.refresh();
   NetworkStatus.startMonitoring();

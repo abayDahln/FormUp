@@ -9,6 +9,8 @@ import 'package:form_up/features/home/widgets/home_kerjakan_card.dart';
 import 'package:form_up/features/home/widgets/home_recent_activity.dart';
 import 'package:form_up/features/home/widgets/home_recent_forms.dart';
 import 'package:form_up/features/profile/screens/profile_screen.dart';
+import 'package:form_up/features/ai_chat/screens/ai_chat_screen.dart';
+import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
@@ -127,6 +129,32 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             const SizedBox(height: 20),
             HomeHeader(username: widget.username),
+            // const SizedBox(height: 12),
+            // // AI Chat entry - pindah ke tab tengah, tap switch tab
+            // InkWell(
+            //   onTap: () => setState(() {
+            //     _visitedTabs.add(2);
+            //     _currentIndex = 2;
+            //   }),
+            //   borderRadius: BorderRadius.circular(16),
+            //   child: Container(
+            //     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            //     decoration: BoxDecoration(
+            //       gradient: const LinearGradient(colors: [Color(0xFF018081), Color(0xFF2A9D8F)]),
+            //       borderRadius: BorderRadius.circular(16),
+            //       boxShadow: softShadow(),
+            //     ),
+            //     child: Row(children: [
+            //       Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10)), child: const AiChatIcon(color: Colors.white, size: 20, filled: false)),
+            //       const SizedBox(width: 12),
+            //       const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            //         Text('AI Chat - Buat Form Otomatis', style: TextStyle(color: Colors.white, fontFamily: kFontBold, fontSize: 13)),
+            //         Text('Realtime dengan Gemini', style: TextStyle(color: Colors.white70, fontSize: 11)),
+            //       ])),
+            //       const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 14),
+            //     ]),
+            //   ),
+            // ),
             const SizedBox(height: 20),
 
             HomeKerjakanCard(
@@ -184,8 +212,9 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             _buildHomeTab(),
             if (_visitedTabs.contains(1)) const FormScreen() else const SizedBox.shrink(),
-            if (_visitedTabs.contains(2)) const ResponseScreen() else const SizedBox.shrink(),
-            if (_visitedTabs.contains(3))
+            if (_visitedTabs.contains(2)) const AiChatScreen(embedded: true) else const SizedBox.shrink(),
+            if (_visitedTabs.contains(3)) const ResponseScreen() else const SizedBox.shrink(),
+            if (_visitedTabs.contains(4))
               ProfileScreen(username: widget.username)
             else
               const SizedBox.shrink(),
@@ -211,16 +240,21 @@ class _HomeScreenState extends State<HomeScreen> {
           indicatorColor: kPrimary.withValues(alpha: 0.15),
           elevation: 0,
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home, color: kPrimary),
             label: 'Beranda',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.description_outlined),
             selectedIcon: Icon(Icons.description, color: kPrimary),
             label: 'Form',
+          ),
+          NavigationDestination(
+            icon: const AiChatIcon(color: Colors.black54, size: 24, filled: false),
+            selectedIcon: const AiChatIcon(color: kPrimary, size: 24, filled: true),
+            label: 'AI Chat',
           ),
           NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),

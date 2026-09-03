@@ -223,29 +223,41 @@ class RespondentAnalyticsData {
 
 class AnswerAnalyticsData {
   final int questionId;
+  final int answerId;
   final String question;
   final int typeId;
   final String? answerText;
   final String? correctAnswer;
   final bool? isCorrect;
+  final double? manualScore;
+  final bool? isCorrectOverride;
+  final double? earnedPoints;
 
   const AnswerAnalyticsData({
     required this.questionId,
+    this.answerId = 0,
     required this.question,
     required this.typeId,
     this.answerText,
     this.correctAnswer,
     this.isCorrect,
+    this.manualScore,
+    this.isCorrectOverride,
+    this.earnedPoints,
   });
 
   factory AnswerAnalyticsData.fromJson(Map<String, dynamic> json) =>
       AnswerAnalyticsData(
         questionId: json['questionId'] as int,
+        answerId: json['answerId'] as int? ?? 0,
         question: json['question'] as String? ?? '',
         typeId: json['typeId'] as int,
         answerText: json['answerText'] as String?,
         correctAnswer: json['correctAnswer'] as String?,
         isCorrect: json['isCorrect'] as bool?,
+        manualScore: (json['manualScore'] as num?)?.toDouble(),
+        isCorrectOverride: json['isCorrectOverride'] as bool?,
+        earnedPoints: (json['earnedPoints'] as num?)?.toDouble(),
       );
 }
 
@@ -276,27 +288,39 @@ class ResponseListItemData {
 
 /// Jawaban detail respons
 class ResponseAnswerDetailData {
+  final int id;
   final int questionId;
   final String question;
   final int typeId;
   final String? optionText;
   final String? answerValue;
+  final double? manualScore;
+  final bool? isCorrectOverride;
+  final String? overrideNote;
 
   const ResponseAnswerDetailData({
+    this.id = 0,
     required this.questionId,
     required this.question,
     required this.typeId,
     this.optionText,
     this.answerValue,
+    this.manualScore,
+    this.isCorrectOverride,
+    this.overrideNote,
   });
 
   factory ResponseAnswerDetailData.fromJson(Map<String, dynamic> json) =>
       ResponseAnswerDetailData(
+        id: json['id'] as int? ?? json['answerId'] as int? ?? 0,
         questionId: json['questionId'] as int,
         question: json['question'] as String? ?? '',
         typeId: json['typeId'] as int? ?? 0,
         optionText: json['optionText'] as String?,
         answerValue: json['answerValue'] as String?,
+        manualScore: (json['manualScore'] as num?)?.toDouble(),
+        isCorrectOverride: json['isCorrectOverride'] as bool?,
+        overrideNote: json['overrideNote'] as String?,
       );
 
   String get display =>
@@ -594,6 +618,33 @@ class FormService {
   /// PUT /responses/{id}/status
   static Future<void> updateResponseStatus(int responseId, int statusId) =>
       AuthService.put('/responses/$responseId/status', {'statusId': statusId});
+
+  /// PUT /responses/{id}/answers/{answerId}/score - AI-4 manual grading essay
+  static Future<void> updateAnswerScore(
+    int responseId,
+    int answerId, {
+    double? manualScore,
+    bool? isCorrectOverride,
+    String? overrideNote,
+  }) async {
+    await AuthService.put('/responses/$responseId/answers/$answerId/score', {
+      if (manualScore != null) 'manualScore': manualScore,
+      if (isCorrectOverride != null) 'isCorrectOverride': isCorrectOverride,
+      if (overrideNote != null) 'overrideNote': overrideNote,
+    });
+    ApiCache.invalidatePrefix('forms:');
+  }
+
+  /// PUT /responses/{id}/scores - bulk override
+  static Future<void> bulkUpdateScores(
+    int responseId,
+    List<Map<String, dynamic>> overrides,
+  ) async {
+    await AuthService.put('/responses/$responseId/scores', {
+      'overrides': overrides,
+    });
+    ApiCache.invalidatePrefix('forms:');
+  }
 
   /// POST /forms/{id}/feedback
   static Future<void> submitFeedback(
