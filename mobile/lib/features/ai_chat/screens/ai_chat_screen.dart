@@ -322,6 +322,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     setState(() {
       _currentSessionId = id;
       _messages.clear();
+      _showFab = false;
     });
     // Jangan langsung upsert kosong — akan tersimpan otomatis saat prompt pertama dikirim (_persistCurrent)
   }
@@ -335,9 +336,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
       _messages
         ..clear()
         ..addAll(target.messages.map((m) => ChatMessage(role: m.role, text: m.text)));
+      _showFab = false;
     });
     // Langsung tampilkan chat terbaru (paling bawah) saat ganti sesi
-    _showFab = false;
     _scrollToBottom(immediate: true);
   }
 
@@ -369,24 +370,52 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   /// Listener scroll: kontrol visibilitas FAB scroll-to-bottom.
-  /// Muncul jika sudah scroll melebihi 1 layar dari atas & belum di paling bawah.
+  /// Muncul setiap user TIDAK di paling bawah (toleransi 32px),
+  /// tapi hanya jika konten melebihi 1 layar (ada yang bisa di-scroll).
   void _onScroll() {
     if (!_scroll.hasClients) return;
     final pos = _scroll.position;
-    final show = pos.viewportDimension > 0 &&
-        _scroll.offset > pos.viewportDimension &&
-        _scroll.offset < pos.maxScrollExtent - 32;
+    if (pos.viewportDimension <= 0 || !pos.hasContentDimensions) return;
+    final distanceFromBottom = pos.maxScrollExtent - _scroll.offset;
+    final contentTallerThanOneScreen =
+        pos.maxScrollExtent > pos.viewportDimension + 8;
+    final show = _messages.isNotEmpty &&
+        contentTallerThanOneScreen &&
+        distanceFromBottom > 32;
     if (show != _showFab && mounted) setState(() => _showFab = show);
   }
 
   void _scrollToBottom({bool immediate = false}) {
+    if (!_scroll.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scroll.hasClients) return;
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      });
+      return;
+    }
+    final target = _scroll.position.maxScrollExtent;
+    if (immediate) {
+      _scroll.jumpTo(target);
+    } else {
+      _scroll.animateTo(target, duration: const Duration(milliseconds: 400), curve: Curves.easeOutCubic);
+    }
+  }
+
+  /// Aksi FAB: sekali ketuk langsung ke chat terbaru (paling bawah)
+  /// sampai FAB hilang. Double-jump (sekarang + pasca-frame) menjamin
+  /// extent terbaru ikut tercapai walau layout baru selesai di frame berikut.
+  void _jumpToBottom() {
+    if (mounted && _showFab) setState(() => _showFab = false);
+    if (!_scroll.hasClients) return;
+    _scroll.jumpTo(_scroll.position.maxScrollExtent);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scroll.hasClients) return;
-      final target = _scroll.position.maxScrollExtent;
-      if (immediate) {
-        _scroll.jumpTo(target);
-      } else {
-        _scroll.animateTo(target, duration: const Duration(milliseconds: 400), curve: Curves.easeOutCubic);
+      _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      _onScroll();
+      if (mounted &&
+          _scroll.position.maxScrollExtent - _scroll.offset <= 32 &&
+          _showFab) {
+        setState(() => _showFab = false);
       }
     });
   }
@@ -775,44 +804,20 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Hapus header atas (AppBar) -> pakai drawer M3 + top bar minimal di body
+    // Gaya Gemini: ListView full-bleed di belakang header & input,
+    // dengan gradient fade di atas dan bawah agar scroll memudar mulus.
+    final topInset = MediaQuery.of(context).padding.top;
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: kAppBg,
       drawer: _buildCustomDrawer(),
-      body: Column(children: [
-        // Header menyatu dengan background (tanpa card putih, tanpa tombol kanan)
-        SafeArea(
-          bottom: false,
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [kAppBg, kAppBg.withValues(alpha: 0.75), kAppBg.withValues(alpha: 0)],
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Row(children: [
-              if (widget.embedded)
-                IconButton(icon: const Icon(Icons.menu, color: Colors.black87), onPressed: () => _scaffoldKey.currentState?.openDrawer())
-              else
-                IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black87), onPressed: () => AppRouter.of(context).pop()),
-              const AiChatIcon(color: kAuthPrimary, size: 20, filled: true),
-              const SizedBox(width: 8),
-              const Text('AI Chat', style: TextStyle(fontFamily: kFontBold, fontSize: 16, color: Colors.black87)),
-              const Spacer(),
-              AiModelPicker(onChanged: () => setState(() {})),
-            ]),
-          ),
-        ),
-        Expanded(
-          child: Stack(
-            children: [
-              if (_messages.isEmpty)
-                Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(32),
+      body: Stack(children: [
+        // --- 3. Chat list extends behind header & input ---
+        Positioned.fill(
+          child: _messages.isEmpty
+                ? Center(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(32, topInset + 96, 32, 180),
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
                       Container(
                         padding: const EdgeInsets.all(20),
@@ -832,13 +837,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
                     ]),
                   ),
                 )
-              else
-                ListView.separated(
-                  controller: _scroll,
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 130),
-                  itemCount: _messages.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (ctx, i) {
+                : ListView.separated(
+                    controller: _scroll,
+                    // Padding bawah pas setinggi input + sedikit gap agar
+                    // card terakhir menempel tepat di atas field prompt
+                    // (tanpa white space berlebih).
+                    padding: EdgeInsets.fromLTRB(16, topInset + 96, 16, 116),
+                    itemCount: _messages.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (ctx, i) {
                     final m = _messages[i];
                     final isUser = m.role == 'user';
                     return Align(
@@ -901,19 +908,29 @@ class _AiChatScreenState extends State<AiChatScreen> {
                     );
                   },
                 ),
-              // Footer overlay: gradient memudar dari transparan ke kAppBg (chat terlihat fade di bawahnya)
+              ),
+              // --- 2. Bottom gradient TINGGI + Gemini pill input ---
+              // Zona fade 110px (transparan -> solid) + bodi solid kAppBg
+              // di belakang pill, agar chat memudar mulus jauh sebelum input.
               Align(
                 alignment: Alignment.bottomCenter,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [kAppBg.withValues(alpha: 0), kAppBg.withValues(alpha: 0.9), kAppBg],
-                      stops: const [0.0, 0.35, 1.0],
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      height: 30,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [kAppBg.withValues(alpha: 0), kAppBg.withValues(alpha: 0.50), kAppBg],
+                          stops: const [0.0, 0.55, 1.0],
+                        ),
+                      ),
                     ),
-                  ),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Container(
+                      color: kAppBg,
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
         // @mention autocomplete — tooltip scrollable berisi semua form, filter saat "@pemrograman"
         if (_isMentionActive)
           Padding(
@@ -991,44 +1008,70 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 SafeArea(
                   top: false,
                   child: Container(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                    child: TextField(
-                      controller: _controller,
-                      minLines: 1,
-                      maxLines: 4,
-                      textInputAction: TextInputAction.send,
-                      enabled: !_streaming,
-                      onSubmitted: (_) => _send(),
-                      decoration: InputDecoration(
-                        hintText: _streaming ? 'AI sedang menjawab...' : 'Ketik @ untuk mention form...',
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.fromLTRB(18, 12, 8, 12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
-                        hintStyle: const TextStyle(fontSize: 13, color: Colors.black45),
-                        // Tombol send menyatu di dalam field (kanan)
-                        suffixIcon: Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: IconButton(
-                            onPressed: _streaming ? null : _send,
-                            style: IconButton.styleFrom(backgroundColor: kAuthPrimary, foregroundColor: Colors.white),
-                            iconSize: 18,
-                            icon: _streaming
-                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                : const Icon(Icons.arrow_upward),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Container(
+                      // Spacious Gemini-style pill container.
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(32),
+                        border: Border.all(color: const Color(0xFFBDC9C8)),
+                        boxShadow: softShadow(),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          // No leading '+' widget — text starts directly.
+                          Expanded(
+                            child: TextField(
+                              controller: _controller,
+                              minLines: 1,
+                              maxLines: 4,
+                              textInputAction: TextInputAction.send,
+                              enabled: !_streaming,
+                              onSubmitted: (_) => _send(),
+                              decoration: const InputDecoration(
+                                hintText: 'Tanya ke AI...',
+                                filled: false,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                contentPadding: EdgeInsets.fromLTRB(18, 14, 8, 14),
+                                hintStyle: TextStyle(fontSize: 15, color: Colors.black45),
+                                // No prefixIcon / leading widget.
+                              ),
+                              style: const TextStyle(fontSize: 15, color: Colors.black87),
+                            ),
                           ),
-                        ),
+                          // Trailing: standard Send icon (replaces mic).
+                          Padding(
+                            padding: const EdgeInsets.only(right: 2, bottom: 2),
+                            child: _streaming
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                                  )
+                                : IconButton(
+                                    onPressed: _send,
+                                    tooltip: 'Send',
+                                    icon: const Icon(Icons.send_rounded, size: 22, color: kAuthPrimary),
+                                  ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
-                  ]),
+                      ]),
+                    ),
+                  ],
                 ),
               ),
-              // FAB scroll-to-chat-terbaru (muncul saat user jauh di atas, hilang di paling bawah)
+              // FAB scroll-to-bottom: menempel di atas field prompt (kanan),
+              // 1x klik langsung ke chat terbaru sampai FAB hilang.
               Positioned(
                 right: 16,
-                bottom: 170,
+                bottom: 90,
                 child: IgnorePointer(
                   ignoring: !_showFab,
                   child: AnimatedOpacity(
@@ -1039,15 +1082,41 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       backgroundColor: Colors.white,
                       foregroundColor: kAuthPrimary,
                       elevation: 3,
-                      onPressed: () => _scrollToBottom(),
+                      onPressed: _jumpToBottom,
                       child: const Icon(Icons.arrow_downward, size: 20),
                     ),
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
+              // --- 1. Top header overlay: solid -> transparent, right side empty ---
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [kAppBg, kAppBg, kAppBg.withValues(alpha: 0.85), kAppBg.withValues(alpha: 0)],
+                      stops: const [0.0, 0.55, 0.8, 1.0],
+                    ),
+                  ),
+                  padding: EdgeInsets.fromLTRB(8, topInset + 6, 8, 28),
+                  child: Row(children: [
+                    if (widget.embedded)
+                      IconButton(icon: const Icon(Icons.menu, color: Colors.black87), onPressed: () => _scaffoldKey.currentState?.openDrawer())
+                    else
+                      IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black87), onPressed: () => AppRouter.of(context).pop()),
+                    const AiChatIcon(color: kAuthPrimary, size: 20, filled: true),
+                    const SizedBox(width: 8),
+                    // Title sekaligus pemilih model AI (ketuk untuk ganti).
+                    Flexible(child: AiModelPicker(onChanged: () => setState(() {}))),
+                    // Top-right sengaja dikosongkan (tanpa action buttons).
+                    const Spacer(),
+                  ]),
+                ),
+              ),
       ]),
     );
   }
