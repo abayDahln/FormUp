@@ -33,6 +33,10 @@ public partial class FormUpDbContext : DbContext
 
     public virtual DbSet<Response> Responses { get; set; }
 
+    public virtual DbSet<ExamSession> ExamSessions { get; set; }
+
+    public virtual DbSet<ExamViolationLog> ExamViolationLogs { get; set; }
+
     public virtual DbSet<ResponseStatus> ResponseStatuses { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
@@ -344,6 +348,7 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.RespondentName)
                 .HasMaxLength(100)
                 .HasColumnName("respondent_name");
+            entity.Property(e => e.TabSwitchCount).HasColumnName("tab_switch_count");
             entity.Property(e => e.StatusId).HasColumnName("status_id");
             entity.Property(e => e.SubmittedAt)
                 .HasColumnType("datetime")
@@ -367,12 +372,93 @@ public partial class FormUpDbContext : DbContext
                 .HasConstraintName("FK__Response__status__628FA481");
         });
 
+        modelBuilder.Entity<ExamSession>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__ExamSession__3213E83F0D306CE");
+
+            entity.ToTable("ExamSession");
+
+            entity.HasIndex(e => new { e.FormId, e.SessionId }, "UQ__ExamSession__Form_Session").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.FormId).HasColumnName("form_id");
+            entity.Property(e => e.SessionId)
+                .HasMaxLength(100)
+                .HasColumnName("session_id");
+            entity.Property(e => e.RespondentId).HasColumnName("respondent_id");
+            entity.Property(e => e.RespondentName)
+                .HasMaxLength(100)
+                .HasColumnName("respondent_name");
+            entity.Property(e => e.SubmittedResponseId).HasColumnName("submitted_response_id");
+            entity.Property(e => e.StartedAt)
+                .HasColumnType("datetime")
+                .HasColumnName("started_at");
+            entity.Property(e => e.LastSeenAt)
+                .HasColumnType("datetime")
+                .HasColumnName("last_seen_at");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasColumnType("datetime")
+                .HasColumnName("updated_at");
+
+            entity.HasOne(d => d.Form).WithMany()
+                .HasForeignKey(d => d.FormId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK__ExamSession__form_id");
+
+            entity.HasOne(d => d.Respondent).WithMany()
+                .HasForeignKey(d => d.RespondentId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK__ExamSession__respondent_id");
+
+            entity.HasOne(d => d.SubmittedResponse).WithMany(p => p.ExamSessions)
+                .HasForeignKey(d => d.SubmittedResponseId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK__ExamSession__response_id");
+        });
+
+        modelBuilder.Entity<ExamViolationLog>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__ExamViolationLog__3213E83F0D306CF");
+
+            entity.ToTable("ExamViolationLog");
+
+            entity.HasIndex(e => e.ExamSessionId, "IX__ExamViolationLog__session_id");
+            entity.HasIndex(e => e.ResponseId, "IX__ExamViolationLog__response_id");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.ExamSessionId).HasColumnName("exam_session_id");
+            entity.Property(e => e.ResponseId).HasColumnName("response_id");
+            entity.Property(e => e.ViolationType)
+                .HasMaxLength(50)
+                .HasColumnName("violation_type");
+            entity.Property(e => e.OccurredAt)
+                .HasColumnType("datetime")
+                .HasColumnName("occurred_at");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("created_at");
+
+            entity.HasOne(d => d.ExamSession).WithMany(p => p.ViolationLogs)
+                .HasForeignKey(d => d.ExamSessionId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK__ExamViolationLog__session_id");
+
+            entity.HasOne(d => d.Response).WithMany(p => p.ExamViolationLogs)
+                .HasForeignKey(d => d.ResponseId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK__ExamViolationLog__response_id");
+        });
+
         modelBuilder.Entity<ResponseStatus>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK__Response__3213E83F3C285B45");
 
             entity.ToTable("ResponseStatus");
-
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("(getutcdate())")

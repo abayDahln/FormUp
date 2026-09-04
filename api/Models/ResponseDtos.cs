@@ -6,6 +6,24 @@ public class SubmitResponseRequest
     public string? RespondentName { get; set; }
     public List<AnswerRequest> Answers { get; set; } = new();
     public bool IsAutoSubmit { get; set; } = false;
+
+    /// <summary>
+    /// UUID sesi exam-monitoring dari POST exam-events (jika mode ujian).
+    /// Dipakai untuk menautkan response ke sesi + backfill violation log.
+    /// </summary>
+    public string? ExamSessionId { get; set; }
+
+    /// <summary>
+    /// Total pelanggaran pindah tab menurut client. Jika null, server memakai
+    /// hitungan dari sesi/log yang tersimpan.
+    /// </summary>
+    public int? TabSwitchCount { get; set; }
+
+    /// <summary>
+    /// Batch pelanggaran (tipe + timestamp) untuk client yang belum/tidak
+    /// sempat mengirim incremental — digabung dengan log sesi bila ada.
+    /// </summary>
+    public List<ExamViolationItem> Violations { get; set; } = new();
 }
 
 public class AnswerRequest
@@ -21,6 +39,7 @@ public class ResponseListItem
     public string? RespondentName { get; set; }
     public string Status { get; set; } = null!;
     public DateTime SubmittedAt { get; set; }
+    public int TabSwitchCount { get; set; }
 }
 
 public class ResponseDetail
@@ -30,6 +49,8 @@ public class ResponseDetail
     public string? RespondentName { get; set; }
     public string Status { get; set; } = null!;
     public DateTime SubmittedAt { get; set; }
+    public int TabSwitchCount { get; set; }
+    public List<ExamMonitoringViolationDto> Violations { get; set; } = new();
     public List<AnswerDetail> Answers { get; set; } = new();
 }
 

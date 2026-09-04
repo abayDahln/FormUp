@@ -67,6 +67,7 @@ public class ResponsesController : ControllerBase
                 RespondentName = r.Respondent != null ? r.Respondent.Fullname : r.RespondentName,
                 Status = r.Status!.Status,
                 SubmittedAt = r.SubmittedAt ?? r.CreatedAt ?? DateTime.UtcNow,
+                TabSwitchCount = r.TabSwitchCount ?? 0,
             });
 
         if (page.HasValue && pageSize.HasValue && pageSize.Value > 0)
@@ -108,6 +109,7 @@ public class ResponsesController : ControllerBase
         var response = await _db.Responses
             .Include(r => r.Status)
             .Include(r => r.Respondent)
+            .Include(r => r.ExamViolationLogs)
             .Include(r => r.RespondentAnswers)
                 .ThenInclude(a => a.Question)
             .Include(r => r.RespondentAnswers)
@@ -124,6 +126,14 @@ public class ResponsesController : ControllerBase
             RespondentName = response.Respondent?.Fullname ?? response.RespondentName,
             Status = response.Status?.Status ?? "unknown",
             SubmittedAt = response.SubmittedAt ?? response.CreatedAt ?? DateTime.UtcNow,
+            TabSwitchCount = response.TabSwitchCount ?? 0,
+            Violations = response.ExamViolationLogs
+                .OrderBy(l => l.OccurredAt ?? l.CreatedAt)
+                .Select(l => new ExamMonitoringViolationDto
+                {
+                    Type = l.ViolationType,
+                    OccurredAt = l.OccurredAt ?? l.CreatedAt,
+                }).ToList(),
             Answers = response.RespondentAnswers.Select(a => new AnswerDetail
             {
                 Id = a.Id,

@@ -207,6 +207,9 @@ public static class ResponseSubmission
         db.RespondentAnswers.AddRange(answers);
         await db.SaveChangesAsync();
 
+        await ExamViolationTracker.AttachToResponseAsync(db, user, formId, response, body);
+        await db.SaveChangesAsync();
+
         tx.Commit();
 
         return new OkObjectResult(new ApiResponse<object>(201, "Response submitted", new { responseId = response.Id }));
