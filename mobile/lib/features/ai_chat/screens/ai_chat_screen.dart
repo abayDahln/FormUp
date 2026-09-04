@@ -11,6 +11,7 @@ import 'package:form_up/core/services/gemini_service.dart';
 import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/features/ai_chat/controllers/mention_highlight_controller.dart';
+import 'package:form_up/features/ai_chat/controllers/typing_stream.dart';
 import 'package:form_up/features/ai_chat/models/chat_message.dart';
 import 'package:form_up/features/ai_chat/widgets/ai_chat_drawer.dart';
 import 'package:form_up/features/ai_chat/widgets/ai_model_picker.dart';
@@ -18,6 +19,7 @@ import 'package:form_up/features/ai_chat/widgets/api_key_dialog.dart';
 import 'package:form_up/features/ai_chat/widgets/chat_bubble.dart';
 import 'package:form_up/features/ai_chat/widgets/chat_empty_state.dart';
 import 'package:form_up/features/ai_chat/widgets/chat_input_bar.dart';
+import 'package:form_up/features/ai_chat/widgets/pending_action_bar.dart';
 
 part 'parts/chat_sessions.dart';
 part 'parts/chat_mentions.dart';
@@ -50,6 +52,17 @@ class _AiChatScreenState extends State<AiChatScreen> {
   ChatMessage? _streamingMsg;
   StringBuffer? _streamingBuffer;
 
+  // Token pembatalan request aktif — tombol stop menutup koneksi HTTP
+  // lewat token ini agar request yang menggantung langsung dibatalkan.
+  GeminiCancel? _activeCancel;
+
+  // Mesin efek ketik: menampilkan chunk per kata (bukan burst) agar
+  // user melihat AI benar-benar sedang mengetik.
+  TypingStream? _typingStream;
+
+  // True saat aksi pending sedang dieksekusi (tombol Terima).
+  bool _actionWorking = false;
+
   // Draft input per sesi: teks field tersimpan per session id, tidak
   // ikut berpindah saat ganti sesi (in-memory saja).
   final Map<String, String> _drafts = {};
@@ -73,6 +86,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   // FAB scroll-to-bottom: muncul jika user sudah scroll ke atas > 1 layar & belum di paling bawah
   bool _showFab = false;
+
+  // Settle-scroll: setelah lompat ke dasar, maxScrollExtent bisa masih
+  // estimasi (SliverList lazy — bubble bawah belum dibangun) sehingga
+  // satu lompatan mendarat di tengah. Loop ini mengoreksi beberapa frame
+  // sampai tinggi konten stabil, dan dibatalkan saat user drag sendiri.
+  bool _settleActive = false;
+  int _settleFramesLeft = 0;
 
   // Tinggi input bar terukur (bisa membesar saat field multiline /
   // hint mention tampil) — dipakai agar FAB & padding list mengikuti.
@@ -104,6 +124,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _controller.removeListener(_onTextChanged);
     _controller.dispose();
     _scroll.dispose();
+    _activeCancel?.cancel();
+    _typingStream?.dispose();
     _sub?.cancel();
     for (final m in _messages) {
       m.disposeStream();
@@ -120,11 +142,16 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return pos.maxScrollExtent - _scroll.offset <= 80;
   }
 
-  /// Ikuti teks streaming: lompat sinkron ke extent terbaru (tanpa
-  /// animasi per-chunk agar tidak jank/antrean animateTo).
+  /// Ikuti teks streaming gaya "magnet": lompat ke dasar SETELAH frame
+  /// teks baru selesai di-layout. Kalau di-jump sebelum layout, targetnya
+  /// masih nilai lama dan list perlahan tertinggal sampai magnet lepas
+  /// sendiri padahal user tidak pernah scroll.
   void _followStream() {
     if (!_scroll.hasClients) return;
-    _scroll.jumpTo(_scroll.position.maxScrollExtent);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      _scroll.jumpTo(_scroll.position.maxScrollExtent);
+    });
   }
 
   /// Listener scroll: kontrol visibilitas FAB scroll-to-bottom.
@@ -145,23 +172,45 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   void _scrollToBottom({bool immediate = false}) {
-    if (!_scroll.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_scroll.hasClients) return;
+    if (immediate) {
+      // Lompat SEKARANG ke dasar versi sekarang, lalu settle: koreksi
+      // tiap frame selama maxScrollExtent masih berubah (layout awal
+      // list + bubble markdown yang baru selesai diukur). Tanpa settle,
+      // lompatan pertama bisa mendarat di tengah chat.
+      _settleActive = true;
+      _settleFramesLeft = 24;
+      if (_scroll.hasClients) {
         _scroll.jumpTo(_scroll.position.maxScrollExtent);
-      });
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) => _settleJump());
       return;
     }
-    final target = _scroll.position.maxScrollExtent;
-    if (immediate) {
-      _scroll.jumpTo(target);
-    } else {
+    // PENTING: maxScrollExtent SAAT INI belum termasuk bubble yang baru
+    // di-add via setState (belum di-layout) — animasi ke nilai lama membuat
+    // list tampak "diam di tempat". Karena itu target dihitung di callback
+    // pasca-frame, ketika item baru sudah masuk layout.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
       _scroll.animateTo(
-        target,
+        _scroll.position.maxScrollExtent,
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeOutCubic,
       );
-    }
+    });
+  }
+
+  /// Satu langkah settle: lompat ke dasar terkini, lalu lanjut ke frame
+  /// berikutnya selama extent masih berubah (atau jatah frame belum habis).
+  void _settleJump() {
+    if (!mounted || !_settleActive || !_scroll.hasClients) return;
+    final before = _scroll.position.maxScrollExtent;
+    _scroll.jumpTo(before);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_settleActive || !_scroll.hasClients) return;
+      _settleFramesLeft--;
+      final changed = (_scroll.position.maxScrollExtent - before).abs() > 0.5;
+      if (changed && _settleFramesLeft > 0) _settleJump();
+    });
   }
 
   /// Aksi FAB: sekali ketuk langsung ke chat terbaru (paling bawah)
@@ -169,6 +218,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
   /// extent terbaru ikut tercapai walau layout baru selesai di frame berikut.
   void _jumpToBottom() {
     if (mounted && _showFab) setState(() => _showFab = false);
+    // Tap FAB = aksi user → hentikan settle agar tidak saling rebutan.
+    _settleActive = false;
     if (!_scroll.hasClients) return;
     _scroll.jumpTo(_scroll.position.maxScrollExtent);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -224,7 +275,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       send();
                     },
                   )
-                : ListView.separated(
+                : NotificationListener<ScrollNotification>(
+                    onNotification: (n) {
+                      // User mulai drag sendiri → batalkan settle-scroll
+                      // agar magnet tidak merebut kembali posisinya.
+                      if ((n is ScrollStartNotification &&
+                              n.dragDetails != null) ||
+                          (n is ScrollUpdateNotification &&
+                              n.dragDetails != null)) {
+                        _settleActive = false;
+                      }
+                      return false;
+                    },
+                    child: ListView.separated(
                     controller: _scroll,
                     // Padding bawah mengikuti tinggi input bar + gap kecil,
                     // agar bubble terakhir tetap terlihat di atas field
@@ -244,10 +307,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         streaming: _streaming,
                         isLast: i == _messages.length - 1,
                         onRetry: () => retryMessage(m),
-                        onRunAction: runBubbleAction,
                       );
                     },
                   ),
+                ),
           ),
           // --- 2. Bottom gradient TINGGI + Gemini pill input ---
           // Zona fade 110px (transparan -> solid) + bodi solid kAppBg
@@ -272,26 +335,41 @@ class _AiChatScreenState extends State<AiChatScreen> {
                     ),
                   ),
                 ),
-                ChatInputBar(
+                // Bar persetujuan aksi AI (Terima/Tolak) + input prompt
+                // dibungkus satu Column berkunci agar tinggi KEDUANYA
+                // terukur — FAB & padding list ikut menyesuaikan.
+                Column(
                   key: _inputBarKey,
-                  textController: _controller,
-                  streaming: _streaming,
-                  mentionActive: _isMentionActive,
-                  mentionCandidates: _mentionCandidates,
-                  mentionQuery: _mentionQuery,
-                  isLoadingForms: _isLoadingForms,
-                  formsLoadFailed: _formsLoadFailed,
-                  formsLoadError: _formsLoadError,
-                  pickedMentionCount: _pickedMentions.length,
-                  hasAtSign: _controller.text.contains('@'),
-                  onSend: send,
-                  onStop: stopGeneration,
-                  onSelectMention: selectMention,
-                  onRetryLoadForms: () => loadAllForms(force: true),
-                  onClearMentions: () => setState(() {
-                    _pickedMentions.clear();
-                    _controller.mentionTokens = [];
-                  }),
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (pendingActionMessage != null)
+                      PendingActionBar(
+                        action: pendingActionMessage!.actionJson!,
+                        isWorking: _actionWorking,
+                        onAccept: acceptPendingAction,
+                        onReject: rejectPendingAction,
+                      ),
+                    ChatInputBar(
+                      textController: _controller,
+                      streaming: _streaming,
+                      mentionActive: _isMentionActive,
+                      mentionCandidates: _mentionCandidates,
+                      mentionQuery: _mentionQuery,
+                      isLoadingForms: _isLoadingForms,
+                      formsLoadFailed: _formsLoadFailed,
+                      formsLoadError: _formsLoadError,
+                      pickedMentionCount: _pickedMentions.length,
+                      hasAtSign: _controller.text.contains('@'),
+                      onSend: send,
+                      onStop: stopGeneration,
+                      onSelectMention: selectMention,
+                      onRetryLoadForms: () => loadAllForms(force: true),
+                      onClearMentions: () => setState(() {
+                        _pickedMentions.clear();
+                        _controller.mentionTokens = [];
+                      }),
+                    ),
+                  ],
                 ),
               ],
             ),

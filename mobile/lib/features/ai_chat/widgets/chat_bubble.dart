@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/features/ai_chat/models/chat_message.dart';
 import 'package:form_up/features/ai_chat/widgets/streaming_ai_text.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
 /// Satu bubble chat: teks user, teks AI (markdown), indikator mengetik,
-/// bubble error + tombol coba lagi, dan kartu aksi AI.
+/// bubble error + tombol coba lagi, dan kartu status aksi AI.
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
 
@@ -16,7 +17,6 @@ class ChatBubble extends StatelessWidget {
   final bool isLast;
 
   final VoidCallback onRetry;
-  final Future<void> Function(ChatMessage message) onRunAction;
 
   const ChatBubble({
     super.key,
@@ -24,7 +24,6 @@ class ChatBubble extends StatelessWidget {
     required this.streaming,
     required this.isLast,
     required this.onRetry,
-    required this.onRunAction,
   });
 
   @override
@@ -93,11 +92,12 @@ class ChatBubble extends StatelessWidget {
               ),
             if (m.actionJson != null) ...[
               const SizedBox(height: 8),
-              _ActionCard(
-                message: m,
-                isUser: isUser,
-                onRunAction: onRunAction,
-              ),
+              _ActionCard(message: m, isUser: isUser),
+            ],
+            // Aksi diterima & form diketahui: tombol langsung ke detail form.
+            if (!isUser && m.actionExecuted && m.actionFormId != null) ...[
+              const SizedBox(height: 8),
+              _OpenFormButton(formId: m.actionFormId!),
             ],
           ],
         ),
@@ -148,21 +148,56 @@ class _ErrorBody extends StatelessWidget {
   }
 }
 
-/// Kartu aksi AI (create_form / add_questions / update_settings).
+/// Kartu status aksi AI (create_form / add_questions / update_settings).
+/// Tanpa tombol — persetujuan lewat PendingActionBar di atas field prompt.
 class _ActionCard extends StatelessWidget {
   final ChatMessage message;
   final bool isUser;
-  final Future<void> Function(ChatMessage message) onRunAction;
 
-  const _ActionCard({
-    required this.message,
-    required this.isUser,
-    required this.onRunAction,
-  });
+  const _ActionCard({required this.message, required this.isUser});
+
+  /// Kunci aksi teknis → label Bahasa Indonesia yang ramah.
+  static String _actionLabel(String action) {
+    switch (action) {
+      case 'create_form':
+        return 'Buat form baru';
+      case 'add_questions':
+        return 'Tambah soal';
+      case 'update_settings':
+        return 'Ubah pengaturan form';
+      default:
+        return action;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final m = message;
+    final isRejected = m.actionStatus == 'rejected';
+    final isPending = m.hasPendingAction;
+    final (statusIcon, statusColor, statusLabel) = isRejected
+        ? (
+            Icons.cancel_outlined,
+            Colors.red,
+            'Ditolak',
+          )
+        : m.actionExecuted
+            ? (
+                Icons.check_circle,
+                Colors.green,
+                'Diterima — berhasil dijalankan',
+              )
+            : isPending
+                ? (
+                    Icons.hourglass_top,
+                    Colors.orange,
+                    'Menunggu persetujuan (tombol di bawah)',
+                  )
+                : (
+                    Icons.auto_awesome,
+                    Colors.black54,
+                    '',
+                  );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -182,7 +217,7 @@ class _ActionCard extends StatelessWidget {
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'Aksi: ${m.actionJson!['action']}',
+                  'Aksi: ${_actionLabel('${m.actionJson!['action']}')}',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -190,35 +225,75 @@ class _ActionCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (!m.actionExecuted && !isUser)
-                TextButton(
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                  onPressed: () => onRunAction(m),
-                  child: const Text(
-                    'Jalankan',
-                    style: TextStyle(fontSize: 11),
-                  ),
-                ),
             ],
           ),
         ),
-        if (m.actionResult != null)
+        if (statusLabel.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.only(top: 4, left: 2),
+            child: Row(
+              children: [
+                Icon(statusIcon, size: 12, color: statusColor),
+                const SizedBox(width: 4),
+                Text(
+                  statusLabel,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: statusColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (m.actionResult != null &&
+            m.actionResult!.startsWith('Gagal'))
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 2),
             child: Text(
               m.actionResult!,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 11,
-                color: m.actionResult!.startsWith('Gagal')
-                    ? Colors.red
-                    : Colors.green,
+                color: Colors.red,
               ),
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Tombol di paling bawah respons AI: langsung buka screen detail form
+/// hasil aksi yang barusan diterima (buat/edit form).
+class _OpenFormButton extends StatelessWidget {
+  final int formId;
+
+  const _OpenFormButton({required this.formId});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: kAuthPrimary,
+          backgroundColor: kPrimarySoft,
+          side: const BorderSide(color: kAuthPrimary, width: 1.2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+        ),
+        onPressed: () => AppRouter.of(context).push(
+          AppPage.formDetail,
+          {'formId': formId},
+        ),
+        icon: const Icon(Icons.open_in_new, size: 14),
+        label: const Text(
+          'Buka Form',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+      ),
     );
   }
 }

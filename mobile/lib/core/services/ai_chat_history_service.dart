@@ -4,9 +4,42 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ChatHistoryMessage {
   final String role;
   String text;
-  ChatHistoryMessage({required this.role, required this.text});
-  Map<String, dynamic> toJson() => {'role': role, 'text': text};
-  factory ChatHistoryMessage.fromJson(Map<String, dynamic> j) => ChatHistoryMessage(role: j['role'] as String, text: j['text'] as String);
+
+  /// Aksi form yang diajukan AI di pesan ini (create_form, dll) + statusnya,
+  /// agar aksi "pending" tetap ada saat berpindah session.
+  Map<String, dynamic>? actionJson;
+  String? actionStatus;
+  String? actionResult;
+
+  /// Form terlibat aksi (tersimpan agar tombol "Buka Form" tetap ada
+  /// setelah berpindah session).
+  int? actionFormId;
+
+  ChatHistoryMessage({
+    required this.role,
+    required this.text,
+    this.actionJson,
+    this.actionStatus,
+    this.actionResult,
+    this.actionFormId,
+  });
+  Map<String, dynamic> toJson() => {
+        'role': role,
+        'text': text,
+        'actionJson': actionJson,
+        'actionStatus': actionStatus,
+        'actionResult': actionResult,
+        'actionFormId': actionFormId,
+      };
+  factory ChatHistoryMessage.fromJson(Map<String, dynamic> j) =>
+      ChatHistoryMessage(
+        role: j['role'] as String,
+        text: j['text'] as String,
+        actionJson: j['actionJson'] as Map<String, dynamic>?,
+        actionStatus: j['actionStatus'] as String?,
+        actionResult: j['actionResult'] as String?,
+        actionFormId: j['actionFormId'] as int?,
+      );
 }
 
 class ChatSession {

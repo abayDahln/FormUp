@@ -33,7 +33,14 @@ extension _AiChatSessions on _AiChatScreenState {
       id: _currentSessionId!,
       title: short.isEmpty ? 'Chat baru' : short,
       messages: _messages
-          .map((m) => ChatHistoryMessage(role: m.role, text: m.text))
+          .map((m) => ChatHistoryMessage(
+                role: m.role,
+                text: m.text,
+                actionJson: m.actionJson,
+                actionStatus: m.actionStatus.isEmpty ? null : m.actionStatus,
+                actionResult: m.actionResult,
+                actionFormId: m.actionFormId,
+              ))
           .toList(),
       updatedAt: DateTime.now(),
     );
@@ -106,7 +113,15 @@ extension _AiChatSessions on _AiChatScreenState {
   /// Hentikan stream aktif + buang notifier live (dipakai saat ganti/
   /// hapus sesi agar tidak ada listener yatim yang menulis ke pesan lama).
   Future<void> stopActiveStream() async {
-    await _sub?.cancel();
+    // Abort koneksi HTTP dulu, baru batalkan subscription (jangan await —
+    // cancel async* stream bisa menggantung sampai request selesai).
+    _activeCancel?.cancel();
+    _activeCancel = null;
+    _typingStream?.dispose();
+    _typingStream = null;
+    _streamingMsg = null;
+    _streamingBuffer = null;
+    unawaited(_sub?.cancel());
     _sub = null;
     for (final m in _messages) {
       m.disposeStream();
@@ -125,9 +140,17 @@ extension _AiChatSessions on _AiChatScreenState {
       _currentSessionId = id;
       _messages
         ..clear()
-        ..addAll(
-          target.messages.map((m) => ChatMessage(role: m.role, text: m.text)),
-        );
+        ..addAll(target.messages.map((m) {
+          final msg = ChatMessage(
+            role: m.role,
+            text: m.text,
+            actionJson: m.actionJson,
+          );
+          msg.actionStatus = m.actionStatus ?? '';
+          msg.actionResult = m.actionResult;
+          msg.actionFormId = m.actionFormId;
+          return msg;
+        }));
       _showFab = false;
     });
     // Langsung tampilkan chat terbaru (paling bawah) saat ganti sesi

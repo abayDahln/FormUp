@@ -6,11 +6,22 @@ class ChatMessage {
   String text;
   final DateTime time;
   Map<String, dynamic>? actionJson;
+
+  /// Status aksi form yang diajukan AI di bubble ini:
+  /// '' (bukan/legacy) | 'pending' | 'accepted' | 'rejected'.
+  String actionStatus = '';
   bool actionExecuted = false;
   String? actionResult;
 
+  /// Form yang terlibat aksi (diisi setelah aksi diterima & berhasil) —
+  /// dipakai tombol "Buka Form" di bawah bubble untuk navigasi ke detail.
+  int? actionFormId;
+
   /// True bila bubble ini berisi pesan error (tampilkan gaya error + tombol coba lagi).
   bool isError = false;
+
+  /// True bila bubble ini mengajukan aksi form yang belum diterima/ditolak.
+  bool get hasPendingAction => actionJson != null && actionStatus == 'pending';
 
   /// Non-null hanya selama bubble ini sedang di-stream: chunk terbaru
   /// ditulis ke [stream] agar HANYA bubble ini yang rebuild

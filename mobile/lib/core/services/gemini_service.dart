@@ -7,6 +7,27 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
+/// Token pembatalan request Gemini. [cancel] menutup koneksi HTTP
+/// sehingga request yang menggantung langsung dibatalkan — tanpa ini,
+/// subscription cancel saja tidak memutus request yang sedang menunggu
+/// respons server.
+class GeminiCancel {
+  http.Client? _client;
+  bool _cancelled = false;
+
+  bool get isCancelled => _cancelled;
+
+  void _attach(http.Client client) => _client = client;
+
+  void cancel() {
+    if (_cancelled) return;
+    _cancelled = true;
+    try {
+      _client?.close();
+    } catch (_) {}
+  }
+}
+
 /// Layanan Google AI Studio (Gemini) untuk AI Chat.
 /// - API key dapat diubah user di dalam app dan tersimpan persist (FlutterSecureStorage)
 /// - Fallback ke .env `GEMINI_API_KEY` / `GOOGLE_AI_API_KEY` atau --dart-define jika belum diatur user
@@ -79,11 +100,25 @@ class GeminiService {
   }
 
   /// Mengubah error teknis (Inggris) menjadi pesan sederhana
-  /// berbahasa Indonesia yang mudah dimengerti user awam.
+  /// berbahasa Indonesia yang mudah dimengerti user awam:
+  /// sebutkan penyebab + langkah yang bisa dilakukan user.
   static String friendlyMessage(Object e) {
     final t = e.toString().toLowerCase();
     bool hasAny(List<String> keys) => keys.any(t.contains);
 
+    // Request dibatalkan user / oleh app (tombol stop, ganti sesi).
+    if (hasAny(['gemini_cancelled', 'request cancelled', 'request aborted'])) {
+      return 'Respons dihentikan. Ketuk "Coba lagi" jika ingin AI menjawab lagi.';
+    }
+    // Stream/respons selesai TANPA teks. Penyebab paling umum di model
+    // thinking (Gemini 2.5/3.x): seluruh kuota token habis untuk proses
+    // berpikir internal sehingga tidak ada jawaban yang terkirim.
+    if (hasAny(['gemini_no_text'])) {
+      return 'AI menyelesaikan permintaan tanpa menghasilkan jawaban — biasanya karena '
+          'kuota token respons habis dipakai untuk proses berpikir internal model. '
+          'Ketuk "Coba lagi" untuk mengulang; jika sering terjadi, mulai chat baru '
+          'agar percakapan lebih ringkas.';
+    }
     // Internet mati / DNS / koneksi ditolak — cek sebelum yang lain
     // karena pesan transport bisa mengandung kata umum seperti "failed".
     if (e is SocketException ||
@@ -96,14 +131,18 @@ class GeminiService {
           'connection refused',
           'connection reset',
           'connection closed',
+          'client closed',
           'network is unreachable',
           'no address associated',
           'no route to host',
         ])) {
-      return 'Internet kamu terputus. Periksa koneksi internet lalu coba lagi.';
+      return 'Koneksi internet terputus, jadi AI tidak bisa dihubungi. '
+          'Periksa WiFi/kuota internet kamu, lalu ketuk "Coba lagi" di bawah pesan ini.';
     }
     if (e is TimeoutException || hasAny(['timeoutexception', 'timed out'])) {
-      return 'Koneksi ke AI lambat. Coba lagi dengan internet yang lebih stabil.';
+      return 'Server AI terlalu lama tidak merespons (koneksi lambat atau server sedang padat). '
+          'Periksa kestabilan internet kamu, lalu ketuk "Coba lagi". '
+          'Jika tetap gagal, coba beberapa saat lagi.';
     }
     // API key salah / kedaluwarsa (401/403 dari Google).
     if (hasAny([
@@ -114,11 +153,13 @@ class GeminiService {
       'key expired',
       'permission_denied',
     ])) {
-      return 'API Key tidak valid. Periksa key di Pengaturan AI lalu coba lagi.';
+      return 'API Key tidak valid atau sudah kedaluwarsa, jadi Google menolak permintaan ini. '
+          'Buka Pengaturan AI, perbarui API Key dari Google AI Studio, lalu kirim ulang pesannya.';
     }
     // Model tidak ada / sudah di-retire (404 dari Google).
     if (hasAny(['not_found', 'is not found', 'model not found', 'gemini error 404'])) {
-      return 'Model AI tidak tersedia. Ganti model di Pengaturan AI lalu coba lagi.';
+      return 'Model AI yang dipilih tidak tersedia lagi di server Google. '
+          'Buka Pengaturan AI, pilih model lain, lalu ketuk "Coba lagi".';
     }
     // Kuota / rate limit habis (429 dari Google).
     if (hasAny([
@@ -128,7 +169,9 @@ class GeminiService {
       'too many requests',
       'gemini error 429',
     ])) {
-      return 'Batas pemakaian AI habis. Tunggu sebentar lalu coba lagi.';
+      return 'Batas pemakaian AI untuk API Key ini sudah habis (biasanya terlalu banyak '
+          'permintaan dalam waktu singkat). Tunggu sekitar 1 menit lalu ketuk "Coba lagi"; '
+          'jika masih gagal, gunakan API Key lain di Pengaturan AI.';
     }
     // Token limit: histori + prompt melebihi kapasitas model (400).
     if (hasAny([
@@ -139,11 +182,13 @@ class GeminiService {
       'context length',
       'prompt too long',
     ])) {
-      return 'Chat terlalu panjang. Mulai chat baru lalu coba lagi.';
+      return 'Percakapan ini sudah terlalu panjang sehingga melebihi kapasitas AI. '
+          'Mulai chat baru lewat menu drawer (tombol +), lalu ulangi pertanyaanmu di sana.';
     }
     // Respons diblokir filter keamanan Google.
     if (hasAny(['content_blocked', 'blockreason', 'safety', 'harm_category', 'prohibited_content'])) {
-      return 'Pertanyaan ini tidak bisa dijawab AI. Coba ubah kata-katanya.';
+      return 'Pertanyaan ini diblokir oleh filter keamanan Google sehingga AI tidak boleh menjawab. '
+          'Ini bukan bug aplikasi — coba rumuskan ulang pertanyaanmu dengan kata yang berbeda.';
     }
     // Server Google sibuk / error (500/503).
     if (hasAny([
@@ -155,9 +200,12 @@ class GeminiService {
       'gemini error 502',
       'gemini error 503',
     ])) {
-      return 'Server AI sedang sibuk. Tunggu sebentar lalu coba lagi.';
+      return 'Server AI sedang bermasalah atau sedang sibuk (bukan karena aplikasi ini). '
+          'Tunggu 1–2 menit, lalu ketuk "Coba lagi".';
     }
-    return 'Maaf, AI gagal menjawab. Coba lagi.';
+    return 'Maaf, terjadi kesalahan yang tidak diketahui saat AI menjawab. '
+        'Ketuk "Coba lagi" untuk mengulang. Jika selalu gagal, coba mulai chat baru '
+        'atau periksa API Key di Pengaturan AI.';
   }
 
   /// Untuk menampilkan preview aman (misal AIza...****)
@@ -244,7 +292,11 @@ Aturan:
 
   /// Kirim histori chat dan stream token balasan (realtime).
   /// [history] = list map {role: 'user'|'model', text: String}
-  static Stream<String> streamChat(List<Map<String, String>> history) async* {
+  /// [cancel] = token pembatalan (dipakai tombol stop di input bar).
+  static Stream<String> streamChat(
+    List<Map<String, String>> history, {
+    GeminiCancel? cancel,
+  }) async* {
     if (!hasKey) {
       throw Exception('GEMINI_API_KEY belum diatur. Buka AI Chat > Atur API Key untuk menyimpannya di aplikasi.');
     }
@@ -270,7 +322,7 @@ Aturan:
       'contents': contents,
       'generationConfig': {
         'temperature': 0.8,
-        'maxOutputTokens': 8192,
+        'maxOutputTokens': 32768,
       }
     });
 
@@ -279,62 +331,118 @@ Aturan:
     request.headers['X-goog-api-key'] = _apiKey; // auth via header (format resmi), bukan query param
     request.body = body;
 
-    final streamed = await request.send().timeout(
-      const Duration(seconds: 60),
-      onTimeout: () => throw TimeoutException('Stream Gemini timeout'),
-    );
-    if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
-      final errBody = await streamed.stream.bytesToString();
-      String msg = 'Gemini error ${streamed.statusCode}';
-      try {
-        final j = jsonDecode(errBody) as Map<String, dynamic>;
-        msg = j['error']?['message'] as String? ?? msg;
-      } catch (_) {
-        if (errBody.isNotEmpty) msg = errBody;
+    // Request via http.Client (bukan Request.send langsung) agar bisa
+    // di-abort dari luar lewat GeminiCancel.cancel() → client.close().
+    final client = http.Client();
+    cancel?._attach(client);
+    try {
+      if (cancel?.isCancelled ?? false) throw Exception('GEMINI_CANCELLED');
+      // Fail-fast: tunggu respons server maksimal 15 detik. Kalau server
+      // tidak merespons, lebih baik gagal cepat daripada user menunggu.
+      final streamed = await client.send(request).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw TimeoutException(
+            'Server AI tidak merespons dalam 15 detik (koneksi lambat atau server sibuk)'),
+      );
+      if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+        final errBody = await streamed.stream.bytesToString().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () => '',
+        );
+        String msg = 'Gemini error ${streamed.statusCode}';
+        try {
+          final j = jsonDecode(errBody) as Map<String, dynamic>;
+          msg = j['error']?['message'] as String? ?? msg;
+        } catch (_) {
+          if (errBody.isNotEmpty) msg = errBody;
+        }
+        throw Exception(msg);
       }
-      throw Exception(msg);
-    }
 
-    // Parse SSE: lines starting with data:
-    await for (final chunk in streamed.stream.transform(utf8.decoder).transform(const LineSplitter())) {
-      final line = chunk.trim();
-      if (line.isEmpty) continue;
-      if (!line.startsWith('data:')) continue;
-      final data = line.substring(5).trim();
-      if (data.isEmpty) continue;
-      try {
-        final j = jsonDecode(data) as Map<String, dynamic>;
-        // Respons diblokir filter keamanan: jangan telan diam-diam.
-        final feedback = j['promptFeedback'] as Map<String, dynamic>?;
-        if (feedback != null && feedback['blockReason'] != null) {
-          throw Exception('GEMINI_CONTENT_BLOCKED_SAFETY');
-        }
-        final candidates = j['candidates'] as List<dynamic>?;
-        if (candidates == null || candidates.isEmpty) continue;
-        final first = candidates[0] as Map<String, dynamic>;
-        final finish = (first['finishReason'] as String?)?.toUpperCase() ?? '';
-        if (finish == 'SAFETY' || finish == 'PROHIBITED_CONTENT') {
-          throw Exception('GEMINI_CONTENT_BLOCKED_SAFETY');
-        }
-        final content = first['content'] as Map<String, dynamic>?;
-        final parts = content?['parts'] as List<dynamic>?;
-        if (parts == null) continue;
-        for (final p in parts) {
-          final text = (p as Map<String, dynamic>)['text'] as String?;
-          if (text != null && text.isNotEmpty) {
-            yield text;
+      // Parse SSE: lines starting with data:
+      // Plus watchdog: kalau tidak ada chunk sama sekali selama 40 detik,
+      // anggap koneksi mati — jangan biarkan "AI mengetik..." selamanya.
+      // 40s (bukan lebih pendek) karena model thinking bisa diam cukup
+      // lama sebelum token pertama, dan mid-stream chunk datang <1s.
+      final sseLines = streamed.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .timeout(
+            const Duration(seconds: 40),
+            onTimeout: (sink) {
+              sink.addError(TimeoutException(
+                  'Koneksi ke AI terputus di tengah respons (tidak ada data 40 detik)'));
+              sink.close();
+            },
+          );
+      // Diagnostik: kenapa stream bisa berakhir TANPA teks. Kasus paling
+      // umum: model thinking (2.5/3.x) menghabiskan maxOutputTokens untuk
+      // proses berpikir internal → finishReason MAX_TOKENS, parts kosong.
+      var sawText = false;
+      var sawCandidates = false;
+      String? lastFinish;
+      Object? lastParseError;
+      await for (final chunk in sseLines) {
+        final line = chunk.trim();
+        if (line.isEmpty) continue;
+        if (!line.startsWith('data:')) continue;
+        final data = line.substring(5).trim();
+        if (data.isEmpty) continue;
+        try {
+          final j = jsonDecode(data) as Map<String, dynamic>;
+          // Respons diblokir filter keamanan: jangan telan diam-diam.
+          final feedback = j['promptFeedback'] as Map<String, dynamic>?;
+          if (feedback != null && feedback['blockReason'] != null) {
+            throw Exception('GEMINI_CONTENT_BLOCKED_SAFETY');
           }
+          final candidates = j['candidates'] as List<dynamic>?;
+          if (candidates == null || candidates.isEmpty) continue;
+          sawCandidates = true;
+          final first = candidates[0] as Map<String, dynamic>;
+          final finish = (first['finishReason'] as String?)?.toUpperCase() ?? '';
+          if (finish.isNotEmpty) lastFinish = finish;
+          if (finish == 'SAFETY' || finish == 'PROHIBITED_CONTENT') {
+            throw Exception('GEMINI_CONTENT_BLOCKED_SAFETY');
+          }
+          final content = first['content'] as Map<String, dynamic>?;
+          final parts = content?['parts'] as List<dynamic>?;
+          if (parts == null) continue;
+          for (final p in parts) {
+            final map = p as Map<String, dynamic>;
+            // Lewati bagian "thought" (ringkasan proses berpikir internal)
+            // agar tidak ikut tampil sebagai jawaban.
+            if (map['thought'] == true) continue;
+            final text = map['text'] as String?;
+            // trim() kosong = bukan teks bermakna (mis. chunk "\n" saja) —
+            // jangan dihitung sebagai konten agar diagnostik akurat.
+            if (text != null && text.trim().isNotEmpty) {
+              sawText = true;
+              yield text;
+            }
+          }
+        } catch (e) {
+          // Penanda blokir keamanan harus diteruskan, bukan ditelan.
+          if (e.toString().contains('GEMINI_CONTENT_BLOCKED')) rethrow;
+          lastParseError = e;
+          if (kDebugMode) debugPrint('[Gemini stream parse] $e : $data');
         }
-      } catch (e) {
-        // Penanda blokir keamanan harus diteruskan, bukan ditelan.
-        if (e.toString().contains('GEMINI_CONTENT_BLOCKED')) rethrow;
-        if (kDebugMode) debugPrint('[Gemini stream parse] $e : $data');
       }
+      // Stream selesai tanpa teks: jangan diam-diam (dulu jadi "Respons AI
+      // kosong" tanpa penyebab) — lempar penanda berisi diagnostik.
+      if (!sawText) {
+        throw Exception(
+            'GEMINI_NO_TEXT|finish=$lastFinish|candidates=$sawCandidates|parse=${lastParseError ?? '-'}');
+      }
+    } finally {
+      client.close();
     }
   }
 
   /// Fallback non-stream: hasil lengkap sekaligus (dipakai jika stream gagal)
-  static Future<String> generateOnce(List<Map<String, String>> history) async {
+  static Future<String> generateOnce(
+    List<Map<String, String>> history, {
+    GeminiCancel? cancel,
+  }) async {
     if (!hasKey) throw Exception('GEMINI_API_KEY belum diatur. Atur di AI Chat > API Key.');
     final effectiveModel = selectedModelId;
     final uri = Uri.parse('$_baseUrl/models/$effectiveModel:generateContent');
@@ -347,49 +455,63 @@ Aturan:
           ]
         }
     ];
-    final res = await http
-        .post(uri,
-            headers: {
-              'Content-Type': 'application/json',
-              'X-goog-api-key': _apiKey, // auth via header (format resmi), bukan query param
-            },
-            body: jsonEncode({
-              'systemInstruction': {
-                'parts': [
-                  {'text': _systemPrompt}
-                ]
+    final client = http.Client();
+    cancel?._attach(client);
+    try {
+      if (cancel?.isCancelled ?? false) throw Exception('GEMINI_CANCELLED');
+      final res = await client
+          .post(uri,
+              headers: {
+                'Content-Type': 'application/json',
+                'X-goog-api-key': _apiKey, // auth via header (format resmi), bukan query param
               },
-              'contents': contents,
-              'generationConfig': {'temperature': 0.8, 'maxOutputTokens': 8192}
-            }))
-        .timeout(
-      const Duration(seconds: 90),
-      onTimeout: () => throw TimeoutException('Generate Gemini timeout'),
-    );
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      String msg = 'Gemini error ${res.statusCode}';
-      try {
-        final j = jsonDecode(res.body) as Map<String, dynamic>;
-        msg = j['error']?['message'] as String? ?? msg;
-      } catch (_) {}
-      throw Exception(msg);
+              body: jsonEncode({
+                'systemInstruction': {
+                  'parts': [
+                    {'text': _systemPrompt}
+                  ]
+                },
+                'contents': contents,
+                'generationConfig': {'temperature': 0.8, 'maxOutputTokens': 32768}
+              }))
+          .timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw TimeoutException(
+            'Server AI tidak merespons dalam 30 detik (koneksi lambat atau server sibuk)'),
+      );
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        String msg = 'Gemini error ${res.statusCode}';
+        try {
+          final j = jsonDecode(res.body) as Map<String, dynamic>;
+          msg = j['error']?['message'] as String? ?? msg;
+        } catch (_) {}
+        throw Exception(msg);
+      }
+      final j = jsonDecode(res.body) as Map<String, dynamic>;
+      final feedback = j['promptFeedback'] as Map<String, dynamic>?;
+      if (feedback != null && feedback['blockReason'] != null) {
+        throw Exception('GEMINI_CONTENT_BLOCKED_SAFETY');
+      }
+      final candidates = j['candidates'] as List<dynamic>?;
+      final first =
+          candidates != null && candidates.isNotEmpty ? candidates[0] as Map<String, dynamic> : null;
+      final finish = (first?['finishReason'] as String?)?.toUpperCase() ?? '';
+      if (finish == 'SAFETY' || finish == 'PROHIBITED_CONTENT') {
+        throw Exception('GEMINI_CONTENT_BLOCKED_SAFETY');
+      }
+      final parts = (first?['content'] as Map<String, dynamic>?)?['parts'] as List<dynamic>?;
+      final text = parts != null && parts.isNotEmpty
+          ? (parts[0] as Map<String, dynamic>)['text'] as String?
+          : null;
+      // finishReason MAX_TOKENS tanpa teks = budget token habis untuk
+      // proses berpikir internal model (thinking) — beri diagnostik, jangan
+      // balikan string kosong yang membingungkan.
+      if ((text == null || text.isEmpty) && finish == 'MAX_TOKENS') {
+        throw Exception('GEMINI_NO_TEXT|finish=MAX_TOKENS');
+      }
+      return text ?? '';
+    } finally {
+      client.close();
     }
-    final j = jsonDecode(res.body) as Map<String, dynamic>;
-    final feedback = j['promptFeedback'] as Map<String, dynamic>?;
-    if (feedback != null && feedback['blockReason'] != null) {
-      throw Exception('GEMINI_CONTENT_BLOCKED_SAFETY');
-    }
-    final candidates = j['candidates'] as List<dynamic>?;
-    final first =
-        candidates != null && candidates.isNotEmpty ? candidates[0] as Map<String, dynamic> : null;
-    final finish = (first?['finishReason'] as String?)?.toUpperCase() ?? '';
-    if (finish == 'SAFETY' || finish == 'PROHIBITED_CONTENT') {
-      throw Exception('GEMINI_CONTENT_BLOCKED_SAFETY');
-    }
-    final parts = (first?['content'] as Map<String, dynamic>?)?['parts'] as List<dynamic>?;
-    final text = parts != null && parts.isNotEmpty
-        ? (parts[0] as Map<String, dynamic>)['text'] as String?
-        : null;
-    return text ?? '';
   }
 }

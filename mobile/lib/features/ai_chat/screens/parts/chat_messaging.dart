@@ -10,21 +10,31 @@ extension _AiChatMessaging on _AiChatScreenState {
   }
 
   /// Hentikan respons AI yang sedang streaming (tombol stop di input bar).
-  /// Partial text yang sudah diterima tetap disimpan sebagai bubble.
+  /// Teks yang sudah terketik di layar tetap disimpan sebagai bubble.
   Future<void> stopGeneration() async {
     if (!_streaming) return;
-    await _sub?.cancel();
-    _sub = null;
+    // Ambil pesan aktif DULU lalu nolkan referensi state — callback
+    // onDone/onError yang telat akan berhenti sendiri karena
+    // `botMsg != _streamingMsg`.
     final msg = _streamingMsg;
-    final buffer = _streamingBuffer;
+    final typed = _typingStream?.shownText ?? _streamingBuffer?.toString() ?? '';
+    _typingStream?.dispose();
+    _typingStream = null;
     _streamingMsg = null;
     _streamingBuffer = null;
+    _activeCancel?.cancel(); // abort koneksi HTTP yang menggantung
+    _activeCancel = null;
+    // PENTING: jangan `await _sub?.cancel()`. Untuk stream async*, cancel
+    // baru selesai setelah generator mencapai titik await berikutnya —
+    // bisa menggantung sampai request timeout, membuat tombol stop
+    // tampak "mati". Cukup jadwalkan pembatalannya.
+    unawaited(_sub?.cancel());
+    _sub = null;
     if (msg != null) {
-      final partial = buffer?.toString() ?? '';
-      if (partial.trim().isEmpty) {
+      if (typed.trim().isEmpty) {
         msg.text = 'Respons dihentikan.';
       } else {
-        msg.text = partial;
+        msg.text = typed;
       }
       msg.disposeStream();
     }
@@ -72,7 +82,10 @@ extension _AiChatMessaging on _AiChatScreenState {
     return null;
   }
 
-  Future<void> executeAction(Map<String, dynamic> action) async {
+  /// Jalankan aksi form dari AI. Mengembalikan formId yang terlibat
+  /// (form baru untuk create_form, form target untuk aksi lain) agar
+  /// tombol "Buka Form" bisa mengarah ke detail form tersebut.
+  Future<int?> executeAction(Map<String, dynamic> action) async {
     final act = action['action'] as String?;
     try {
       switch (act) {
@@ -97,7 +110,7 @@ extension _AiChatMessaging on _AiChatScreenState {
             }).toList();
             await FormService.saveQuestions(formId, payload);
           }
-          return;
+          return formId;
         case 'add_questions':
           final formId = action['formId'] as int?;
           if (formId == null) throw Exception('formId diperlukan');
@@ -106,7 +119,7 @@ extension _AiChatMessaging on _AiChatScreenState {
               .map((q) => Map<String, dynamic>.from(q as Map))
               .toList();
           await FormService.saveQuestions(formId, payload);
-          return;
+          return formId;
         case 'update_settings':
           final formId = action['formId'] as int?;
           if (formId == null) throw Exception('formId diperlukan');
@@ -114,7 +127,7 @@ extension _AiChatMessaging on _AiChatScreenState {
             action['settings'] as Map? ?? {},
           );
           await FormService.updateSettings(formId, settings);
-          return;
+          return formId;
         default:
           throw Exception('Aksi tidak dikenal: $act');
       }
@@ -123,20 +136,50 @@ extension _AiChatMessaging on _AiChatScreenState {
     }
   }
 
-  /// Jalankan aksi form dari kartu aksi bubble (tombol "Jalankan").
-  Future<void> runBubbleAction(ChatMessage m) async {
-    try {
-      await executeAction(m.actionJson!);
-      setState(() {
-        m.actionExecuted = true;
-        m.actionResult = 'Berhasil';
-      });
-      if (mounted) showAuthToast(context, 'Berhasil');
-      await persistCurrent();
-    } catch (e) {
-      setState(() => m.actionResult = 'Gagal: $e');
-      if (mounted) showAuthToast(context, '$e', isError: true);
+  /// Pesan dengan aksi form yang belum diterima/ditolak di session aktif
+  /// (yang terakhir, bila ada lebih dari satu).
+  ChatMessage? get pendingActionMessage {
+    for (final m in _messages.reversed) {
+      if (m.hasPendingAction) return m;
     }
+    return null;
+  }
+
+  /// Terima aksi pending dari bar di atas field prompt: jalankan aksi form.
+  /// Gagal → status tetap pending (bisa coba lagi atau tolak).
+  Future<void> acceptPendingAction() async {
+    final m = pendingActionMessage;
+    if (m == null || _actionWorking) return;
+    setState(() => _actionWorking = true);
+    try {
+      final formId = await executeAction(m.actionJson!);
+      m.actionExecuted = true;
+      m.actionStatus = 'accepted';
+      m.actionResult = null;
+      m.actionFormId = formId;
+      if (mounted) showAuthToast(context, 'Perubahan berhasil diterapkan');
+    } catch (e) {
+      m.actionResult = 'Gagal: $e';
+      if (mounted) {
+        showAuthToast(context, 'Gagal menjalankan aksi: $e', isError: true);
+      }
+    }
+    if (!mounted) return;
+    setState(() => _actionWorking = false);
+    await persistCurrent();
+  }
+
+  /// Tolak aksi pending dari bar di atas field prompt.
+  Future<void> rejectPendingAction() async {
+    final m = pendingActionMessage;
+    if (m == null || _actionWorking) return;
+    setState(() {
+      _actionWorking = false;
+      m.actionStatus = 'rejected';
+      m.actionResult = null;
+    });
+    if (mounted) showAuthToast(context, 'Perubahan ditolak');
+    await persistCurrent();
   }
 
   Future<void> sendWithText(String rawText) async {
@@ -196,8 +239,8 @@ extension _AiChatMessaging on _AiChatScreenState {
     }).toList();
     final botMsg = ChatMessage(role: 'model', text: '');
     final buffer = StringBuffer();
-    // Lampirkan notifier live: chunk ditulis ke sini TANPA setState,
-    // sehingga hanya bubble ini yang rebuild via ValueListenableBuilder.
+    // Notifier live: chunk ditulis ke sini TANPA setState, sehingga hanya
+    // bubble ini yang rebuild (via ValueListenableBuilder).
     botMsg.stream = ValueNotifier<String>('');
     setState(() {
       _messages.add(botMsg);
@@ -205,143 +248,191 @@ extension _AiChatMessaging on _AiChatScreenState {
       _streamingMsg = botMsg;
       _streamingBuffer = buffer;
     });
+    // Pastikan posisi sudah di dasar saat indikator "AI mengetik..." muncul,
+    // sehingga auto-follow saat streaming aktif (syaratnya _isAtBottom).
+    _scrollToBottom(immediate: true);
 
     // Batalkan stream sebelumnya bila masih hidup (anti tumpuk listener).
-    await _sub?.cancel();
+    // Jangan await — cancel async* stream bisa menggantung (lihat
+    // stopGeneration); request lama di-abort lewat token-nya masing-masing.
+    unawaited(_sub?.cancel());
     _sub = null;
-    try {
+
+    // Mesin ketik & cancel token dibuat PER ATTEMPT (notifier bubble sama),
+    // karena auto-retry membuat stream baru dengan engine baru.
+    TypingStream? typing;
+    GeminiCancel? cancelToken;
+
+    /// (Re)mulai stream ke bubble yang sama. Attempt kedua = auto-retry
+    /// internal: kondisi transien (mis. attempt pertama selesai tanpa teks)
+    /// hampir selalu sembuh dengan percobaan ulang — sama seperti tombol
+    /// "Coba lagi" yang terbukti berhasil, hanya otomatis.
+    void subscribe({required bool isRetry}) {
+      typing?.dispose();
+      typing = TypingStream(
+        botMsg.stream!,
+        onTick: () {
+          // Magnet auto-scroll: ikuti hanya bila user memang di dasar —
+          // kalau user scroll ke atas sendiri, magnet lepas sampai user
+          // kembali ke dasar.
+          if (_isAtBottom) _followStream();
+          // Konten bertambah tanpa event scroll → update visibilitas FAB
+          // agar muncul saat user jauh di atas dan respons terus mengalir.
+          _onScroll();
+        },
+      );
+      _typingStream = typing;
+      cancelToken = GeminiCancel();
+      _activeCancel = cancelToken;
       // **1. Stream-Based API Handling:** SSE/chunked dari endpoint
       // streamGenerateContent?alt=sse diparse per-baris `data:` di
       // GeminiService.streamChat dan di-yield per token/chunk.
-      _sub = GeminiService.streamChat(history).listen(
+      _sub = GeminiService.streamChat(history, cancel: cancelToken).listen(
         (chunk) {
-          // **2. Smooth rendering:** append ke buffer + push ke notifier.
-          // ValueNotifier menggabungkan update sinkron beruntun menjadi
-          // satu rebuild bubble — tanpa setState(), tanpa rebuild ListView.
+          // **2. Smooth rendering:** append ke buffer; tampilan per kata
+          // diserahkan ke TypingStream (lihat onTick untuk auto-scroll).
           buffer.write(chunk);
-          botMsg.stream?.value = buffer.toString();
-          // **3. Auto-scroll bersyarat:** ikuti hanya bila user di dasar.
-          if (_isAtBottom) _followStream();
+          typing?.add(chunk);
         },
         onDone: () async {
+          // Stream sudah dihentikan user (stop) — biarkan stopGeneration
+          // yang memfinalisasi bubble ini.
+          if (botMsg != _streamingMsg) return;
+          // Biarkan ketikan mengejar sisa teks dulu (maksimal 8 detik
+          // pengaman), lalu finalisasi.
+          try {
+            await typing?.finish().timeout(const Duration(seconds: 8));
+          } catch (_) {}
+          typing?.dispose();
+          if (botMsg != _streamingMsg) return;
           final full = buffer.toString();
-          // Stream bisa selesai tanpa chunk (mis. SSE gagal diam-diam) —
-          // jangan biarkan teks kosong karena bubble me-render "...".
+          // Stream selesai TANPA teks → auto-retry SEKALI dulu; kalau masih
+          // kosong juga, tampilkan pesan error yang jelas.
           if (full.trim().isEmpty) {
-            botMsg.text = 'Respons AI kosong. Coba kirim ulang.';
+            if (!isRetry) {
+              debugPrint('[AiChat] Stream selesai kosong — auto-retry sekali');
+              subscribe(isRetry: true);
+              return;
+            }
+            botMsg.text = 'AI menyelesaikan respons tanpa mengirim teks. '
+                'Ketuk "Coba lagi" untuk mengulang; jika terus terjadi, '
+                'coba mulai chat baru.';
             botMsg.isError = true;
           } else {
             botMsg.text = full;
           }
           botMsg.disposeStream();
           if (!mounted) return;
+          _typingStream?.dispose();
+          _typingStream = null;
           _streamingMsg = null;
           _streamingBuffer = null;
           setState(() => _streaming = false);
           await persistCurrent();
+          // Aksi form (buat/edit): TIDAK pakai dialog. Aksi disimpan sebagai
+          // "pending" di pesan — ikut persist ke session, dan tombol
+          // Terima/Tolak tampil di ATAS field prompt (PendingActionBar).
           final action = extractActionJson(botMsg.text);
           if (action != null) {
             botMsg.actionJson = action;
+            botMsg.actionStatus = 'pending';
+            botMsg.actionResult = null;
+            if (!mounted) return;
             setState(() {});
-            if (mounted) {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  title: const Text(
-                    'Jalankan Aksi AI?',
-                    style: TextStyle(fontFamily: kFontBold, fontSize: 14),
-                  ),
-                  content: SingleChildScrollView(
-                    child: Text(
-                      jsonEncode(action),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Batal'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('Jalankan'),
-                    ),
-                  ],
-                ),
-              );
-              if (confirm == true) {
-                try {
-                  await executeAction(action);
-                  botMsg.actionExecuted = true;
-                  botMsg.actionResult = 'Berhasil dijalankan';
-                  if (mounted) {
-                    showAuthToast(
-                      context,
-                      'Aksi ${action['action']} berhasil',
-                    );
-                    setState(() {});
-                  }
-                } catch (e) {
-                  botMsg.actionResult = 'Gagal: $e';
-                  if (mounted) {
-                    showAuthToast(
-                      context,
-                      'Gagal menjalankan aksi: $e',
-                      isError: true,
-                    );
-                  }
-                  setState(() {});
-                }
-                await persistCurrent();
-              }
-            }
+            showAuthToast(
+              context,
+              'AI mengajukan perubahan form — terima atau tolak di bawah',
+            );
           }
           await persistCurrent();
         },
         onError: (e) async {
-          // Fallback non-stream bila SSE gagal di tengah jalan.
+          // Stream sudah dihentikan user (stop) — biarkan stopGeneration
+          // yang memfinalisasi bubble ini.
+          if (botMsg != _streamingMsg) return;
+          final partial = buffer.toString();
+          if (partial.trim().isNotEmpty) {
+            // Stream putus di tengah tapi sudah ada jawaban parsial:
+            // tampilkan parsial + catatan, JANGAN fallback (menghemat
+            // waktu tunggu — user sudah menunggu sekali).
+            botMsg.text = '$partial\n\n— Respons terputus di tengah jalan '
+                '(koneksi tidak stabil). Ketuk "Coba lagi" untuk jawaban baru.';
+            botMsg.isError = true;
+            botMsg.disposeStream();
+            if (!mounted) return;
+            _typingStream?.dispose();
+            _typingStream = null;
+            _streamingMsg = null;
+            _streamingBuffer = null;
+            setState(() => _streaming = false);
+            await persistCurrent();
+            return;
+          }
+          if (cancelToken?.isCancelled ?? false) return;
+          // GEMINI_NO_TEXT = token habis untuk thinking internal ATAU
+          // kondisi transien stream kosong. Auto-retry sekali dulu —
+          // attempt ulang sering normal; fallback generateOnce hanya akan
+          // mengulang penyebab yang sama.
+          if (e.toString().contains('GEMINI_NO_TEXT')) {
+            if (!isRetry) {
+              debugPrint('[AiChat] GEMINI_NO_TEXT — auto-retry sekali');
+              subscribe(isRetry: true);
+              return;
+            }
+            botMsg.text = GeminiService.friendlyMessage(e);
+            botMsg.isError = true;
+            botMsg.disposeStream();
+            if (!mounted) return;
+            _typingStream?.dispose();
+            _typingStream = null;
+            _streamingMsg = null;
+            _streamingBuffer = null;
+            setState(() => _streaming = false);
+            await persistCurrent();
+            return;
+          }
+          // Tidak ada data sama sekali — coba sekali via endpoint
+          // non-stream (timeout 30 detik, bisa di-stop juga).
           try {
-            final full = await GeminiService.generateOnce(history);
+            final full = await GeminiService.generateOnce(
+              history,
+              cancel: cancelToken,
+            );
+            if (botMsg != _streamingMsg) return; // di-stop saat fallback jalan
             if (full.trim().isEmpty) {
-              botMsg.text = 'Respons AI kosong. Coba kirim ulang.';
+              botMsg.text =
+                  'AI tidak mengirim jawaban (respons kosong dari server). '
+                  'Ketuk "Coba lagi" untuk mengulang.';
               botMsg.isError = true;
             } else {
               botMsg.text = full;
             }
             botMsg.disposeStream();
             if (!mounted) return;
+            _typingStream?.dispose();
+            _typingStream = null;
             _streamingMsg = null;
-          _streamingBuffer = null;
-          setState(() => _streaming = false);
+            _streamingBuffer = null;
+            setState(() => _streaming = false);
             await persistCurrent();
           } catch (e2) {
+            if (botMsg != _streamingMsg) return; // di-stop saat fallback jalan
             botMsg.text = GeminiService.friendlyMessage(e2);
             botMsg.isError = true;
             botMsg.disposeStream();
             if (!mounted) return;
+            _typingStream?.dispose();
+            _typingStream = null;
             _streamingMsg = null;
-          _streamingBuffer = null;
-          setState(() => _streaming = false);
+            _streamingBuffer = null;
+            setState(() => _streaming = false);
             await persistCurrent();
           }
         },
         cancelOnError: false,
       );
-    } catch (e) {
-      botMsg.text = GeminiService.friendlyMessage(e);
-      botMsg.isError = true;
-      botMsg.disposeStream();
-      if (!mounted) return;
-      _streamingMsg = null;
-      _streamingBuffer = null;
-      setState(() => _streaming = false);
-      await persistCurrent();
     }
+
+    subscribe(isRetry: false);
   }
 }
