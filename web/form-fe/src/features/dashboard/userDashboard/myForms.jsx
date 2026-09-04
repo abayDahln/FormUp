@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../../components/layout/Sidebar';
 import Topbar from '../../../components/layout/Topbar';
 import ConfirmModal from '../../../components/ui/ConfirmModal';
+import AIFormBuilderModal from '../../../components/ui/AIFormBuilderModal';
 import {
     Plus, MoreVertical, MessageSquare, Calendar,
     Edit3, Eye, Trash2, CheckCircle2, FileText,
-    ChevronLeft, ChevronRight, Square, CheckSquare
+    ChevronLeft, ChevronRight, Square, CheckSquare, Copy, Sparkles, Loader2
 } from 'lucide-react';
-import { getMyForms, deleteForm, clearSession, assetUrl, createForm, bulkDeleteForms } from '../../../services/apiService';
+import { getMyForms, deleteForm, clearSession, assetUrl, createForm, bulkDeleteForms, getQuestions, saveQuestions } from '../../../services/apiService';
 import useDebounce from '../../../hooks/useDebounce';
 
 const ITEMS_PER_PAGE = 7; // 7 form cards + 1 create card = 8 cards on page 1
@@ -39,6 +40,12 @@ const MyForms = () => {
         formId: null,
         isBulk: false,
     });
+
+    // AI Form Builder
+    const [aiFormBuilderOpen, setAiFormBuilderOpen] = useState(false);
+
+    // FEAT-10b: Duplicate form state
+    const [duplicatingId, setDuplicatingId] = useState(null);
 
     useEffect(() => {
         const fetchMyForms = async () => {
@@ -179,6 +186,42 @@ const MyForms = () => {
         }
     };
 
+    // FEAT-10b: Duplicate form
+    const handleDuplicateForm = async (formId, formTitle) => {
+        setOpenMenuId(null);
+        setDuplicatingId(formId);
+        try {
+            const qRes = await getQuestions(formId);
+            const createRes = await createForm({ title: `Salinan dari ${formTitle || 'Formulir'}`, description: '' });
+            if (!createRes.ok || !createRes.data?.id) {
+                setDuplicatingId(null);
+                return;
+            }
+            const newId = createRes.data.id;
+            if (qRes.ok && Array.isArray(qRes.data) && qRes.data.length > 0) {
+                const payload = qRes.data.map((q, i) => ({
+                    id: undefined,
+                    typeId: q.typeId,
+                    question: q.question || '',
+                    questionFormat: q.questionFormat || 'text',
+                    questionOrder: i + 1,
+                    isRequired: !!q.isRequired,
+                    correctAnswer: q.correctAnswer || null,
+                    points: q.points || null,
+                    questionImage: null,
+                    questionAudio: null,
+                    options: (q.options || []).map(o => ({ optionText: o.optionText || '', isCorrect: !!o.isCorrect })),
+                }));
+                await saveQuestions(newId, payload);
+            }
+            navigate(`/forms/${newId}/edit`);
+        } catch (err) {
+            console.error('Duplicate form error:', err);
+        } finally {
+            setDuplicatingId(null);
+        }
+    };
+
     const publishedForms = myForms.filter(f => f.status?.toLowerCase() === 'published');
     const draftForms = myForms.filter(f => f.status?.toLowerCase() === 'draft');
     const totalResponses = myForms.reduce((acc, f) => acc + (f.responseCount ?? 0), 0);
@@ -248,7 +291,7 @@ const MyForms = () => {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`w-full px-2 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer text-center truncate ${
+                                className={`w-full px-2 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer text-center whitespace-nowrap ${
                                     activeTab === tab.id
                                         ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-400 shadow-xs'
                                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
@@ -363,6 +406,23 @@ const MyForms = () => {
                             </p>
                         </div>
 
+                        {/* AI-1: Buat Form dengan AI card */}
+                        <div
+                            onClick={() => setAiFormBuilderOpen(true)}
+                            className="bg-gradient-to-br from-teal-500/10 via-emerald-500/5 to-teal-500/5 border-2 border-dashed border-teal-300/50 dark:border-teal-700/50 rounded-2xl min-h-[240px] flex flex-col items-center justify-center cursor-pointer hover:border-teal-500 hover:bg-teal-50/30 dark:hover:bg-teal-950/20 transition-all group p-6 text-center"
+                        >
+                            <div className="w-12 h-12 bg-gradient-to-tr from-teal-600 to-emerald-400 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform text-white shadow-sm">
+                                <Sparkles className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-slate-900 dark:text-white font-bold text-sm mb-1 flex items-center gap-1.5">
+                                Buat Form dengan AI
+                                {/* <span className="text-[9px] uppercase px-1.5 py-0.5 rounded-md bg-teal-600 text-white font-extrabold tracking-wider">Gemini</span> */}
+                            </h3>
+                            <p className="text-slate-400 dark:text-slate-500 text-xs font-medium max-w-[170px]">
+                                Deskripsikan form & AI siapkan soalnya
+                            </p>
+                        </div>
+
                         {loading ? (
                             <div className="col-span-full py-16 text-center text-slate-400 dark:text-slate-500 text-sm font-medium">
                                 Memuat formulir...
@@ -430,7 +490,15 @@ const MyForms = () => {
 
                                                 {/* Menu Dropdown */}
                                                 {openMenuId === form.id && (
-                                                    <div className="absolute right-0 top-8 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 py-1 overflow-hidden">
+                                                    <div className="absolute right-0 top-8 w-40 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 py-1 overflow-hidden">
+                                                        <button
+                                                            onClick={() => handleDuplicateForm(form.id, form.title)}
+                                                            disabled={duplicatingId === form.id}
+                                                            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer disabled:opacity-60"
+                                                        >
+                                                            {duplicatingId === form.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
+                                                            {duplicatingId === form.id ? 'Menduplikasi...' : 'Duplikat Form'}
+                                                        </button>
                                                         <button
                                                             onClick={() => triggerDelete(form.id)}
                                                             className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
@@ -529,6 +597,13 @@ const MyForms = () => {
                 variant={confirmModal.variant}
                 confirmText={confirmModal.confirmText}
                 isLoading={actionLoading !== null}
+            />
+
+            {/* AI-1: AI Form Builder Modal */}
+            <AIFormBuilderModal
+                isOpen={aiFormBuilderOpen}
+                onClose={() => setAiFormBuilderOpen(false)}
+                onFormCreated={(newId) => navigate(`/forms/${newId}/edit`)}
             />
         </div>
     );

@@ -1,17 +1,21 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
     ArrowLeft, Download, Eye, X, BarChart2, Loader2, 
     MessageSquare, AlertTriangle, CheckCircle2, XCircle, 
     MinusCircle, ChevronLeft, ChevronRight, TrendingUp, Calendar, Maximize2,
-    Sliders, Edit2, RotateCcw, Check, Save
+    Sliders, Edit2, RotateCcw, Check, Save, Sparkles,
+    ShieldAlert, ShieldCheck, Activity, Radio, RefreshCw, ChevronDown, ChevronUp,
+    Search, Filter, AlertCircle, ArrowRight as ArrowRightIcon
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import {
     getFormById, getFormResponses, getFormAnalytics,
-    getResponseResult,
-    updateResponseStatus, clearSession, exportFormResponses, getMyFeedback, assetUrl
+    getResponseResult, getQuestions,
+    updateResponseStatus, clearSession, exportFormResponses, getMyFeedback, assetUrl,
+    overrideAnswerScore, bulkOverrideAnswerScores, getExamMonitoring
 } from '../../services/apiService';
+import { getGeminiApiKey } from '../../services/aiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
 import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
 
@@ -24,6 +28,144 @@ const STATUS_OPTIONS = [
 
 const PAGE_SIZE = 25;
 
+export const resolveQuestionKey = (qDef) => {
+    if (!qDef) return '';
+    if (qDef.typeId === 2 || qDef.typeId === 5) {
+        // Multiple choice / True-False
+        const correctOpt = (qDef.options || []).find(o => o.isCorrect === true);
+        return correctOpt?.optionText || qDef.correctAnswer || '';
+    }
+    if (qDef.typeId === 3) {
+        // Checkbox (can have multiple correct)
+        const correctOpts = (qDef.options || []).filter(o => o.isCorrect === true).map(o => o.optionText);
+        if (correctOpts.length > 0) return correctOpts.join(', ');
+        return qDef.correctAnswer || '';
+    }
+    return qDef.correctAnswer || '';
+};
+
+export const resolveBaseIsCorrect = (answer, qDef) => {
+    if (!qDef) return null;
+    const aText = String(answer?.answerText || answer?.answerValue || answer?.optionText || '').trim().toLowerCase();
+    
+    if (qDef.typeId === 2 || qDef.typeId === 5) {
+        const correctOpt = (qDef.options || []).find(o => o.isCorrect === true);
+        if (!correctOpt) return null;
+        if (answer?.optionId && correctOpt.id) {
+            return Number(answer.optionId) === Number(correctOpt.id);
+        }
+        if (!aText) return false;
+        return aText === String(correctOpt.optionText || '').trim().toLowerCase();
+    }
+    
+    if (qDef.typeId === 3) {
+        const correctOpts = (qDef.options || []).filter(o => o.isCorrect === true);
+        if (correctOpts.length === 0) return null;
+        if (Array.isArray(answer?.selectedOptions) && answer.selectedOptions.length > 0) {
+            const selected = answer.selectedOptions.map(s => String(s).trim().toLowerCase()).sort();
+            const correct = correctOpts.map(c => String(c.optionText).trim().toLowerCase()).sort();
+            if (selected.length !== correct.length) return false;
+            return selected.every((val, idx) => val === correct[idx]);
+        }
+        if (!aText) return false;
+        const correctText = correctOpts.map(c => String(c.optionText).trim().toLowerCase()).sort().join(', ');
+        return aText === correctText;
+    }
+    
+    if (qDef.correctAnswer && qDef.correctAnswer.trim()) {
+        if (!aText) return false;
+        return aText === String(qDef.correctAnswer).trim().toLowerCase();
+    }
+    
+    return null;
+};
+
+export const getEffectiveIsCorrect = (answer, qDef) => {
+    if (!answer) return null;
+    if (answer.isCorrectOverride !== null && answer.isCorrectOverride !== undefined) {
+        return !!answer.isCorrectOverride;
+    }
+    if (answer.isCorrect !== null && answer.isCorrect !== undefined) {
+        return !!answer.isCorrect;
+    }
+    if (qDef) {
+        const base = resolveBaseIsCorrect(answer, qDef);
+        if (base !== null) return base;
+    }
+    if (answer.correctAnswer && (answer.answerText || answer.answerValue || answer.optionText)) {
+        const aText = String(answer.answerText || answer.answerValue || answer.optionText || '').trim().toLowerCase();
+        const cText = String(answer.correctAnswer).trim().toLowerCase();
+        if (aText && cText) return aText === cText;
+    }
+    return null;
+};
+
+export const calculateTotalScore = (answers, questions) => {
+    const qList = Array.isArray(questions) && questions.length > 0 ? questions : [];
+    if (qList.length === 0) {
+        const total = answers?.length || 1;
+        const correct = (answers || []).filter(a => getEffectiveIsCorrect(a) === true).length;
+        return {
+            score: Math.round((correct / total) * 100 * 10) / 10,
+            correctCount: correct,
+            wrongCount: Math.max(0, total - correct),
+            totalQuestions: total,
+            totalPoints: total,
+            earnedPoints: correct,
+        };
+    }
+
+    let totalPoints = 0;
+    let earnedPoints = 0;
+    let correctCount = 0;
+    let wrongCount = 0;
+
+    qList.forEach(q => {
+        const qPoints = Number(q.points) > 0 ? Number(q.points) : 1;
+        totalPoints += qPoints;
+
+        const ans = (answers || []).find(a => Number(a.questionId) === Number(q.id));
+        const effective = getEffectiveIsCorrect(ans, q);
+        
+        if (effective === true) {
+            earnedPoints += qPoints;
+            correctCount++;
+        } else if (effective === false) {
+            wrongCount++;
+        }
+    });
+
+    const score = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100 * 10) / 10 : 0;
+    return {
+        score,
+        correctCount,
+        wrongCount,
+        totalQuestions: qList.length,
+        totalPoints,
+        earnedPoints,
+    };
+};
+
+const getLocalManualOverrides = (formId) => {
+    try {
+        const raw = localStorage.getItem(`formup_overrides_${formId}`);
+        return raw ? JSON.parse(raw) : {};
+    } catch {
+        return {};
+    }
+};
+
+const saveLocalManualOverride = (formId, responseId, questionId, isCorrect) => {
+    try {
+        const cur = getLocalManualOverrides(formId);
+        if (!cur[responseId]) cur[responseId] = {};
+        cur[responseId][questionId] = isCorrect;
+        localStorage.setItem(`formup_overrides_${formId}`, JSON.stringify(cur));
+    } catch (e) {
+        console.warn('Failed to save manual override locally', e);
+    }
+};
+
 export default function FormResponsesPage() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -31,6 +173,7 @@ export default function FormResponsesPage() {
     const [activeTab, setActiveTab] = useState('responses');
 
     const [form, setForm] = useState(null);
+    const [formQuestions, setFormQuestions] = useState([]);
     const [responses, setResponses] = useState([]);
     const [analytics, setAnalytics] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -46,18 +189,16 @@ export default function FormResponsesPage() {
     // Review Answers Modal
     const [selectedRespondent, setSelectedRespondent] = useState(null);
 
-    // Score Overrides (Local/Persistent per Form ID)
-    const [scoreOverrides, setScoreOverrides] = useState(() => {
-        try {
-            const saved = localStorage.getItem(`formup_scores_${id}`);
-            return saved ? JSON.parse(saved) : {};
-        } catch {
-            return {};
-        }
-    });
-
     const [editingScoreId, setEditingScoreId] = useState(null);
     const [inlineScoreInput, setInlineScoreInput] = useState('');
+
+    // B-3: AI Essay Scoring — redesigned to holistic per-submission (A-8)
+    const [aiScoringAnswerId, setAiScoringAnswerId] = useState(null); // answerId being scored
+    const [aiScoreSuggestions, setAiScoreSuggestions] = useState({});
+    // A-8: Holistic scoring state
+    const [aiHolisticScoring, setAiHolisticScoring] = useState(false); // loading state for holistic analysis
+    const [aiHolisticResult, setAiHolisticResult] = useState(null); // { essaySuggestions: [{answerId, score, reason, isCorrect}], pgSummary, totalEstimate }
+    const [aiHolisticPreviewOpen, setAiHolisticPreviewOpen] = useState(false);
     const [bulkModalOpen, setBulkModalOpen] = useState(false);
     const [bulkType, setBulkType] = useState('min'); // 'min' | 'bonus' | 'scale' | 'set_fixed'
     const [bulkValue, setBulkValue] = useState(75);
@@ -66,14 +207,141 @@ export default function FormResponsesPage() {
     const [filterRangeMin, setFilterRangeMin] = useState(0);
     const [filterRangeMax, setFilterRangeMax] = useState(70);
 
+    // Exam Monitoring State
+    const [monitoringData, setMonitoringData] = useState(null);
+    const [monitoringLoading, setMonitoringLoading] = useState(false);
+    const [monitoringError, setMonitoringError] = useState('');
+    const [monitoringFilter, setMonitoringFilter] = useState('all'); // all, in_progress, submitted, violations, high_violations
+    const [monitoringSearch, setMonitoringSearch] = useState('');
+    const [expandedSessions, setExpandedSessions] = useState(new Set());
+    const [autoRefresh, setAutoRefresh] = useState(true);
+    const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+
+    const toggleSessionExpand = (sessionId) => {
+        setExpandedSessions(prev => {
+            const next = new Set(prev);
+            if (next.has(sessionId)) next.delete(sessionId);
+            else next.add(sessionId);
+            return next;
+        });
+    };
+
+    const fetchExamMonitoring = useCallback(async (isSilent = false) => {
+        if (!id) return;
+        if (!isSilent) setMonitoringLoading(true);
+        try {
+            const res = await getExamMonitoring(id);
+            if (res.ok && res.data) {
+                setMonitoringData(res.data);
+                setLastRefreshedAt(new Date());
+                setMonitoringError('');
+            } else if (!isSilent) {
+                setMonitoringError(res.message || 'Gagal memuat data monitoring ujian.');
+            }
+        } catch (err) {
+            if (!isSilent) setMonitoringError('Koneksi terputus saat mengambil data monitoring.');
+        } finally {
+            if (!isSilent) setMonitoringLoading(false);
+        }
+    }, [id]);
+
+    // Polling effect when activeTab === 'monitoring'
+    useEffect(() => {
+        if (activeTab !== 'monitoring') return;
+
+        fetchExamMonitoring(false);
+
+        if (!autoRefresh) return;
+
+        const intervalId = setInterval(() => {
+            fetchExamMonitoring(true);
+        }, 5000);
+
+        return () => clearInterval(intervalId);
+    }, [activeTab, autoRefresh, fetchExamMonitoring]);
+
+    const filteredSessions = useMemo(() => {
+        const list = monitoringData?.sessions || [];
+        const maxSw = monitoringData?.maxTabSwitch || 3;
+        return list.filter(s => {
+            if (monitoringSearch) {
+                const term = monitoringSearch.toLowerCase();
+                const name = (s.respondentName || 'Anonim').toLowerCase();
+                if (!name.includes(term)) return false;
+            }
+            if (monitoringFilter === 'in_progress') return s.status === 'in_progress';
+            if (monitoringFilter === 'submitted') return s.status === 'submitted';
+            if (monitoringFilter === 'violations') return s.violationCount > 0;
+            if (monitoringFilter === 'high_violations') return s.violationCount >= maxSw || s.tabSwitchCount >= maxSw;
+            return true;
+        });
+    }, [monitoringData, monitoringFilter, monitoringSearch]);
+
+    const getViolationInfo = (type) => {
+        switch (type) {
+            case 'tab_switch':
+                return {
+                    label: 'Pindah Tab / Layar Ujian',
+                    icon: <ArrowRightIcon size={13} />,
+                    color: 'text-red-600 dark:text-red-400',
+                    bg: 'bg-red-50 dark:bg-red-950/60',
+                };
+            case 'window_blur':
+                return {
+                    label: 'Jendela Browser Kehilangan Fokus',
+                    icon: <AlertTriangle size={13} />,
+                    color: 'text-amber-600 dark:text-amber-400',
+                    bg: 'bg-amber-50 dark:bg-amber-950/60',
+                };
+            case 'copy_attempt':
+                return {
+                    label: 'Percobaan Menyalin Teks (Copy)',
+                    icon: <XCircle size={13} />,
+                    color: 'text-purple-600 dark:text-purple-400',
+                    bg: 'bg-purple-50 dark:bg-purple-950/60',
+                };
+            case 'paste_attempt':
+                return {
+                    label: 'Percobaan Menempel Teks (Paste)',
+                    icon: <XCircle size={13} />,
+                    color: 'text-indigo-600 dark:text-indigo-400',
+                    bg: 'bg-indigo-50 dark:bg-indigo-950/60',
+                };
+            case 'context_menu':
+                return {
+                    label: 'Klik Kanan (Context Menu)',
+                    icon: <MinusCircle size={13} />,
+                    color: 'text-slate-600 dark:text-slate-400',
+                    bg: 'bg-slate-100 dark:bg-slate-800',
+                };
+            default:
+                return {
+                    label: `Pelanggaran: ${type}`,
+                    icon: <AlertCircle size={13} />,
+                    color: 'text-red-600 dark:text-red-400',
+                    bg: 'bg-red-50 dark:bg-red-950/60',
+                };
+        }
+    };
+
+    const formatDateWithTime = (d) => d
+        ? new Date(d).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        : '—';
+
     useEffect(() => {
         const load = async () => {
             setLoading(true);
             try {
-                const [formRes, respRes, analyticsRes] = await Promise.all([
+                // Silently load monitoring data in parallel if available
+                getExamMonitoring(id).then(res => {
+                    if (res.ok && res.data) setMonitoringData(res.data);
+                }).catch(() => {});
+
+                const [formRes, respRes, analyticsRes, questionsRes] = await Promise.all([
                     getFormById(id),
                     getFormResponses(id, { page: 1, pageSize: PAGE_SIZE }),
-                    getFormAnalytics(id, 1, 100)
+                    getFormAnalytics(id, 1, 100),
+                    getQuestions(id),
                 ]);
 
                 if (formRes.status === 401) { 
@@ -84,6 +352,12 @@ export default function FormResponsesPage() {
 
                 if (formRes.ok) setForm(formRes.data);
 
+                let loadedQuestions = [];
+                if (questionsRes.ok && Array.isArray(questionsRes.data)) {
+                    loadedQuestions = questionsRes.data;
+                    setFormQuestions(loadedQuestions);
+                }
+
                 if (respRes.ok) {
                     const list = Array.isArray(respRes.data)
                         ? respRes.data
@@ -92,7 +366,40 @@ export default function FormResponsesPage() {
                 }
 
                 if (analyticsRes.ok && analyticsRes.data) {
-                    setAnalytics(analyticsRes.data);
+                    const localOverrides = getLocalManualOverrides(id);
+                    let data = analyticsRes.data;
+                    if (data.respondents) {
+                        data.respondents = data.respondents.map(r => {
+                            const respOverrides = localOverrides[r.responseId] || {};
+                            const updatedAnswers = (r.answers || []).map(a => {
+                                const qDef = loadedQuestions.find(q => Number(q.id) === Number(a.questionId));
+                                const key = a.correctAnswer || resolveQuestionKey(qDef);
+                                const hasLocalOverride = respOverrides[a.questionId] !== undefined;
+                                const effOverride = hasLocalOverride ? respOverrides[a.questionId] : a.isCorrectOverride;
+                                const effIsCorrect = getEffectiveIsCorrect({
+                                    ...a,
+                                    isCorrectOverride: effOverride,
+                                }, qDef);
+                                return {
+                                    ...a,
+                                    correctAnswer: key,
+                                    isCorrectOverride: effOverride,
+                                    isCorrect: effIsCorrect,
+                                };
+                            });
+                            const scoring = calculateTotalScore(updatedAnswers, loadedQuestions);
+                            const hasAnyOverride = Object.keys(respOverrides).length > 0 || updatedAnswers.some(a => a.isCorrectOverride !== null && a.isCorrectOverride !== undefined);
+                            return {
+                                ...r,
+                                answers: updatedAnswers,
+                                correctCount: scoring.correctCount,
+                                wrongCount: scoring.wrongCount,
+                                score: scoring.score,
+                                isCustomScore: hasAnyOverride || r.isCustomScore,
+                            };
+                        });
+                    }
+                    setAnalytics(data);
                 }
             } catch (err) {
                 console.error('Error loading responses:', err);
@@ -126,55 +433,24 @@ export default function FormResponsesPage() {
         setTimeout(() => setToast(null), 3000);
     };
 
-    const persistOverrides = (newOverrides) => {
-        setScoreOverrides(newOverrides);
-        try {
-            localStorage.setItem(`formup_scores_${id}`, JSON.stringify(newOverrides));
-        } catch (e) {
-            console.error('Error saving score overrides:', e);
-        }
-    };
-
-    // Merge respondent data from analytics with response list and apply score overrides
+    // Merge respondent data from analytics with response list
     const respondentsList = useMemo(() => {
-        const rawList = analytics?.respondents && analytics.respondents.length > 0
-            ? analytics.respondents
-            : (responses || []).map(r => ({
-                responseId: r.id,
-                respondentName: r.respondentName,
-                submittedAt: r.submittedAt,
-                status: r.status,
-                answeredCount: 0,
-                totalQuestions: 0,
-                correctCount: 0,
-                wrongCount: 0,
-                score: null,
-                answers: []
-            }));
-
-        return rawList.map(r => {
-            const override = scoreOverrides[r.responseId];
-            if (!override) return { ...r, baseScore: r.score };
-
-            const effectiveScore = override.score !== undefined ? override.score : r.score;
-            const effectiveCorrect = override.correctCount !== undefined ? override.correctCount : r.correctCount;
-            const qOverrides = override.questionOverrides || {};
-
-            const effectiveAnswers = (r.answers || []).map(a => ({
-                ...a,
-                isCorrect: qOverrides[a.questionId] !== undefined ? qOverrides[a.questionId] : a.isCorrect
-            }));
-
-            return {
-                ...r,
-                baseScore: r.score,
-                score: effectiveScore,
-                correctCount: effectiveCorrect,
-                answers: effectiveAnswers,
-                isCustomScore: !!override.isCustom
-            };
-        });
-    }, [analytics, responses, scoreOverrides]);
+        if (analytics?.respondents && analytics.respondents.length > 0) {
+            return analytics.respondents;
+        }
+        return (responses || []).map(r => ({
+            responseId: r.id,
+            respondentName: r.respondentName,
+            submittedAt: r.submittedAt,
+            status: r.status,
+            answeredCount: 0,
+            totalQuestions: 0,
+            correctCount: 0,
+            wrongCount: 0,
+            score: null,
+            answers: []
+        }));
+    }, [analytics, responses]);
 
     const handleExport = (formId) => {
         if (!formId || exporting) return;
@@ -295,60 +571,344 @@ export default function FormResponsesPage() {
         }
     };
 
-    const handleSaveIndividualScore = (responseId, newScore) => {
+    const handleSaveIndividualScore = async (responseId, newScore) => {
         const parsed = Math.max(0, Math.min(100, parseFloat(newScore) || 0));
-        const updated = {
-            ...scoreOverrides,
-            [responseId]: {
-                ...(scoreOverrides[responseId] || {}),
-                score: parsed,
-                isCustom: true
-            }
-        };
-        persistOverrides(updated);
+        // Update local display state optimistically
+        setAnalytics(prev => {
+            if (!prev?.respondents) return prev;
+            return {
+                ...prev,
+                respondents: prev.respondents.map(r =>
+                    r.responseId === responseId ? { ...r, score: parsed, isCustomScore: true } : r
+                )
+            };
+        });
         setEditingScoreId(null);
         showToast(`Skor responden #${responseId} diperbarui menjadi ${parsed}%`);
     };
 
-    const handleToggleQuestionCorrect = (responseId, questionId, currentIsCorrect) => {
-        const nextIsCorrect = currentIsCorrect === true ? false : true;
-        const respOverride = scoreOverrides[responseId] || {};
-        const qOverrides = { ...(respOverride.questionOverrides || {}) };
-        qOverrides[questionId] = nextIsCorrect;
-
-        const respondent = respondentsList.find(r => r.responseId === responseId);
-        const answers = respondent?.answers || [];
-        const scorableCount = respondent?.scorableQuestions || answers.length || 1;
-        let newCorrectCount = 0;
-        answers.forEach(a => {
-            const isCorr = qOverrides[a.questionId] !== undefined ? qOverrides[a.questionId] : a.isCorrect;
-            if (isCorr === true) newCorrectCount++;
+    const openRespondentReview = async (respondent) => {
+        const localOverrides = getLocalManualOverrides(id)[respondent.responseId] || {};
+        const currentAnswers = (respondent.answers || []).map(a => {
+            const qDef = formQuestions.find(q => Number(q.id) === Number(a.questionId));
+            const key = a.correctAnswer || resolveQuestionKey(qDef);
+            const hasLocalOverride = localOverrides[a.questionId] !== undefined;
+            const effOverride = hasLocalOverride ? localOverrides[a.questionId] : a.isCorrectOverride;
+            const effIsCorrect = getEffectiveIsCorrect({ ...a, isCorrectOverride: effOverride }, qDef);
+            return {
+                ...a,
+                correctAnswer: key,
+                isCorrectOverride: effOverride,
+                isCorrect: effIsCorrect,
+            };
+        });
+        const initialScoring = calculateTotalScore(currentAnswers, formQuestions);
+        setSelectedRespondent({
+            ...respondent,
+            answers: currentAnswers,
+            correctCount: initialScoring.correctCount,
+            wrongCount: initialScoring.wrongCount,
+            score: initialScoring.score,
+            totalQuestions: initialScoring.totalQuestions,
         });
 
-        const newCalculatedScore = Math.min(100, Math.round((newCorrectCount / scorableCount) * 100 * 10) / 10);
+        // Always load full response result so answers contain proper AnswerId and server-calculated scores
+        const res = await getResponseResult(id, respondent.responseId);
+        if (res.ok && res.data) {
+            const serverAnswers = res.data.answers || respondent.answers || [];
+            const mergedAnswers = serverAnswers.map(a => {
+                const qDef = formQuestions.find(q => Number(q.id) === Number(a.questionId));
+                const key = a.correctAnswer || resolveQuestionKey(qDef);
+                const hasLocalOverride = localOverrides[a.questionId] !== undefined;
+                const effectiveOverride = hasLocalOverride ? localOverrides[a.questionId] : a.isCorrectOverride;
+                const effIsCorrect = getEffectiveIsCorrect({
+                    ...a,
+                    isCorrectOverride: effectiveOverride,
+                    isCorrect: a.isCorrect,
+                }, qDef);
 
-        const updated = {
-            ...scoreOverrides,
-            [responseId]: {
-                ...respOverride,
-                score: newCalculatedScore,
-                correctCount: newCorrectCount,
-                questionOverrides: qOverrides,
-                isCustom: true
-            }
-        };
-        persistOverrides(updated);
-        
-        if (selectedRespondent && selectedRespondent.responseId === responseId) {
+                return {
+                    ...a,
+                    correctAnswer: key,
+                    isCorrectOverride: effectiveOverride,
+                    isCorrect: effIsCorrect,
+                };
+            });
+
+            const scoring = calculateTotalScore(mergedAnswers, formQuestions);
+
             setSelectedRespondent(prev => ({
-                ...prev,
-                score: newCalculatedScore,
-                correctCount: newCorrectCount,
-                answers: prev.answers.map(a => a.questionId === questionId ? { ...a, isCorrect: nextIsCorrect } : a)
+                ...respondent,
+                ...res.data,
+                answers: mergedAnswers,
+                correctCount: scoring.correctCount,
+                wrongCount: scoring.wrongCount,
+                score: scoring.score,
+                totalQuestions: scoring.totalQuestions,
             }));
         }
+    };
 
-        showToast(`Status soal #${questionId} diubah menjadi ${nextIsCorrect ? 'Benar' : 'Salah'}`);
+    const handleSetQuestionCorrect = async (responseId, questionId, targetIsCorrect) => {
+        let srAnswer = selectedRespondent?.answers?.find(a => Number(a.questionId) === Number(questionId));
+        let answerId = srAnswer?.answerId || srAnswer?.id;
+
+        if (!answerId) {
+            const fresh = await getResponseResult(id, responseId);
+            if (fresh.ok && fresh.data?.answers) {
+                const found = fresh.data.answers.find(a => Number(a.questionId) === Number(questionId));
+                answerId = found?.answerId || found?.id;
+            }
+        }
+
+        const parsedAnswerId = parseInt(answerId, 10);
+        if (!parsedAnswerId || isNaN(parsedAnswerId)) {
+            showToast('Tidak dapat menemukan ID jawaban valid dari server.', 'error');
+            return;
+        }
+
+        const res = await overrideAnswerScore(responseId, parsedAnswerId, {
+            isCorrectOverride: targetIsCorrect,
+            manualScore: null,
+            overrideNote: 'Manual correction by form owner',
+        });
+
+        if (res.ok) {
+            saveLocalManualOverride(id, responseId, questionId, targetIsCorrect);
+
+            setSelectedRespondent(prev => {
+                if (!prev) return prev;
+                const newAnswers = (prev.answers || []).map(a => {
+                    if (Number(a.questionId) === Number(questionId)) {
+                        return { ...a, isCorrectOverride: targetIsCorrect, isCorrect: targetIsCorrect };
+                    }
+                    return a;
+                });
+                const scoring = calculateTotalScore(newAnswers, formQuestions);
+                return {
+                    ...prev,
+                    answers: newAnswers,
+                    correctCount: scoring.correctCount,
+                    wrongCount: scoring.wrongCount,
+                    score: scoring.score,
+                };
+            });
+
+            // Update respondent row in table
+            setAnalytics(prev => {
+                if (!prev?.respondents) return prev;
+                return {
+                    ...prev,
+                    respondents: prev.respondents.map(r => {
+                        if (r.responseId !== responseId) return r;
+                        const newAnswers = (r.answers || []).map(a => {
+                            if (Number(a.questionId) === Number(questionId)) {
+                                return { ...a, isCorrectOverride: targetIsCorrect, isCorrect: targetIsCorrect };
+                            }
+                            return a;
+                        });
+                        const scoring = calculateTotalScore(newAnswers, formQuestions);
+                        return {
+                            ...r,
+                            answers: newAnswers,
+                            correctCount: scoring.correctCount,
+                            wrongCount: scoring.wrongCount,
+                            score: scoring.score,
+                            isCustomScore: true,
+                        };
+                    })
+                };
+            });
+
+            showToast(`Status soal diubah menjadi ${targetIsCorrect ? 'Benar' : 'Salah'}`);
+        } else {
+            showToast(res.message || 'Gagal mengubah status soal.', 'error');
+        }
+    };
+
+    // A-8: Holistic AI analysis — kirim semua jawaban essay + ringkasan PG sekaligus
+    const handleAiHolisticScore = async (respondent) => {
+        const apiKey = getGeminiApiKey();
+        if (!apiKey) { showToast('API Key Gemini belum diatur.', 'error'); return; }
+
+        let answers = respondent.answers || [];
+        const hasMissingAnswerId = answers.some(a => !a.answerId && !a.id);
+        if (hasMissingAnswerId || answers.length === 0) {
+            const fresh = await getResponseResult(id, respondent.responseId);
+            if (fresh.ok && fresh.data?.answers) {
+                answers = fresh.data.answers;
+                setSelectedRespondent(prev => ({ ...prev, ...fresh.data }));
+            }
+        }
+
+        const essayAnswers = answers.filter(a => a.typeId === 1);
+        if (essayAnswers.length === 0) { showToast('Tidak ada soal essay dalam submission ini.', 'error'); return; }
+
+        setAiHolisticScoring(true);
+        try {
+            const pgAnswers = answers.filter(a => a.typeId !== 1);
+            const pgCorrect = pgAnswers.filter(a => {
+                const qDef = (formQuestions || []).find(q => Number(q.id) === Number(a.questionId));
+                return getEffectiveIsCorrect(a, qDef) === true;
+            }).length;
+            const pgTotal = pgAnswers.length;
+
+            const essaySection = essayAnswers.map((a, i) => {
+                const qDef = (formQuestions || []).find(q => Number(q.id) === Number(a.questionId));
+                const text = a.answerText || a.answerValue || '(kosong)';
+                const key = a.correctAnswer || resolveQuestionKey(qDef) || '(tidak ada kunci)';
+                const q = (a.question || '').replace(/<[^>]*>/g, '').substring(0, 200);
+                const aId = a.answerId || a.id;
+                return `Essay #${i+1} (answerId: ${aId}):\nPertanyaan: ${q}\nKunci: ${key}\nJawaban: ${text}`;
+            }).join('\n\n');
+
+            const pgSection = pgTotal > 0 ? `\n\nRingkasan PG: ${pgCorrect}/${pgTotal} benar (${Math.round((pgCorrect/pgTotal)*100)}%)` : '';
+
+            const prompt = `Anda adalah penilai ujian. Nilai SEMUA soal essay dari satu responden sekaligus secara holistik, dengan mempertimbangkan konteks keseluruhan performa responden.
+${pgSection}
+
+Data Essay:
+${essaySection}
+
+Kembalikan JSON array — satu objek per essay, HARUS berurutan sesuai Essay #1, #2, dst:
+[
+  {"answerId": <answerId integer dari data essay>, "score": 85, "isCorrect": true, "reason": "Alasan singkat 1 kalimat"}
+]
+
+Panduan penilaian:
+- Nilai berdasarkan kesamaan makna/konsep, bukan kata per kata
+- isCorrect: true jika score >= 70
+- Pertimbangkan konteks: jika PG bagus, cenderung paham materi
+- Score: 0-100`;
+
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            const resp = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.3 } }) });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            let textRes = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            textRes = textRes.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'').replace(/^```\s*/,'');
+            const suggestions = JSON.parse(textRes);
+
+            // Map suggestions back to answer objects
+            const mapped = suggestions.map((s, i) => {
+                const answer = essayAnswers[i];
+                return { answer, suggestion: s, answerId: s.answerId || answer?.answerId || answer?.id };
+            }).filter(x => x.answer);
+
+            // Calculate estimated total score using calculateTotalScore
+            const simulatedAnswers = (selectedRespondent?.answers || []).map(a => {
+                const matchedSug = mapped.find(x => Number(x.answer?.questionId) === Number(a.questionId));
+                if (matchedSug) {
+                    return { ...a, isCorrect: matchedSug.suggestion.isCorrect, isCorrectOverride: matchedSug.suggestion.isCorrect };
+                }
+                const qDef = (formQuestions || []).find(q => Number(q.id) === Number(a.questionId));
+                return { ...a, isCorrect: getEffectiveIsCorrect(a, qDef) };
+            });
+            const simScoring = calculateTotalScore(simulatedAnswers, formQuestions);
+            const totalEstimate = simScoring.score;
+
+            setAiHolisticResult({ essaySuggestions: mapped, pgSummary: pgTotal > 0 ? `${pgCorrect}/${pgTotal} benar` : null, totalEstimate });
+            setAiHolisticPreviewOpen(true);
+        } catch (err) {
+            showToast('Gagal analisis AI: ' + err.message, 'error');
+        } finally {
+            setAiHolisticScoring(false);
+        }
+    };
+
+    // A-8: Apply all AI suggestions at once via bulk endpoint
+    const handleApplyAllAiScores = async () => {
+        if (!aiHolisticResult || !selectedRespondent) return;
+        const responseId = selectedRespondent.responseId;
+        const overrides = aiHolisticResult.essaySuggestions
+            .map(x => {
+                const aId = parseInt(x.answerId, 10);
+                if (!aId || isNaN(aId)) return null;
+                return {
+                    answerId: aId,
+                    manualScore: null, // Keep null so backend does not add 100 raw points!
+                    isCorrectOverride: x.suggestion.isCorrect,
+                    overrideNote: `AI Holistic: ${x.suggestion.reason} (Nilai: ${x.suggestion.score})`,
+                };
+            })
+            .filter(Boolean);
+
+        if (overrides.length === 0) { showToast('Tidak ada jawaban dengan ID valid untuk di-apply.', 'error'); return; }
+
+        const res = await bulkOverrideAnswerScores(responseId, overrides);
+        if (res.ok) {
+            overrides.forEach(o => {
+                const matchedEssay = aiHolisticResult.essaySuggestions.find(x => parseInt(x.answerId, 10) === o.answerId);
+                const qId = matchedEssay?.answer?.questionId;
+                if (qId) {
+                    saveLocalManualOverride(id, responseId, qId, o.isCorrectOverride);
+                }
+            });
+
+            setSelectedRespondent(prev => {
+                if (!prev) return prev;
+                const updatedAnswers = (prev.answers || []).map(a => {
+                    const matchedSug = aiHolisticResult.essaySuggestions.find(x => Number(x.answer?.questionId) === Number(a.questionId));
+                    if (matchedSug) {
+                        return {
+                            ...a,
+                            isCorrectOverride: matchedSug.suggestion.isCorrect,
+                            isCorrect: matchedSug.suggestion.isCorrect,
+                            score: matchedSug.suggestion.score,
+                            manualScore: null,
+                        };
+                    }
+                    return a;
+                });
+                const scoring = calculateTotalScore(updatedAnswers, formQuestions);
+                return {
+                    ...prev,
+                    answers: updatedAnswers,
+                    correctCount: scoring.correctCount,
+                    wrongCount: scoring.wrongCount,
+                    score: scoring.score,
+                };
+            });
+
+            // Also update analytics list
+            setAnalytics(prev => {
+                if (!prev?.respondents) return prev;
+                return {
+                    ...prev,
+                    respondents: prev.respondents.map(r => {
+                        if (r.responseId !== responseId) return r;
+                        const updatedAnswers = (r.answers || []).map(a => {
+                            const matchedSug = aiHolisticResult.essaySuggestions.find(x => Number(x.answer?.questionId) === Number(a.questionId));
+                            if (matchedSug) {
+                                return {
+                                    ...a,
+                                    isCorrectOverride: matchedSug.suggestion.isCorrect,
+                                    isCorrect: matchedSug.suggestion.isCorrect,
+                                    score: matchedSug.suggestion.score,
+                                    manualScore: null,
+                                };
+                            }
+                            return a;
+                        });
+                        const scoring = calculateTotalScore(updatedAnswers, formQuestions);
+                        return {
+                            ...r,
+                            answers: updatedAnswers,
+                            correctCount: scoring.correctCount,
+                            wrongCount: scoring.wrongCount,
+                            score: scoring.score,
+                            isCustomScore: true
+                        };
+                    })
+                };
+            });
+
+            setAiHolisticPreviewOpen(false);
+            setAiHolisticResult(null);
+            showToast(`${overrides.length} skor essay AI berhasil diterapkan!`);
+        } else {
+            showToast(res.message || 'Gagal menerapkan skor AI.', 'error');
+        }
     };
 
     // Preview adjustments before applying
@@ -386,27 +946,25 @@ export default function FormResponsesPage() {
     }, [respondentsList, bulkType, bulkFilter, filterThreshold, filterRangeMin, filterRangeMax, bulkValue]);
 
     const handleApplyBulkScore = () => {
-        const updated = { ...scoreOverrides };
-
-        previewAdjustments.forEach(item => {
-            if (item.meetsFilter) {
-                updated[item.responseId] = {
-                    ...(updated[item.responseId] || {}),
-                    score: item.projectedScore,
-                    isCustom: true
-                };
-            }
+        setAnalytics(prev => {
+            if (!prev?.respondents) return prev;
+            const updated = prev.respondents.map(r => {
+                const item = previewAdjustments.find(p => p.responseId === r.responseId);
+                if (!item || !item.meetsFilter) return r;
+                return { ...r, score: item.projectedScore, isCustomScore: true };
+            });
+            return { ...prev, respondents: updated };
         });
-
-        persistOverrides(updated);
         setBulkModalOpen(false);
         showToast('Penyesuaian skor massal berhasil diterapkan!');
     };
 
-    const handleResetAllScores = () => {
-        persistOverrides({});
+    const handleResetAllScores = async () => {
         setBulkModalOpen(false);
-        showToast('Semua skor telah dikembalikan ke perhitungan sistem.');
+        // Reload analytics fresh from server
+        const res = await getFormAnalytics(id, 1, 100);
+        if (res.ok && res.data) setAnalytics(res.data);
+        showToast('Skor dikembalikan ke perhitungan sistem.');
     };
 
     // Trend calculations
@@ -435,25 +993,27 @@ export default function FormResponsesPage() {
 
     const goPrevious = () => {
         if (currentIndex > 0) {
-            setSelectedRespondent(respondentsList[currentIndex - 1]);
+            openRespondentReview(respondentsList[currentIndex - 1]);
         }
     };
 
     const goNext = () => {
         if (currentIndex < respondentsList.length - 1) {
-            setSelectedRespondent(respondentsList[currentIndex + 1]);
+            openRespondentReview(respondentsList[currentIndex + 1]);
         }
     };
 
-    const getAnswerStatus = (answer) => {
-        if (answer.isCorrect === true) {
+    const getAnswerStatus = (answer, qDef = null) => {
+        const q = qDef || (formQuestions || []).find(f => Number(f.id) === Number(answer?.questionId));
+        const effective = getEffectiveIsCorrect(answer, q);
+        if (effective === true) {
             return {
                 label: 'Benar',
                 icon: <CheckCircle2 size={16} />,
                 className: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
             };
         }
-        if (answer.isCorrect === false) {
+        if (effective === false) {
             return {
                 label: 'Salah',
                 icon: <XCircle size={16} />,
@@ -518,28 +1078,71 @@ export default function FormResponsesPage() {
                     </div>
                 </div>
 
-                {/* Sub-tabs: Respons / Feedback */}
-                <div className="flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6">
-                    <button
-                        onClick={() => setActiveTab('responses')}
-                        className={`flex items-center gap-1.5 py-3.5 px-5 text-xs font-extrabold border-b-2 transition-all cursor-pointer ${
-                            activeTab === 'responses' 
-                                ? 'border-[#00897B] text-[#00897B] dark:border-teal-400 dark:text-teal-400' 
-                                : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        }`}
-                    >
-                        <Eye size={14} /> Respons
-                    </button>
-                    {/* <button
-                        onClick={() => setActiveTab('feedback')}
-                        className={`flex items-center gap-1.5 py-3.5 px-5 text-xs font-extrabold border-b-2 transition-all cursor-pointer ${
-                            activeTab === 'feedback' 
-                                ? 'border-amber-500 text-amber-600 dark:text-amber-400' 
-                                : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        }`}
-                    >
-                        <AlertTriangle size={14} /> Laporan Masukan
-                    </button> */}
+                {/* Sub-tabs: Respons / Monitoring Ujian */}
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6">
+                    <div className="flex">
+                        <button
+                            onClick={() => setActiveTab('responses')}
+                            className={`flex items-center gap-1.5 py-3.5 px-5 text-xs font-extrabold border-b-2 transition-all cursor-pointer ${
+                                activeTab === 'responses' 
+                                    ? 'border-[#00897B] text-[#00897B] dark:border-teal-400 dark:text-teal-400' 
+                                    : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }`}
+                        >
+                            <Eye size={14} /> Respons
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('monitoring')}
+                            className={`flex items-center gap-2 py-3.5 px-5 text-xs font-extrabold border-b-2 transition-all cursor-pointer ${
+                                activeTab === 'monitoring' 
+                                    ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400' 
+                                    : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }`}
+                        >
+                            <ShieldAlert size={14} />
+                            <span>Monitoring Ujian</span>
+                            {monitoringData?.onlineCount > 0 && (
+                                <span className="flex h-2 w-2 relative">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                            )}
+                            {monitoringData?.sessions && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                    {monitoringData.sessions.length}
+                                </span>
+                            )}
+                        </button>
+                    </div>
+
+                    {activeTab === 'monitoring' && (
+                        <div className="flex items-center gap-3 py-2">
+                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={autoRefresh}
+                                    onChange={(e) => setAutoRefresh(e.target.checked)}
+                                    className="w-3.5 h-3.5 accent-indigo-600 rounded cursor-pointer"
+                                />
+                                <span className="hidden sm:inline">Auto-refresh (5s)</span>
+                            </label>
+                            <button
+                                type="button"
+                                onClick={() => fetchExamMonitoring(false)}
+                                disabled={monitoringLoading}
+                                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                                title="Segarkan Data Monitoring"
+                            >
+                                <RefreshCw size={12} className={monitoringLoading ? 'animate-spin' : ''} />
+                                <span>Segarkan</span>
+                            </button>
+                            {lastRefreshedAt && (
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 hidden md:inline">
+                                    {lastRefreshedAt.toLocaleTimeString('id-ID')}
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {toast && (
@@ -733,14 +1336,7 @@ export default function FormResponsesPage() {
                                                             </td>
                                                             <td className="py-3.5 px-4 text-right">
                                                                 <button
-                                                                    onClick={async () => {
-                                                                        if (r.answers && r.answers.length > 0) {
-                                                                            setSelectedRespondent(r);
-                                                                        } else {
-                                                                            const res = await getResponseResult(id, r.responseId);
-                                                                            setSelectedRespondent(res.ok && res.data ? { ...r, ...res.data } : r);
-                                                                        }
-                                                                    }}
+                                                                    onClick={() => openRespondentReview(r)}
                                                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#00897B] hover:bg-[#00796B] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
                                                                 >
                                                                     <Eye size={13} /> Review Jawaban
@@ -796,6 +1392,301 @@ export default function FormResponsesPage() {
                                 </div>
                             )}
                         </>
+                    )}
+
+                    {/* ── EXAM MONITORING TAB ── */}
+                    {activeTab === 'monitoring' && (
+                        <div className="space-y-6">
+                            {/* Summary Metrics */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+                                    <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+                                        <span className="text-xs font-bold uppercase tracking-wider">Mode Ujian</span>
+                                        <ShieldCheck size={18} className={monitoringData?.isExamMode || monitoringData?.detectTabSwitch ? 'text-emerald-500' : 'text-slate-400'} />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-base font-extrabold px-2.5 py-0.5 rounded-full text-xs ${
+                                            monitoringData?.isExamMode || monitoringData?.detectTabSwitch
+                                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                        }`}>
+                                            {monitoringData?.isExamMode || monitoringData?.detectTabSwitch ? 'Aktif' : 'Nonaktif'}
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
+                                        {monitoringData?.autoSubmitOnTabSwitch
+                                            ? `Auto-submit: Maks ${monitoringData.maxTabSwitch || 3}x tab switch`
+                                            : 'Pencatatan pelanggaran aktif'}
+                                    </p>
+                                </div>
+
+                                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+                                    <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+                                        <span className="text-xs font-bold uppercase tracking-wider">Sedang Mengerjakan</span>
+                                        <Activity size={18} className="text-amber-500" />
+                                    </div>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-2xl font-black text-slate-900 dark:text-white">
+                                            {monitoringData?.inProgressCount ?? 0}
+                                        </span>
+                                        <span className="text-xs text-slate-400 font-semibold">peserta</span>
+                                    </div>
+                                    <p className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold mt-2">
+                                        Belum mengirimkan jawaban
+                                    </p>
+                                </div>
+
+                                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+                                    <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+                                        <span className="text-xs font-bold uppercase tracking-wider">Online Live</span>
+                                        <Radio size={18} className="text-emerald-500 animate-pulse" />
+                                    </div>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                                            {monitoringData?.onlineCount ?? 0}
+                                        </span>
+                                        <span className="text-xs text-slate-400 font-semibold">aktif saat ini</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
+                                        Ada aktivitas 90 detik terakhir
+                                    </p>
+                                </div>
+
+                                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+                                    <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+                                        <span className="text-xs font-bold uppercase tracking-wider">Sudah Submit</span>
+                                        <CheckCircle2 size={18} className="text-blue-500" />
+                                    </div>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-2xl font-black text-slate-900 dark:text-white">
+                                            {monitoringData?.submittedCount ?? 0}
+                                        </span>
+                                        <span className="text-xs text-slate-400 font-semibold">selesai</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
+                                        Jawaban telah tersimpan
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Filter and Search */}
+                            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+                                <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                                    {[
+                                        { id: 'all', label: 'Semua Peserta' },
+                                        { id: 'in_progress', label: 'Sedang Mengerjakan' },
+                                        { id: 'submitted', label: 'Sudah Submit' },
+                                        { id: 'violations', label: 'Ada Pelanggaran' },
+                                        { id: 'high_violations', label: 'Pelanggaran Tinggi' },
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            type="button"
+                                            onClick={() => setMonitoringFilter(tab.id)}
+                                            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                                                monitoringFilter === tab.id
+                                                    ? 'bg-indigo-600 text-white shadow-xs'
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <div className="relative w-full md:w-64">
+                                    <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Cari nama responden..."
+                                        value={monitoringSearch}
+                                        onChange={e => setMonitoringSearch(e.target.value)}
+                                        className="w-full pl-9 pr-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Sessions Table */}
+                            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
+                                {monitoringLoading && !monitoringData ? (
+                                    <div className="flex items-center justify-center p-12 text-slate-400 gap-2">
+                                        <Loader2 size={18} className="animate-spin text-indigo-600" />
+                                        <span className="text-xs font-bold">Memuat data monitoring ujian...</span>
+                                    </div>
+                                ) : filteredSessions.length === 0 ? (
+                                    <div className="text-center p-12 text-slate-400 dark:text-slate-500">
+                                        <ShieldAlert size={36} className="mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Belum ada peserta ujian ditemukan</p>
+                                        <p className="text-xs mt-1">Peserta yang membuka halaman ujian akan otomatis tercatat dan muncul di sini secara real-time.</p>
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="border-b border-slate-200 dark:border-slate-800 text-[11px] font-extrabold uppercase text-slate-400 dark:text-slate-500 bg-slate-50/70 dark:bg-slate-800/50">
+                                                    <th className="py-3 px-4">Responden</th>
+                                                    <th className="py-3 px-4">Status Pengerjaan</th>
+                                                    <th className="py-3 px-4">Pindah Tab</th>
+                                                    <th className="py-3 px-4">Total Pelanggaran</th>
+                                                    <th className="py-3 px-4">Aktivitas Terakhir</th>
+                                                    <th className="py-3 px-4 text-right">Rincian Log</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                                                {filteredSessions.map((session, idx) => {
+                                                    const isExpanded = expandedSessions.has(session.sessionId || `session-${idx}`);
+                                                    const maxSw = monitoringData?.maxTabSwitch || 3;
+                                                    const isHighViolation = session.violationCount >= maxSw || session.tabSwitchCount >= maxSw;
+
+                                                    return (
+                                                        <Fragment key={session.sessionId || `session-${idx}`}>
+                                                            <tr className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors ${
+                                                                isHighViolation ? 'bg-red-50/30 dark:bg-red-950/10' : ''
+                                                            }`}>
+                                                                <td className="py-3.5 px-4">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="relative shrink-0">
+                                                                            <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center font-bold text-slate-700 dark:text-slate-200 text-xs">
+                                                                                {(session.respondentName || 'A').charAt(0).toUpperCase()}
+                                                                            </div>
+                                                                            {session.isOnline ? (
+                                                                                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" title="Sedang Online" />
+                                                                            ) : (
+                                                                                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 ring-2 ring-white dark:ring-slate-900" title="Offline" />
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="min-w-0">
+                                                                            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                                                                                <span className="truncate">{session.respondentName || 'Anonim'}</span>
+                                                                                {session.isOnline && (
+                                                                                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">
+                                                                                        Online
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                                                                                {session.sessionId ? `Sesi: ${session.sessionId.slice(0, 8)}...` : (session.responseId ? `Respons #${session.responseId}` : 'Sesi Langsung')}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+
+                                                                <td className="py-3.5 px-4">
+                                                                    {session.status === 'in_progress' ? (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                                                                            <Activity size={12} className="animate-pulse" />
+                                                                            Sedang Mengerjakan
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                                                            <CheckCircle2 size={12} />
+                                                                            Sudah Submit
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+
+                                                                <td className="py-3.5 px-4 font-semibold">
+                                                                    {session.tabSwitchCount > 0 ? (
+                                                                        <span className={`font-bold ${session.tabSwitchCount >= maxSw ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                                            {session.tabSwitchCount}x
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-slate-400">0x</span>
+                                                                    )}
+                                                                </td>
+
+                                                                <td className="py-3.5 px-4">
+                                                                    {session.violationCount === 0 ? (
+                                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                                                            ✓ Bersih (0)
+                                                                        </span>
+                                                                    ) : isHighViolation ? (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-red-100 text-red-700 dark:bg-red-950/70 dark:text-red-300 border border-red-300 dark:border-red-800 animate-pulse">
+                                                                            <AlertTriangle size={12} />
+                                                                            {session.violationCount} Pelanggaran (Tinggi)
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                                                                            ⚠️ {session.violationCount} Pelanggaran
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+
+                                                                <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 text-[11px]">
+                                                                    <div>{formatDate(session.lastSeenAt || session.startedAt)}</div>
+                                                                    <div className="text-[10px] text-slate-400">
+                                                                        Mulai: {formatDate(session.startedAt)}
+                                                                    </div>
+                                                                </td>
+
+                                                                <td className="py-3.5 px-4 text-right">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => toggleSessionExpand(session.sessionId || `session-${idx}`)}
+                                                                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 rounded-lg transition-all cursor-pointer"
+                                                                    >
+                                                                        <span>Log ({session.violations?.length || 0})</span>
+                                                                        {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+
+                                                            {/* Expanded Violations Log */}
+                                                            {isExpanded && (
+                                                                <tr className="bg-slate-50/60 dark:bg-slate-900/60">
+                                                                    <td colSpan={6} className="p-4 pl-14">
+                                                                        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3">
+                                                                            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                                                                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                                                                    Log Rekaman Pelanggaran — {session.respondentName || 'Anonim'}
+                                                                                </span>
+                                                                                <span className="text-[11px] text-slate-400">
+                                                                                    Total: {session.violations?.length || 0} kejadian
+                                                                                </span>
+                                                                            </div>
+
+                                                                            {(!session.violations || session.violations.length === 0) ? (
+                                                                                <p className="text-xs text-slate-400 italic py-2">
+                                                                                    Tidak ada riwayat pelanggaran untuk sesi ini. Peserta mengerjakan dengan tertib.
+                                                                                </p>
+                                                                            ) : (
+                                                                                <div className="space-y-2">
+                                                                                    {session.violations.map((violation, vIdx) => {
+                                                                                        const vInfo = getViolationInfo(violation.type);
+                                                                                        return (
+                                                                                            <div
+                                                                                                key={vIdx}
+                                                                                                className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 text-xs"
+                                                                                            >
+                                                                                                <div className="flex items-center gap-2.5">
+                                                                                                    <span className={`p-1 rounded-md ${vInfo.bg} ${vInfo.color}`}>
+                                                                                                        {vInfo.icon}
+                                                                                                    </span>
+                                                                                                    <span className="font-bold text-slate-800 dark:text-slate-200">
+                                                                                                        {vInfo.label}
+                                                                                                    </span>
+                                                                                                </div>
+                                                                                                <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500">
+                                                                                                    {formatDateWithTime(violation.occurredAt)}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        );
+                                                                                    })}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </Fragment>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     )}
 
                 </div>
@@ -870,12 +1761,28 @@ export default function FormResponsesPage() {
                                     </p>
                                 </div>
                             </div>
+                            {/* A-8: Holistic AI Analysis button */}
+                            {(selectedRespondent.answers || []).some(a => a.typeId === 1) && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleAiHolisticScore(selectedRespondent)}
+                                    disabled={aiHolisticScoring}
+                                    className="flex items-center gap-1.5 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-xl text-xs font-bold border border-purple-200 dark:border-purple-800 cursor-pointer disabled:opacity-60 transition-all"
+                                >
+                                    <Sparkles size={13} />
+                                    {aiHolisticScoring ? 'Menganalisis...' : 'Analisis dengan AI'}
+                                </button>
+                            )}
                         </div>
 
                         {/* Answers List */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-4">
                             {(selectedRespondent.answers || []).map((answer, index) => {
-                                const status = getAnswerStatus(answer);
+                                const qDef = (formQuestions || []).find(q => Number(q.id) === Number(answer.questionId));
+                                const effIsCorrect = getEffectiveIsCorrect(answer, qDef);
+                                const status = getAnswerStatus(answer, qDef);
+                                const keyAnswer = answer.correctAnswer || resolveQuestionKey(qDef);
+                                const qPoints = qDef && Number(qDef.points) > 0 ? Number(qDef.points) : 1;
 
                                 return (
                                     <div
@@ -888,8 +1795,11 @@ export default function FormResponsesPage() {
                                                     {index + 1}
                                                 </span>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-semibold text-slate-900 dark:text-white leading-relaxed break-words">
+                                                    <div className="text-sm font-semibold text-slate-900 dark:text-white leading-relaxed break-words flex items-center gap-2 flex-wrap">
                                                         <RichContentRenderer content={answer.question} />
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                                            Bobot: {qPoints} poin
+                                                        </span>
                                                     </div>
                                                     {answer.questionImage && (
                                                         <div className="my-2 max-w-xs relative group/img overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 p-1 bg-white dark:bg-slate-900 shadow-xs">
@@ -920,9 +1830,9 @@ export default function FormResponsesPage() {
                                                 <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleToggleQuestionCorrect(selectedRespondent.responseId, answer.questionId, false)}
+                                                        onClick={() => handleSetQuestionCorrect(selectedRespondent.responseId, answer.questionId, true)}
                                                         className={`px-2 py-1 text-[11px] font-bold rounded cursor-pointer transition-all ${
-                                                            answer.isCorrect === true
+                                                            effIsCorrect === true
                                                                 ? 'bg-emerald-500 text-white shadow-2xs'
                                                                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                                                         }`}
@@ -932,9 +1842,9 @@ export default function FormResponsesPage() {
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleToggleQuestionCorrect(selectedRespondent.responseId, answer.questionId, true)}
+                                                        onClick={() => handleSetQuestionCorrect(selectedRespondent.responseId, answer.questionId, false)}
                                                         className={`px-2 py-1 text-[11px] font-bold rounded cursor-pointer transition-all ${
-                                                            answer.isCorrect === false
+                                                            effIsCorrect === false
                                                                 ? 'bg-red-500 text-white shadow-2xs'
                                                                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                                                         }`}
@@ -952,9 +1862,9 @@ export default function FormResponsesPage() {
                                                     Jawaban Responden:
                                                 </p>
                                                 <div className={`rounded-xl border p-3 font-medium ${
-                                                    answer.isCorrect === true
+                                                    effIsCorrect === true
                                                         ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
-                                                        : answer.isCorrect === false
+                                                        : effIsCorrect === false
                                                         ? 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-900 dark:text-red-200'
                                                         : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200'
                                                 }`}>
@@ -966,16 +1876,17 @@ export default function FormResponsesPage() {
                                                 </div>
                                             </div>
 
-                                            {answer.correctAnswer && (
+                                            {keyAnswer && (
                                                 <div>
                                                     <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500 mb-1">
                                                         Kunci / Jawaban Benar:
                                                     </p>
                                                     <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-3 text-emerald-900 dark:text-emerald-200 font-bold">
-                                                        <RichContentRenderer content={answer.correctAnswer} />
+                                                        <RichContentRenderer content={keyAnswer} />
                                                     </div>
                                                 </div>
                                             )}
+
                                         </div>
                                     </div>
                                 );
@@ -1011,6 +1922,78 @@ export default function FormResponsesPage() {
                             </button>
                         </div>
 
+                    </div>
+                </div>
+            )}
+
+            {/* ── A-8: HOLISTIC AI SCORING PREVIEW MODAL ── */}
+            {aiHolisticPreviewOpen && aiHolisticResult && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setAiHolisticPreviewOpen(false)} />
+                    <div className="relative bg-white dark:bg-slate-900 w-full max-w-lg max-h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800 z-10 animate-in fade-in zoom-in-95 duration-200">
+
+                        {/* Header */}
+                        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 bg-purple-50/50 dark:bg-purple-950/20">
+                            <div className="flex items-center gap-2">
+                                <div className="p-2 bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 rounded-xl">
+                                    <Sparkles size={16} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Saran Skor AI — Review Holistic</h3>
+                                    <p className="text-[11px] text-slate-400 dark:text-slate-500">{aiHolisticResult.essaySuggestions.length} soal essay dianalisis</p>
+                                </div>
+                            </div>
+                            <button type="button" onClick={() => setAiHolisticPreviewOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg cursor-pointer">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* PG Summary + Total Estimate */}
+                        {(aiHolisticResult.pgSummary || aiHolisticResult.totalEstimate !== null) && (
+                            <div className="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 flex flex-wrap gap-4 text-xs">
+                                {aiHolisticResult.pgSummary && (
+                                    <span className="text-slate-600 dark:text-slate-300">
+                                        <span className="font-bold">PG:</span> {aiHolisticResult.pgSummary}
+                                    </span>
+                                )}
+                                {aiHolisticResult.totalEstimate !== null && (
+                                    <span className="font-extrabold text-purple-700 dark:text-purple-300">
+                                        Estimasi Skor Total: {aiHolisticResult.totalEstimate}%
+                                    </span>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Essay Suggestions */}
+                        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                            {aiHolisticResult.essaySuggestions.map(({ answer, suggestion }, i) => (
+                                <div key={i} className="p-4 bg-white dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 flex-1 line-clamp-2">
+                                            {(answer.question || '').replace(/<[^>]*>/g, '').substring(0, 100)}
+                                        </p>
+                                        <span className={`shrink-0 text-xs font-extrabold px-2 py-0.5 rounded-full ${suggestion.isCorrect ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300'}`}>
+                                            {suggestion.score}%
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">"{suggestion.reason}"</p>
+                                    <div className="text-[11px] text-slate-400 dark:text-slate-500">
+                                        Jawaban: <span className="font-medium text-slate-600 dark:text-slate-300">{((answer.answerText || answer.answerValue || '(kosong)')).substring(0, 80)}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-white dark:bg-slate-900">
+                            <button type="button" onClick={() => setAiHolisticPreviewOpen(false)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                Batal
+                            </button>
+                            <button type="button" onClick={handleApplyAllAiScores} className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer flex items-center gap-2">
+                                <Sparkles size={13} />
+                                Terapkan Semua Skor AI ({aiHolisticResult.essaySuggestions.length} essay)
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

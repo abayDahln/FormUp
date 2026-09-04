@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, FileText, Users, CheckCircle2, Clock, Edit3, BarChart2, Sparkles, SearchX, ArrowRight } from 'lucide-react';
 import Sidebar from '../../../components/layout/Sidebar';
 import Topbar from '../../../components/layout/Topbar';
+import AIFormBuilderModal from '../../../components/ui/AIFormBuilderModal';
 import { getMyForms, getLocalUser, clearSession, assetUrl, createForm } from '../../../services/apiService';
 
 const getGreeting = () => {
@@ -20,6 +21,7 @@ const UserHome = () => {
     const [user] = useState(() => getLocalUser());
     const [searchQuery, setSearchQuery] = useState('');
     const [creatingForm, setCreatingForm] = useState(false);
+    const [aiFormBuilderOpen, setAiFormBuilderOpen] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -142,7 +144,6 @@ const UserHome = () => {
             <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
                 {/* Menghapus max-w-7xl mx-auto agar layout full width mengisi seluruh layar */}
                 <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8">
-
                     <Topbar 
                         searchQuery={searchQuery} 
                         onSearchChange={setSearchQuery} 
@@ -163,6 +164,14 @@ const UserHome = () => {
                             </p>
                         </div>
 
+                        <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setAiFormBuilderOpen(true)}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-500 hover:from-teal-700 hover:to-emerald-600 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer w-full sm:w-auto"
+                        >
+                            <Sparkles size={15} />
+                            <span>Buat dengan AI</span>
+                        </button>
                         <button
                             onClick={handleCreateNewForm}
                             disabled={creatingForm}
@@ -171,6 +180,7 @@ const UserHome = () => {
                             <Plus size={16} />
                             <span>{creatingForm ? 'Membuat...' : 'Buat Formulir Baru'}</span>
                         </button>
+                        </div>
                     </div>
 
                     {/* Stats Metrics */}
@@ -318,6 +328,13 @@ const UserHome = () => {
 
                 </main>
             </div>
+
+            {/* AI-1: AI Form Builder Modal */}
+            <AIFormBuilderModal
+                isOpen={aiFormBuilderOpen}
+                onClose={() => setAiFormBuilderOpen(false)}
+                onFormCreated={(newId) => navigate(`/forms/${newId}/edit`)}
+            />
         </div>
     );
 };

@@ -17,7 +17,8 @@ import {
     BarChart3,
     Check,
     AlertCircle,
-    Download
+    Download,
+    Sparkles
 } from 'lucide-react';
 
 import Sidebar from '../../components/layout/Sidebar';
@@ -27,6 +28,7 @@ import {
     exportFormResponses,
     clearSession
 } from '../../services/apiService';
+import { getGeminiApiKey } from '../../services/aiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
 
 const PAGE_SIZE = 25;
@@ -47,6 +49,11 @@ export default function FormAnalyticsPage() {
     const [exportingFormat, setExportingFormat] = useState(null);
     const [exportError, setExportError] = useState(null);
 
+    // AI-3: AI Analysis state
+    const [aiAnalyzing, setAiAnalyzing] = useState(false);
+    const [aiInsight, setAiInsight] = useState('');
+    const [aiError, setAiError] = useState('');
+
     const handleExport = async (format) => {
         if (!id || exportingFormat !== null) return;
         setExportingFormat(format);
@@ -63,6 +70,72 @@ export default function FormAnalyticsPage() {
             setTimeout(() => setExportError(null), 4000);
         } finally {
             setExportingFormat(null);
+        }
+    };
+
+    // AI-3: Analyze analytics with Gemini
+    const handleAiAnalyze = async () => {
+        const apiKey = getGeminiApiKey();
+        if (!apiKey) {
+            setAiError('API Key Gemini belum diatur. Silakan atur di FormBuilder terlebih dahulu.');
+            return;
+        }
+        setAiAnalyzing(true);
+        setAiInsight('');
+        setAiError('');
+
+        try {
+            const summary = `
+Formulir: ${form?.title || 'Tidak diketahui'}
+Total Respons: ${analytics?.totalResponses ?? respondents.length}
+Total Soal: ${analytics?.totalQuestions ?? 0}
+Soal Dinilai: ${analytics?.scorableQuestions ?? 0}
+Rata-rata Skor: ${analytics?.averageScore != null ? analytics.averageScore + '%' : 'N/A'}
+
+Distribusi Predikat:
+- Sangat Baik (A, 90-100%): ${gradeDistribution.A} siswa
+- Baik (B, 75-89%): ${gradeDistribution.B} siswa
+- Cukup (C, 60-74%): ${gradeDistribution.C} siswa
+- Kurang (D, 40-59%): ${gradeDistribution.D} siswa
+- Perlu Remidi (E, <40%): ${gradeDistribution.E} siswa
+
+Kriteria Kelulusan (>= 70%):
+- Lulus: ${passRateMetrics.passed} siswa (${passRateMetrics.passPercent}%)
+- Belum Lulus: ${passRateMetrics.failed} siswa (${passRateMetrics.failPercent}%)
+
+Analisis Akurasi Soal (diurutkan dari tersulit):
+${questionAccuracyMap.slice(0, 10).map(q => `- "${(q.question || '').replace(/<[^>]*>/g, '').substring(0, 80)}": akurasi ${q.accuracy}% (${q.correctCount}/${q.totalAttempts})`).join('\n')}
+`.trim();
+
+            const promptText = `Anda adalah analis pendidikan profesional. Berdasarkan data hasil ujian berikut, berikan analisis mendalam dan rekomendasi perbaikan dalam bahasa Indonesia yang jelas dan mudah dipahami guru.
+
+${summary}
+
+Berikan analisis yang mencakup:
+1. Identifikasi soal-soal bermasalah (terlalu sulit/mudah) dan saran perbaikannya
+2. Interpretasi distribusi nilai dan apa artinya bagi kualitas pembelajaran
+3. Rekomendasi konkret untuk meningkatkan hasil belajar
+4. Kesimpulan umum tentang kualitas soal dan pemahaman siswa
+
+Format respons dalam paragraf yang terstruktur, maksimal 400 kata.`;
+
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            const resp = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: promptText }] }],
+                    generationConfig: { temperature: 0.5 }
+                })
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            setAiInsight(text.trim());
+        } catch (err) {
+            setAiError('Gagal menganalisis: ' + err.message);
+        } finally {
+            setAiAnalyzing(false);
         }
     };
 
@@ -261,8 +334,17 @@ export default function FormAnalyticsPage() {
                         </div>
                     </div>
 
-                    {/* 3 Export Buttons: XLSX, CSV, PDF */}
+                    {/* 3 Export Buttons + AI Analysis */}
                     <div className="flex items-center gap-2">
+                        {/* AI-3: Analyze with AI button */}
+                        <button
+                            onClick={handleAiAnalyze}
+                            disabled={aiAnalyzing || respondents.length === 0}
+                            className="px-3 py-1.5 text-xs font-bold rounded-xl border border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-400 bg-purple-50/70 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                        >
+                            <Sparkles size={14} />
+                            <span>{aiAnalyzing ? 'Menganalisis...' : 'Analisis AI'}</span>
+                        </button>
                         <button
                             onClick={() => handleExport('xlsx')}
                             disabled={exportingFormat !== null}
@@ -299,6 +381,24 @@ export default function FormAnalyticsPage() {
                     <div className="bg-red-50 dark:bg-red-950/60 border-b border-red-200 dark:border-red-800 px-6 py-2.5 text-xs text-red-600 dark:text-red-400 flex items-center gap-2">
                         <AlertCircle size={15} />
                         <span>{exportError}</span>
+                    </div>
+                )}
+
+                {/* AI-3: Insight panel */}
+                {(aiInsight || aiError) && (
+                    <div className="mx-6 mt-4 p-5 rounded-2xl border border-purple-200 dark:border-purple-800 bg-purple-50/60 dark:bg-purple-950/30 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300 font-extrabold text-sm">
+                                <Sparkles size={16} /> Insight AI — Analisis Hasil Ujian
+                            </div>
+                            <button type="button" onClick={() => { setAiInsight(''); setAiError(''); }}
+                                className="text-purple-400 hover:text-purple-600 cursor-pointer"><X size={16} /></button>
+                        </div>
+                        {aiError ? (
+                            <p className="text-xs text-red-600 dark:text-red-400">{aiError}</p>
+                        ) : (
+                            renderAiMarkdown(aiInsight)
+                        )}
                     </div>
                 )}
 
@@ -704,4 +804,145 @@ export default function FormAnalyticsPage() {
             )}
         </div>
     );
+}
+
+function renderAiMarkdown(text) {
+    if (!text) return null;
+
+    // Split by code blocks first
+    const parts = text.split(/(```[\s\S]*?```)/g);
+
+    return (
+        <div className="space-y-2.5 text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
+            {parts.map((part, pIdx) => {
+                if (part.startsWith('```') && part.endsWith('```')) {
+                    const firstNewline = part.indexOf('\n');
+                    let lang = '';
+                    let code = '';
+                    if (firstNewline !== -1) {
+                        lang = part.slice(3, firstNewline).trim();
+                        code = part.slice(firstNewline + 1, -3);
+                    } else {
+                        code = part.slice(3, -3);
+                    }
+                    return (
+                        <div key={pIdx} className="my-2 p-3 bg-slate-900 text-slate-100 rounded-xl font-mono text-xs overflow-x-auto">
+                            {lang && <div className="text-[10px] text-purple-400 font-bold mb-1 uppercase">{lang}</div>}
+                            <pre className="whitespace-pre font-mono"><code>{code}</code></pre>
+                        </div>
+                    );
+                }
+
+                const lines = part.split('\n');
+                const elements = [];
+                let currentList = [];
+                let isNumberedList = false;
+
+                const flushList = () => {
+                    if (currentList.length > 0) {
+                        if (isNumberedList) {
+                            elements.push(
+                                <ol key={`ol-${elements.length}`} className="list-decimal list-inside space-y-1 my-1.5 ml-2">
+                                    {currentList.map((li, i) => (
+                                        <li key={i}>{parseInlineMarkdown(li)}</li>
+                                    ))}
+                                </ol>
+                            );
+                        } else {
+                            elements.push(
+                                <ul key={`ul-${elements.length}`} className="list-disc list-inside space-y-1 my-1.5 ml-2">
+                                    {currentList.map((li, i) => (
+                                        <li key={i}>{parseInlineMarkdown(li)}</li>
+                                    ))}
+                                </ul>
+                            );
+                        }
+                        currentList = [];
+                    }
+                };
+
+                lines.forEach((line, lIdx) => {
+                    const trimmed = line.trim();
+
+                    if (!trimmed) {
+                        flushList();
+                        return;
+                    }
+
+                    if (trimmed.startsWith('### ')) {
+                        flushList();
+                        elements.push(
+                            <h4 key={`h4-${lIdx}`} className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white mt-3 mb-1">
+                                {parseInlineMarkdown(trimmed.slice(4))}
+                            </h4>
+                        );
+                        return;
+                    }
+                    if (trimmed.startsWith('## ')) {
+                        flushList();
+                        elements.push(
+                            <h3 key={`h3-${lIdx}`} className="font-extrabold text-base text-slate-900 dark:text-white mt-4 mb-1.5 pb-1 border-b border-purple-200/50 dark:border-purple-800/50">
+                                {parseInlineMarkdown(trimmed.slice(3))}
+                            </h3>
+                        );
+                        return;
+                    }
+                    if (trimmed.startsWith('# ')) {
+                        flushList();
+                        elements.push(
+                            <h2 key={`h2-${lIdx}`} className="font-extrabold text-lg text-slate-900 dark:text-white mt-4 mb-2">
+                                {parseInlineMarkdown(trimmed.slice(2))}
+                            </h2>
+                        );
+                        return;
+                    }
+
+                    if (/^[-*]\s+/.test(trimmed)) {
+                        if (isNumberedList) flushList();
+                        isNumberedList = false;
+                        currentList.push(trimmed.replace(/^[-*]\s+/, ''));
+                        return;
+                    }
+
+                    if (/^\d+\.\s+/.test(trimmed)) {
+                        if (!isNumberedList && currentList.length > 0) flushList();
+                        isNumberedList = true;
+                        currentList.push(trimmed.replace(/^\d+\.\s+/, ''));
+                        return;
+                    }
+
+                    flushList();
+                    elements.push(
+                        <p key={`p-${lIdx}`} className="leading-relaxed">
+                            {parseInlineMarkdown(trimmed)}
+                        </p>
+                    );
+                });
+
+                flushList();
+
+                return <div key={pIdx} className="space-y-1.5">{elements}</div>;
+            })}
+        </div>
+    );
+}
+
+function parseInlineMarkdown(text) {
+    if (!text) return null;
+
+    const tokenRegex = /(\*\*.*?\*\*|`.*?`|\*.*?\*)/g;
+    const parts = text.split(tokenRegex);
+
+    return parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={i} className="font-bold text-slate-900 dark:text-white">{part.slice(2, -2)}</strong>;
+        }
+        if (part.startsWith('`') && part.endsWith('`')) {
+            return <code key={i} className="px-1.5 py-0.5 rounded bg-purple-100/70 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300 font-mono text-[11px]">{part.slice(1, -1)}</code>;
+        }
+        if (part.startsWith('*') && part.endsWith('*')) {
+            return <em key={i} className="italic">{part.slice(1, -1)}</em>;
+        }
+        return part;
+    });
 }

@@ -1,23 +1,28 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     Save, Plus, Trash2, ChevronUp, ChevronDown,
     Globe, Lock, ArrowLeft, Upload, FileUp, Image, Music, Download,
-    GripVertical, Code, Calculator, Eye, EyeOff, X, Sparkles
+    Code, Calculator, Eye, EyeOff, X, Sparkles,
+    Copy, Undo2, Redo2, FileDown, Wand2, ToggleLeft, ToggleRight,
+    ShieldAlert, Palette, CheckSquare, MoreHorizontal, ChevronDown as ChevDown
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
+import ConfirmModal from '../../components/ui/ConfirmModal';
 import {
     getFormById, getQuestions, saveQuestions, updateForm,
     togglePublishForm, updateFormSettings, getFormShare,
     uploadFormBanner, clearSession, assetUrl,
     deleteQuestion, importQuestions, uploadQuestionImage, uploadQuestionAudio,
-    templateDownloadUrl
+    templateDownloadUrl, createForm
 } from '../../services/apiService';
+import { getGeminiApiKey, AVAILABLE_MODELS } from '../../services/aiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
 import BlockQuestionEditor from '../../components/ui/BlockQuestionEditor';
 import MathAndCodeModal from '../../components/ui/MathAndCodeModal';
 import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
 import AIGeneratorModal from '../../components/ui/AIGeneratorModal';
+import AIFormBuilderModal from '../../components/ui/AIFormBuilderModal';
 
 const envUrl = import.meta.env.VITE_API_BASE_URL;
 const API_BASE_URL = (envUrl !== undefined && envUrl !== '')
@@ -75,8 +80,69 @@ export default function FormBuilder() {
     // AI Quiz Generator Modal state
     const [aiModalOpen, setAiModalOpen] = useState(false);
 
+    // AI Form Builder Modal state
+    const [aiFormBuilderOpen, setAiFormBuilderOpen] = useState(false);
+
+    // AI Revise per-question inline panel
+    const [aiReviseOpenIdx, setAiReviseOpenIdx] = useState(null);
+    const [aiReviseInstruction, setAiReviseInstruction] = useState('');
+    const [aiRevising, setAiRevising] = useState(false);
+    const [aiReviseError, setAiReviseError] = useState('');
+
+    // A-7: Bulk AI revise
+    const [bulkReviseMode, setBulkReviseMode] = useState(false);
+    const [bulkReviseSelected, setBulkReviseSelected] = useState(new Set());
+    const [bulkReviseInstruction, setBulkReviseInstruction] = useState('');
+    const [bulkRevising, setBulkRevising] = useState(false);
+    const [bulkRevisePreview, setBulkRevisePreview] = useState([]); // [{idx, original, revised}]
+    const [bulkRevisePreviewOpen, setBulkRevisePreviewOpen] = useState(false);
+
     // Live preview toggle per question
     const [previewVisibility, setPreviewVisibility] = useState({});
+
+    // A-2: Actions dropdown menu
+    const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
+    const actionsMenuRef = useRef(null);
+
+    // BUG-3: ConfirmModal state (replaces window.confirm)
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null, variant: 'danger' });
+
+    // FEAT-11: Dirty state indicator
+    const [isDirty, setIsDirty] = useState(false);
+
+    // FEAT-12: Undo/Redo history
+    const [history, setHistory] = useState([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
+    const historyUpdatingRef = useRef(false);
+
+    // FEAT-14: Autosave
+    const [autosaveEnabled, setAutosaveEnabled] = useState(() => {
+        try { return localStorage.getItem('formup_autosave_pref') === 'true'; } catch { return false; }
+    });
+    const autosaveIntervalRef = useRef(null);
+    const [autosaveToast, setAutosaveToast] = useState('');
+    const [autosaveLastSaved, setAutosaveLastSaved] = useState('');
+
+    // A-6: Floating quick-action button (FAB) on scroll
+    const mainScrollRef = useRef(null);
+    const [scrolledPastHeader, setScrolledPastHeader] = useState(false);
+    const [fabMenuOpen, setFabMenuOpen] = useState(false);
+
+    useEffect(() => {
+        const scrollEl = mainScrollRef.current;
+        const handleScroll = () => {
+            const top = scrollEl ? scrollEl.scrollTop : window.scrollY;
+            setScrolledPastHeader(top > 120);
+        };
+        if (scrollEl) {
+            scrollEl.addEventListener('scroll', handleScroll, { passive: true });
+        }
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => {
+            if (scrollEl) scrollEl.removeEventListener('scroll', handleScroll);
+            window.removeEventListener('scroll', handleScroll);
+        };
+    }, []);
 
     // Form settings state
     const [settings, setSettings] = useState({
@@ -90,7 +156,168 @@ export default function FormBuilder() {
         openFormTime: '',
         closeFormTime: '',
         customFormLink: '',
+        isExamMode: false,
+        disableCopyPaste: false,
+        detectTabSwitch: false,
+        autoSubmitOnTabSwitch: false,
+        maxTabSwitch: 3,
+        themePrimaryColor: '',
+        themeBackgroundColor: '',
     });
+
+    // BUG-3: Helper functions for deterministic dirty check (ignoring transient _id timestamps)
+    const serializeQuestionsForDirty = useCallback((qList) => {
+        if (!Array.isArray(qList)) return '[]';
+        return JSON.stringify(qList.map(q => ({
+            typeId: parseInt(q.typeId, 10) || 2,
+            question: (q.question || '').trim(),
+            questionFormat: q.questionFormat || 'text',
+            isRequired: !!q.isRequired,
+            correctAnswer: (q.correctAnswer || '').trim(),
+            points: q.points ?? null,
+            questionImage: q.questionImage || null,
+            questionAudio: q.questionAudio || null,
+            options: (q.options || []).map(o => ({
+                optionText: (o.optionText || '').trim(),
+                isCorrect: !!o.isCorrect,
+            })),
+        })));
+    }, []);
+
+    const serializeSettingsForDirty = useCallback((s) => {
+        if (!s || typeof s !== 'object') return '{}';
+        return JSON.stringify({
+            formTypeId: parseInt(s.formTypeId, 10) || 1,
+            showScore: !!s.showScore,
+            randomizeQuestions: !!s.randomizeQuestions,
+            oneResponse: !!s.oneResponse,
+            requiredLogin: !!s.requiredLogin,
+            formToken: (s.formToken || '').trim(),
+            timerDuration: s.timerDuration ? String(s.timerDuration) : '',
+            openFormTime: s.openFormTime || '',
+            closeFormTime: s.closeFormTime || '',
+            customFormLink: (s.customFormLink || '').trim(),
+            isExamMode: !!s.isExamMode,
+            disableCopyPaste: !!s.disableCopyPaste,
+            detectTabSwitch: !!s.detectTabSwitch,
+            autoSubmitOnTabSwitch: !!s.autoSubmitOnTabSwitch,
+            maxTabSwitch: s.maxTabSwitch ? parseInt(s.maxTabSwitch, 10) : 3,
+            themePrimaryColor: s.themePrimaryColor || '',
+            themeBackgroundColor: s.themeBackgroundColor || '',
+        });
+    }, []);
+
+    // Single source of truth baseline snapshot for dirty tracking
+    const baselineRef = useRef({ questions: '', settings: '' });
+
+    // Mark dirty when questions or settings deviate from baseline snapshot
+    useEffect(() => {
+        if (loading) return;
+        if (!baselineRef.current.questions && !baselineRef.current.settings) return;
+
+        const currentQStr = serializeQuestionsForDirty(questions);
+        const currentSStr = serializeSettingsForDirty(settings);
+
+        const qDirty = currentQStr !== baselineRef.current.questions;
+        const sDirty = currentSStr !== baselineRef.current.settings;
+
+        setIsDirty(qDirty || sDirty);
+    }, [questions, settings, loading, serializeQuestionsForDirty, serializeSettingsForDirty]);
+
+    // FEAT-11: beforeunload guard
+    useEffect(() => {
+        const handler = (e) => {
+            if (isDirty) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', handler);
+        return () => window.removeEventListener('beforeunload', handler);
+    }, [isDirty]);
+
+    // A-2: Close actions menu on outside click
+    useEffect(() => {
+        const handler = (e) => {
+            if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target)) {
+                setActionsMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    // FEAT-11: document.title indicator
+    useEffect(() => {
+        if (form?.title) {
+            document.title = isDirty ? `• ${form.title} — FormUp` : `${form.title} — FormUp`;
+        }
+        return () => { document.title = 'FormUp'; };
+    }, [isDirty, form?.title]);
+
+    // FEAT-12: Push to history when questions change due to structural ops
+    const pushHistory = useCallback((newQuestions) => {
+        if (historyUpdatingRef.current) return;
+        setHistory(prev => {
+            const sliced = prev.slice(0, historyIndex + 1);
+            const next = [...sliced, JSON.parse(JSON.stringify(newQuestions))].slice(-20);
+            return next;
+        });
+        setHistoryIndex(prev => Math.min(prev + 1, 19));
+    }, [historyIndex]);
+
+    // FEAT-12: Keyboard listener for Ctrl+Z / Ctrl+Y
+    useEffect(() => {
+        const handler = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                handleUndo();
+            } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                handleRedo();
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [history, historyIndex]);
+
+    const handleUndo = () => {
+        if (historyIndex <= 0) return;
+        const newIdx = historyIndex - 1;
+        historyUpdatingRef.current = true;
+        setQuestions(JSON.parse(JSON.stringify(history[newIdx])));
+        setHistoryIndex(newIdx);
+        setTimeout(() => { historyUpdatingRef.current = false; }, 0);
+    };
+
+    const handleRedo = () => {
+        if (historyIndex >= history.length - 1) return;
+        const newIdx = historyIndex + 1;
+        historyUpdatingRef.current = true;
+        setQuestions(JSON.parse(JSON.stringify(history[newIdx])));
+        setHistoryIndex(newIdx);
+        setTimeout(() => { historyUpdatingRef.current = false; }, 0);
+    };
+
+    // FEAT-14: Autosave interval
+    useEffect(() => {
+        localStorage.setItem('formup_autosave_pref', String(autosaveEnabled));
+        if (autosaveIntervalRef.current) clearInterval(autosaveIntervalRef.current);
+        if (autosaveEnabled) {
+            autosaveIntervalRef.current = setInterval(async () => {
+                if (!isDirty) return;
+                const ok = await handleSaveAll();
+                if (ok) {
+                    const now = new Date();
+                    const hhmm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+                    setAutosaveToast(`Tersimpan otomatis pukul ${hhmm}`);
+                    setAutosaveLastSaved(`Tersimpan ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`);
+                    setTimeout(() => setAutosaveToast(''), 2500);
+                }
+            }, 15000);
+        }
+        return () => { if (autosaveIntervalRef.current) clearInterval(autosaveIntervalRef.current); };
+    }, [autosaveEnabled, isDirty, activeTab]);
 
     const toLocalDatetimeInput = (dateVal) => {
         if (!dateVal) return '';
@@ -116,11 +343,12 @@ export default function FormBuilder() {
 
             if (formRes.status === 401) { clearSession(); navigate('/login'); return; }
 
+            let loadedSettings = { ...settings };
             if (formRes.ok && formRes.data) {
                 const f = formRes.data;
                 setForm(f);
                 const s = f.settings || {};
-                setSettings({
+                loadedSettings = {
                     formTypeId: s.formTypeId ?? 1,
                     showScore: s.showScore ?? false,
                     randomizeQuestions: s.randomizeQuestions ?? false,
@@ -131,11 +359,20 @@ export default function FormBuilder() {
                     openFormTime: toLocalDatetimeInput(s.openFormTime),
                     closeFormTime: toLocalDatetimeInput(s.closeFormTime),
                     customFormLink: f.formLink || '',
-                });
+                    isExamMode: s.isExamMode ?? false,
+                    disableCopyPaste: s.disableCopyPaste ?? false,
+                    detectTabSwitch: s.detectTabSwitch ?? false,
+                    autoSubmitOnTabSwitch: s.autoSubmitOnTabSwitch ?? false,
+                    maxTabSwitch: s.maxTabSwitch ?? 3,
+                    themePrimaryColor: s.themePrimaryColor ?? '',
+                    themeBackgroundColor: s.themeBackgroundColor ?? '',
+                };
+                setSettings(loadedSettings);
             }
 
+            let loadedQuestions = [];
             if (qRes.ok && Array.isArray(qRes.data) && qRes.data.length > 0) {
-                setQuestions(qRes.data.map((q, i) => {
+                loadedQuestions = qRes.data.map((q) => {
                     const hasCorrectOption = (q.options || []).some(o => o.isCorrect === true);
                     const hasCorrectAnswer = !!(q.correctAnswer && q.correctAnswer.trim());
                     const isScorable = q.isScorable !== undefined ? q.isScorable : (hasCorrectOption || hasCorrectAnswer);
@@ -146,15 +383,22 @@ export default function FormBuilder() {
                         isScorable: isScorable,
                         options: q.options || [],
                     };
-                }));
+                });
             } else {
-                setQuestions([newQuestion(1)]);
+                loadedQuestions = [newQuestion(1)];
             }
+            setQuestions(loadedQuestions);
 
+            // Establish clean baseline snapshot for new/loaded form
+            baselineRef.current = {
+                questions: serializeQuestionsForDirty(loadedQuestions),
+                settings: serializeSettingsForDirty(loadedSettings),
+            };
+            setIsDirty(false);
             setLoading(false);
         };
         load();
-    }, [id, navigate]);
+    }, [id, navigate, serializeQuestionsForDirty, serializeSettingsForDirty]);
 
     const handleSaveQuestions = async () => {
         setSaving(true);
@@ -184,23 +428,31 @@ export default function FormBuilder() {
 
         if (res.ok) {
             showToast(payloadQuestions.length === 0 ? 'Semua soal berhasil dihapus!' : 'Soal berhasil disimpan!');
+            let freshQuestions = [];
             const qRes = await getQuestions(id);
             if (qRes.ok && Array.isArray(qRes.data)) {
                 if (qRes.data.length === 0) {
-                    setQuestions([]);
+                    freshQuestions = [];
                 } else {
-                    setQuestions(qRes.data.map((q, i) => ({
+                    freshQuestions = qRes.data.map((q, i) => ({
                         ...q,
                         _id: questions[i]?._id || `q_${q.id}`,
                         isScorable: questions[i]?.isScorable ?? ((q.options || []).some(o => o.isCorrect === true) || !!(q.correctAnswer && q.correctAnswer.trim())),
                         points: q.points ?? null,
                         options: q.options || [],
-                    })));
+                    }));
                 }
+                setQuestions(freshQuestions);
                 // Jika form kehabisan soal, status otomatis kembali draft
                 const refreshed = await getFormById(id);
                 if (refreshed.ok && refreshed.data) setForm(refreshed.data);
+            } else {
+                freshQuestions = questions;
             }
+
+            baselineRef.current.questions = serializeQuestionsForDirty(freshQuestions);
+            const sDirty = serializeSettingsForDirty(settings) !== baselineRef.current.settings;
+            setIsDirty(sDirty);
             return true;
         } else {
             showToast(res.message || 'Gagal menyimpan soal.', 'error');
@@ -210,9 +462,18 @@ export default function FormBuilder() {
 
     const handleClearAllQuestions = () => {
         if (questions.length === 0) return;
-        if (!window.confirm('Hapus semua soal? Perubahan berlaku setelah Simpan.')) return;
-        setQuestions([]);
-        showToast('Semua soal dihapus dari draf. Tekan Simpan untuk menyimpan perubahan.', 'success');
+        setConfirmModal({
+            isOpen: true,
+            title: 'Hapus Semua Soal?',
+            message: 'Hapus semua soal? Perubahan berlaku setelah Simpan.',
+            variant: 'danger',
+            onConfirm: () => {
+                pushHistory(questions);
+                setQuestions([]);
+                showToast('Semua soal dihapus dari draf. Tekan Simpan untuk menyimpan perubahan.', 'success');
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+            },
+        });
     };
 
     const handleSaveSettings = async () => {
@@ -226,7 +487,7 @@ export default function FormBuilder() {
             if (!formRes.ok) {
                 showToast(formRes.message || 'Gagal memperbarui slug tautan formulir', 'error');
                 setSaving(false);
-                return;
+                return false;
             }
             setForm(prev => ({ ...prev, formLink: settings.customFormLink }));
         }
@@ -244,17 +505,25 @@ export default function FormBuilder() {
             timerDuration: timerValue,
             openFormTime: settings.openFormTime ? new Date(settings.openFormTime).toISOString() : null,
             closeFormTime: settings.closeFormTime ? new Date(settings.closeFormTime).toISOString() : null,
+            isExamMode: !!settings.isExamMode,
+            disableCopyPaste: !!settings.disableCopyPaste,
+            detectTabSwitch: !!settings.detectTabSwitch,
+            autoSubmitOnTabSwitch: !!settings.autoSubmitOnTabSwitch,
+            maxTabSwitch: settings.maxTabSwitch ? parseInt(settings.maxTabSwitch, 10) : null,
+            themePrimaryColor: settings.themePrimaryColor || null,
+            themeBackgroundColor: settings.themeBackgroundColor || null,
         });
 
         setSaving(false);
 
         if (res.ok) {
+            let nextSettings = { ...settings };
             const refreshed = await getFormById(id);
             if (refreshed.ok && refreshed.data) {
                 const f = refreshed.data;
                 setForm(f);
                 const s = f.settings || {};
-                setSettings({
+                nextSettings = {
                     formTypeId: s.formTypeId ?? 1,
                     showScore: s.showScore ?? false,
                     randomizeQuestions: s.randomizeQuestions ?? false,
@@ -265,12 +534,45 @@ export default function FormBuilder() {
                     openFormTime: toLocalDatetimeInput(s.openFormTime),
                     closeFormTime: toLocalDatetimeInput(s.closeFormTime),
                     customFormLink: f.formLink || '',
-                });
+                    isExamMode: s.isExamMode ?? false,
+                    disableCopyPaste: s.disableCopyPaste ?? false,
+                    detectTabSwitch: s.detectTabSwitch ?? false,
+                    autoSubmitOnTabSwitch: s.autoSubmitOnTabSwitch ?? false,
+                    maxTabSwitch: s.maxTabSwitch ?? 3,
+                    themePrimaryColor: s.themePrimaryColor ?? '',
+                    themeBackgroundColor: s.themeBackgroundColor ?? '',
+                };
+                setSettings(nextSettings);
             }
+
+            baselineRef.current.settings = serializeSettingsForDirty(nextSettings);
+            const qDirty = serializeQuestionsForDirty(questions) !== baselineRef.current.questions;
+            setIsDirty(qDirty);
             showToast('Pengaturan formulir berhasil disimpan!');
+            return true;
         } else {
             showToast(res.message || 'Gagal menyimpan pengaturan', 'error');
+            return false;
         }
+    };
+
+    // BUG-3: Unified save handler that saves questions, settings, or both based on dirty state
+    const handleSaveAll = async () => {
+        const qDirty = serializeQuestionsForDirty(questions) !== baselineRef.current.questions;
+        const sDirty = serializeSettingsForDirty(settings) !== baselineRef.current.settings;
+
+        let okQ = true;
+        let okS = true;
+
+        if (qDirty || activeTab === 'questions') {
+            okQ = await handleSaveQuestions();
+        }
+
+        if (sDirty || activeTab === 'settings') {
+            okS = await handleSaveSettings();
+        }
+
+        return okQ && okS;
     };
 
     const handleTogglePublish = async () => {
@@ -350,8 +652,157 @@ export default function FormBuilder() {
             const res = await deleteQuestion(id, q.id);
             if (!res.ok) { showToast(res.message || 'Gagal menghapus soal', 'error'); return; }
         }
-        setQuestions(prev => prev.filter((_, i) => i !== idx));
+        const next = questions.filter((_, i) => i !== idx);
+        pushHistory(next);
+        setQuestions(next);
         showToast('Soal berhasil dihapus');
+    };
+
+    // FEAT-10a: Duplicate question
+    const handleDuplicateQuestion = (idx) => {
+        const orig = questions[idx];
+        const dupe = {
+            ...JSON.parse(JSON.stringify(orig)),
+            _id: `q_dup_${Date.now()}`,
+            id: null,
+        };
+        setQuestions(prev => {
+            const next = [...prev];
+            next.splice(idx + 1, 0, dupe);
+            pushHistory(next);
+            return next;
+        });
+        showToast('Soal berhasil diduplikasi');
+    };
+
+    // FEAT-8: Export questions as CSV
+    const handleExportQuestions = () => {
+        if (questions.length === 0) { showToast('Tidak ada soal untuk diekspor.', 'error'); return; }
+        const rows = [
+            ['question', 'type_id', 'order', 'is_required', 'correct_answer', 'options']
+        ];
+        questions.forEach((q, i) => {
+            const optionsStr = (q.options || []).map(o => (o.isCorrect ? `*${o.optionText}` : o.optionText)).join('|');
+            const cleanQ = (q.question || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+            rows.push([
+                `"${cleanQ.replace(/"/g, '""')}"`,
+                q.typeId || 2,
+                i + 1,
+                q.isRequired ? 'true' : 'false',
+                `"${(q.correctAnswer || '').replace(/"/g, '""')}"`,
+                `"${optionsStr.replace(/"/g, '""')}"`,
+            ]);
+        });
+        const csv = '\uFEFF' + rows.map(r => r.join(',')).join('\r\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `soal-${(form?.title || 'formulir').replace(/\s+/g, '_')}-${Date.now()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('File soal CSV berhasil diunduh!');
+    };
+
+    // AI-2: Revise question with AI
+    const handleAiRevise = async (idx) => {
+        const q = questions[idx];
+        const apiKey = getGeminiApiKey();
+        if (!apiKey) { setAiReviseError('API Key Gemini belum diatur.'); return; }
+        if (!aiReviseInstruction.trim()) { setAiReviseError('Masukkan instruksi revisi.'); return; }
+        setAiRevising(true);
+        setAiReviseError('');
+        try {
+            const cleanQ = (q.question || '').replace(/<[^>]*>/g, '').trim();
+            const optionsText = (q.options || []).map((o, i) => `${String.fromCharCode(65+i)}. ${o.optionText}${o.isCorrect?' (jawaban benar)':''}`).join('\n');
+            const prompt = `Anda adalah asisten penyusun soal ujian. Revisi soal berikut sesuai instruksi.
+
+Soal asli:
+${cleanQ}
+
+Pilihan jawaban:
+${optionsText || '(tidak ada opsi)'}
+
+Kunci jawaban: ${q.correctAnswer || ''}
+
+Instruksi revisi: ${aiReviseInstruction.trim()}
+
+Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
+{
+  "question": "teks soal yang direvisi",
+  "typeId": ${q.typeId},
+  "isRequired": ${q.isRequired},
+  "isScorable": ${q.isScorable},
+  "correctAnswer": "kunci jawaban",
+  "options": [{"optionText":"...", "isCorrect": false}]
+}`;
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            const resp = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { responseMimeType: 'application/json', temperature: 0.7 }
+                })
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            let textRes = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            textRes = textRes.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'').replace(/^```\s*/,'');
+            const revised = JSON.parse(textRes);
+            updateQuestion(idx, 'question', revised.question || q.question);
+            if (revised.options && revised.options.length > 0) {
+                setQuestions(prev => prev.map((qq, qi) => qi === idx ? { ...qq, question: revised.question || qq.question, options: revised.options, correctAnswer: revised.correctAnswer || qq.correctAnswer } : qq));
+            } else {
+                updateQuestion(idx, 'correctAnswer', revised.correctAnswer || q.correctAnswer);
+            }
+            setAiReviseOpenIdx(null);
+            setAiReviseInstruction('');
+            showToast('Soal berhasil direvisi oleh AI!');
+        } catch (err) {
+            setAiReviseError('Gagal merevisi soal: ' + err.message);
+        } finally {
+            setAiRevising(false);
+        }
+    };
+
+    // A-7: Bulk AI Revise handler
+    const handleBulkAiRevise = async () => {
+        const apiKey = getGeminiApiKey();
+        if (!apiKey) { showToast('API Key Gemini belum diatur.', 'error'); return; }
+        if (!bulkReviseInstruction.trim()) { showToast('Masukkan instruksi revisi.', 'error'); return; }
+        if (bulkReviseSelected.size === 0) { showToast('Pilih minimal 1 soal untuk direvisi.', 'error'); return; }
+        setBulkRevising(true);
+        const results = [];
+        for (const idx of Array.from(bulkReviseSelected)) {
+            const q = questions[idx];
+            try {
+                const cleanQ = (q.question || '').replace(/<[^>]*>/g, '').trim();
+                const optionsText = (q.options || []).map((o, i) => `${String.fromCharCode(65+i)}. ${o.optionText}${o.isCorrect?' (jawaban benar)':''}`).join('\n');
+                const prompt = `Revisi soal berikut sesuai instruksi. Kembalikan HANYA JSON valid.\n\nSoal: ${cleanQ}\nOpsi:\n${optionsText || '(tidak ada)'}\nKunci: ${q.correctAnswer || ''}\n\nInstruksi: ${bulkReviseInstruction.trim()}\n\nJSON output:\n{"question":"...","typeId":${q.typeId},"isRequired":${q.isRequired},"isScorable":${q.isScorable},"correctAnswer":"...","options":[{"optionText":"...","isCorrect":false}]}`;
+                const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+                const resp = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.7 } }) });
+                if (!resp.ok) continue;
+                const data = await resp.json();
+                let textRes = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                textRes = textRes.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+                const revised = JSON.parse(textRes);
+                results.push({ idx, original: q, revised });
+            } catch {}
+        }
+        setBulkRevising(false);
+        if (results.length > 0) {
+            setBulkRevisePreview(results);
+            setBulkRevisePreviewOpen(true);
+        } else {
+            showToast('Tidak ada soal yang berhasil direvisi.', 'error');
+        }
+    };
+
+    const applyBulkReviseItem = (idx, revised) => {
+        setQuestions(prev => prev.map((q, qi) => qi === idx ? { ...q, question: revised.question || q.question, options: revised.options?.length > 0 ? revised.options : q.options, correctAnswer: revised.correctAnswer || q.correctAnswer } : q));
     };
 
     // Auto-save questions helper for unsaved questions before uploading image/audio
@@ -402,7 +853,11 @@ export default function FormBuilder() {
         updateQuestion(idx, 'questionAudio', null);
     };
 
-    const addQuestion = () => setQuestions(prev => [...prev, newQuestion(prev.length + 1)]);
+    const addQuestion = () => setQuestions(prev => {
+        const next = [...prev, newQuestion(prev.length + 1)];
+        pushHistory(next);
+        return next;
+    });
 
     const handleAddAIQuestions = (newGeneratedQuestions) => {
         if (!newGeneratedQuestions || newGeneratedQuestions.length === 0) return;
@@ -424,6 +879,7 @@ export default function FormBuilder() {
             const target = idx + dir;
             if (target < 0 || target >= arr.length) return arr;
             [arr[idx], arr[target]] = [arr[target], arr[idx]];
+            pushHistory(arr);
             return arr;
         });
     };
@@ -488,7 +944,7 @@ export default function FormBuilder() {
         <div className="flex min-h-screen w-full bg-[#F4F8F7] dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100 transition-colors">
             <Sidebar />
 
-            <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-y-auto">
+            <div ref={mainScrollRef} className="flex-1 flex flex-col min-w-0 min-h-screen overflow-y-auto">
 
                 {/* Top Header */}
                 <div className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-6 py-3 flex items-center justify-between gap-4 shadow-xs">
@@ -517,13 +973,46 @@ export default function FormBuilder() {
                             <span className="hidden sm:inline">{publishing ? 'Memproses...' : isPublished ? 'Jadikan Draf' : 'Publikasikan'}</span>
                         </button>
 
+                        {/* FEAT-13: Preview button */}
                         <button
-                            onClick={activeTab === 'settings' ? handleSaveSettings : handleSaveQuestions}
+                            type="button"
+                            title="Lihat sebagai Responden (Preview)"
+                            onClick={() => window.open(`/f/${form?.formLink}?preview=true&formId=${form?.id}`, '_blank')}
+                            className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
+                        >
+                            <Eye size={14} />
+                            <span>Preview</span>
+                        </button>
+
+                        {/* FEAT-14: Autosave toggle */}
+                        <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+                            <button
+                                type="button"
+                                onClick={() => setAutosaveEnabled(prev => !prev)}
+                                className={`flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer ${autosaveEnabled ? 'text-teal-600 dark:text-teal-400' : 'text-slate-400 dark:text-slate-500'}`}
+                                title="Simpan perubahan otomatis setiap 15 detik saat ada perubahan"
+                            >
+                                {autosaveEnabled ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+                                <span>Auto-Save {autosaveEnabled ? 'ON' : 'OFF'}</span>
+                            </button>
+                            {autosaveEnabled && autosaveLastSaved && (
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                    {autosaveLastSaved}
+                                </span>
+                            )}
+                        </div>
+
+                        <button
+                            onClick={handleSaveAll}
                             disabled={saving}
-                            className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-60"
+                            className={`relative flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-60 ${
+                                isDirty
+                                    ? 'bg-orange-500 hover:bg-orange-600 text-white animate-pulse'
+                                    : 'bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white'
+                            }`}
                         >
                             <Save size={14} />
-                            <span>{saving ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
+                            <span>{saving ? 'Menyimpan...' : isDirty ? '⚠ Simpan Sekarang' : 'Simpan Perubahan'}</span>
                         </button>
                     </div>
                 </div>
@@ -531,6 +1020,12 @@ export default function FormBuilder() {
                 {toast && (
                     <div className={`fixed top-16 right-6 z-50 px-4 py-3 rounded-2xl shadow-xl text-xs font-bold text-white transition-all ${toast.type === 'error' ? 'bg-red-500' : 'bg-[#00897B]'}`}>
                         {toast.msg}
+                    </div>
+                )}
+
+                {autosaveToast && (
+                    <div className="fixed top-16 right-6 z-50 px-4 py-3 rounded-2xl shadow-xl text-xs font-bold text-white bg-teal-600 flex items-center gap-2">
+                        <Save size={13} /> {autosaveToast}
                     </div>
                 )}
 
@@ -547,7 +1042,7 @@ export default function FormBuilder() {
                                 setActiveTab(t.key);
                                 if (t.key === 'share') handleLoadShare();
                             }}
-                            className={`py-3.5 px-5 text-xs font-extrabold border-b-2 transition-all cursor-pointer ${activeTab === t.key ? 'border-[#00897B] text-[#00897B] dark:border-teal-400 dark:text-teal-400' : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                            className={`py-3.5 px-5 text-xs font-extrabold border-b-2 transition-all cursor-pointer whitespace-nowrap ${activeTab === t.key ? 'border-[#00897B] text-[#00897B] dark:border-teal-400 dark:text-teal-400' : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
                         >
                             {t.label}
                         </button>
@@ -609,9 +1104,9 @@ export default function FormBuilder() {
                                             <div>
                                                 <p className="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
                                                     Buat Soal Otomatis dengan AI
-                                                    <span className="text-[9px] uppercase px-1.5 py-0.5 rounded-md bg-teal-600 text-white font-extrabold tracking-wider">
+                                                    {/* <span className="text-[9px] uppercase px-1.5 py-0.5 rounded-md bg-teal-600 text-white font-extrabold tracking-wider">
                                                         Gemini
-                                                    </span>
+                                                    </span> */}
                                                 </p>
                                                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
                                                     Ketik topik atau paste materi, AI menyusun soal, opsi, dan kunci jawaban instan.
@@ -661,6 +1156,20 @@ export default function FormBuilder() {
                                         {/* Card Header Controls */}
                                         <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
                                             <div className="flex items-center gap-2">
+                                                {bulkReviseMode && (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={bulkReviseSelected.has(idx)}
+                                                        onChange={e => {
+                                                            setBulkReviseSelected(prev => {
+                                                                const next = new Set(prev);
+                                                                if (e.target.checked) next.add(idx); else next.delete(idx);
+                                                                return next;
+                                                            });
+                                                        }}
+                                                        className="w-4 h-4 text-purple-600 rounded cursor-pointer"
+                                                    />
+                                                )}
                                                 <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
                                                     Soal #{idx + 1}
                                                 </span>
@@ -676,6 +1185,16 @@ export default function FormBuilder() {
                                                     {previewVisibility[idx] ? <EyeOff size={15} /> : <Eye size={15} />}
                                                 </button>
 
+                                                {/* AI-2: Revisi AI per soal */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setAiReviseOpenIdx(aiReviseOpenIdx === idx ? null : idx); setAiReviseInstruction(''); setAiReviseError(''); }}
+                                                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${aiReviseOpenIdx === idx ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400' : 'text-slate-400 hover:text-purple-500 dark:hover:text-purple-400'}`}
+                                                    title="Revisi soal dengan AI"
+                                                >
+                                                    <Wand2 size={15} />
+                                                </button>
+
                                                 <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
 
                                                 <button onClick={() => moveQuestion(idx, -1)} disabled={idx === 0} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-30 cursor-pointer" title="Pindah Naik">
@@ -683,6 +1202,10 @@ export default function FormBuilder() {
                                                 </button>
                                                 <button onClick={() => moveQuestion(idx, 1)} disabled={idx === questions.length - 1} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-30 cursor-pointer" title="Pindah Turun">
                                                     <ChevronDown size={16} />
+                                                </button>
+                                                {/* FEAT-10a: Duplikat soal */}
+                                                <button onClick={() => handleDuplicateQuestion(idx)} className="p-1 text-blue-400 hover:text-blue-600 cursor-pointer" title="Duplikat Soal">
+                                                    <Copy size={15} />
                                                 </button>
                                                 <button onClick={() => handleDeleteQuestion(idx)} className="p-1 text-red-400 hover:text-red-600 cursor-pointer" title="Hapus Soal">
                                                     <Trash2 size={16} />
@@ -769,6 +1292,35 @@ export default function FormBuilder() {
                                                 </div>
                                                 <div className="break-words break-all [overflow-wrap:anywhere]">
                                                     <RichContentRenderer content={q.question} format={q.questionFormat} className="text-sm font-semibold text-slate-800 dark:text-slate-100" />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* AI-2: Inline AI Revise Panel */}
+                                        {aiReviseOpenIdx === idx && (
+                                            <div className="p-3.5 bg-purple-50 dark:bg-purple-950/40 rounded-xl border border-purple-200 dark:border-purple-800 space-y-2">
+                                                <p className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1.5">
+                                                    <Wand2 size={13} /> Revisi Soal dengan AI
+                                                </p>
+                                                {aiReviseError && <p className="text-[11px] text-red-500">{aiReviseError}</p>}
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={aiReviseInstruction}
+                                                        onChange={e => setAiReviseInstruction(e.target.value)}
+                                                        placeholder="Instruksi: Buat lebih sulit, ganti konteks ke ekosistem laut..."
+                                                        className="flex-1 px-3 py-1.5 text-xs border border-purple-200 dark:border-purple-700 rounded-xl bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                                        disabled={aiRevising}
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleAiRevise(idx)}
+                                                        disabled={aiRevising || !aiReviseInstruction.trim()}
+                                                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                                                    >
+                                                        {aiRevising ? <span className="animate-spin">⋯</span> : <Wand2 size={13} />}
+                                                        Revisi
+                                                    </button>
                                                 </div>
                                             </div>
                                         )}
@@ -915,6 +1467,34 @@ export default function FormBuilder() {
                                                                 >
                                                                     <Code size={14} />
                                                                 </button>
+                                                                {/* FEAT-7: Image upload per option */}
+                                                                <label
+                                                                    className="p-1 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 rounded cursor-pointer"
+                                                                    title="Tambah Gambar Opsi (maks 500KB)"
+                                                                >
+                                                                    <Image size={14} />
+                                                                    <input
+                                                                        type="file"
+                                                                        accept="image/*"
+                                                                        className="hidden"
+                                                                        onChange={e => {
+                                                                            const file = e.target.files?.[0];
+                                                                            if (!file) return;
+                                                                            if (file.size > 500 * 1024) {
+                                                                                showToast('Gambar opsi terlalu besar (maks 500KB).', 'error');
+                                                                                return;
+                                                                            }
+                                                                            const reader = new FileReader();
+                                                                            reader.onload = (ev) => {
+                                                                                const current = opt.optionText || '';
+                                                                                const imgTag = `<img src="${ev.target.result}" style="max-height:80px;display:inline-block;vertical-align:middle;" alt="opsi" />`;
+                                                                                updateOption(idx, oIdx, 'optionText', current + (current ? ' ' : '') + imgTag);
+                                                                            };
+                                                                            reader.readAsDataURL(file);
+                                                                            e.target.value = '';
+                                                                        }}
+                                                                    />
+                                                                </label>
                                                             </div>
 
                                                             <button onClick={() => removeOption(idx, oIdx)} className="text-red-400 hover:text-red-600 p-1 shrink-0 cursor-pointer">
@@ -922,8 +1502,8 @@ export default function FormBuilder() {
                                                             </button>
                                                         </div>
 
-                                                        {/* Option Rich Content Preview if formula/code inserted */}
-                                                        {(opt.optionText?.includes('$') || opt.optionText?.includes('<pre') || opt.optionText?.includes('<code')) && (
+                                                        {/* Option Rich Content Preview if formula/code/image inserted */}
+                                                        {(opt.optionText?.includes('$') || opt.optionText?.includes('<pre') || opt.optionText?.includes('<code') || opt.optionText?.includes('<img')) && (
                                                             <div className="ml-6 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-lg text-xs border border-slate-200/60 dark:border-slate-700">
                                                                 <RichContentRenderer content={opt.optionText} format="text" className="text-xs" />
                                                             </div>
@@ -974,28 +1554,79 @@ export default function FormBuilder() {
                                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Form tanpa soal akan tersimpan kosong (0 soal) dan otomatis kembali menjadi draf.</p>
                                 </div>
                             )}
-                            <div className="flex flex-wrap gap-2">
+                            {/* A-2: Reorganized toolbar — Tambah Soal + Aksi Lainnya dropdown */}
+                            <div className="flex flex-wrap gap-2 items-center">
+                                {/* Primary action: Tambah Soal Manual — always visible */}
                                 <button
                                     onClick={addQuestion}
                                     className="flex-1 min-w-[180px] py-3.5 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl text-xs font-extrabold text-slate-600 dark:text-slate-400 hover:border-[#00897B] dark:hover:border-teal-400 hover:text-[#00897B] dark:hover:text-teal-400 transition-all flex items-center justify-center gap-2 bg-white/60 dark:bg-slate-900/60 cursor-pointer"
                                 >
                                     <Plus size={18} /> Tambah Soal Manual
                                 </button>
-                                <button
-                                    onClick={() => setAiModalOpen(true)}
-                                    className="px-5 py-3.5 bg-gradient-to-r from-teal-600 to-emerald-500 hover:from-teal-700 hover:to-emerald-600 text-white rounded-2xl text-xs font-extrabold shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.98]"
-                                >
-                                    <Sparkles size={16} /> Buat dengan AI
-                                </button>
-                                {questions.length > 0 && (
+
+                                {/* A-2: Aksi Lainnya dropdown */}
+                                <div className="relative" ref={actionsMenuRef}>
                                     <button
-                                        onClick={handleClearAllQuestions}
-                                        className="px-4 py-3.5 border border-red-200 dark:border-red-900 rounded-2xl text-xs font-extrabold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-all flex items-center justify-center gap-2 bg-white dark:bg-slate-900 cursor-pointer"
+                                        type="button"
+                                        onClick={() => setActionsMenuOpen(prev => !prev)}
+                                        className="flex items-center gap-1.5 px-4 py-3.5 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-extrabold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all bg-white dark:bg-slate-900 cursor-pointer shadow-xs"
                                     >
-                                        <Trash2 size={16} /> Hapus Semua
+                                        <MoreHorizontal size={16} />
+                                        <span>Aksi Lainnya</span>
+                                        <ChevDown size={13} className={`transition-transform duration-200 ${actionsMenuOpen ? 'rotate-180' : ''}`} />
                                     </button>
-                                )}
+
+                                    {actionsMenuOpen && (
+                                        <div className="absolute bottom-full mb-2 left-0 z-30 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                                            <button type="button" onClick={() => { setActionsMenuOpen(false); setAiModalOpen(true); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-700 dark:hover:text-teal-300 transition-colors cursor-pointer">
+                                                <Sparkles size={14} className="text-teal-600 dark:text-teal-400 shrink-0" /> Buat dengan AI
+                                            </button>
+                                            <button type="button" onClick={() => { setActionsMenuOpen(false); setBulkReviseMode(prev => !prev); setBulkReviseSelected(new Set()); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:text-purple-700 dark:hover:text-purple-300 transition-colors cursor-pointer">
+                                                <Wand2 size={14} className="text-purple-600 dark:text-purple-400 shrink-0" /> {bulkReviseMode ? 'Selesai Pilih (Revisi)' : 'Revisi Massal AI'}
+                                            </button>
+                                            <div className="h-px bg-slate-100 dark:bg-slate-800 mx-3 my-1" />
+                                            <button type="button" onClick={() => { setActionsMenuOpen(false); handleUndo(); }} disabled={historyIndex <= 0} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                                                <Undo2 size={14} className="text-slate-500 shrink-0" /> Undo <span className="ml-auto text-[10px] font-normal text-slate-400">Ctrl+Z</span>
+                                            </button>
+                                            <button type="button" onClick={() => { setActionsMenuOpen(false); handleRedo(); }} disabled={historyIndex >= history.length - 1} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                                                <Redo2 size={14} className="text-slate-500 shrink-0" /> Redo <span className="ml-auto text-[10px] font-normal text-slate-400">Ctrl+Y</span>
+                                            </button>
+                                            <div className="h-px bg-slate-100 dark:bg-slate-800 mx-3 my-1" />
+                                            <button type="button" onClick={() => { setActionsMenuOpen(false); handleExportQuestions(); }} disabled={questions.length === 0} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-700 dark:hover:text-blue-300 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                                                <FileDown size={14} className="text-blue-600 dark:text-blue-400 shrink-0" /> Export Soal (CSV)
+                                            </button>
+                                            <button type="button" onClick={() => { setActionsMenuOpen(false); handleClearAllQuestions(); }} disabled={questions.length === 0} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                                                <Trash2 size={14} className="shrink-0" /> Hapus Semua Soal
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
+                            {bulkReviseMode && (
+                                <div className="sticky bottom-4 z-20 bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 rounded-2xl shadow-xl p-4 flex flex-wrap items-center gap-3">
+                                    <div className="flex items-center gap-2 text-xs font-bold text-purple-700 dark:text-purple-300">
+                                        <Wand2 size={14} />
+                                        <span>{bulkReviseSelected.size} soal dipilih</span>
+                                        <button type="button" onClick={() => setBulkReviseSelected(new Set(questions.map((_, i) => i)))} className="text-purple-500 underline cursor-pointer">Pilih Semua</button>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={bulkReviseInstruction}
+                                        onChange={e => setBulkReviseInstruction(e.target.value)}
+                                        placeholder="Instruksi revisi untuk semua soal terpilih..."
+                                        className="flex-1 min-w-[200px] px-3 py-1.5 text-xs border border-purple-200 dark:border-purple-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleBulkAiRevise}
+                                        disabled={bulkRevising || bulkReviseSelected.size === 0 || !bulkReviseInstruction.trim()}
+                                        className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                                    >
+                                        {bulkRevising ? <span className="animate-spin">⋯</span> : <Wand2 size={13} />}
+                                        {bulkRevising ? 'Merevisi...' : 'Revisi Sekarang'}
+                                    </button>
+                                </div>
+                            )}
                         </>
                     )}
 
@@ -1034,6 +1665,8 @@ export default function FormBuilder() {
                                             <option value={1}>Semua Soal dalam Satu Halaman</option>
                                             <option value={2}>Satu Soal per Halaman (Langkah)</option>
                                         </select>
+                                        {/* A-5: Clarify independence from exam mode */}
+                                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Pilihan tampilan — bebas dikombinasikan dengan Mode Ujian.</p>
                                     </div>
 
                                     <div>
@@ -1101,6 +1734,71 @@ export default function FormBuilder() {
                                     ))}
                                 </div>
 
+                                {/* B-1: Exam Mode Settings */}
+                                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <ShieldAlert size={15} className="text-red-500" />
+                                        <h3 className="text-xs font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">Mode Ujian</h3>
+                                        <span className="text-[10px] px-1.5 py-0.5 bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 rounded font-bold">Experimental</span>
+                                    </div>
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" checked={settings.isExamMode} onChange={e => setSettings(s => ({ ...s, isExamMode: e.target.checked }))} className="w-4 h-4 text-red-500 rounded cursor-pointer" />
+                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Aktifkan Mode Ujian</span>
+                                    </label>
+                                    {settings.isExamMode && (
+                                        <div className="ml-7 space-y-2.5 p-3 bg-red-50/60 dark:bg-red-950/20 rounded-xl border border-red-100 dark:border-red-900/40">
+                                            <label className="flex items-center gap-3 cursor-pointer">
+                                                <input type="checkbox" checked={settings.disableCopyPaste} onChange={e => setSettings(s => ({ ...s, disableCopyPaste: e.target.checked }))} className="w-4 h-4 text-red-500 rounded cursor-pointer" />
+                                                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Nonaktifkan Copy-Paste & Klik Kanan</span>
+                                            </label>
+                                            <label className="flex items-center gap-3 cursor-pointer">
+                                                <input type="checkbox" checked={settings.detectTabSwitch} onChange={e => setSettings(s => ({ ...s, detectTabSwitch: e.target.checked }))} className="w-4 h-4 text-red-500 rounded cursor-pointer" />
+                                                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Deteksi Pindah Tab / Minimize</span>
+                                            </label>
+                                            {settings.detectTabSwitch && (
+                                                <div className="space-y-2 ml-7">
+                                                    <label className="flex items-center gap-3 cursor-pointer">
+                                                        <input type="checkbox" checked={settings.autoSubmitOnTabSwitch} onChange={e => setSettings(s => ({ ...s, autoSubmitOnTabSwitch: e.target.checked }))} className="w-4 h-4 text-red-500 rounded cursor-pointer" />
+                                                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Auto-Submit Saat Melewati Batas Pelanggaran</span>
+                                                    </label>
+                                                    <div className="flex items-center gap-2">
+                                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">Maks. Pelanggaran:</label>
+                                                        <input type="number" min="1" max="20" value={settings.maxTabSwitch} onChange={e => setSettings(s => ({ ...s, maxTabSwitch: parseInt(e.target.value) || 3 }))} className="w-16 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-red-400" />
+                                                        <span className="text-xs text-slate-400">kali sebelum otomatis dikumpulkan</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* B-2: Custom Theme */}
+                                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Palette size={15} className="text-indigo-500" />
+                                        <h3 className="text-xs font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">Tema Form (Warna Kustom)</h3>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 dark:text-slate-500">Warna ini diterapkan pada tampilan form saat diisi oleh responden.</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Warna Utama (Tombol, Aksen)</label>
+                                            <div className="flex items-center gap-2">
+                                                <input type="color" value={settings.themePrimaryColor || '#00897B'} onChange={e => setSettings(s => ({ ...s, themePrimaryColor: e.target.value }))} className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer p-0.5 bg-white dark:bg-slate-800" />
+                                                <input type="text" value={settings.themePrimaryColor} onChange={e => setSettings(s => ({ ...s, themePrimaryColor: e.target.value }))} placeholder="#00897B" maxLength={7} className="flex-1 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00897B]" />
+                                                {settings.themePrimaryColor && <button type="button" onClick={() => setSettings(s => ({ ...s, themePrimaryColor: '' }))} className="text-slate-400 hover:text-red-500 cursor-pointer"><X size={14} /></button>}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Warna Latar Belakang Form</label>
+                                            <div className="flex items-center gap-2">
+                                                <input type="color" value={settings.themeBackgroundColor || '#F4F8F7'} onChange={e => setSettings(s => ({ ...s, themeBackgroundColor: e.target.value }))} className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer p-0.5 bg-white dark:bg-slate-800" />
+                                                <input type="text" value={settings.themeBackgroundColor} onChange={e => setSettings(s => ({ ...s, themeBackgroundColor: e.target.value }))} placeholder="#F4F8F7" maxLength={7} className="flex-1 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00897B]" />
+                                                {settings.themeBackgroundColor && <button type="button" onClick={() => setSettings(s => ({ ...s, themeBackgroundColor: '' }))} className="text-slate-400 hover:text-red-500 cursor-pointer"><X size={14} /></button>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
                                     <button
                                         type="button"
@@ -1166,6 +1864,48 @@ export default function FormBuilder() {
                 </div>
             </div>
 
+            {/* A-7: Bulk Revise Preview Modal */}
+            {bulkRevisePreviewOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-xs" onClick={() => setBulkRevisePreviewOpen(false)} />
+                    <div className="relative bg-white dark:bg-slate-900 w-full max-w-2xl max-h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800 z-10">
+                        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <h3 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2"><Wand2 size={16} className="text-purple-600" /> Preview Hasil Revisi AI ({bulkRevisePreview.length} soal)</h3>
+                            <button type="button" onClick={() => setBulkRevisePreviewOpen(false)} className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"><X size={18} /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                            {bulkRevisePreview.map(({ idx, original, revised }) => (
+                                <div key={idx} className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 text-xs text-slate-500">Soal #{idx + 1} — Original</div>
+                                    <div className="p-3 text-xs text-slate-700 dark:text-slate-300">{(original.question || '').replace(/<[^>]*>/g,'')}</div>
+                                    <div className="p-3 bg-purple-50 dark:bg-purple-950/30 text-xs text-slate-500 border-t border-slate-100 dark:border-slate-700">Hasil Revisi AI</div>
+                                    <div className="p-3 text-xs font-bold text-slate-900 dark:text-white">{(revised.question || '').replace(/<[^>]*>/g,'')}</div>
+                                    <div className="p-3 border-t border-slate-100 dark:border-slate-700 flex gap-2">
+                                        <button type="button" onClick={() => { applyBulkReviseItem(idx, revised); setBulkRevisePreview(prev => prev.filter(p => p.idx !== idx)); if (bulkRevisePreview.length <= 1) { setBulkRevisePreviewOpen(false); setBulkReviseMode(false); showToast('Revisi berhasil diterapkan!'); } }} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl cursor-pointer">Terapkan</button>
+                                        <button type="button" onClick={() => setBulkRevisePreview(prev => prev.filter(p => p.idx !== idx))} className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">Lewati</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex justify-between">
+                            <button type="button" onClick={() => { bulkRevisePreview.forEach(({ idx, revised }) => applyBulkReviseItem(idx, revised)); setBulkRevisePreviewOpen(false); setBulkReviseMode(false); showToast(`${bulkRevisePreview.length} soal berhasil direvisi!`); }} className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl cursor-pointer">Terapkan Semua</button>
+                            <button type="button" onClick={() => setBulkRevisePreviewOpen(false)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">Tutup</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* BUG-3: ConfirmModal (replaces window.confirm) */}
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                variant={confirmModal.variant || 'danger'}
+                confirmText="Ya, Hapus"
+            />
+
             {/* Modal Rumus & Kode */}
             <MathAndCodeModal
                 isOpen={modalOpen}
@@ -1182,6 +1922,13 @@ export default function FormBuilder() {
                 formTitle={form?.title || ''}
             />
 
+            {/* AI Form Builder Modal */}
+            <AIFormBuilderModal
+                isOpen={aiFormBuilderOpen}
+                onClose={() => setAiFormBuilderOpen(false)}
+                onFormCreated={(newId) => navigate(`/forms/${newId}/builder`)}
+            />
+
             {/* Lightbox Modal */}
             <ImageLightboxModal
                 isOpen={!!lightboxImage}
@@ -1189,6 +1936,115 @@ export default function FormBuilder() {
                 alt={lightboxImage?.alt}
                 onClose={() => setLightboxImage(null)}
             />
+
+            {/* Quick Action Scroll Menu */}
+            <div className={`fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2 transition-all duration-300 ease-out transform ${
+                scrolledPastHeader 
+                    ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' 
+                    : 'opacity-0 translate-y-6 scale-90 pointer-events-none'
+            }`}>
+                    {fabMenuOpen && (
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2.5 flex flex-col gap-1.5 w-56 animate-in zoom-in-95 duration-150">
+                            {/* Save */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setFabMenuOpen(false);
+                                    handleSaveAll();
+                                }}
+                                disabled={saving}
+                                className={`flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                                    isDirty
+                                        ? 'bg-orange-500 hover:bg-orange-600 text-white animate-pulse'
+                                        : 'bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white'
+                                }`}
+                            >
+                                <Save size={14} />
+                                <span>{saving ? 'Menyimpan...' : isDirty ? '⚠ Simpan Sekarang' : 'Simpan Perubahan'}</span>
+                            </button>
+
+                            {/* Preview */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setFabMenuOpen(false);
+                                    window.open(`/f/${form?.formLink}?preview=true&formId=${form?.id}`, '_blank');
+                                }}
+                                className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                            >
+                                <Eye size={14} className="text-teal-600 dark:text-teal-400" />
+                                <span>Preview Responden</span>
+                            </button>
+
+                            {/* Publish / Draft */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setFabMenuOpen(false);
+                                    handleTogglePublish();
+                                }}
+                                disabled={publishing}
+                                className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                            >
+                                {isPublished ? <Lock size={14} className="text-amber-500" /> : <Globe size={14} className="text-teal-600 dark:text-teal-400" />}
+                                <span>{publishing ? 'Memproses...' : isPublished ? 'Jadikan Draf' : 'Publikasikan'}</span>
+                            </button>
+
+                            {/* Auto-Save Toggle */}
+                            <button
+                                type="button"
+                                onClick={() => setAutosaveEnabled(prev => !prev)}
+                                className="flex items-center justify-between px-3 py-2 text-xs font-bold rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    {autosaveEnabled ? <ToggleRight size={14} className="text-teal-600 dark:text-teal-400" /> : <ToggleLeft size={14} className="text-slate-400" />}
+                                    <span>Auto-Save</span>
+                                </div>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-extrabold ${autosaveEnabled ? 'bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                                    {autosaveEnabled ? 'ON' : 'OFF'}
+                                </span>
+                            </button>
+
+                            <div className="h-px bg-slate-100 dark:bg-slate-800 my-0.5" />
+
+                            {/* Scroll to Top */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setFabMenuOpen(false);
+                                    if (mainScrollRef.current) {
+                                        mainScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                            >
+                                <ChevronUp size={14} />
+                                <span>Scroll ke Atas</span>
+                            </button>
+                        </div>
+                    )}
+
+                    {/* FAB Main Button */}
+                    <button
+                        type="button"
+                        onClick={() => setFabMenuOpen(prev => !prev)}
+                        title="Menu Tindakan Cepat"
+                        className={`relative w-12 h-12 rounded-full shadow-xl flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 cursor-pointer ${
+                            isDirty
+                                ? 'bg-orange-500 text-white shadow-orange-500/30'
+                                : 'bg-teal-600 hover:bg-teal-700 text-white shadow-teal-600/30'
+                        }`}
+                    >
+                        {isDirty && (
+                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 border-2 border-white dark:border-slate-900 animate-ping" />
+                        )}
+                        {isDirty && (
+                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 border-2 border-white dark:border-slate-900" />
+                        )}
+                        {fabMenuOpen ? <X size={20} /> : <Save size={20} />}
+                    </button>
+                </div>
         </div>
     );
 }

@@ -386,6 +386,47 @@ export const getPublicResponseResult = async (formLink, responseId, guestToken) 
     return parseResponse(res);
 };
 
+// ── Exam Monitoring Endpoints ────────────────────────────────────────────────
+// Backend: [HttpPost("api/public/forms/{formLink}/exam-events")] in ExamMonitoringController.cs
+export const postExamEvent = async (formLink, eventData) => {
+    const headers = authHeaders();
+    const res = await fetch(`${API_BASE_URL}/api/public/forms/${formLink}/exam-events`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(eventData),
+    });
+    return parseResponse(res);
+};
+
+// Backend: [HttpGet("api/forms/{formId}/exam-monitoring")] in ExamMonitoringController.cs
+export const getExamMonitoring = async (formId) => {
+    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/exam-monitoring`, {
+        headers: authHeaders(),
+    });
+    return parseResponse(res);
+};
+
+// ── Score Override Endpoints ─────────────────────────────────────────────────
+// Backend: [HttpPut("api/responses/{id}/answers/{answerId}/score")] in ResponsesController.cs
+export const overrideAnswerScore = async (responseId, answerId, payload) => {
+    const res = await fetch(`${API_BASE_URL}/api/responses/${responseId}/answers/${answerId}/score`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+    });
+    return parseResponse(res);
+};
+
+// Backend: [HttpPut("api/responses/{id}/scores")] in ResponsesController.cs
+export const bulkOverrideAnswerScores = async (responseId, overrides) => {
+    const res = await fetch(`${API_BASE_URL}/api/responses/${responseId}/scores`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ overrides }),
+    });
+    return parseResponse(res);
+};
+
 // ── Admin Endpoints ───────────────────────────────────────────────────────────
 export const adminGetUsers = async () => parseResponse(await fetch(`${API_BASE_URL}/api/admin/users`, { headers: authHeaders() }));
 export const adminGetUserDetail = async (id) => parseResponse(await fetch(`${API_BASE_URL}/api/admin/users/${id}`, { headers: authHeaders() }));
