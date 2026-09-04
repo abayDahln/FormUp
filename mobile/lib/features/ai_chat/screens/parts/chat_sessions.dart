@@ -7,6 +7,15 @@ extension _AiChatSessions on _AiChatScreenState {
     final all = await AiChatHistoryService.loadAll();
     if (!mounted) return;
     setState(() => _sessions = all);
+    // Shortcut kelola soal (initialFormId): selalu mulai NEW CHAT kosong,
+    // jangan lanjut ke percakapan terakhir.
+    if (widget.initialFormId != null) {
+      setState(() {
+        _currentSessionId = DateTime.now().millisecondsSinceEpoch.toString();
+        _messages.clear();
+      });
+      return;
+    }
     if (_sessions.isEmpty) {
       // Jangan auto-buat session kosong (anti spam) — buat id in-memory saja
       if (_currentSessionId == null) {

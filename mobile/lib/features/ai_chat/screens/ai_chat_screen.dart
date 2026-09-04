@@ -34,7 +34,15 @@ part 'parts/chat_history_ops.dart';
 class AiChatScreen extends StatefulWidget {
   final bool embedded;
 
-  const AiChatScreen({super.key, this.embedded = false});
+  /// Form yang otomatis di-mention saat screen dibuka (shortcut dari
+  /// kelola soal) — field prompt langsung berisi @JudulForm.
+  final int? initialFormId;
+
+  const AiChatScreen({
+    super.key,
+    this.embedded = false,
+    this.initialFormId,
+  });
 
   @override
   State<AiChatScreen> createState() => _AiChatScreenState();
@@ -119,7 +127,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _controller.addListener(_onTextChanged);
     _scroll.addListener(_onScroll);
     loadSessions();
-    loadAllForms();
+    loadAllForms().then((_) {
+      // Shortcut dari kelola soal: otomatis mention form tersebut.
+      final id = widget.initialFormId;
+      if (id != null && mounted) applyInitialMention(id);
+    });
     // Toast sekali saat baru membuka app & membuka screen AI chat jika key belum diatur
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_shownInitialMissingKeyToast && !GeminiService.hasKey && mounted) {

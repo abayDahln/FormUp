@@ -407,7 +407,9 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
       case AppPage.settings:
         return const SettingsScreen();
       case AppPage.aiChat:
-        return const AiChatScreen();
+        return AiChatScreen(
+          initialFormId: route.args['formId'] as int?,
+        );
       case AppPage.aiSettings:
         return const AiSettingsScreen();
     }

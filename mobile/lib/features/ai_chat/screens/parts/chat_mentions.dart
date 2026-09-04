@@ -27,17 +27,50 @@ extension _AiChatMentions on _AiChatScreenState {
   }
 
   /// Label mention pendek: maksimal 2 kata pertama, lalu dipotong dengan "..."
-  String mentionLabel(FormData f) {
-    final words = f.title
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((w) => w.isNotEmpty)
-        .toList();
+  String mentionLabel(FormData f) => _shortLabel(f.title);
+
+  /// Truncate judul apapun jadi label mention (dipakai mentionLabel dan
+  /// pre-mention dari shortcut kelola soal).
+  String _shortLabel(String raw) {
+    final words =
+        raw.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
     if (words.isEmpty) return 'form';
     var s = words.take(2).join(' ');
     if (words.length > 2) s = '$s...';
     if (s.length > 20) s = '${s.substring(0, 17)}...';
     return s;
+  }
+
+  /// Pre-mention form (shortcut FAB AI di kelola soal): daftarkan picked
+  /// mention dan isi field dengan @LabelForm sehingga AI langsung punya
+  /// konteks form tersebut tanpa user perlu mengetik @.
+  Future<void> applyInitialMention(int formId) async {
+    FormData? form;
+    for (final f in _allForms) {
+      if (f.id == formId) {
+        form = f;
+        break;
+      }
+    }
+    String label;
+    if (form != null) {
+      label = mentionLabel(form);
+    } else {
+      // Form tidak ada di cache (mis. baru dibuat) — ambil judulnya langsung.
+      try {
+        final raw = await FormService.getForm(formId);
+        label = _shortLabel(raw['title'] as String? ?? 'Form');
+      } catch (_) {
+        label = 'Form';
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _pickedMentions[formId] = label;
+      final current = _controller.text;
+      _controller.text = current.isEmpty ? '@$label ' : '$current @$label ';
+      _lastText = _controller.text;
+    });
   }
 
   void _onTextChanged() {

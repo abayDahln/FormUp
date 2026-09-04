@@ -15,6 +15,7 @@ import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/router/app_router.dart';
+import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/features/form/controllers/question_payload_builder.dart';
 import 'package:form_up/features/form/controllers/question_validation.dart';
 import 'package:form_up/features/form/widgets/question_confirm_dialogs.dart';
@@ -953,18 +954,38 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                 ),
               ),
             ),
-      floatingActionButton: SizedBox(
-        width: 68,
-        height: 68,
-        child: FloatingActionButton(
-          onPressed: (_saving || _importing) ? null : _addQuestion,
-          backgroundColor: kPrimary,
-          foregroundColor: Colors.white,
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          tooltip: 'Tambah Soal',
-          child: const Icon(Icons.add, size: 32),
-        ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Shortcut AI chat: buka chat dengan form ini otomatis di-mention.
+          FloatingActionButton.small(
+            heroTag: 'aiChatForForm',
+            onPressed: widget.formId == null
+                ? null
+                : () => AppRouter.of(context)
+                    .push(AppPage.aiChat, {'formId': widget.formId}),
+            backgroundColor: Colors.white,
+            foregroundColor: kPrimary,
+            elevation: 3,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            tooltip: 'Tanya AI tentang form ini',
+            child: const AiChatIcon(size: 18, color: kPrimary, filled: true),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: 68,
+            height: 68,
+            child: FloatingActionButton(
+              onPressed: (_saving || _importing) ? null : _addQuestion,
+              backgroundColor: kPrimary,
+              foregroundColor: Colors.white,
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              tooltip: 'Tambah Soal',
+              child: const Icon(Icons.add, size: 32),
+            ),
+          ),
+        ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
