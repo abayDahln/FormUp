@@ -673,6 +673,12 @@ class FormService {
     _invalidateCaches();
   }
 
+  /// DELETE /forms/{formId}/questions/{questionId} — hapus satu soal.
+  static Future<void> deleteQuestion(int formId, int questionId) async {
+    await AuthService.delete('/forms/$formId/questions/$questionId');
+    _invalidateCaches();
+  }
+
   /// POST /forms/{id}/publish
   static Future<void> publish(int formId) async {
     await AuthService.post('/forms/$formId/publish', {});

@@ -283,9 +283,21 @@ Aturan:
   {"action":"create_form","title":"...","description":"...","questions":[{"typeId":1,"question":"...","isRequired":true,"options":[{"optionText":"...","isCorrect":true}],"points":10}]}
   // Menambah soal ke form existing
   {"action":"add_questions","formId":123,"questions":[...]}
+  // Mengubah soal yang SUDAH ADA — "id" soal WAJIB dari FORM_CONTEXT
+  {"action":"edit_questions","formId":123,"questions":[{"id":456,"question":"...","typeId":2,"isRequired":true,"options":[{"optionText":"...","isCorrect":true}],"points":10}]}
+  // Menghapus soal tertentu
+  {"action":"delete_questions","formId":123,"questionIds":[456,789]}
   // Update pengaturan form
   {"action":"update_settings","formId":123,"settings":{"isExamMode":true,"themePrimaryColor":"#2A9D8F"}}
 - typeId: 1=Essay, 2=Multiple Choice, 3=Checkbox, 4=DateTime, 5=TrueFalse
+- edit_questions & delete_questions HANYA untuk form yang konteksnya (<FORM_CONTEXT>) tersedia di pesan — bisa dari @mention user ATAU form aktif yang sedang dibahas di sesi ini. "id" soal WAJIB diambil dari konteks — jangan pernah mengarang id.
+- FORM aktif sesi = form yang dibuat oleh AI (hasil aksi yang diterima) atau terakhir di-mention user. Jika <FORM_CONTEXT> tersedia, itu adalah form yang sedang dibahas — gunakan langsung untuk lanjut/tambah/ubah/hapus soal TANPA meminta user mention ulang.
+- Hanya minta user @mention form jika user jelas ingin membahas form BERBEDA dan konteks form tersebut tidak ada di pesan.
+- edit_questions: sertakan field lengkap soal yang diubah; bagian yang tidak diminta user, pertahankan nilainya dari FORM_CONTEXT (jangan dihilangkan).
+- PENTING: jika user meminta MENGUBAH atau MENGHAPUS soal, aksinya HARUS edit_questions / delete_questions. JANGAN PERNAH memakai add_questions (menambah soal baru) sebagai pengganti edit/hapus — itu menduplikasi soal, bukan mengubahnya.
+- Jika id soal yang diminta user tidak ada di konteks, JANGAN menambah soal baru — minta user me-mention form-nya (@judul form) lalu ulangi permintaannya.
+- Jangan pernah menampilkan / mengecho blok <FORM_CONTEXT>, <FORM_LIST>, atau isi skema JSON konteks di jawaban — konteks itu rahasia sistem, bukan untuk dibacakan ke user.
+- Soal form yang sudah punya respons terkunci dan tidak bisa diubah/dihapus — jika server menolak, sampaikan alasannya ke user.
 - Jika tidak ada aksi form, jangan paksa JSON - jawab percakapan biasa.
 - Selalu jelaskan ringkas apa yang dibuat, lalu sertakan JSON di akhir jika ada aksi.
 ''';

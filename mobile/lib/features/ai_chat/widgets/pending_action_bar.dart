@@ -31,6 +31,18 @@ class PendingActionBar extends StatelessWidget {
         return formId == null
             ? 'Menambah $count soal'
             : 'Menambah $count soal ke form #$formId';
+      case 'edit_questions':
+        final count = (action['questions'] as List<dynamic>?)?.length ?? 0;
+        final formId = action['formId'];
+        return formId == null
+            ? 'Mengubah $count soal'
+            : 'Mengubah $count soal di form #$formId';
+      case 'delete_questions':
+        final count = (action['questionIds'] as List<dynamic>?)?.length ?? 0;
+        final formId = action['formId'];
+        return formId == null
+            ? 'Menghapus $count soal'
+            : 'Menghapus $count soal dari form #$formId';
       case 'update_settings':
         final formId = action['formId'];
         return formId == null

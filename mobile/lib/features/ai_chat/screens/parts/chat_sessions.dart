@@ -40,9 +40,15 @@ extension _AiChatSessions on _AiChatScreenState {
                 actionStatus: m.actionStatus.isEmpty ? null : m.actionStatus,
                 actionResult: m.actionResult,
                 actionFormId: m.actionFormId,
+                actionExecuted: m.actionExecuted,
+                isError: m.isError,
+                undoSnapshot: m.undoSnapshot,
+                actionUndone: m.actionUndone,
               ))
           .toList(),
       updatedAt: DateTime.now(),
+      formContext: _lastFormContext,
+      activeFormId: _activeFormId,
     );
     await AiChatHistoryService.upsert(session);
     final all = await AiChatHistoryService.loadAll();
@@ -91,6 +97,8 @@ extension _AiChatSessions on _AiChatScreenState {
             _currentSessionId = DateTime.now().millisecondsSinceEpoch
                 .toString();
             _messages.clear();
+            _lastFormContext = null;
+            _activeFormId = null;
           });
           loadDraft(_currentSessionId!);
         }
@@ -105,6 +113,8 @@ extension _AiChatSessions on _AiChatScreenState {
       _currentSessionId = id;
       _messages.clear();
       _showFab = false;
+      _lastFormContext = null; // sesi baru, konteks form lama tidak relevan
+      _activeFormId = null;
     });
     loadDraft(id);
     // Jangan langsung upsert kosong — akan tersimpan otomatis saat prompt pertama dikirim (persistCurrent)
@@ -149,9 +159,18 @@ extension _AiChatSessions on _AiChatScreenState {
           msg.actionStatus = m.actionStatus ?? '';
           msg.actionResult = m.actionResult;
           msg.actionFormId = m.actionFormId;
+          // Flag actionExecuted baru dipersist belakangan — untuk data lama,
+          // status "accepted" memang berarti aksi sudah pernah dijalankan.
+          msg.actionExecuted = m.actionExecuted ?? (m.actionStatus == 'accepted');
+          msg.isError = m.isError ?? false;
+          msg.undoSnapshot = m.undoSnapshot;
+          msg.actionUndone = m.actionUndone ?? false;
           return msg;
         }));
       _showFab = false;
+      // Konteks form milik sesi ini (untuk pesan lanjutan tanpa mention).
+      _lastFormContext = target.formContext;
+      _activeFormId = target.activeFormId;
     });
     // Langsung tampilkan chat terbaru (paling bawah) saat ganti sesi
     loadDraft(id);
@@ -184,6 +203,8 @@ extension _AiChatSessions on _AiChatScreenState {
       _messages.clear();
       _sessions.clear();
       _currentSessionId = null;
+      _lastFormContext = null;
+      _activeFormId = null;
     });
     await newSession();
     if (mounted) showAuthToast(context, 'Semua history dihapus');

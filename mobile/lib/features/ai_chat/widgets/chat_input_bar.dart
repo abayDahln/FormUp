@@ -25,7 +25,6 @@ class ChatInputBar extends StatelessWidget {
   final VoidCallback onStop;
   final ValueChanged<FormData> onSelectMention;
   final VoidCallback onRetryLoadForms;
-  final VoidCallback onClearMentions;
 
   const ChatInputBar({
     super.key,
@@ -43,7 +42,6 @@ class ChatInputBar extends StatelessWidget {
     required this.onStop,
     required this.onSelectMention,
     required this.onRetryLoadForms,
-    required this.onClearMentions,
   });
 
   @override
@@ -246,14 +244,6 @@ class ChatInputBar extends StatelessWidget {
               style: const TextStyle(fontSize: 10, color: Colors.black54),
             ),
           ),
-          if (pickedMentionCount > 0)
-            GestureDetector(
-              onTap: onClearMentions,
-              child: const Text(
-                'Hapus',
-                style: TextStyle(fontSize: 10, color: Colors.red),
-              ),
-            ),
         ],
       ),
     );

@@ -17,6 +17,19 @@ class ChatMessage {
   /// dipakai tombol "Buka Form" di bawah bubble untuk navigasi ke detail.
   int? actionFormId;
 
+  /// Snapshot "keadaan sebelum aksi" (hanya entitas yang kena aksi AI) agar
+  /// undo bisa mengembalikan persis perubahan AI — soal buatan user manual
+  /// tidak pernah tersentuh. Format per tipe aksi:
+  /// create_form    → {type, formId}
+  /// add_questions  → {type, formId, createdIds: [int]}
+  /// edit_questions → {type, formId, originalQuestions: [json]}
+  /// delete_questions → {type, formId, deletedQuestions: [json]}
+  /// update_settings → {type, formId, previousSettings: {json}}
+  Map<String, dynamic>? undoSnapshot;
+
+  /// True bila perubahan aksi ini sudah pernah di-undo.
+  bool actionUndone = false;
+
   /// True bila bubble ini berisi pesan error (tampilkan gaya error + tombol coba lagi).
   bool isError = false;
 

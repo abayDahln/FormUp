@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/ai_chat_history_service.dart';
 import 'package:form_up/core/services/ai_form_context_service.dart';
@@ -24,6 +25,7 @@ import 'package:form_up/features/ai_chat/widgets/pending_action_bar.dart';
 part 'parts/chat_sessions.dart';
 part 'parts/chat_mentions.dart';
 part 'parts/chat_messaging.dart';
+part 'parts/chat_history_ops.dart';
 
 /// Layar chat AI — thin screen: state + scroll + komposisi UI.
 /// Logic sesi ada di parts/chat_sessions.dart,
@@ -66,6 +68,18 @@ class _AiChatScreenState extends State<AiChatScreen> {
   // Draft input per sesi: teks field tersimpan per session id, tidak
   // ikut berpindah saat ganti sesi (in-memory saja).
   final Map<String, String> _drafts = {};
+
+  // Konteks form terakhir di sesi aktif (hasil @mention). Dibawa ulang ke
+  // pesan lanjutan yang tidak ada mention-nya (mis. "edit soal sebelumnya")
+  // agar AI tetap punya id soal — tanpa ini AI hanya bisa add_questions.
+  // Ikut dipersist per sesi (lihat ChatSession.formContext).
+  String? _lastFormContext;
+
+  // Form aktif sesi ini: form yang dibuat oleh AI (aksi diterima) atau
+  // terakhir di-mention user. Pesan lanjutan otomatis memakai konteks form
+  // ini tanpa perlu mention ulang; mention hanya untuk PINDAH form.
+  // Ikut dipersist per sesi (lihat ChatSession.activeFormId).
+  int? _activeFormId;
 
   static bool _shownInitialMissingKeyToast = false;
 
@@ -302,11 +316,21 @@ class _AiChatScreenState extends State<AiChatScreen> {
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (ctx, i) {
                       final m = _messages[i];
+                      final isUser = m.role == 'user';
                       return ChatBubble(
                         message: m,
                         streaming: _streaming,
                         isLast: i == _messages.length - 1,
                         onRetry: () => retryMessage(m),
+                        onUndo: () => undoActionChange(m),
+                        onRedo: () => redoActionChange(m),
+                        onUserLongPress:
+                            isUser ? () => showMessageMenu(m) : null,
+                        onPromptRetry:
+                            isUser ? () => retryUserMessage(m) : null,
+                        onPromptEdit:
+                            isUser ? () => showEditMessageDialog(m) : null,
+                        onPromptCopy: isUser ? () => copyUserMessage(m) : null,
                       );
                     },
                   ),
@@ -364,10 +388,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       onStop: stopGeneration,
                       onSelectMention: selectMention,
                       onRetryLoadForms: () => loadAllForms(force: true),
-                      onClearMentions: () => setState(() {
-                        _pickedMentions.clear();
-                        _controller.mentionTokens = [];
-                      }),
                     ),
                   ],
                 ),

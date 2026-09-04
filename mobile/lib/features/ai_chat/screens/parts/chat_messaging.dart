@@ -1,6 +1,35 @@
 // ignore_for_file: invalid_use_of_protected_member
 part of '../ai_chat_screen.dart';
 
+/// Hasil eksekusi aksi AI: formId yang terlibat + data undo (snapshot
+/// kondisi SEBELUM aksi, hanya entitas yang kena aksi — soal buatan user
+/// manual tidak ikut, sehingga undo aman terhadap edit manual).
+class ActionExecutionResult {
+  final int? formId;
+  final Map<String, dynamic>? undo;
+  const ActionExecutionResult({this.formId, this.undo});
+}
+
+/// Serialisasi QuestionData ke bentuk payload save — dipakai merge
+/// edit_questions dan snapshot undo (library-level agar bisa dipakai
+/// di part chat_history_ops).
+Map<String, dynamic> _questionToSaveJson(QuestionData q) => {
+      'id': q.id,
+      'typeId': q.typeId,
+      'question': q.question,
+      'questionOrder': q.questionOrder,
+      if (q.questionImage != null) 'questionImage': q.questionImage,
+      if (q.questionAudio != null) 'questionAudio': q.questionAudio,
+      'isRequired': q.isRequired ?? false,
+      if (q.correctAnswer != null) 'correctAnswer': q.correctAnswer,
+      if (q.randomizeOptions != null) 'randomizeOptions': q.randomizeOptions,
+      if (q.points != null) 'points': q.points,
+      'options': [
+        for (final o in q.options)
+          {'optionText': o.optionText, 'isCorrect': o.isCorrect ?? false},
+      ],
+    };
+
 /// Pengiriman pesan ke AI: kirim baru, kirim ulang, eksekusi aksi form,
 /// dan dialog konfirmasi aksi.
 extension _AiChatMessaging on _AiChatScreenState {
@@ -83,9 +112,9 @@ extension _AiChatMessaging on _AiChatScreenState {
   }
 
   /// Jalankan aksi form dari AI. Mengembalikan formId yang terlibat
-  /// (form baru untuk create_form, form target untuk aksi lain) agar
-  /// tombol "Buka Form" bisa mengarah ke detail form tersebut.
-  Future<int?> executeAction(Map<String, dynamic> action) async {
+  /// (form baru untuk create_form, form target untuk aksi lain) + data
+  /// undo (snapshot kondisi sebelum aksi) untuk tombol Undo & rollback.
+  Future<ActionExecutionResult> executeAction(Map<String, dynamic> action) async {
     final act = action['action'] as String?;
     try {
       switch (act) {
@@ -110,7 +139,12 @@ extension _AiChatMessaging on _AiChatScreenState {
             }).toList();
             await FormService.saveQuestions(formId, payload);
           }
-          return formId;
+          // Undo create_form = hapus seluruh form (dicek dulu: form yang
+          // sudah punya respons tidak boleh dihapus).
+          return ActionExecutionResult(
+            formId: formId,
+            undo: {'type': 'create_form', 'formId': formId},
+          );
         case 'add_questions':
           final formId = action['formId'] as int?;
           if (formId == null) throw Exception('formId diperlukan');
@@ -118,16 +152,142 @@ extension _AiChatMessaging on _AiChatScreenState {
           final payload = questions
               .map((q) => Map<String, dynamic>.from(q as Map))
               .toList();
-          await FormService.saveQuestions(formId, payload);
-          return formId;
+          final created = await FormService.saveQuestions(formId, payload);
+          // Undo = hapus soal yang barusan dibuat AI (id dari respons server).
+          final createdIds = [
+            for (final q in created)
+              if (q['id'] is int) q['id'] as int,
+          ];
+          return ActionExecutionResult(
+            formId: formId,
+            undo: {
+              'type': 'add_questions',
+              'formId': formId,
+              'createdIds': createdIds,
+            },
+          );
+        case 'edit_questions':
+          final formId = action['formId'] as int?;
+          if (formId == null) throw Exception('formId diperlukan');
+          final edits = (action['questions'] as List<dynamic>?) ?? [];
+          if (edits.isEmpty) throw Exception('Daftar questions kosong');
+          final editById = <int, Map<String, dynamic>>{};
+          for (final raw in edits) {
+            final e = Map<String, dynamic>.from(raw as Map);
+            final id = e['id'] is int ? e['id'] as int : int.tryParse('${e['id']}');
+            if (id == null) throw Exception('Setiap soal wajib punya "id"');
+            editById[id] = e;
+          }
+          // PENTING: endpoint PUT bersifat replace-all — soal yang tidak
+          // ikut dikirim IKUT TERHAPUS. Karena itu merge: soal yang tidak
+          // disentuh AI dikirim ulang utuh, yang disentuh digabung
+          // (nilai AI menang, field yang tak disebut dipertahankan).
+          final current = await FormService.getQuestions(formId);
+          // Snapshot ISI ASLI soal yang diedit — bahan untuk undo.
+          final originalQuestions = [
+            for (final q in current)
+              if (editById.containsKey(q.id)) _questionToSaveJson(q),
+          ];
+          final payload = <Map<String, dynamic>>[];
+          for (final q in current) {
+            final e = editById.remove(q.id);
+            if (e == null) {
+              payload.add(_questionToSaveJson(q));
+              continue;
+            }
+            final optsRaw = e['options'] as List<dynamic>?;
+            payload.add({
+              'id': q.id,
+              'typeId': (e['typeId'] as int?) ?? q.typeId,
+              'question': (e['question'] as String?) ?? q.question,
+              'questionOrder': (e['questionOrder'] as int?) ?? q.questionOrder,
+              if (q.questionImage != null) 'questionImage': q.questionImage,
+              if (q.questionAudio != null) 'questionAudio': q.questionAudio,
+              'isRequired': (e['isRequired'] as bool?) ?? (q.isRequired ?? false),
+              if ((e['correctAnswer'] ?? q.correctAnswer) != null)
+                'correctAnswer': e['correctAnswer'] ?? q.correctAnswer,
+              if ((e['randomizeOptions'] ?? q.randomizeOptions) != null)
+                'randomizeOptions': e['randomizeOptions'] ?? q.randomizeOptions,
+              if ((e['points'] ?? q.points) != null)
+                'points': e['points'] ?? q.points,
+              'options': optsRaw == null
+                  ? [
+                      for (final o in q.options)
+                        {
+                          'optionText': o.optionText,
+                          'isCorrect': o.isCorrect ?? false,
+                        },
+                    ]
+                  : [
+                      for (final o in optsRaw)
+                        o is String
+                            ? {'optionText': o}
+                            : Map<String, dynamic>.from(o as Map),
+                    ],
+            });
+          }
+          // Ada id dari AI yang tidak cocok dengan soal manapun → gagal
+          // jelas, jangan diam-diam dilewati (user bisa kira sudah diedit).
+          if (editById.isNotEmpty) {
+            throw Exception(
+                'Soal dengan id ${editById.keys.join(', ')} tidak ditemukan di form ini');
+          }
+          await FormService.updateQuestions(formId, payload);
+          return ActionExecutionResult(
+            formId: formId,
+            undo: {
+              'type': 'edit_questions',
+              'formId': formId,
+              'originalQuestions': originalQuestions,
+            },
+          );
+        case 'delete_questions':
+          final formId = action['formId'] as int?;
+          if (formId == null) throw Exception('formId diperlukan');
+          final ids = ((action['questionIds'] as List<dynamic>?) ?? [])
+              .map((v) => v is int ? v : int.tryParse('$v'))
+              .whereType<int>()
+              .toSet()
+              .toList();
+          if (ids.isEmpty) throw Exception('questionIds diperlukan');
+          // Snapshot isi soal yang akan dihapus — undo bisa menciptakan
+          // ulang soal-soal ini persis seperti semula.
+          final current = await FormService.getQuestions(formId);
+          final deletedQuestions = [
+            for (final q in current)
+              if (ids.contains(q.id)) _questionToSaveJson(q),
+          ];
+          for (final id in ids) {
+            await FormService.deleteQuestion(formId, id);
+          }
+          return ActionExecutionResult(
+            formId: formId,
+            undo: {
+              'type': 'delete_questions',
+              'formId': formId,
+              'deletedQuestions': deletedQuestions,
+            },
+          );
         case 'update_settings':
           final formId = action['formId'] as int?;
           if (formId == null) throw Exception('formId diperlukan');
           final settings = Map<String, dynamic>.from(
             action['settings'] as Map? ?? {},
           );
+          // Snapshot pengaturan lama — undo mengembalikan persis semula.
+          final prevForm = await FormService.getForm(formId);
+          final previousSettings = Map<String, dynamic>.from(
+            prevForm['settings'] as Map? ?? {},
+          );
           await FormService.updateSettings(formId, settings);
-          return formId;
+          return ActionExecutionResult(
+            formId: formId,
+            undo: {
+              'type': 'update_settings',
+              'formId': formId,
+              'previousSettings': previousSettings,
+            },
+          );
         default:
           throw Exception('Aksi tidak dikenal: $act');
       }
@@ -152,11 +312,15 @@ extension _AiChatMessaging on _AiChatScreenState {
     if (m == null || _actionWorking) return;
     setState(() => _actionWorking = true);
     try {
-      final formId = await executeAction(m.actionJson!);
+      final result = await executeAction(m.actionJson!);
       m.actionExecuted = true;
       m.actionStatus = 'accepted';
       m.actionResult = null;
-      m.actionFormId = formId;
+      m.actionFormId = result.formId;
+      m.undoSnapshot = result.undo;
+      // Form yang baru dibuat/diedit AI menjadi form aktif sesi — pesan
+      // lanjutan otomatis memakai konteksnya tanpa perlu mention.
+      if (result.formId != null) _activeFormId = result.formId;
       if (mounted) showAuthToast(context, 'Perubahan berhasil diterapkan');
     } catch (e) {
       m.actionResult = 'Gagal: $e';
@@ -202,6 +366,11 @@ extension _AiChatMessaging on _AiChatScreenState {
     if (mentionIds.isNotEmpty) {
       try {
         extraContext = await AiFormContextService.buildContext(mentionIds);
+        // Cache konteks form untuk pesan lanjutan di sesi ini (mis. user
+        // lanjut "edit soal sebelumnya" tanpa mention lagi) — ikut persist.
+        _lastFormContext = extraContext;
+        // Mention = user eksplisit memilih form → jadi form aktif sesi.
+        _activeFormId = mentionIds.first;
       } catch (_) {}
     } else if (rawText.toLowerCase().contains('form saya') ||
         rawText.toLowerCase().contains('list form') ||
@@ -209,6 +378,19 @@ extension _AiChatMessaging on _AiChatScreenState {
       try {
         extraContext = await AiFormContextService.buildAllFormsSummary();
       } catch (_) {}
+    } else if (_activeFormId != null) {
+      // Pesan lanjutan di sesi yang sedang membahas sebuah form (dibuat AI
+      // atau pernah di-mention): bangun konteks SEGAR dari form aktif agar
+      // id soal selalu terkini — tanpa perlu user mention ulang.
+      try {
+        extraContext = await AiFormContextService.buildContext([_activeFormId!]);
+        _lastFormContext = extraContext;
+      } catch (_) {
+        extraContext = _lastFormContext; // fallback ke cache terakhir
+      }
+    } else if (_lastFormContext != null && _lastFormContext!.isNotEmpty) {
+      // Fallback terakhir: konteks cache tanpa form aktif yang diketahui.
+      extraContext = _lastFormContext;
     }
     final displayText = rawText;
     final sendText =

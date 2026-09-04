@@ -15,6 +15,17 @@ class ChatHistoryMessage {
   /// setelah berpindah session).
   int? actionFormId;
 
+  /// True bila aksi pernah dijalankan (diterima) — tanpa ini, setelah
+  /// restart app tombol Undo / chip status / Buka Form hilang.
+  bool? actionExecuted;
+
+  /// True bila bubble ini pesan error (agar gaya error tetap setelah restart).
+  bool? isError;
+
+  /// Snapshot untuk undo + status undo (lihat ChatMessage.undoSnapshot).
+  Map<String, dynamic>? undoSnapshot;
+  bool? actionUndone;
+
   ChatHistoryMessage({
     required this.role,
     required this.text,
@@ -22,6 +33,10 @@ class ChatHistoryMessage {
     this.actionStatus,
     this.actionResult,
     this.actionFormId,
+    this.actionExecuted,
+    this.isError,
+    this.undoSnapshot,
+    this.actionUndone,
   });
   Map<String, dynamic> toJson() => {
         'role': role,
@@ -30,6 +45,10 @@ class ChatHistoryMessage {
         'actionStatus': actionStatus,
         'actionResult': actionResult,
         'actionFormId': actionFormId,
+        'actionExecuted': actionExecuted,
+        'isError': isError,
+        'undoSnapshot': undoSnapshot,
+        'actionUndone': actionUndone,
       };
   factory ChatHistoryMessage.fromJson(Map<String, dynamic> j) =>
       ChatHistoryMessage(
@@ -39,6 +58,10 @@ class ChatHistoryMessage {
         actionStatus: j['actionStatus'] as String?,
         actionResult: j['actionResult'] as String?,
         actionFormId: j['actionFormId'] as int?,
+        actionExecuted: j['actionExecuted'] as bool?,
+        isError: j['isError'] as bool?,
+        undoSnapshot: j['undoSnapshot'] as Map<String, dynamic>?,
+        actionUndone: j['actionUndone'] as bool?,
       );
 }
 
@@ -47,19 +70,43 @@ class ChatSession {
   String title;
   List<ChatHistoryMessage> messages;
   DateTime updatedAt;
-  ChatSession({required this.id, required this.title, required this.messages, DateTime? updatedAt}) : updatedAt = updatedAt ?? DateTime.now();
+
+  /// Konteks form terakhir (hasil @mention) di sesi ini — dibawa ulang ke
+  /// pesan lanjutan agar AI tetap punya id soal untuk aksi edit/hapus.
+  String? formContext;
+
+  /// Form aktif sesi: dibuat AI (aksi diterima) atau terakhir di-mention
+  /// user. Pesan lanjutan otomatis memakai konteks form ini.
+  int? activeFormId;
+
+  ChatSession({
+    required this.id,
+    required this.title,
+    required this.messages,
+    DateTime? updatedAt,
+    this.formContext,
+    this.activeFormId,
+  }) : updatedAt = updatedAt ?? DateTime.now();
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
         'messages': messages.map((m) => m.toJson()).toList(),
         'updatedAt': updatedAt.toIso8601String(),
+        'formContext': formContext,
+        'activeFormId': activeFormId,
       };
   factory ChatSession.fromJson(Map<String, dynamic> j) => ChatSession(
         id: j['id'] as String,
         title: j['title'] as String? ?? 'Chat',
-        messages: (j['messages'] as List<dynamic>? ?? []).map((e) => ChatHistoryMessage.fromJson(e as Map<String, dynamic>)).toList(),
-        updatedAt: j['updatedAt'] != null ? DateTime.tryParse(j['updatedAt'] as String) ?? DateTime.now() : DateTime.now(),
+        messages: (j['messages'] as List<dynamic>? ?? [])
+            .map((e) => ChatHistoryMessage.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        updatedAt: j['updatedAt'] != null
+            ? DateTime.tryParse(j['updatedAt'] as String) ?? DateTime.now()
+            : DateTime.now(),
+        formContext: j['formContext'] as String?,
+        activeFormId: j['activeFormId'] as int?,
       );
 }
 
