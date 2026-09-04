@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -75,6 +76,88 @@ class GeminiService {
       await _secure.delete(key: _storageKey);
     } catch (_) {}
     _userKey = null;
+  }
+
+  /// Mengubah error teknis (Inggris) menjadi pesan sederhana
+  /// berbahasa Indonesia yang mudah dimengerti user awam.
+  static String friendlyMessage(Object e) {
+    final t = e.toString().toLowerCase();
+    bool hasAny(List<String> keys) => keys.any(t.contains);
+
+    // Internet mati / DNS / koneksi ditolak — cek sebelum yang lain
+    // karena pesan transport bisa mengandung kata umum seperti "failed".
+    if (e is SocketException ||
+        e is HttpException ||
+        e is http.ClientException ||
+        hasAny([
+          'socketexception',
+          'failed host lookup',
+          'connection failed',
+          'connection refused',
+          'connection reset',
+          'connection closed',
+          'network is unreachable',
+          'no address associated',
+          'no route to host',
+        ])) {
+      return 'Internet kamu terputus. Periksa koneksi internet lalu coba lagi.';
+    }
+    if (e is TimeoutException || hasAny(['timeoutexception', 'timed out'])) {
+      return 'Koneksi ke AI lambat. Coba lagi dengan internet yang lebih stabil.';
+    }
+    // API key salah / kedaluwarsa (401/403 dari Google).
+    if (hasAny([
+      'api_key_invalid',
+      'api key not valid',
+      'invalid api key',
+      'key not valid',
+      'key expired',
+      'permission_denied',
+    ])) {
+      return 'API Key tidak valid. Periksa key di Pengaturan AI lalu coba lagi.';
+    }
+    // Model tidak ada / sudah di-retire (404 dari Google).
+    if (hasAny(['not_found', 'is not found', 'model not found', 'gemini error 404'])) {
+      return 'Model AI tidak tersedia. Ganti model di Pengaturan AI lalu coba lagi.';
+    }
+    // Kuota / rate limit habis (429 dari Google).
+    if (hasAny([
+      'resource_exhausted',
+      'quota',
+      'rate limit',
+      'too many requests',
+      'gemini error 429',
+    ])) {
+      return 'Batas pemakaian AI habis. Tunggu sebentar lalu coba lagi.';
+    }
+    // Token limit: histori + prompt melebihi kapasitas model (400).
+    if (hasAny([
+      'token',
+      'too long',
+      'too large',
+      'max_tokens',
+      'context length',
+      'prompt too long',
+    ])) {
+      return 'Chat terlalu panjang. Mulai chat baru lalu coba lagi.';
+    }
+    // Respons diblokir filter keamanan Google.
+    if (hasAny(['content_blocked', 'blockreason', 'safety', 'harm_category', 'prohibited_content'])) {
+      return 'Pertanyaan ini tidak bisa dijawab AI. Coba ubah kata-katanya.';
+    }
+    // Server Google sibuk / error (500/503).
+    if (hasAny([
+      'unavailable',
+      'overloaded',
+      'internal error',
+      'server error',
+      'gemini error 500',
+      'gemini error 502',
+      'gemini error 503',
+    ])) {
+      return 'Server AI sedang sibuk. Tunggu sebentar lalu coba lagi.';
+    }
+    return 'Maaf, AI gagal menjawab. Coba lagi.';
   }
 
   /// Untuk menampilkan preview aman (misal AIza...****)
@@ -196,7 +279,10 @@ Aturan:
     request.headers['X-goog-api-key'] = _apiKey; // auth via header (format resmi), bukan query param
     request.body = body;
 
-    final streamed = await request.send();
+    final streamed = await request.send().timeout(
+      const Duration(seconds: 60),
+      onTimeout: () => throw TimeoutException('Stream Gemini timeout'),
+    );
     if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
       final errBody = await streamed.stream.bytesToString();
       String msg = 'Gemini error ${streamed.statusCode}';
@@ -218,9 +304,19 @@ Aturan:
       if (data.isEmpty) continue;
       try {
         final j = jsonDecode(data) as Map<String, dynamic>;
+        // Respons diblokir filter keamanan: jangan telan diam-diam.
+        final feedback = j['promptFeedback'] as Map<String, dynamic>?;
+        if (feedback != null && feedback['blockReason'] != null) {
+          throw Exception('GEMINI_CONTENT_BLOCKED_SAFETY');
+        }
         final candidates = j['candidates'] as List<dynamic>?;
         if (candidates == null || candidates.isEmpty) continue;
-        final content = candidates[0]['content'] as Map<String, dynamic>?;
+        final first = candidates[0] as Map<String, dynamic>;
+        final finish = (first['finishReason'] as String?)?.toUpperCase() ?? '';
+        if (finish == 'SAFETY' || finish == 'PROHIBITED_CONTENT') {
+          throw Exception('GEMINI_CONTENT_BLOCKED_SAFETY');
+        }
+        final content = first['content'] as Map<String, dynamic>?;
         final parts = content?['parts'] as List<dynamic>?;
         if (parts == null) continue;
         for (final p in parts) {
@@ -230,6 +326,8 @@ Aturan:
           }
         }
       } catch (e) {
+        // Penanda blokir keamanan harus diteruskan, bukan ditelan.
+        if (e.toString().contains('GEMINI_CONTENT_BLOCKED')) rethrow;
         if (kDebugMode) debugPrint('[Gemini stream parse] $e : $data');
       }
     }
@@ -249,20 +347,25 @@ Aturan:
           ]
         }
     ];
-    final res = await http.post(uri,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-goog-api-key': _apiKey, // auth via header (format resmi), bukan query param
-        },
-        body: jsonEncode({
-          'systemInstruction': {
-            'parts': [
-              {'text': _systemPrompt}
-            ]
-          },
-          'contents': contents,
-          'generationConfig': {'temperature': 0.8, 'maxOutputTokens': 8192}
-        }));
+    final res = await http
+        .post(uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-goog-api-key': _apiKey, // auth via header (format resmi), bukan query param
+            },
+            body: jsonEncode({
+              'systemInstruction': {
+                'parts': [
+                  {'text': _systemPrompt}
+                ]
+              },
+              'contents': contents,
+              'generationConfig': {'temperature': 0.8, 'maxOutputTokens': 8192}
+            }))
+        .timeout(
+      const Duration(seconds: 90),
+      onTimeout: () => throw TimeoutException('Generate Gemini timeout'),
+    );
     if (res.statusCode < 200 || res.statusCode >= 300) {
       String msg = 'Gemini error ${res.statusCode}';
       try {
@@ -272,8 +375,21 @@ Aturan:
       throw Exception(msg);
     }
     final j = jsonDecode(res.body) as Map<String, dynamic>;
+    final feedback = j['promptFeedback'] as Map<String, dynamic>?;
+    if (feedback != null && feedback['blockReason'] != null) {
+      throw Exception('GEMINI_CONTENT_BLOCKED_SAFETY');
+    }
     final candidates = j['candidates'] as List<dynamic>?;
-    final text = candidates?[0]['content']?['parts']?[0]['text'] as String?;
+    final first =
+        candidates != null && candidates.isNotEmpty ? candidates[0] as Map<String, dynamic> : null;
+    final finish = (first?['finishReason'] as String?)?.toUpperCase() ?? '';
+    if (finish == 'SAFETY' || finish == 'PROHIBITED_CONTENT') {
+      throw Exception('GEMINI_CONTENT_BLOCKED_SAFETY');
+    }
+    final parts = (first?['content'] as Map<String, dynamic>?)?['parts'] as List<dynamic>?;
+    final text = parts != null && parts.isNotEmpty
+        ? (parts[0] as Map<String, dynamic>)['text'] as String?
+        : null;
     return text ?? '';
   }
 }
