@@ -1,12 +1,20 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/features/ai_chat/models/chat_message.dart';
 import 'package:form_up/features/ai_chat/widgets/action_change_card.dart';
+import 'package:form_up/features/ai_chat/widgets/action_json_tabs.dart';
 import 'package:form_up/features/ai_chat/widgets/form_context_card.dart';
 import 'package:form_up/features/ai_chat/widgets/streaming_ai_text.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
 const _aiTextStyle = TextStyle(fontSize: 13, color: Colors.black87);
+
+/// Regex code fence ```json yang SUDAH tertutup — blok setengah jadi
+/// (masih streaming) tidak match sehingga tab layout belum tampil.
+final _jsonFenceRegex =
+    RegExp(r'```json\s*([\s\S]*?)\s*```', caseSensitive: false);
 
 /// Satu bubble chat: teks user, teks AI (markdown), indikator mengetik,
 /// bubble error + tombol coba lagi, dan kartu status aksi AI.
@@ -162,27 +170,62 @@ class ChatBubble extends StatelessWidget {
     );
   }
 
-  /// Pecah teks jawaban AI di setiap blok `<FORM_CONTEXT>…</FORM_CONTEXT>`:
-  /// segmen teks biasa dirender GptMarkdown, blok konteks dirender sebagai
-  /// FormContextCard (judul saja tanpa id, ketuk → detail form).
+  /// Pecah teks jawaban AI menjadi widget:
+  /// - blok `<FORM_CONTEXT>…</FORM_CONTEXT>` → FormContextCard (ketuk → form),
+  /// - code fence ```json yang berisi aksi valid → ActionJsonTabs
+  ///   (tab Preview soal + tab raw JSON). Fence setengah jadi (streaming)
+  ///   tidak match regex, jadi tab hanya muncul setelah JSON lengkap,
+  /// - sisanya dirender GptMarkdown biasa.
   List<Widget> _buildAiBody(ChatMessage m) {
     final text = m.text.isEmpty ? 'Respons kosong — coba kirim ulang.' : m.text;
     final widgets = <Widget>[];
-    final regex = RegExp(r'<FORM_CONTEXT>([\s\S]*?)</FORM_CONTEXT>');
-    var last = 0;
-    for (final match in regex.allMatches(text)) {
-      final before = text.substring(last, match.start).trim();
-      if (before.isNotEmpty) {
-        widgets.add(GptMarkdown(before, style: _aiTextStyle));
+
+    void addPlain(String raw) {
+      final t = raw.trim();
+      if (t.isNotEmpty) widgets.add(GptMarkdown(t, style: _aiTextStyle));
+    }
+
+    void addMarkdown(String raw) {
+      final t = raw.trim();
+      if (t.isEmpty) return;
+      var last = 0;
+      for (final match in _jsonFenceRegex.allMatches(t)) {
+        addPlain(t.substring(last, match.start));
+        final action = _tryParseAction(match.group(1) ?? '');
+        if (action != null) {
+          widgets.add(ActionJsonTabs(action: action));
+        } else {
+          // Bukan aksi valid (json rusak / bukan action) → render apa adanya.
+          addPlain(t.substring(match.start, match.end));
+        }
+        last = match.end;
       }
+      addPlain(t.substring(last));
+    }
+
+    final ctxRegex = RegExp(r'<FORM_CONTEXT>([\s\S]*?)</FORM_CONTEXT>');
+    var last = 0;
+    for (final match in ctxRegex.allMatches(text)) {
+      addMarkdown(text.substring(last, match.start));
       widgets.add(FormContextCard.fromBlock(match.group(1) ?? ''));
       last = match.end;
     }
-    final rest = text.substring(last).trim();
-    if (rest.isNotEmpty || widgets.isEmpty) {
-      widgets.add(GptMarkdown(rest, style: _aiTextStyle));
+    addMarkdown(text.substring(last));
+    if (widgets.isEmpty) {
+      widgets.add(GptMarkdown(text, style: _aiTextStyle));
     }
     return widgets;
+  }
+
+  /// Parse isi fence menjadi aksi valid (Map dengan key "action").
+  Map<String, dynamic>? _tryParseAction(String raw) {
+    try {
+      final decoded = jsonDecode(raw.trim());
+      if (decoded is Map<String, dynamic> && decoded['action'] != null) {
+        return decoded;
+      }
+    } catch (_) {}
+    return null;
   }
 }
 
