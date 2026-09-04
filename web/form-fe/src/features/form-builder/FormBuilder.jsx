@@ -1937,9 +1937,12 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                 onClose={() => setLightboxImage(null)}
             />
 
-            {/* A-6: Floating Quick-Action Button (FAB) on scroll */}
-            {scrolledPastHeader && (
-                <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2 animate-in fade-in slide-in-from-bottom-3 duration-200">
+            {/* Quick Action Scroll Menu */}
+            <div className={`fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2 transition-all duration-300 ease-out transform ${
+                scrolledPastHeader 
+                    ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' 
+                    : 'opacity-0 translate-y-6 scale-90 pointer-events-none'
+            }`}>
                     {fabMenuOpen && (
                         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2.5 flex flex-col gap-1.5 w-56 animate-in zoom-in-95 duration-150">
                             {/* Save */}
@@ -2042,7 +2045,6 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                         {fabMenuOpen ? <X size={20} /> : <Save size={20} />}
                     </button>
                 </div>
-            )}
         </div>
     );
 }
