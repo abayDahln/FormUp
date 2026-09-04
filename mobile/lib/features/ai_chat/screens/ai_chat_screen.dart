@@ -74,6 +74,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
   // FAB scroll-to-bottom: muncul jika user sudah scroll ke atas > 1 layar & belum di paling bawah
   bool _showFab = false;
 
+  // Tinggi input bar terukur (bisa membesar saat field multiline /
+  // hint mention tampil) — dipakai agar FAB & padding list mengikuti.
+  double _inputBarHeight = 80;
+  final _inputBarKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -183,6 +188,16 @@ class _AiChatScreenState extends State<AiChatScreen> {
     // Gaya Gemini: ListView full-bleed di belakang header & input,
     // dengan gradient fade di atas dan bawah agar scroll memudar mulus.
     final topInset = MediaQuery.of(context).padding.top;
+    // Ukur tinggi input bar tiap frame; saat field membesar (multiline /
+    // hint mention), FAB & padding list ikut naik mengikuti.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final h = _inputBarKey.currentContext?.size?.height;
+      if (h != null &&
+          mounted &&
+          (h - _inputBarHeight).abs() > 0.5) {
+        setState(() => _inputBarHeight = h);
+      }
+    });
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: kAppBg,
@@ -211,10 +226,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   )
                 : ListView.separated(
                     controller: _scroll,
-                    // Padding bawah pas setinggi input + sedikit gap agar
-                    // card terakhir menempel tepat di atas field prompt
-                    // (tanpa white space berlebih).
-                    padding: EdgeInsets.fromLTRB(16, topInset + 96, 16, 116),
+                    // Padding bawah mengikuti tinggi input bar + gap kecil,
+                    // agar bubble terakhir tetap terlihat di atas field
+                    // saat field membesar (multiline). Default: 80 + 36 = 116.
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      topInset + 96,
+                      16,
+                      _inputBarHeight + 36,
+                    ),
                     itemCount: _messages.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (ctx, i) {
@@ -253,6 +273,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   ),
                 ),
                 ChatInputBar(
+                  key: _inputBarKey,
                   textController: _controller,
                   streaming: _streaming,
                   mentionActive: _isMentionActive,
@@ -275,11 +296,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
               ],
             ),
           ),
-          // FAB scroll-to-bottom: menempel di atas field prompt (kanan),
+          // FAB scroll-to-bottom: menempel tepat di atas input bar (kanan),
+          // mengikuti tinggi input bar saat field membesar (multiline),
           // 1x klik langsung ke chat terbaru sampai FAB hilang.
           Positioned(
             right: 16,
-            bottom: 90,
+            bottom: _inputBarHeight + 10,
             child: IgnorePointer(
               ignoring: !_showFab,
               child: AnimatedOpacity(
