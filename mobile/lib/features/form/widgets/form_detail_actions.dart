@@ -59,6 +59,15 @@ class FormDetailActions extends StatelessWidget {
             ),
             _divider(),
             _ActionTile(
+              Icons.shield_outlined,
+              'Pantau Ujian',
+              () => onPush(AppPage.examMonitoring, {
+                'formId': form.id,
+                'title': richToPlainText(form.title),
+              }),
+            ),
+            _divider(),
+            _ActionTile(
               Icons.feedback_outlined,
               'Lihat Umpan Balik',
               () => onPush(AppPage.formFeedbacks, {

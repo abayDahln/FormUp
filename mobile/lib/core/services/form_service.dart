@@ -402,6 +402,117 @@ class FormFeedbackItem {
       );
 }
 
+/// Sesi pantauan ujian (owner): 1 responden attempt.
+class ExamMonitoringSession {
+  final String? sessionId;
+  final int? responseId;
+  final String? respondentName;
+  final int? respondentId;
+  final String status;
+  final bool isOnline;
+  final DateTime? startedAt;
+  final DateTime? lastSeenAt;
+  final DateTime? submittedAt;
+  final int violationCount;
+  final int tabSwitchCount;
+  final List<ExamMonitoringViolation> violations;
+
+  const ExamMonitoringSession({
+    this.sessionId,
+    this.responseId,
+    this.respondentName,
+    this.respondentId,
+    this.status = 'in_progress',
+    this.isOnline = false,
+    this.startedAt,
+    this.lastSeenAt,
+    this.submittedAt,
+    this.violationCount = 0,
+    this.tabSwitchCount = 0,
+    this.violations = const [],
+  });
+
+  static DateTime? _dt(Object? v) {
+    if (v == null) return null;
+    return DateTime.tryParse(v as String);
+  }
+
+  factory ExamMonitoringSession.fromJson(Map<String, dynamic> json) =>
+      ExamMonitoringSession(
+        sessionId: json['sessionId'] as String?,
+        responseId: json['responseId'] as int?,
+        respondentName: json['respondentName'] as String?,
+        respondentId: json['respondentId'] as int?,
+        status: json['status'] as String? ?? 'in_progress',
+        isOnline: json['isOnline'] as bool? ?? false,
+        startedAt: _dt(json['startedAt']),
+        lastSeenAt: _dt(json['lastSeenAt']),
+        submittedAt: _dt(json['submittedAt']),
+        violationCount: json['violationCount'] as int? ?? 0,
+        tabSwitchCount: json['tabSwitchCount'] as int? ?? 0,
+        violations: [
+          for (final v in json['violations'] as List<dynamic>? ?? [])
+            ExamMonitoringViolation.fromJson(v as Map<String, dynamic>),
+        ],
+      );
+}
+
+class ExamMonitoringViolation {
+  final String type;
+  final DateTime? occurredAt;
+
+  const ExamMonitoringViolation({required this.type, this.occurredAt});
+
+  factory ExamMonitoringViolation.fromJson(Map<String, dynamic> json) =>
+      ExamMonitoringViolation(
+        type: json['type'] as String? ?? '',
+        occurredAt: json['occurredAt'] == null
+            ? null
+            : DateTime.tryParse(json['occurredAt'] as String),
+      );
+}
+
+/// Ringkasan pantauan ujian untuk 1 form.
+class ExamMonitoringData {
+  final int formId;
+  final bool? isExamMode;
+  final bool? detectTabSwitch;
+  final bool? autoSubmitOnTabSwitch;
+  final int? maxTabSwitch;
+  final int inProgressCount;
+  final int submittedCount;
+  final int onlineCount;
+  final List<ExamMonitoringSession> sessions;
+
+  const ExamMonitoringData({
+    required this.formId,
+    this.isExamMode,
+    this.detectTabSwitch,
+    this.autoSubmitOnTabSwitch,
+    this.maxTabSwitch,
+    this.inProgressCount = 0,
+    this.submittedCount = 0,
+    this.onlineCount = 0,
+    this.sessions = const [],
+  });
+
+  factory ExamMonitoringData.fromJson(Map<String, dynamic> json) =>
+      ExamMonitoringData(
+        formId: json['formId'] as int? ?? 0,
+        isExamMode: json['isExamMode'] as bool?,
+        detectTabSwitch: json['detectTabSwitch'] as bool?,
+        autoSubmitOnTabSwitch: json['autoSubmitOnTabSwitch'] as bool?,
+        maxTabSwitch: json['maxTabSwitch'] as int?,
+        inProgressCount: json['inProgressCount'] as int? ?? 0,
+        submittedCount: json['submittedCount'] as int? ?? 0,
+        onlineCount: json['onlineCount'] as int? ?? 0,
+        sessions: [
+          for (final s in json['sessions'] as List<dynamic>? ?? [])
+            ExamMonitoringSession.fromJson(s as Map<String, dynamic>),
+        ],
+      );
+}
+
 /// Klien forms & questions
 class FormService {
   static String get _scope => AuthService.cacheScope;
@@ -973,6 +1084,13 @@ class FormService {
       throw ApiException(msg);
     }
     return res.bodyBytes;
+  }
+
+  /// GET /forms/{formId}/exam-monitoring — pantauan live mode ujian.
+  /// Dipolling berkala (tiap 10–30 detik); tanpa cache agar near-real-time.
+  static Future<ExamMonitoringData> getExamMonitoring(int formId) async {
+    final json = await AuthService.get('/forms/$formId/exam-monitoring');
+    return ExamMonitoringData.fromJson(json['data'] as Map<String, dynamic>);
   }
 
   /// GET /forms/{id}/share

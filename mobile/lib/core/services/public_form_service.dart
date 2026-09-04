@@ -277,6 +277,29 @@ class MyAttempt {
   );
 }
 
+/// Hasil POST exam-events: sessionId + hitungan server + flag auto-submit.
+class ExamEventResult {
+  final String sessionId;
+  final int violationCount;
+  final int tabSwitchCount;
+  final bool shouldAutoSubmit;
+
+  const ExamEventResult({
+    required this.sessionId,
+    this.violationCount = 0,
+    this.tabSwitchCount = 0,
+    this.shouldAutoSubmit = false,
+  });
+
+  factory ExamEventResult.fromJson(Map<String, dynamic> json) =>
+      ExamEventResult(
+        sessionId: json['sessionId'] as String? ?? '',
+        violationCount: json['violationCount'] as int? ?? 0,
+        tabSwitchCount: json['tabSwitchCount'] as int? ?? 0,
+        shouldAutoSubmit: json['shouldAutoSubmit'] as bool? ?? false,
+      );
+}
+
 class PublicFormService {
   static String get _scope => AuthService.cacheScope;
 
@@ -317,6 +340,9 @@ class PublicFormService {
     String? respondentName,
     required List<Map<String, dynamic>> answers,
     bool isAutoSubmit = false,
+    String? examSessionId,
+    int? tabSwitchCount,
+    List<Map<String, dynamic>>? violations,
   }) async {
     if (!AppDebouncer.tryAcquire('public:submit:$formLink')) {
       throw const ApiException('Terlalu cepat, tunggu sebentar.');
@@ -327,10 +353,35 @@ class PublicFormService {
         'respondentName': respondentName.trim(),
       'answers': answers,
       if (isAutoSubmit) 'isAutoSubmit': true,
+      if (examSessionId != null && examSessionId.isNotEmpty)
+        'examSessionId': examSessionId,
+      if (tabSwitchCount != null) 'tabSwitchCount': tabSwitchCount,
+      if (violations != null && violations.isNotEmpty) 'violations': violations,
     });
     ApiCache.invalidatePrefix('publicForms:');
     ApiCache.invalidatePrefix('http:get:');
     return json['data'] as Map<String, dynamic>;
+  }
+
+  /// POST /public/forms/{formLink}/exam-events — mode ujian.
+  /// Kirim tepat 1 event per 1 siklus keluar-masuk (hanya saat pergi/paused),
+  /// jangan kirim saat kembali agar tidak double-count di server.
+  /// sessionId kosong pada event pertama → server generate & kembalikan.
+  static Future<ExamEventResult> sendExamEvent(
+    String formLink, {
+    String? sessionId,
+    String? respondentName,
+    required String type,
+    DateTime? occurredAt,
+  }) async {
+    final json = await AuthService.post('/public/forms/$formLink/exam-events', {
+      if (sessionId != null && sessionId.isNotEmpty) 'sessionId': sessionId,
+      if (respondentName != null && respondentName.trim().isNotEmpty)
+        'respondentName': respondentName.trim(),
+      'type': type,
+      if (occurredAt != null) 'occurredAt': occurredAt.toUtc().toIso8601String(),
+    });
+    return ExamEventResult.fromJson(json['data'] as Map<String, dynamic>);
   }
 
   /// GET .../responses/{id}

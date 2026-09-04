@@ -3,6 +3,7 @@ import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/public_form_service.dart';
+import 'package:form_up/core/services/exam_session_client.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form_runner/controllers/form_runner_controller.dart';
 import 'package:form_up/features/form_runner/widgets/runner_code_step.dart';
@@ -82,6 +83,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   bool _loading = false;
   bool _submitting = false;
   int _tabSwitchCount = 0;
+  ExamSessionClient? _exam;
 
   // ID soal wajib yang belum dijawab (untuk indikator merah saat submit gagal).
   final Set<int> _errorQuestionIds = {};
@@ -114,21 +116,46 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_examActive || !_detectSwitch || _step != _RunnerStep.fill) return;
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+    // Aturan counting server: 1 event per siklus, hanya saat pergi.
+    if (state == AppLifecycleState.paused) {
+      _reportTabSwitch();
+    }
+  }
+
+  /// Lapor 1x keluar aplikasi ke server; auto-submit bila server meminta.
+  Future<void> _reportTabSwitch() async {
+    final exam = _exam;
+    bool serverAutoSubmit = false;
+    if (exam != null && _c.formLink != null) {
+      serverAutoSubmit = await exam.reportTabSwitch();
+      if (mounted) setState(() => _tabSwitchCount = exam.tabSwitchCount);
+    } else {
       _tabSwitchCount++;
-      final maxSwitch = _c.info?.maxTabSwitch;
-      final autoSubmit = _c.info?.autoSubmitOnTabSwitch == true;
-      if (maxSwitch != null && maxSwitch > 0 && _tabSwitchCount >= maxSwitch && autoSubmit) {
-        _autoSubmit();
-        if (mounted) showAuthToast(context, 'Batas pindah aplikasi tercapai - jawaban otomatis dikirim', isError: true);
-        return;
-      }
+    }
+    final maxSwitch = _c.info?.maxTabSwitch;
+    final autoSubmit = _c.info?.autoSubmitOnTabSwitch == true;
+    if (!mounted) return;
+    if (serverAutoSubmit ||
+        (maxSwitch != null &&
+            maxSwitch > 0 &&
+            _tabSwitchCount >= maxSwitch &&
+            autoSubmit)) {
+      await _autoSubmit();
       if (mounted) {
-        showAuthToast(context, 'Peringatan mode ujian: jangan keluar aplikasi ($_tabSwitchCount${maxSwitch != null && maxSwitch>0 ? '/$maxSwitch' : ''})', isError: true);
-        if (autoSubmit && maxSwitch == null) {
-          // optional: tidak langsung submit jika tanpa batas
-        }
+        showAuthToast(
+          context,
+          'Batas pindah aplikasi tercapai - jawaban otomatis dikirim',
+          isError: true,
+        );
       }
+      return;
+    }
+    if (mounted) {
+      showAuthToast(
+        context,
+        'Peringatan mode ujian: jangan keluar aplikasi ($_tabSwitchCount${maxSwitch != null && maxSwitch > 0 ? '/$maxSwitch' : ''})',
+        isError: true,
+      );
     }
   }
 
@@ -136,6 +163,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _router?.popBackGuard();
+    _exam?.stop();
     _c.dispose();
     super.dispose();
   }
@@ -242,6 +270,16 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       await _c.fetchQuestions(_c.tokenController.text);
       if (!mounted) return;
       setState(() => _step = _RunnerStep.fill);
+      // Mode ujian: mulai sesi server (session_start + heartbeat).
+      if (_c.info?.isExamMode == true && _c.formLink != null) {
+        final exam = ExamSessionClient(
+          formLink: _c.formLink!,
+          respondentName: _c.isLoggedIn ? null : _c.nameController.text,
+        );
+        _exam = exam;
+        await exam.start();
+        if (mounted) setState(() => _tabSwitchCount = exam.tabSwitchCount);
+      }
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
@@ -257,12 +295,18 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     final answers = _c.store.collectAutoAnswers(_c.questions);
     setState(() => _submitting = true);
     try {
-      await _c.submitAnswers(answers, isAutoSubmit: true);
+      await _c.submitAnswers(
+        answers,
+        isAutoSubmit: true,
+        examSessionId: _exam?.sessionId,
+        tabSwitchCount: _examActive ? _tabSwitchCount : null,
+      );
     } catch (e) {
       if (!mounted) return;
       // Tetap tampilkan dialog selesai meski submit gagal (mis. sudah pernah submit)
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
+      _exam?.stop();
       if (mounted) setState(() => _submitting = false);
     }
     if (!mounted) return;
@@ -346,7 +390,12 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
 
     setState(() => _submitting = true);
     try {
-      await _c.submitAnswers(answers);
+      await _c.submitAnswers(
+        answers,
+        examSessionId: _exam?.sessionId,
+        tabSwitchCount: _examActive ? _tabSwitchCount : null,
+      );
+      _exam?.stop();
       if (!mounted) return false;
       if (returnToStartScreen) {
         await showDialog<void>(

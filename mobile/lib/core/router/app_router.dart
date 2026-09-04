@@ -26,6 +26,7 @@ import 'package:form_up/features/admin/screens/admin_feedback_detail_screen.dart
 import 'package:form_up/core/services/admin_service.dart';
 import 'package:form_up/features/settings/settings_screen.dart';
 import 'package:form_up/features/form/screens/form_detail_screen.dart';
+import 'package:form_up/features/form/screens/exam_monitoring_screen.dart';
 import 'package:form_up/features/form/screens/form_questions_screen.dart';
 import 'package:form_up/features/form/screens/form_question_edit_screen.dart';
 import 'package:form_up/features/form/screens/form_feedbacks_screen.dart';
@@ -60,6 +61,7 @@ enum AppPage {
   formAnalytics,
   formRespon,
   formFeedbacks,
+  examMonitoring,
   respondentDetail,
   adminPanel,
   adminUserDetail,
@@ -376,6 +378,11 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
           formId: route.args['formId'] as int,
           formTitle: route.args['formTitle'] as String,
         );
+      case AppPage.examMonitoring:
+        return ExamMonitoringScreen(
+          formId: route.args['formId'] as int? ?? 0,
+          title: route.args['title'] as String? ?? '',
+        );
       case AppPage.respondentDetail:
         return RespondentDetailScreen(
           formId: route.args['formId'] as int? ?? 0,
@@ -443,6 +450,7 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       'form-analytics' => const AppRoute(AppPage.formAnalytics),
       'form-respon' => const AppRoute(AppPage.formRespon),
       'form-feedbacks' => const AppRoute(AppPage.formFeedbacks),
+      'exam-monitoring' => const AppRoute(AppPage.examMonitoring),
       'settings' => const AppRoute(AppPage.settings),
       'ai-chat' => const AppRoute(AppPage.aiChat),
       'ai-settings' => const AppRoute(AppPage.aiSettings),
@@ -475,6 +483,7 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       AppPage.formAnalytics => 'form-analytics',
       AppPage.formRespon => 'form-respon',
       AppPage.formFeedbacks => 'form-feedbacks',
+      AppPage.examMonitoring => 'exam-monitoring',
       AppPage.respondentDetail => 'respondent-detail',
       AppPage.adminPanel => 'admin-panel',
       AppPage.adminUserDetail => 'admin-user',
