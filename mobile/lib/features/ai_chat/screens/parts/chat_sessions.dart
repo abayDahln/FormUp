@@ -42,6 +42,33 @@ extension _AiChatSessions on _AiChatScreenState {
     if (mounted) setState(() => _sessions = all);
   }
 
+  /// Simpan isi field input sebagai draft sesi aktif.
+  void saveCurrentDraft() {
+    final id = _currentSessionId;
+    if (id == null) return;
+    final text = _controller.text;
+    if (text.isEmpty) {
+      _drafts.remove(id);
+    } else {
+      _drafts[id] = text;
+    }
+  }
+
+  /// Muat draft sesi `id` ke field input (kosong jika tidak ada),
+  /// sekaligus bersihkan state mention pesan sebelumnya.
+  void loadDraft(String id) {
+    final draft = _drafts[id] ?? '';
+    setState(() {
+      _pickedMentions.clear();
+      _controller.mentionTokens = [];
+      _controller.value = TextEditingValue(
+        text: draft,
+        selection: TextSelection.collapsed(offset: draft.length),
+      );
+      _lastText = draft;
+    });
+  }
+
   Future<void> newSession() async {
     // Anti spam: chat baru hanya jika sudah ada prompt yang dikirim
     if (_messages.isEmpty) {
@@ -52,23 +79,27 @@ extension _AiChatSessions on _AiChatScreenState {
         }
         // Jika belum ada session sama sekali, cukup reset id in-memory
         if (_sessions.isEmpty) {
+          saveCurrentDraft();
           setState(() {
             _currentSessionId = DateTime.now().millisecondsSinceEpoch
                 .toString();
             _messages.clear();
           });
+          loadDraft(_currentSessionId!);
         }
         return;
       }
     }
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     if (!mounted) return;
+    saveCurrentDraft();
     await stopActiveStream();
     setState(() {
       _currentSessionId = id;
       _messages.clear();
       _showFab = false;
     });
+    loadDraft(id);
     // Jangan langsung upsert kosong — akan tersimpan otomatis saat prompt pertama dikirim (persistCurrent)
   }
 
@@ -84,6 +115,8 @@ extension _AiChatSessions on _AiChatScreenState {
   }
 
   Future<void> switchSession(String id) async {
+    if (id == _currentSessionId) return;
+    saveCurrentDraft();
     await stopActiveStream();
     final all = await AiChatHistoryService.loadAll();
     final target = all.firstWhere((e) => e.id == id, orElse: () => all.first);
@@ -98,6 +131,7 @@ extension _AiChatSessions on _AiChatScreenState {
       _showFab = false;
     });
     // Langsung tampilkan chat terbaru (paling bawah) saat ganti sesi
+    loadDraft(id);
     _scrollToBottom(immediate: true);
   }
 

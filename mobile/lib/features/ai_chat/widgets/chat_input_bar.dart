@@ -20,6 +20,9 @@ class ChatInputBar extends StatelessWidget {
   final bool hasAtSign;
 
   final VoidCallback onSend;
+
+  /// Hentikan respons AI yang sedang streaming (tombol stop saat loading).
+  final VoidCallback onStop;
   final ValueChanged<FormData> onSelectMention;
   final VoidCallback onRetryLoadForms;
   final VoidCallback onClearMentions;
@@ -37,6 +40,7 @@ class ChatInputBar extends StatelessWidget {
     required this.pickedMentionCount,
     required this.hasAtSign,
     required this.onSend,
+    required this.onStop,
     required this.onSelectMention,
     required this.onRetryLoadForms,
     required this.onClearMentions,
@@ -75,7 +79,6 @@ class ChatInputBar extends StatelessWidget {
                         minLines: 1,
                         maxLines: 4,
                         textInputAction: TextInputAction.send,
-                        enabled: !streaming,
                         onSubmitted: (_) => onSend(),
                         decoration: const InputDecoration(
                           hintText: 'Tanya ke AI...',
@@ -97,26 +100,19 @@ class ChatInputBar extends StatelessWidget {
                     ),
                     Padding(
                       padding: const EdgeInsets.only(right: 2, bottom: 2),
-                      child: streaming
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            )
-                          : IconButton(
-                              onPressed: onSend,
-                              tooltip: 'Send',
-                              icon: const Icon(
-                                Icons.send_rounded,
-                                size: 22,
-                                color: kAuthPrimary,
-                              ),
-                            ),
+                      // Slot tombol sama persis di kedua state agar UI
+                      // tidak "loncat" saat mulai/selesai streaming.
+                      child: IconButton(
+                        onPressed: streaming ? onStop : onSend,
+                        tooltip: streaming ? 'Stop' : 'Send',
+                        icon: Icon(
+                          streaming
+                              ? Icons.stop_rounded
+                              : Icons.send_rounded,
+                          size: 22,
+                          color: kAuthPrimary,
+                        ),
+                      ),
                     ),
                   ],
                 ),

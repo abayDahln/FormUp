@@ -9,6 +9,30 @@ extension _AiChatMessaging on _AiChatScreenState {
     await sendWithText(_controller.text.trim());
   }
 
+  /// Hentikan respons AI yang sedang streaming (tombol stop di input bar).
+  /// Partial text yang sudah diterima tetap disimpan sebagai bubble.
+  Future<void> stopGeneration() async {
+    if (!_streaming) return;
+    await _sub?.cancel();
+    _sub = null;
+    final msg = _streamingMsg;
+    final buffer = _streamingBuffer;
+    _streamingMsg = null;
+    _streamingBuffer = null;
+    if (msg != null) {
+      final partial = buffer?.toString() ?? '';
+      if (partial.trim().isEmpty) {
+        msg.text = 'Respons dihentikan.';
+      } else {
+        msg.text = partial;
+      }
+      msg.disposeStream();
+    }
+    if (!mounted) return;
+    setState(() => _streaming = false);
+    await persistCurrent();
+  }
+
   /// Kirim ulang pesan user terakhir setelah bubble error (tombol "Coba lagi").
   /// Bubble error dibuang dulu agar tidak menumpuk, lalu pesan dikirim ulang.
   Future<void> retryMessage(ChatMessage failed) async {
@@ -171,15 +195,17 @@ extension _AiChatMessaging on _AiChatScreenState {
       return {'role': m.role, 'text': m.text};
     }).toList();
     final botMsg = ChatMessage(role: 'model', text: '');
+    final buffer = StringBuffer();
     // Lampirkan notifier live: chunk ditulis ke sini TANPA setState,
     // sehingga hanya bubble ini yang rebuild via ValueListenableBuilder.
     botMsg.stream = ValueNotifier<String>('');
     setState(() {
       _messages.add(botMsg);
       _streaming = true;
+      _streamingMsg = botMsg;
+      _streamingBuffer = buffer;
     });
 
-    final buffer = StringBuffer();
     // Batalkan stream sebelumnya bila masih hidup (anti tumpuk listener).
     await _sub?.cancel();
     _sub = null;
@@ -209,6 +235,8 @@ extension _AiChatMessaging on _AiChatScreenState {
           }
           botMsg.disposeStream();
           if (!mounted) return;
+          _streamingMsg = null;
+          _streamingBuffer = null;
           setState(() => _streaming = false);
           await persistCurrent();
           final action = extractActionJson(botMsg.text);
@@ -288,14 +316,18 @@ extension _AiChatMessaging on _AiChatScreenState {
             }
             botMsg.disposeStream();
             if (!mounted) return;
-            setState(() => _streaming = false);
+            _streamingMsg = null;
+          _streamingBuffer = null;
+          setState(() => _streaming = false);
             await persistCurrent();
           } catch (e2) {
             botMsg.text = GeminiService.friendlyMessage(e2);
             botMsg.isError = true;
             botMsg.disposeStream();
             if (!mounted) return;
-            setState(() => _streaming = false);
+            _streamingMsg = null;
+          _streamingBuffer = null;
+          setState(() => _streaming = false);
             await persistCurrent();
           }
         },
@@ -306,6 +338,8 @@ extension _AiChatMessaging on _AiChatScreenState {
       botMsg.isError = true;
       botMsg.disposeStream();
       if (!mounted) return;
+      _streamingMsg = null;
+      _streamingBuffer = null;
       setState(() => _streaming = false);
       await persistCurrent();
     }

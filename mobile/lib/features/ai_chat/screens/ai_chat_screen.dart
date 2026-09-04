@@ -45,6 +45,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
   String? _currentSessionId;
   bool _streaming = false;
   StreamSubscription<String>? _sub;
+
+  // Pesan bot + buffer yang sedang streaming (dipakai tombol stop).
+  ChatMessage? _streamingMsg;
+  StringBuffer? _streamingBuffer;
+
+  // Draft input per sesi: teks field tersimpan per session id, tidak
+  // ikut berpindah saat ganti sesi (in-memory saja).
+  final Map<String, String> _drafts = {};
+
   static bool _shownInitialMissingKeyToast = false;
 
   // Agent: @mention & model picker
@@ -255,6 +264,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   pickedMentionCount: _pickedMentions.length,
                   hasAtSign: _controller.text.contains('@'),
                   onSend: send,
+                  onStop: stopGeneration,
                   onSelectMention: selectMention,
                   onRetryLoadForms: () => loadAllForms(force: true),
                   onClearMentions: () => setState(() {
