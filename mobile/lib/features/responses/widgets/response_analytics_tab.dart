@@ -3,6 +3,7 @@ import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/network_status.dart';
+import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 
@@ -86,28 +87,34 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
       );
     }
     if (data.respondents.isEmpty) {
+      final scheme = Theme.of(context).colorScheme;
+      final text = Theme.of(context).textTheme;
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20),
         children: [
-          Container(
-            margin: const EdgeInsets.all(20),
-            padding: const EdgeInsets.all(28),
-            decoration: _cardDecoration(),
-            child: const Column(
-              children: [
-                Icon(Icons.analytics_outlined, size: 34, color: Colors.black26),
-                SizedBox(height: 10),
-                Text(
-                  'Belum ada data analisis.',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Analisis muncul setelah ada respon yang masuk.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 11.5, color: Colors.black45),
-                ),
-              ],
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                children: [
+                  Icon(Icons.analytics_outlined,
+                      size: 34, color: scheme.outline),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Belum ada data analisis.',
+                    style: text.titleSmall
+                        ?.copyWith(fontFamily: kFontBold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Analisis muncul setelah ada respon yang masuk.',
+                    textAlign: TextAlign.center,
+                    style: text.bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -217,82 +224,66 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
     return list;
   }
 
-  // ---- UI helpers ----
+  // ---- UI helpers (Material 3: Card + LinearProgressIndicator) ----
 
-  BoxDecoration _cardDecoration() => BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFBDC9C8)),
-        boxShadow: softShadow(),
+  Widget _card({required Widget child}) => Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: child,
+        ),
       );
 
   int _pct(int part, int total) => total > 0 ? (part / total * 100).round() : 0;
 
-  Widget _card({required Widget child}) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: _cardDecoration(),
-        child: child,
-      );
+  Widget _cardTitle(String title, IconData icon) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: scheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style:
+                text.titleSmall?.copyWith(fontFamily: kFontBold),
+          ),
+        ],
+      ),
+    );
+  }
 
-  Widget _cardTitle(String title, IconData icon) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(
-          children: [
-            Icon(icon, size: 15, color: kAuthPrimary),
-            const SizedBox(width: 6),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w800,
-                color: Colors.black87,
-              ),
-            ),
-          ],
-        ),
-      );
-
-  /// Bar persen horizontal: [teal fill][track] + label persen di kanan.
+  /// Bar persen Material 3.
   Widget _percentBar(
     int percent, {
-    Color color = kAuthPrimary,
+    Color? color,
     String? label,
   }) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
     return Row(
       children: [
         Expanded(
-          child: Stack(
-            children: [
-              Container(
-                height: 9,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE3ECEB),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              FractionallySizedBox(
-                widthFactor: (percent / 100).clamp(0.0, 1.0),
-                child: Container(
-                  height: 9,
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-            ],
+          child: LinearProgressIndicator(
+            value: (percent / 100).clamp(0.0, 1.0),
+            minHeight: 8,
+            borderRadius: BorderRadius.circular(999),
+            color: color ?? scheme.primary,
+            backgroundColor: scheme.surfaceContainerHighest,
           ),
         ),
         const SizedBox(width: 8),
         SizedBox(
-          width: label != null ? null : 34,
+          width: label != null ? null : 40,
           child: Text(
             label ?? '$percent%',
             textAlign: TextAlign.right,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: Colors.black54,
+            style: text.labelMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.bold,
+              fontFamily: kFontBold,
             ),
           ),
         ),
@@ -313,7 +304,7 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
               _summaryCell('Pengguna Unik', '${d.totalDistinctUsers}'),
             ],
           ),
-          const Divider(height: 18, thickness: 0.7, color: Color(0xFFE3ECEB)),
+          const Divider(height: 24),
           Row(
             children: [
               _summaryCell('Total Soal', '${d.totalQuestions}'),
@@ -331,47 +322,50 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
     );
   }
 
-  Widget _summaryCell(String label, String value) => Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label.toUpperCase(),
-              style: const TextStyle(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
-                color: Colors.black45,
-              ),
+  Widget _summaryCell(String label, String value) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: text.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
             ),
-            const SizedBox(height: 3),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w900,
-                fontFamily: kFontBold,
-                color: Colors.black87,
-              ),
-            ),
-          ],
-        ),
-      );
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: text.headlineSmall?.copyWith(fontFamily: kFontBold),
+          ),
+        ],
+      ),
+    );
+  }
 
-  Widget _verticalDivider() => Container(
-        width: 1,
-        height: 30,
-        margin: const EdgeInsets.symmetric(horizontal: 10),
-        color: const Color(0xFFE3ECEB),
-      );
+  Widget _verticalDivider() {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 1,
+      height: 32,
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      color: scheme.outlineVariant,
+    );
+  }
 
   Widget _gradeCard(({Map<String, int> counts, int total}) grades) {
-    const meta = {
-      'A': (Colors.green, '≥ 90'),
-      'B': (kAuthPrimary, '≥ 75'),
-      'C': (Colors.orange, '≥ 60'),
-      'D': (Colors.deepOrange, '≥ 40'),
-      'E': (Colors.red, '< 40'),
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final meta = {
+      'A': (kSuccessColor, '≥ 90'),
+      'B': (kPrimary, '≥ 75'),
+      'C': (kWarningColor, '≥ 60'),
+      'D': (kDangerColor.withValues(alpha: 0.7), '≥ 40'),
+      'E': (kDangerColor, '< 40'),
     };
     return _card(
       child: Column(
@@ -387,9 +381,8 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
                     width: 22,
                     child: Text(
                       g,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w900,
+                      style: text.titleSmall?.copyWith(
+                        fontFamily: kFontBold,
                         color: (meta[g]!.$1),
                       ),
                     ),
@@ -405,10 +398,10 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
                     child: Text(
                       '${grades.counts[g]}',
                       textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black54,
+                      style: text.labelMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontFamily: kFontBold,
+                        color: scheme.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -417,7 +410,8 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
             ),
           Text(
             'Skor ${grades.total} responden dinilai • A ≥ 90, B ≥ 75, C ≥ 60, D ≥ 40, E < 40',
-            style: const TextStyle(fontSize: 10, color: Colors.black45),
+            style: text.bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -426,6 +420,7 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
 
   Widget _passCard(({int passed, int failed, int passPercent, int failPercent})
       pass) {
+    final scheme = Theme.of(context).colorScheme;
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -434,88 +429,94 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
           Row(
             children: [
               Expanded(
-                child: _bigPercent('${pass.passPercent}%', 'Lulus',
-                    Colors.green.shade700, '${pass.passed} responden'),
+                child: _bigPercent(
+                  '${pass.passPercent}%',
+                  'Lulus',
+                  '${pass.passed} responden',
+                  valueColor: kSuccessColor,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: _bigPercent('${pass.failPercent}%', 'Tidak Lulus',
-                    Colors.red.shade600, '${pass.failed} responden'),
+                child: _bigPercent(
+                  '${pass.failPercent}%',
+                  'Tidak Lulus',
+                  '${pass.failed} responden',
+                  valueColor: kDangerColor,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _percentBar(
-                  pass.passPercent,
-                  color: Colors.green,
-                  label: '',
-                ),
-              ),
-              Expanded(
-                child: _percentBar(
-                  pass.failPercent,
-                  color: Colors.red,
-                  label: '',
-                ),
-              ),
-            ],
+          const SizedBox(height: 12),
+          _percentBar(pass.passPercent, color: scheme.primary),
+          const SizedBox(height: 6),
+          _percentBar(pass.failPercent,
+              color: scheme.error, label: ''),
+        ],
+      ),
+    );
+  }
+
+  Widget _bigPercent(
+    String percent,
+    String label,
+    String sub, {
+    required Color valueColor,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(kRadiusMd),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            percent,
+            style: text.headlineSmall?.copyWith(
+              fontFamily: kFontBold,
+              color: valueColor,
+            ),
+          ),
+          Text(
+            label,
+            style: text.labelLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              fontFamily: kFontBold,
+              color: valueColor,
+            ),
+          ),
+          Text(
+            sub,
+            style: text.bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
       ),
     );
   }
 
-  Widget _bigPercent(String percent, String label, Color color, String sub) =>
-      Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              percent,
-              style: TextStyle(
-                fontSize: 21,
-                fontWeight: FontWeight.w900,
-                fontFamily: kFontBold,
-                color: color,
-              ),
-            ),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Colors.black54,
-              ),
-            ),
-            Text(
-              sub,
-              style: const TextStyle(fontSize: 10, color: Colors.black45),
-            ),
-          ],
-        ),
-      );
-
   Widget _accuracyCard(
       List<({int id, String question, int correct, int total, int percent})>
           accuracy) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    Color scoreColor(int percent) => percent >= 70
+        ? kSuccessColor
+        : (percent >= 40 ? kWarningColor : kDangerColor);
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _cardTitle('Akurasi Per Soal (tersulit dulu)', Icons.track_changes_rounded),
           if (accuracy.isEmpty)
-            const Text(
+            Text(
               'Belum ada soal yang bisa dinilai otomatis.',
-              style: TextStyle(fontSize: 11.5, color: Colors.black45),
+              style: text.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             )
           else
             for (final q in accuracy)
@@ -533,24 +534,16 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
                                 : _clean(q.question),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
-                            ),
+                            style: text.bodyMedium,
                           ),
                         ),
                         const SizedBox(width: 6),
                         Text(
                           '${q.correct}/${q.total}',
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            color: q.percent >= 70
-                                ? Colors.green
-                                : (q.percent >= 40
-                                    ? Colors.orange
-                                    : Colors.red),
+                          style: text.labelMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontFamily: kFontBold,
+                            color: scoreColor(q.percent),
                           ),
                         ),
                       ],
@@ -558,9 +551,7 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
                     const SizedBox(height: 4),
                     _percentBar(
                       q.percent,
-                      color: q.percent >= 70
-                          ? Colors.green
-                          : (q.percent >= 40 ? Colors.orange : Colors.red),
+                      color: scoreColor(q.percent),
                     ),
                   ],
                 ),
@@ -571,6 +562,8 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
   }
 
   Widget _rankingCard(FormAnalytics d) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
     final ranked = [...d.respondents]
       ..sort((x, y) => (y.score ?? -1).compareTo(x.score ?? -1));
     return _card(
@@ -599,10 +592,11 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
                       width: 24,
                       child: Text(
                         '${i + 1}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                          color: i < 3 ? kAuthPrimary : Colors.black38,
+                        style: text.labelLarge?.copyWith(
+                          fontFamily: kFontBold,
+                          color: i < 3
+                              ? scheme.primary
+                              : scheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -616,13 +610,12 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
                                 : 'Anonim',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
+                            style: text.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontFamily: kFontBold,
                             ),
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 4),
                           _percentBar(
                             r.score != null ? r.score!.clamp(0, 100).round() : 0,
                           ),
@@ -634,14 +627,13 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
                       r.score != null
                           ? r.score!.toStringAsFixed(0)
                           : '-',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.black54,
+                      style: text.titleSmall?.copyWith(
+                        fontFamily: kFontBold,
+                        color: scheme.onSurfaceVariant,
                       ),
                     ),
-                    const Icon(Icons.chevron_right,
-                        size: 16, color: Colors.black26),
+                    Icon(Icons.chevron_right,
+                        size: 16, color: scheme.outline),
                   ],
                 ),
               ),
