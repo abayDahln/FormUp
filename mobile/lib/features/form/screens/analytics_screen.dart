@@ -4,8 +4,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:form_up/core/widgets/loading_indicator.dart';
-import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
+import 'package:form_up/core/widgets/ai_chat_icon.dart';
+import 'package:form_up/core/widgets/loading_indicator.dart';import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
@@ -390,13 +390,56 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     }
   }
 
+  /// Buka AI chat dengan form ini di-mention + prompt analisis siap kirim
+  /// (seperti Analisis AI di web — user yang menekan kirim sendiri).
+  void _openAiAnalysis() {
+    if (_exporting || widget.formId == 0) return;
+    AppRouter.of(context).push(AppPage.aiChat, {
+      'formId': widget.formId,
+      'initialPrompt': _buildAiPrompt(),
+    });
+  }
+
+  /// Prompt analisis hasil form — ringkasan data + instruksi analisis
+  /// (mengikuti prompt Analisis AI di web).
+  String _buildAiPrompt() {
+    final a = _analytics;
+    final buf = StringBuffer();
+    buf.writeln('Data ringkasan hasil "${widget.title}":');
+    buf.writeln('- Total respon: ${a?.totalResponses ?? 0}');
+    buf.writeln('- Pengguna unik: ${a?.totalDistinctUsers ?? 0}');
+    buf.writeln('- Total soal: ${a?.totalQuestions ?? 0}');
+    if (a?.averageScore != null) {
+      buf.writeln(
+          '- Rata-rata nilai: ${a!.averageScore!.toStringAsFixed(1)}');
+    }
+    return '''Tolong berikan analisis mendalam dan rekomendasi perbaikan dari hasil form ini dalam bahasa Indonesia yang jelas dan mudah dipahami guru.
+
+${buf.toString()}
+Berikan analisis yang mencakup:
+1. Interpretasi distribusi nilai dan apa artinya bagi kualitas pembelajaran
+2. Soal-soal bermasalah (terlalu sulit/mudah) dan saran perbaikannya
+3. Rekomendasi konkret untuk meningkatkan hasil belajar
+4. Kesimpulan umum tentang kualitas soal dan pemahaman siswa''';
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: !_exporting,
       onPopInvokedWithResult: (didPop, _) { if (!didPop && _exporting) showAppToast(context, 'Tunggu ekspor selesai', type: ToastType.warning); },
       child: Scaffold(
-      backgroundColor: kAppBg,
+        backgroundColor: kAppBg,
+        floatingActionButton: FloatingActionButton.small(
+          heroTag: 'aiAnalysisForForm',
+          onPressed: _exporting ? null : _openAiAnalysis,
+          tooltip: 'Analisis AI dengan form ini',
+          child: AiChatIcon(
+            size: 20,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+            filled: true,
+          ),
+        ),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,

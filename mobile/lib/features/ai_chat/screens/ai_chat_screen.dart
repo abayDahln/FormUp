@@ -38,10 +38,15 @@ class AiChatScreen extends StatefulWidget {
   /// kelola soal) — field prompt langsung berisi @JudulForm.
   final int? initialFormId;
 
+  /// Prompt yang langsung diisi ke field setelah mention (siap kirim
+  /// oleh user — TIDAK otomatis dikirim).
+  final String? initialPrompt;
+
   const AiChatScreen({
     super.key,
     this.embedded = false,
     this.initialFormId,
+    this.initialPrompt,
   });
 
   @override
@@ -127,10 +132,20 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _controller.addListener(_onTextChanged);
     _scroll.addListener(_onScroll);
     loadSessions();
-    loadAllForms().then((_) {
-      // Shortcut dari kelola soal: otomatis mention form tersebut.
+    loadAllForms().then((_) async {
+      // Shortcut dari kelola soal / analisis: otomatis mention form tersebut,
+      // lalu isi prompt siap kirim (user yang menekan kirim sendiri).
       final id = widget.initialFormId;
-      if (id != null && mounted) applyInitialMention(id);
+      if (id != null && mounted) {
+        await applyInitialMention(id);
+        final prompt = widget.initialPrompt;
+        if (prompt != null && prompt.isNotEmpty && mounted) {
+          setState(() {
+            _controller.text = '${_controller.text}$prompt';
+            _lastText = _controller.text;
+          });
+        }
+      }
     });
     // Toast sekali saat baru membuka app & membuka screen AI chat jika key belum diatur
     WidgetsBinding.instance.addPostFrameCallback((_) {

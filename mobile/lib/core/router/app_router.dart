@@ -409,6 +409,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
       case AppPage.aiChat:
         return AiChatScreen(
           initialFormId: route.args['formId'] as int?,
+          initialPrompt: route.args['initialPrompt'] as String?,
         );
       case AppPage.aiSettings:
         return const AiSettingsScreen();
