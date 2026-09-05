@@ -11,9 +11,11 @@ import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/router/app_router.dart';
+import 'package:form_up/features/responses/widgets/response_analytics_tab.dart';
 import 'package:form_up/features/responses/widgets/response_list_card.dart';
 
-/// Kelola respon form
+/// Kelola respon form — 2 tab: Analisis (ringkasan persen/diagram seperti
+/// versi web) dan Respon (daftar respon).
 class FormResponScreen extends StatefulWidget {
   final int formId;
   final String title;
@@ -28,9 +30,11 @@ class FormResponScreen extends StatefulWidget {
   State<FormResponScreen> createState() => _FormResponScreenState();
 }
 
-class _FormResponScreenState extends State<FormResponScreen> {
+class _FormResponScreenState extends State<FormResponScreen>
+    with SingleTickerProviderStateMixin {
   static const _pageSize = 10;
-  final _scrollController = ScrollController();
+  late final TabController _tabController =
+      TabController(length: 2, vsync: this);
   List<ResponseListItemData> _responses = [];
   bool _loading = true;
   bool _loadingMore = false;
@@ -44,12 +48,6 @@ class _FormResponScreenState extends State<FormResponScreen> {
     super.initState();
     NetworkStatus.onlineTick.addListener(_onOnline);
     _load();
-    _scrollController.addListener(() {
-      if (_scrollController.position.pixels >=
-          _scrollController.position.maxScrollExtent - 200) {
-        _loadMore();
-      }
-    });
   }
 
   void _onOnline() {
@@ -59,8 +57,19 @@ class _FormResponScreenState extends State<FormResponScreen> {
   @override
   void dispose() {
     NetworkStatus.onlineTick.removeListener(_onOnline);
-    _scrollController.dispose();
+    _tabController.dispose();
     super.dispose();
+  }
+
+  /// Context list respon (di dalam NestedScrollView) untuk akses primary
+  /// scroll controller bawaan NestedScrollView saat kembali ke atas.
+  BuildContext? _listContext;
+
+  void _scrollListToTop() {
+    final ctx = _listContext;
+    if (ctx != null && ctx.mounted) {
+      PrimaryScrollController.maybeOf(ctx)?.jumpTo(0);
+    }
   }
 
   Future<void> _load() async => _loadPage(1);
@@ -83,7 +92,7 @@ class _FormResponScreenState extends State<FormResponScreen> {
         _total = result.total;
         _hasMore = _responses.length < result.total;
       });
-      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      _scrollListToTop();
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
@@ -247,98 +256,153 @@ class _FormResponScreenState extends State<FormResponScreen> {
                   ),
           ),
         ],
+        bottom: _MintTabBar(controller: _tabController),
       ),
-      body: Column(children: [
-        if (_exporting) const progress.ProgressIndicator.linear(semanticsLabel: 'Mengekspor respon'),
-        Expanded(child: _loading
-          ? const LoadingOverlay(contained: true)
-          : AbsorbPointer(
-              absorbing: _exporting,
-              child: AuthBackground(plain: true,
-              child: SafeArea(
-                child: _responses.isEmpty
-                    ? Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(32),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.inbox_outlined,
-                                  color: Colors.grey, size: 36),
-                              SizedBox(height: 10),
-                              Text(
-                                'Belum ada respon.',
-                                style: TextStyle(
-                                    fontSize: 13, color: Colors.black54),
+      body: NestedScrollView(
+        // Tab bar ikut tergulung bersama konten (bukan fixed di appbar).
+        headerSliverBuilder: (context, _) =>
+            [SliverToBoxAdapter(child: _MintTabBar(controller: _tabController))],
+        body: TabBarView(
+        controller: _tabController,
+        children: [
+          // ── Tab Analisis ──
+          ResponseAnalyticsTab(formId: widget.formId, title: widget.title),
+          // ── Tab Respon (daftar respon seperti sebelumnya) ──
+          NotificationListener<ScrollNotification>(
+            onNotification: (n) {
+              if (n.metrics.axis == Axis.vertical &&
+                  n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
+                _loadMore();
+              }
+              return false;
+            },
+            child: Column(children: [
+            if (_exporting) const progress.ProgressIndicator.linear(semanticsLabel: 'Mengekspor respon'),
+            Expanded(child: _loading
+              ? const LoadingOverlay(contained: true)
+              : AbsorbPointer(
+                  absorbing: _exporting,
+                  child: AuthBackground(plain: true,
+                  child: SafeArea(
+                    child: _responses.isEmpty
+                        ? Center(
+                            child: Container(
+                              padding: const EdgeInsets.all(32),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : AppRefreshIndicator(
-                        onRefresh: _load,
-                        indicatorColor: kAuthPrimary,
-                        child: ListView.separated(
-                          controller: _scrollController,
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                          itemCount: _responses.length + 1,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, i) {
-                            if (i >= _responses.length) {
-                              if (_loadingMore) {
-                                return const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 12),
-                                  child: Center(
-                                    child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    ),
+                              child: const Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.inbox_outlined,
+                                      color: Colors.grey, size: 36),
+                                  SizedBox(height: 10),
+                                  Text(
+                                    'Belum ada respon.',
+                                    style: TextStyle(
+                                        fontSize: 13, color: Colors.black54),
                                   ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : AppRefreshIndicator(
+                            onRefresh: _load,
+                            indicatorColor: kAuthPrimary,
+                            child: Builder(builder: (listCtx) {
+                              _listContext = listCtx;
+                              return ListView.separated(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                              itemCount: _responses.length + 1,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 12),
+                              itemBuilder: (context, i) {
+                                if (i >= _responses.length) {
+                                  if (_loadingMore) {
+                                    return const Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 12),
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  final totalPages = (_total / _pageSize).ceil().clamp(1, 999);
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        IconButton.filledTonal(
+                                          visualDensity: VisualDensity.compact,
+                                          onPressed: _page > 1 && !_loading ? () => _loadPage(_page - 1) : null,
+                                          icon: const Icon(Icons.chevron_left, size: 22),
+                                        ),
+                                        Text('Halaman $_page dari $totalPages', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
+                                        IconButton.filledTonal(
+                                          visualDensity: VisualDensity.compact,
+                                          onPressed: _page < totalPages && !_loading ? () => _loadPage(_page + 1) : null,
+                                          icon: const Icon(Icons.chevron_right, size: 22),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }
+                                return ResponseListCard(
+                                  response: _responses[i],
+                                  index: i,
+                                  onOpenDetail: () => _openDetail(_responses[i]),
                                 );
-                              }
-                              final totalPages = (_total / _pageSize).ceil().clamp(1, 999);
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    IconButton.filledTonal(
-                                      visualDensity: VisualDensity.compact,
-                                      onPressed: _page > 1 && !_loading ? () => _loadPage(_page - 1) : null,
-                                      icon: const Icon(Icons.chevron_left, size: 22),
-                                    ),
-                                    Text('Halaman $_page dari $totalPages', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
-                                    IconButton.filledTonal(
-                                      visualDensity: VisualDensity.compact,
-                                      onPressed: _page < totalPages && !_loading ? () => _loadPage(_page + 1) : null,
-                                      icon: const Icon(Icons.chevron_right, size: 22),
-                                    ),
-                                  ],
-                                ),
+                              },
                               );
-                            }
-                            return ResponseListCard(
-                              response: _responses[i],
-                              index: i,
-                              onOpenDetail: () => _openDetail(_responses[i]),
-                            );
-                          },
+                            }),
                         ),
-                      ),
+                  ),
+                ),
               ),
             ),
+          ],
           ),
+          ),
+        ],
         ),
-      ],
       ),
     ),
     );
   }
 }
+
+/// Tab Analisis/Respon bergaya Riwayat/Responden (teks + underline teal).
+class _MintTabBar extends StatelessWidget implements PreferredSizeWidget {
+  final TabController controller;
+  const _MintTabBar({required this.controller});
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kTextTabBarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: kAppBg,
+      child: TabBar(
+        controller: controller,
+        labelColor: kPrimary,
+        unselectedLabelColor: Colors.grey,
+        indicatorColor: kPrimary,
+        indicatorWeight: 2.5,
+        dividerColor: Colors.transparent,
+        labelStyle: const TextStyle(
+            fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 13),
+        unselectedLabelStyle:
+            const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+        tabs: const [Tab(text: 'Analisis'), Tab(text: 'Respon')],
+      ),
+    );
+  }
+}
+

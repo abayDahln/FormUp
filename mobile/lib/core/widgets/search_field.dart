@@ -60,9 +60,13 @@ class _AppSearchFieldState extends State<AppSearchField> {
 
   Future<void> _loadHistory() async {
     if (widget.historyKey == null) return;
-    final h = await SearchHistory.get(widget.historyKey!);
-    if (!mounted) return;
-    setState(() => _history = h);
+    try {
+      final h = await SearchHistory.get(widget.historyKey!);
+      if (!mounted) return;
+      setState(() => _history = h);
+    } catch (_) {
+      // Riwayat pencarian bersifat opsional — gagal baca diabaikan.
+    }
   }
 
   Future<void> _saveHistory(String q) async {

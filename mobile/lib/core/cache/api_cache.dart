@@ -96,6 +96,21 @@ class ApiCache {
     await _writeDiskStore(store);
   }
 
+  /// completeError + pasang no-op listener. Caller PERTAMA tidak pernah
+  /// meng-await completer dedup ini (dia menunggu loader langsung), jadi
+  /// kalau tidak ada caller duplikat bersamaan, completer future tidak punya
+  /// listener — error-nya jadi "Unhandled Exception" di console meskipun UI
+  /// sudah menanganinya lewat rethrow.
+  static void _completeErrorSafe(
+    Completer<Object?> completer,
+    Object error,
+    StackTrace st,
+  ) {
+    if (completer.isCompleted) return;
+    completer.completeError(error, st);
+    completer.future.catchError((_) => null);
+  }
+
   static Future<T> get<T>(
     String key,
     Duration ttl,
@@ -183,10 +198,14 @@ class ApiCache {
         await NetworkStatus.refresh();
       } catch (_) {}
       if (NetworkStatus.isOffline) {
-        if (!completer.isCompleted) completer.completeError(const OfflineCacheException('Kamu sedang offline. Periksa koneksi internet dan coba lagi.'), st);
+        _completeErrorSafe(
+          completer,
+          const OfflineCacheException('Kamu sedang offline. Periksa koneksi internet dan coba lagi.'),
+          st,
+        );
         throw const OfflineCacheException('Kamu sedang offline. Periksa koneksi internet dan coba lagi.');
       }
-      if (!completer.isCompleted) completer.completeError(e, st);
+      _completeErrorSafe(completer, e, st);
       rethrow;
     } finally {
       _pending.remove(key);

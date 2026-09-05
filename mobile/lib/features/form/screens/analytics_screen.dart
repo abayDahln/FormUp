@@ -16,8 +16,10 @@ import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form/widgets/analytics_respondent_card.dart';
 import 'package:form_up/features/form/widgets/analytics_summary_row.dart';
+import 'package:form_up/features/responses/widgets/response_analytics_tab.dart';
 
-/// Analisis respons form
+/// Analisis respons form — 2 tab: Analisis (diagram persen seperti web)
+/// dan Respon (daftar responden).
 class AnalyticsScreen extends StatefulWidget {
   final int formId;
   final String title;
@@ -49,10 +51,12 @@ extension _RespSortExt on _RespondentSort {
       };
 }
 
-class _AnalyticsScreenState extends State<AnalyticsScreen> {
+class _AnalyticsScreenState extends State<AnalyticsScreen>
+    with SingleTickerProviderStateMixin {
   static const _pageSize = 10;
-  final _scrollController = ScrollController();
   final _searchController = TextEditingController();
+  late final TabController _tabController =
+      TabController(length: 2, vsync: this);
   Timer? _debounce;
   String _query = '';
   FormAnalytics? _analytics;
@@ -83,12 +87,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     super.initState();
     NetworkStatus.onlineTick.addListener(_onOnline);
     _load();
-    _scrollController.addListener(() {
-      if (_scrollController.position.pixels >=
-          _scrollController.position.maxScrollExtent - 200) {
-        _loadMore();
-      }
-    });
   }
 
   void _onOnline() {
@@ -99,8 +97,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   void dispose() {
     NetworkStatus.onlineTick.removeListener(_onOnline);
     _debounce?.cancel();
-    _scrollController.dispose();
+    _tabController.dispose();
     _searchController.dispose();
+    _responScrollController.dispose();
     super.dispose();
   }
 
@@ -120,6 +119,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       setState(() => _query = value.trim());
       _load();
     });
+  }
+
+  /// Controller list tab Respon — untuk kembali ke atas saat ganti halaman.
+  final _responScrollController = ScrollController();
+
+  void _scrollListToTop() {
+    if (_responScrollController.hasClients) {
+      _responScrollController.jumpTo(0);
+    }
   }
 
   Future<void> _load() async {
@@ -160,7 +168,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   Future<void> _loadMore() async {
     if (_loadingMore || !_hasMore || _loading || widget.formId == 0) return;
-    if (!_scrollController.hasClients) return;
     setState(() => _loadingMore = true);
     try {
       final next = _page + 1;
@@ -204,7 +211,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         _respondents = List<RespondentAnalyticsData>.from(analytics.respondents);
         _hasMore = _respondents.length < analytics.totalResponses;
       });
-      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      _scrollListToTop();
     } catch (e) {
       if (mounted) showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
@@ -426,18 +433,50 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ),
         ],
       ),
-      body: Column(children: [
-        if (_exporting) const progress.ProgressIndicator.linear(semanticsLabel: 'Mengekspor respon'),
-        Expanded(child: _loading && _analytics == null
-          ? const LoadingOverlay(contained: true)
-          : AbsorbPointer(
-              absorbing: _exporting,
-              child: AuthBackground(plain: true,
-              child: SafeArea(
-                child: ListView(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                  children: [
+      body: NestedScrollView(
+        // Tab bar ikut tergulung bersama konten (bukan fixed di appbar).
+        headerSliverBuilder: (context, _) =>
+            [SliverToBoxAdapter(child: _MintTabBar(controller: _tabController))],
+        body: TabBarView(
+        controller: _tabController,
+        children: [
+          // ── Tab Analisis: diagram persen & analisis mendetail ──
+          ResponseAnalyticsTab(formId: widget.formId, title: widget.title),
+          // ── Tab Respon: daftar responden (isi lama screen ini) ──
+          _buildResponTab(),
+        ],
+      ),
+      ),
+    ),
+    );
+  }
+
+  /// Isi tab Respon: satu ListView langsung (tanpa Column+Expanded)
+  /// agar cocok sebagai child TabBarView di dalam NestedScrollView.
+  Widget _buildResponTab() {
+    if (_loading && _analytics == null) {
+      return const LoadingOverlay(contained: true);
+    }
+    return AbsorbPointer(
+      absorbing: _exporting,
+      child: AuthBackground(
+        plain: true,
+        child: SafeArea(
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (n) {
+              if (n.metrics.axis == Axis.vertical &&
+                  n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
+                _loadMore();
+              }
+              return false;
+            },
+            child: ListView(
+              controller: _responScrollController,
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              children: [
+                if (_exporting)
+                  const progress.ProgressIndicator.linear(
+                      semanticsLabel: 'Mengekspor respon'),
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -536,18 +575,50 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                           ),
                         ),
                     ],
-                    ],
+                  ],
                 ),
               ),
             ),
           ),
+        );
+  }
+}
+
+
+/// Tab Analisis/Respon bergaya Riwayat/Responden (teks + underline teal).
+class _MintTabBar extends StatelessWidget implements PreferredSizeWidget {
+  final TabController controller;
+  const _MintTabBar({required this.controller});
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kTextTabBarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: kAppBg,
+        border: Border(
+          bottom: BorderSide(color: Color(0xCCBDC9C8)),
         ),
-      ],
       ),
-    ),
+      child: TabBar(
+        controller: controller,
+        labelColor: kPrimary,
+        unselectedLabelColor: Colors.grey,
+        indicatorColor: kPrimary,
+        indicatorWeight: 2.5,
+        dividerColor: Colors.transparent,
+        labelStyle: const TextStyle(
+            fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 13),
+        unselectedLabelStyle:
+            const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+        tabs: const [Tab(text: 'Analisis'), Tab(text: 'Respon')],
+      ),
     );
   }
 }
+
 
 class _GroupedRespondent {
   final String displayName;
