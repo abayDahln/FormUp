@@ -7,15 +7,19 @@ import {
     History,
     LogOut,
     Shield,
+    HelpCircle,
 } from 'lucide-react';
+import { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { getLocalUser, clearSession } from '../../services/apiService';
 import logo from '../../assets/logo.png';
+import UserGuideModal from '../ui/UserGuideModal';
 
-export default function Sidebar() {
+export default function Sidebar({ onStartTour = null }) {
     const navigate = useNavigate();
     const location = useLocation();
     const user = getLocalUser();
+    const [guideModalOpen, setGuideModalOpen] = useState(false);
 
     const handleLogout = () => {
         clearSession();
@@ -36,55 +40,82 @@ export default function Sidebar() {
     }
 
     return (
-        <aside className="w-64 bg-[#005B52] dark:bg-slate-900 border-r border-[#004D46] dark:border-slate-800 text-white flex flex-col justify-between p-6 shadow-lg hidden md:flex shrink-0 h-screen sticky top-0 z-40 overflow-hidden">
-            {/* Header & Navigation */}
-            <div className="flex flex-col space-y-8 min-h-0 flex-1">
-                {/* Brand Logo */}
-                <Link to="/dashboard" className="flex items-center gap-3 group">
-                    <div className="p-2.5 bg-white/15 dark:bg-white/10 rounded-xl group-hover:bg-white/25 transition-all">
-                        <img 
-                            src={logo} 
-                            alt="FormUp Logo" 
-                            className="w-6 h-6 object-contain" 
-                        />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-extrabold tracking-tight leading-none text-white">FormUp</h1>
-                    </div>
-                </Link>
+        <>
+            <aside className="w-64 bg-[#005B52] dark:bg-slate-900 border-r border-[#004D46] dark:border-slate-800 text-white flex flex-col justify-between p-6 shadow-lg hidden md:flex shrink-0 h-screen sticky top-0 z-40 overflow-hidden">
+                {/* Header & Navigation */}
+                <div className="flex flex-col space-y-8 min-h-0 flex-1">
+                    {/* Brand Logo */}
+                    <Link to="/dashboard" className="flex items-center gap-3 group">
+                        <div className="p-2.5 bg-white/15 dark:bg-white/10 rounded-xl group-hover:bg-white/25 transition-all">
+                            <img 
+                                src={logo} 
+                                alt="FormUp Logo" 
+                                className="w-6 h-6 object-contain" 
+                            />
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-extrabold tracking-tight leading-none text-white">FormUp</h1>
+                        </div>
+                    </Link>
 
-                <nav className="space-y-1.5 flex-1">
-                    {menuItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = location.pathname.startsWith(item.path);
+                    <nav className="space-y-1.5 flex-1" data-tour="sidebar-nav">
+                        {menuItems.map((item) => {
+                            const Icon = item.icon;
+                            const isActive = location.pathname.startsWith(item.path);
 
-                        return (
-                            <Link 
-                                key={item.path}
-                                to={item.path} 
-                                className={`flex items-center gap-3 px-4 py-3 font-bold text-sm rounded-xl transition-all ${
-                                    isActive 
-                                        ? 'bg-white/20 dark:bg-teal-600/30 text-white shadow-xs border border-white/20 dark:border-teal-500/40' 
-                                        : 'text-teal-100/80 dark:text-slate-300 hover:bg-white/10 dark:hover:bg-slate-800/80 hover:text-white' 
-                                }`}
-                            >
-                                <Icon size={18} className={isActive ? 'text-teal-200 dark:text-teal-300' : 'text-teal-200/70 dark:text-slate-400'} />
-                                <span>{item.label}</span>
-                            </Link>
-                        );
-                    })}
-                </nav>
-            </div>
+                            return (
+                                <Link 
+                                    key={item.path}
+                                    to={item.path} 
+                                    className={`flex items-center gap-3 px-4 py-3 font-bold text-sm rounded-xl transition-all ${
+                                        isActive 
+                                            ? 'bg-white/20 dark:bg-teal-600/30 text-white shadow-xs border border-white/20 dark:border-teal-500/40' 
+                                            : 'text-teal-100/80 dark:text-slate-300 hover:bg-white/10 dark:hover:bg-slate-800/80 hover:text-white' 
+                                    }`}
+                                >
+                                    <Icon size={18} className={isActive ? 'text-teal-200 dark:text-teal-300' : 'text-teal-200/70 dark:text-slate-400'} />
+                                    <span>{item.label}</span>
+                                </Link>
+                            );
+                        })}
 
-            <div className="pt-4 mt-auto border-t border-white/10 dark:border-slate-800 shrink-0">
-                <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-3 font-bold text-sm text-teal-100 hover:text-white hover:bg-white/10 dark:text-red-400 dark:hover:bg-red-950/30 dark:hover:text-red-300 rounded-xl transition-all cursor-pointer"
-                >
-                    <LogOut size={18} />
-                    <span>Keluar</span>
-                </button>
-            </div>
-        </aside>
+                        {/* Menu Panduan Pengguna */}
+                        <button
+                            type="button"
+                            onClick={() => setGuideModalOpen(true)}
+                            data-tour="user-guide-btn"
+                            className="w-full flex items-center gap-3 px-4 py-3 font-bold text-sm rounded-xl text-teal-100/80 dark:text-slate-300 hover:bg-white/10 dark:hover:bg-slate-800/80 hover:text-white transition-all cursor-pointer text-left"
+                        >
+                            <HelpCircle size={18} className="text-teal-200/70 dark:text-slate-400" />
+                            <span>Panduan Pengguna</span>
+                        </button>
+                    </nav>
+                </div>
+
+                <div className="pt-4 mt-auto border-t border-white/10 dark:border-slate-800 shrink-0">
+                    <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-3 font-bold text-sm text-teal-100 hover:text-white hover:bg-white/10 dark:text-red-400 dark:hover:bg-red-950/30 dark:hover:text-red-300 rounded-xl transition-all cursor-pointer"
+                    >
+                        <LogOut size={18} />
+                        <span>Keluar</span>
+                    </button>
+                </div>
+            </aside>
+
+            {/* Popup Ringkasan Panduan Pengguna */}
+            <UserGuideModal
+                isOpen={guideModalOpen}
+                onClose={() => setGuideModalOpen(false)}
+                onStartTour={() => {
+                    setGuideModalOpen(false);
+                    if (onStartTour) {
+                        onStartTour();
+                    } else if (window.__startFormUpTour) {
+                        window.__startFormUpTour();
+                    }
+                }}
+            />
+        </>
     );
 }

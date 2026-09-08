@@ -5,10 +5,12 @@ import {
     Globe, Lock, ArrowLeft, Upload, FileUp, Image, Music, Download,
     Code, Calculator, Eye, EyeOff, X, Sparkles,
     Copy, Undo2, Redo2, FileDown, Wand2, ToggleLeft, ToggleRight,
-    ShieldAlert, Palette, CheckSquare, MoreHorizontal, ChevronDown as ChevDown
+    ShieldAlert, Palette, CheckSquare, MoreHorizontal, ChevronDown as ChevDown,
+    Sliders, Share2, HelpCircle, Compass
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import ConfirmModal from '../../components/ui/ConfirmModal';
+import OnboardingTour from '../../components/ui/OnboardingTour';
 import {
     getFormById, getQuestions, saveQuestions, updateForm,
     togglePublishForm, updateFormSettings, getFormShare,
@@ -127,6 +129,25 @@ export default function FormBuilder() {
     const mainScrollRef = useRef(null);
     const [scrolledPastHeader, setScrolledPastHeader] = useState(false);
     const [fabMenuOpen, setFabMenuOpen] = useState(false);
+
+    // Guided Onboarding Tour for Form Builder
+    const [builderTourOpen, setBuilderTourOpen] = useState(false);
+
+    useEffect(() => {
+        // Cek apakah ada query param ?tour=builder atau pemicu onboarding
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('tour') === 'builder') {
+                setTimeout(() => setBuilderTourOpen(true), 600);
+            }
+            window.__startFormUpTour = () => setBuilderTourOpen(true);
+        }
+        return () => {
+            if (typeof window !== 'undefined' && window.__startFormUpTour) {
+                delete window.__startFormUpTour;
+            }
+        };
+    }, []);
 
     useEffect(() => {
         const scrollEl = mainScrollRef.current;
@@ -967,6 +988,7 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                         <button
                             onClick={handleTogglePublish}
                             disabled={publishing}
+                            data-tour="builder-publish-btn"
                             className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${isPublished ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 hover:bg-amber-100' : 'bg-[#00897B] hover:bg-[#00796B] text-white shadow-xs'}`}
                         >
                             {isPublished ? <Lock size={14} /> : <Globe size={14} />}
@@ -977,6 +999,7 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                         <button
                             type="button"
                             title="Lihat sebagai Responden (Preview)"
+                            data-tour="builder-preview-btn"
                             onClick={() => window.open(`/f/${form?.formLink}?preview=true&formId=${form?.id}`, '_blank')}
                             className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
                         >
@@ -1005,6 +1028,7 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                         <button
                             onClick={handleSaveAll}
                             disabled={saving}
+                            data-tour="builder-save-btn"
                             className={`relative flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-60 ${
                                 isDirty
                                     ? 'bg-orange-500 hover:bg-orange-600 text-white animate-pulse'
@@ -1013,6 +1037,17 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                         >
                             <Save size={14} />
                             <span>{saving ? 'Menyimpan...' : isDirty ? '⚠ Simpan Sekarang' : 'Simpan Perubahan'}</span>
+                        </button>
+
+                        {/* Tombol Panduan Builder */}
+                        <button
+                            type="button"
+                            onClick={() => setBuilderTourOpen(true)}
+                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 text-[#00897B] dark:text-teal-400 hover:bg-teal-100 transition-all cursor-pointer"
+                            title="Panduan Form Builder"
+                        >
+                            <HelpCircle size={14} />
+                            <span className="hidden md:inline">Panduan</span>
                         </button>
                     </div>
                 </div>
@@ -1030,14 +1065,15 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                 )}
 
                 {/* Sub-Header Tabs */}
-                <div className="flex border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 px-6">
+                <div className="flex border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 px-6" data-tour="builder-tabs">
                     {[
-                        { key: 'questions', label: 'Pertanyaan & Soal' },
-                        { key: 'settings', label: 'Pengaturan & Aturan' },
-                        { key: 'share', label: 'Bagikan & Kode QR' },
+                        { key: 'questions', label: 'Pertanyaan & Soal', tourId: 'tab-questions' },
+                        { key: 'settings', label: 'Pengaturan & Aturan', tourId: 'tab-settings' },
+                        { key: 'share', label: 'Bagikan & Kode QR', tourId: 'tab-share' },
                     ].map(t => (
                         <button
                             key={t.key}
+                            data-tour={t.tourId}
                             onClick={() => {
                                 setActiveTab(t.key);
                                 if (t.key === 'share') handleLoadShare();
@@ -1096,7 +1132,10 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                 {/* AI Generator & File Import Bar */}
                                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
                                     {/* AI Generator Banner Card */}
-                                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-teal-500/15 via-emerald-500/10 to-teal-500/5 border border-teal-500/25 dark:border-teal-500/20 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+                                    <div 
+                                        className="p-3.5 rounded-2xl bg-gradient-to-r from-teal-500/15 via-emerald-500/10 to-teal-500/5 border border-teal-500/25 dark:border-teal-500/20 flex flex-wrap items-center justify-between gap-3 shadow-xs"
+                                        data-tour="builder-ai-generator"
+                                    >
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-400 text-white flex items-center justify-center shadow-xs">
                                                 <Sparkles size={16} />
@@ -1151,6 +1190,7 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                 {questions.map((q, idx) => (
                                     <div
                                         key={q._id || idx}
+                                        data-tour={idx === 0 ? "builder-first-question" : undefined}
                                         className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all"
                                     >
                                         {/* Card Header Controls */}
@@ -1559,6 +1599,7 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                 {/* Primary action: Tambah Soal Manual — always visible */}
                                 <button
                                     onClick={addQuestion}
+                                    data-tour="builder-add-question"
                                     className="flex-1 min-w-[180px] py-3.5 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl text-xs font-extrabold text-slate-600 dark:text-slate-400 hover:border-[#00897B] dark:hover:border-teal-400 hover:text-[#00897B] dark:hover:text-teal-400 transition-all flex items-center justify-center gap-2 bg-white/60 dark:bg-slate-900/60 cursor-pointer"
                                 >
                                     <Plus size={18} /> Tambah Soal Manual
@@ -2045,6 +2086,96 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                         {fabMenuOpen ? <X size={20} /> : <Save size={20} />}
                     </button>
                 </div>
+
+            {/* Guided Onboarding Tour: Form Builder Tour */}
+            <OnboardingTour
+                isOpen={builderTourOpen}
+                onClose={() => {
+                    setBuilderTourOpen(false);
+                    setActiveTab('questions');
+                }}
+                onComplete={() => {
+                    setBuilderTourOpen(false);
+                    setActiveTab('questions');
+                    try {
+                        localStorage.setItem('formup_builder_tour_completed', 'true');
+                    } catch (e) {}
+                }}
+                steps={[
+                    {
+                        selector: '[data-tour="builder-tabs"]',
+                        title: 'Navigasi Tab Form Builder',
+                        description: 'Kelola formulir melalui 3 tab utama: "Pertanyaan" untuk menyusun soal, "Pengaturan" untuk batas waktu dan aturan mode ujian, serta "Bagikan" untuk link dan QR Code.',
+                        icon: <Sliders size={18} />,
+                        placement: 'bottom',
+                        badge: 'Navigasi Utama',
+                        action: () => setActiveTab('questions')
+                    },
+                    {
+                        selector: '[data-tour="builder-ai-generator"]',
+                        title: 'Buat Soal Otomatis dengan AI',
+                        description: 'Hemat waktu Anda! Ketik materi ujian, topik pembelajaran, atau silabus — AI Gemini FormUp akan langsung merancang soal, pilihan ganda, dan kunci jawaban secara instan.',
+                        icon: <Sparkles size={18} />,
+                        placement: 'bottom',
+                        badge: 'Kecerdasan AI',
+                        action: () => setActiveTab('questions')
+                    },
+                    {
+                        selector: '[data-tour="builder-add-question"]',
+                        title: 'Tambah & Desain Soal Fleksibel',
+                        description: 'Tambahkan soal secara manual. Anda dapat memilih tipe Pilihan Ganda, Esai, Kotak Centang, Benar/Salah, menyisipkan gambar & audio soal, hingga rumus matematika KaTeX.',
+                        icon: <Plus size={18} />,
+                        placement: 'top',
+                        badge: 'Editor Soal',
+                        action: () => setActiveTab('questions')
+                    },
+                    {
+                        selector: '[data-tour="tab-settings"]',
+                        title: 'Pengaturan Waktu & Mode Ujian Anti-Curang',
+                        description: 'Di tab ini, Anda dapat mengaktifkan Mode Ujian (kamera proctoring & peringatan ganti tab), menyetel batas waktu pengerjaan (timer otomatis), dan mengacak urutan soal.',
+                        icon: <ShieldAlert size={18} />,
+                        placement: 'bottom',
+                        badge: 'Keamanan Ujian',
+                        action: () => setActiveTab('settings')
+                    },
+                    {
+                        selector: '[data-tour="tab-share"]',
+                        title: 'Bagikan Link & Unduh QR Code',
+                        description: 'Dapatkan tautan publik unik untuk responden atau unduh lembar QR Code resmi berkualitas tinggi untuk dicetak di ruang kelas dan ujian offline.',
+                        icon: <Share2 size={18} />,
+                        placement: 'bottom',
+                        badge: 'Distribusi',
+                        action: () => {
+                            setActiveTab('share');
+                            handleLoadShare();
+                        }
+                    },
+                    {
+                        selector: '[data-tour="builder-preview-btn"]',
+                        title: 'Pratinjau Tampilan Responden',
+                        description: 'Uji dan pastikan tampilan kuis Anda nyaman dilihat baik di layar smartphone maupun komputer desktop sebelum disebarkan ke siswa atau responden.',
+                        icon: <Eye size={18} />,
+                        placement: 'bottom',
+                        badge: 'Simulasi'
+                    },
+                    {
+                        selector: '[data-tour="builder-save-btn"]',
+                        title: 'Penyimpanan & Fitur Auto-Save',
+                        description: 'Simpan perubahan kapan saja. Anda juga bisa mengaktifkan opsi Auto-Save agar progres pengetikan tersimpan secara otomatis setiap kali Anda mengedit.',
+                        icon: <Save size={18} />,
+                        placement: 'bottom',
+                        badge: 'Cloud Sync'
+                    },
+                    {
+                        selector: '[data-tour="builder-publish-btn"]',
+                        title: 'Publikasikan Formulir Anda',
+                        description: 'Setelah semua soal dan aturan siap, klik tombol Publikasikan agar form langsung aktif dan dapat diisi oleh siapa saja yang menerima link!',
+                        icon: <Globe size={18} />,
+                        placement: 'bottom',
+                        badge: 'Go Live'
+                    }
+                ]}
+            />
         </div>
     );
 }

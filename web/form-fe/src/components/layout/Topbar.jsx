@@ -11,12 +11,14 @@ import {
     LayoutTemplate,
     History,
     LogOut,
-    Shield
+    Shield,
+    HelpCircle
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { getLocalUser, assetUrl, clearSession } from '../../services/apiService';
 import useDebounce from '../../hooks/useDebounce';
+import UserGuideModal from '../ui/UserGuideModal';
 
 export default function Topbar({ 
     searchQuery = '', 
@@ -29,6 +31,7 @@ export default function Topbar({
     const [internalSearch, setInternalSearch] = useState(searchQuery || '');
     const debouncedSearch = useDebounce(internalSearch, 300);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [guideModalOpen, setGuideModalOpen] = useState(false);
 
     const [isDark, setIsDark] = useState(() => {
         return localStorage.getItem('theme') === 'dark';
@@ -105,7 +108,7 @@ export default function Topbar({
                     </button>
 
                     {/* SEARCH INPUT */}
-                    <div className="relative flex-1 min-w-0">
+                    <div className="relative flex-1 min-w-0" data-tour="topbar-search">
                         <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                         <input
                             type="text"
@@ -146,6 +149,17 @@ export default function Topbar({
                             <Moon size={16} />
                         </button>
                     </div>
+
+                    {/* PANDUAN PENGGUNA BUTTON (DESKTOP) */}
+                    <button
+                        type="button"
+                        onClick={() => setGuideModalOpen(true)}
+                        className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer border border-slate-200/80 dark:border-slate-700/80"
+                        title="Buka Panduan Pengguna"
+                    >
+                        <HelpCircle size={15} className="text-[#00897B] dark:text-teal-400" />
+                        <span>Panduan</span>
+                    </button>
 
                     {/* USER PROFILE */}
                     <button
@@ -247,6 +261,19 @@ export default function Topbar({
                                         </Link>
                                     );
                                 })}
+
+                                {/* Mobile Guide Button */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setMobileMenuOpen(false);
+                                        setGuideModalOpen(true);
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 font-bold text-sm rounded-xl text-teal-100/80 dark:text-slate-300 hover:bg-white/10 dark:hover:bg-slate-800/80 hover:text-white transition-all cursor-pointer text-left"
+                                >
+                                    <HelpCircle size={18} className="text-teal-200/70 dark:text-slate-400" />
+                                    <span>Panduan Pengguna</span>
+                                </button>
                             </nav>
                         </div>
 
@@ -282,6 +309,18 @@ export default function Topbar({
                     </div>
                 </div>
             )}
+
+            {/* Popup Ringkasan Panduan Pengguna */}
+            <UserGuideModal
+                isOpen={guideModalOpen}
+                onClose={() => setGuideModalOpen(false)}
+                onStartTour={() => {
+                    setGuideModalOpen(false);
+                    if (window.__startFormUpTour) {
+                        window.__startFormUpTour();
+                    }
+                }}
+            />
         </>
     );
 }

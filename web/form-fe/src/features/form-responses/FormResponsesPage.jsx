@@ -1197,8 +1197,32 @@ Panduan penilaian:
                             )}
 
                             {respondentsList.length === 0 ? (
-                                <div className="text-center py-20 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-slate-400 dark:text-slate-500 text-sm font-medium">
-                                    Belum ada respons yang masuk untuk formulir ini.
+                                <div className="text-center py-16 px-4 bg-white dark:bg-slate-900 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center space-y-4 shadow-xs">
+                                    <div className="w-14 h-14 rounded-2xl bg-teal-50 dark:bg-teal-950/60 flex items-center justify-center text-[#00897B] dark:text-teal-400">
+                                        <MessageSquare size={28} />
+                                    </div>
+                                    <div className="space-y-1 max-w-sm">
+                                        <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                                            Belum Ada Respons Masuk
+                                        </h3>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                            Formulir ini belum menerima kiriman jawaban dari audiens. Bagikan tautan formulir Anda agar responden dapat mulai mengisi.
+                                        </p>
+                                    </div>
+                                    {formData?.formLink && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const url = `${window.location.origin}/f/${formData.formLink}`;
+                                                navigator.clipboard.writeText(url);
+                                                showToast('Tautan formulir berhasil disalin ke clipboard!');
+                                            }}
+                                            className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer"
+                                        >
+                                            <Share2 size={14} />
+                                            <span>Salin Tautan Formulir</span>
+                                        </button>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-sm">
