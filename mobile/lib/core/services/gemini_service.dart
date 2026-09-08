@@ -110,14 +110,17 @@ class GeminiService {
     if (hasAny(['gemini_cancelled', 'request cancelled', 'request aborted'])) {
       return 'Respons dihentikan. Ketuk "Coba lagi" jika ingin AI menjawab lagi.';
     }
-    // Stream/respons selesai TANPA teks. Penyebab paling umum di model
-    // thinking (Gemini 2.5/3.x): seluruh kuota token habis untuk proses
-    // berpikir internal sehingga tidak ada jawaban yang terkirim.
+    // Stream/respons selesai TANPA teks. Penyebab paling umum:
+    // 1) kuota/batas token habis (mis. limit harian paket gratis), atau
+    // 2) model thinking (Gemini 2.5/3.x): seluruh kuota token habis untuk
+    // proses berpikir internal sehingga tidak ada jawaban yang terkirim.
     if (hasAny(['gemini_no_text'])) {
-      return 'AI menyelesaikan permintaan tanpa menghasilkan jawaban — biasanya karena '
-          'kuota token respons habis dipakai untuk proses berpikir internal model. '
-          'Ketuk "Coba lagi" untuk mengulang; jika sering terjadi, mulai chat baru '
-          'agar percakapan lebih ringkas.';
+      return 'AI tidak menghasilkan jawaban — kemungkinan besar kuota/batas '
+          'token API Key kamu sudah habis (limit pemakaian tercapai, atau token '
+          'habis dipakai proses berpikir internal model). '
+          'Ketuk "Coba lagi" untuk mengulang; jika terus gagal, tunggu '
+          'beberapa saat, pakai API Key lain di Pengaturan AI, atau mulai chat '
+          'baru agar percakapan lebih ringkas.';
     }
     // Internet mati / DNS / koneksi ditolak — cek sebelum yang lain
     // karena pesan transport bisa mengandung kata umum seperti "failed".
@@ -161,17 +164,34 @@ class GeminiService {
       return 'Model AI yang dipilih tidak tersedia lagi di server Google. '
           'Buka Pengaturan AI, pilih model lain, lalu ketuk "Coba lagi".';
     }
-    // Kuota / rate limit habis (429 dari Google).
+    // Kuota / rate limit habis (429 dari Google). Pesan asli Google
+    // bervariasi ("Quota exceeded", "Resource exhausted", "FreeTier limit",
+    // "GenerateRequestsPerDay...", info billing), jadi cocokkan longgar.
     if (hasAny([
       'resource_exhausted',
+      'resource exhausted',
+      'exhaust',
       'quota',
       'rate limit',
+      'ratelimit',
       'too many requests',
+      'limit exceeded',
+      'exceeded your',
+      'billing',
+      'free tier',
+      'freetier',
+      'generaterequests',
+      'requests per',
+      'per day',
+      'daily',
       'gemini error 429',
+      'error 429',
     ])) {
-      return 'Batas pemakaian AI untuk API Key ini sudah habis (biasanya terlalu banyak '
-          'permintaan dalam waktu singkat). Tunggu sekitar 1 menit lalu ketuk "Coba lagi"; '
-          'jika masih gagal, gunakan API Key lain di Pengaturan AI.';
+      return 'Kuota/batas pemakaian AI untuk API Key ini sudah habis '
+          '(limit tercapai — mis. batas harian paket gratis atau terlalu banyak '
+          'permintaan dalam waktu singkat). Tunggu beberapa saat (sekitar 1 menit) '
+          'lalu ketuk "Coba lagi"; jika masih gagal, gunakan API Key lain di '
+          'Pengaturan AI.';
     }
     // Token limit: histori + prompt melebihi kapasitas model (400).
     if (hasAny([
@@ -361,13 +381,19 @@ Aturan:
           const Duration(seconds: 10),
           onTimeout: () => '',
         );
-        String msg = 'Gemini error ${streamed.statusCode}';
+        String googleMsg = '';
         try {
           final j = jsonDecode(errBody) as Map<String, dynamic>;
-          msg = j['error']?['message'] as String? ?? msg;
+          googleMsg = j['error']?['message'] as String? ?? '';
         } catch (_) {
-          if (errBody.isNotEmpty) msg = errBody;
+          googleMsg = errBody;
         }
+        // Sertakan kode status agar friendlyMessage bisa membedakan
+        // 401/403 (key salah), 404 (model hilang), 429 (kuota habis),
+        // 5xx (server sibuk) walau pesan Google tidak mengandung katanya.
+        final msg = googleMsg.isNotEmpty
+            ? 'Gemini error ${streamed.statusCode}: $googleMsg'
+            : 'Gemini error ${streamed.statusCode}';
         throw Exception(msg);
       }
 
@@ -492,11 +518,14 @@ Aturan:
             'Server AI tidak merespons dalam 30 detik (koneksi lambat atau server sibuk)'),
       );
       if (res.statusCode < 200 || res.statusCode >= 300) {
-        String msg = 'Gemini error ${res.statusCode}';
+        String googleMsg = '';
         try {
           final j = jsonDecode(res.body) as Map<String, dynamic>;
-          msg = j['error']?['message'] as String? ?? msg;
+          googleMsg = j['error']?['message'] as String? ?? '';
         } catch (_) {}
+        final msg = googleMsg.isNotEmpty
+            ? 'Gemini error ${res.statusCode}: $googleMsg'
+            : 'Gemini error ${res.statusCode}';
         throw Exception(msg);
       }
       final j = jsonDecode(res.body) as Map<String, dynamic>;

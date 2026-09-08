@@ -20,19 +20,45 @@ class QuestionAnswerSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final q = draft;
-    final hasScoringValue = q.isRequired &&
-        (q.correctAnswer.text.trim().isNotEmpty || q.options.any((o) => o.isCorrect));
-    // sinkronkan isScorable dengan isi field (otomatis)
-    if (q.isScorable != hasScoringValue) {
-      // jangan panggil onChanged di build, cukup sinkron nilai
-      q.isScorable = hasScoringValue;
-      if (!hasScoringValue) q.points = null;
-    }
+    // Samakan web FormBuilder.jsx: isScorable adalah toggle eksplisit
+    // "Hitung ke Skor (Dinilai)", independen dari isRequired.
+    // Jangan menimpa isScorable otomatis di build — biarkan pilihan user
+    // (atau hasil load dari API) yang jadi sumber kebenaran, supaya kunci
+    // jawaban + poin manual tidak hilang dan tetap terkirim ke backend.
+    final scorable = q.isScorable;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildAnswerContent(context),
-        if (hasScoringValue) ...[
+        Row(
+          children: [
+            Checkbox(
+              value: scorable,
+              activeColor: kAuthPrimary,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              onChanged: (_) {
+                q.isScorable = !scorable;
+                if (!q.isScorable) q.points = null;
+                onChanged();
+              },
+            ),
+            const Expanded(
+              child: Text(
+                "Hitung ke Skor (Dinilai)",
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+              ),
+            ),
+          ],
+        ),
+        if (!scorable)
+          const Padding(
+            padding: EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              'Soal ini Tidak Dinilai (pengumpulan data). Tidak memerlukan kunci dan tidak memengaruhi skor.',
+              style: TextStyle(fontSize: 10, color: Colors.black45, fontStyle: FontStyle.italic),
+            ),
+          ),
+        if (scorable) _buildAnswerContent(context),
+        if (scorable) ...[
           const SizedBox(height: 12),
           Row(
             children: [
@@ -44,11 +70,10 @@ class QuestionAnswerSection extends StatelessWidget {
               SizedBox(
                 width: 90,
                 child: TextFormField(
-                  key: ValueKey('points_${q.points}_${q.isRequired}'),
+                  key: ValueKey('points_${q.points}'),
                   initialValue: q.points?.toString() ?? '',
                   keyboardType: TextInputType.number,
-                  enabled: q.points != null,
-                  decoration: formUpInputDecoration(hintText: "1").copyWith(
+                  decoration: formUpInputDecoration(hintText: "Kosong = sama rata").copyWith(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),
                   onChanged: (v) {
@@ -111,7 +136,7 @@ class QuestionAnswerSection extends StatelessWidget {
           TextField(
             controller: q.correctAnswer,
             maxLines: null,
-            enabled: q.isRequired,
+            enabled: q.isScorable,
             decoration: _fieldDecoration(
               "Kunci jawaban untuk kuis",
             ),
@@ -184,7 +209,7 @@ class QuestionAnswerSection extends StatelessWidget {
 }
 
 Widget _buildTrueFalseAnswer(QuestionDraft q, VoidCallback onChanged) {
-  final enabled = q.isRequired;
+  final enabled = q.isScorable;
   return Opacity(
     opacity: enabled ? 1 : 0.5,
     child: Row(
@@ -281,7 +306,7 @@ class _OptionRow extends StatelessWidget {
       child: Row(
         children: [
           InkWell(
-            onTap: !q.isRequired
+            onTap: !q.isScorable
                 ? null
                 : () {
                     if (singleSelect) {

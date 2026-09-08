@@ -76,8 +76,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   bool get _showPagination {
     final distinct = _analytics?.totalDistinctUsers ?? 0;
-    // Jika backend belum kirim distinct, fallback ke estimasi group lokal
-    final fallbackDistinct = _groupedRespondents.length;
+    // Jika backend belum kirim distinct, fallback ke jumlah respon termuat.
+    final fallbackDistinct = _respondents.length;
     final count = distinct > 0 ? distinct : fallbackDistinct;
     return count > 20;
   }
@@ -223,62 +223,66 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     final list = List<RespondentAnalyticsData>.from(_respondents);
     switch (_sort) {
       case _RespondentSort.newest:
-        list.sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+        // Backend sudah OrderByDescending(SubmittedAt); tie-break responseId
+        // agar stabil bila timestamp sama (detik sama / null).
+        list.sort((a, b) {
+          final c = b.submittedAt.compareTo(a.submittedAt);
+          if (c != 0) return c;
+          return b.responseId.compareTo(a.responseId);
+        });
         break;
       case _RespondentSort.oldest:
-        list.sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
+        list.sort((a, b) {
+          final c = a.submittedAt.compareTo(b.submittedAt);
+          if (c != 0) return c;
+          return a.responseId.compareTo(b.responseId);
+        });
         break;
       case _RespondentSort.highScore:
-        list.sort((a, b) => (b.score ?? -1).compareTo(a.score ?? -1));
+        list.sort((a, b) {
+          final c = (b.score ?? -1).compareTo(a.score ?? -1);
+          if (c != 0) return c;
+          final t = b.submittedAt.compareTo(a.submittedAt);
+          if (t != 0) return t;
+          return b.responseId.compareTo(a.responseId);
+        });
         break;
       case _RespondentSort.lowScore:
-        list.sort((a, b) => (a.score ?? 999).compareTo(b.score ?? 999));
+        list.sort((a, b) {
+          final c = (a.score ?? 999).compareTo(b.score ?? 999);
+          if (c != 0) return c;
+          final t = a.submittedAt.compareTo(b.submittedAt);
+          if (t != 0) return t;
+          return a.responseId.compareTo(b.responseId);
+        });
         break;
     }
     return list;
   }
 
-  /// Gabungkan responden berdasarkan user yang sama (nama lower-case).
-  /// Kunci: nama trimmed lower; fallback "anonim" untuk null.
-  /// Setiap grup menyimpan percobaan terbaru sebagai wakil untuk kartu.
-  List<_GroupedRespondent> get _groupedRespondents {
-    final sorted = _sortedRespondents;
-    final Map<String, List<RespondentAnalyticsData>> groups = {};
-    for (final r in sorted) {
+  /// Jumlah percobaan per responden (berdasar nama lower-case) — dipakai
+  /// badge "Nx percobaan" tanpa menggabungkan baris, supaya urutan
+  /// Terbaru/Terlama tetap per-respon (sama seperti web & backend).
+  Map<String, int> get _attemptCounts {
+    final counts = <String, int>{};
+    for (final r in _respondents) {
       final key = (r.respondentName ?? '').trim().toLowerCase();
       final k = key.isEmpty ? '__anonim__' : key;
-      groups.putIfAbsent(k, () => []).add(r);
+      counts[k] = (counts[k] ?? 0) + 1;
     }
-    final grouped = <_GroupedRespondent>[];
-    for (final entry in groups.entries) {
-      final list = entry.value;
-      // Wakil = percobaan terbaru (submittedAt paling baru)
-      list.sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
-      final latest = list.first;
-      // Skor terbaik untuk sort highScore jika grup diurutkan ulang? Keep latest.
-      grouped.add(_GroupedRespondent(
-        displayName: latest.respondentName?.trim().isEmpty == true ? 'Anonim' : latest.respondentName!.trim(),
-        latest: latest,
-        attempts: list,
-      ));
-    }
-    // Urutkan grup sesuai _sort tapi pakai wakil terbaru
-    switch (_sort) {
-      case _RespondentSort.newest:
-        grouped.sort((a, b) => b.latest.submittedAt.compareTo(a.latest.submittedAt));
-        break;
-      case _RespondentSort.oldest:
-        grouped.sort((a, b) => a.latest.submittedAt.compareTo(b.latest.submittedAt));
-        break;
-      case _RespondentSort.highScore:
-        grouped.sort((a, b) => (b.latest.score ?? -1).compareTo(a.latest.score ?? -1));
-        break;
-      case _RespondentSort.lowScore:
-        grouped.sort((a, b) => (a.latest.score ?? 999).compareTo(b.latest.score ?? 999));
-        break;
-    }
-    return grouped;
+    return counts;
   }
+
+  int _attemptCountOf(RespondentAnalyticsData r, Map<String, int> counts) {
+    final key = (r.respondentName ?? '').trim().toLowerCase();
+    final k = key.isEmpty ? '__anonim__' : key;
+    return counts[k] ?? 1;
+  }
+
+  /// Daftar tampil tab Respon: flat per-respon sesuai urutan filter.
+  /// (Sebelumnya dikelompokkan per nama sehingga "Terbaru" tidak urut
+  /// karena beberapa respon digabung jadi satu kartu.)
+  List<RespondentAnalyticsData> get _visibleRespondents => _sortedRespondents;
 
   void _openRespondent(RespondentAnalyticsData respondent) {
     if (_exporting) return;
@@ -563,7 +567,7 @@ Berikan analisis yang mencakup:
                       ),
                     ),
                     const SizedBox(height: 12),
-                    if (_groupedRespondents.isEmpty)
+                    if (_visibleRespondents.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 48),
                         child: Column(
@@ -582,12 +586,12 @@ Berikan analisis yang mencakup:
                         ),
                       )
                     else ...[
-                      for (var i = 0; i < _groupedRespondents.length; i++) ...[
+                      for (var i = 0; i < _visibleRespondents.length; i++) ...[
                         AnalyticsRespondentCard(
                           index: i,
-                          respondent: _groupedRespondents[i].latest,
-                          attemptCount: _groupedRespondents[i].attempts.length,
-                          onTap: () => _openRespondent(_groupedRespondents[i].latest),
+                          respondent: _visibleRespondents[i],
+                          attemptCount: _attemptCountOf(_visibleRespondents[i], _attemptCounts),
+                          onTap: () => _openRespondent(_visibleRespondents[i]),
                         ),
                         const SizedBox(height: 12),
                       ],
@@ -596,7 +600,7 @@ Berikan analisis yang mencakup:
                           padding: EdgeInsets.symmetric(vertical: 12),
                           child: Center(child: LoadingIndicator.inline()),
                         ),
-                      // Pagination hanya jika group by user > 20
+                      // Pagination hanya jika > 20
                       if (_showPagination)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
@@ -662,10 +666,3 @@ class _MintTabBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-
-class _GroupedRespondent {
-  final String displayName;
-  final RespondentAnalyticsData latest;
-  final List<RespondentAnalyticsData> attempts;
-  _GroupedRespondent({required this.displayName, required this.latest, required this.attempts});
-}

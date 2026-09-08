@@ -496,9 +496,11 @@ extension _AiChatMessaging on _AiChatScreenState {
               subscribe(isRetry: true);
               return;
             }
-            botMsg.text = 'AI menyelesaikan respons tanpa mengirim teks. '
-                'Ketuk "Coba lagi" untuk mengulang; jika terus terjadi, '
-                'coba mulai chat baru.';
+            botMsg.text = 'AI tidak mengirim jawaban — kemungkinan kuota/batas '
+                'token API Key sudah habis (limit pemakaian tercapai). '
+                'Ketuk "Coba lagi" untuk mengulang; jika terus gagal, tunggu '
+                'beberapa saat, ganti API Key di Pengaturan AI, atau mulai '
+                'chat baru.';
             botMsg.isError = true;
           } else {
             botMsg.text = full;

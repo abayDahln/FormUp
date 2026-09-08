@@ -992,17 +992,19 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
   }
 
   QuestionDraft _draftFromImportItem(Map<String, dynamic> item) {
+    final rawCorrect = (item['correctAnswer'] as String?)?.trim() ?? '';
+    final opts = (item['options'] as List<dynamic>? ?? []).whereType<Map<String, dynamic>>().toList();
+    final hasCorrectOption = opts.any((o) => o['isCorrect'] == true);
     final draft = QuestionDraft(
       item['typeId'] as int? ?? 1,
       question: item['question'] as String? ?? '',
       correctAnswer: item['correctAnswer'] as String? ?? '',
       isRequired: item['isRequired'] as bool? ?? true,
       randomizeOptions: item['randomizeOptions'] as bool? ?? false,
-      isScorable: item['hasCorrectAnswer'] == true ||
-          item['correctAnswer'] != null ||
-          (item['options'] as List<dynamic>? ?? [])
-              .whereType<Map<String, dynamic>>()
-              .any((o) => o['isCorrect'] == true),
+      // Samakan backend ResponseScorer.CountScorable: Points/correctAnswer/isCorrect.
+      isScorable: item['points'] != null ||
+          rawCorrect.isNotEmpty ||
+          hasCorrectOption,
       points: item['points'] as int?,
       questionImage: item['image'] as String? ?? item['questionImage'] as String?,
       questionAudio: item['audio'] as String? ?? item['questionAudio'] as String?,

@@ -139,15 +139,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 const SizedBox(height: 24),
 
-                _sectionLabel('Dukungan'),
+                _sectionLabel('Tentang'),
                 const SizedBox(height: 10),
                 _settingsCard(children: [
-                  _SettingsTile(
-                    icon: Icons.help_outline,
-                    label: 'Bantuan & Dukungan',
-                    onTap: () => _showComingSoon(context, 'Bantuan'),
-                  ),
-                  const _SettingsDivider(),
                   _SettingsTile(
                     icon: Icons.info_outline,
                     label: 'Tentang FormUp',
