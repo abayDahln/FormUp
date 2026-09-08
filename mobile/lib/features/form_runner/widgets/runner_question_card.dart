@@ -25,6 +25,7 @@ class RunnerQuestionCard extends StatelessWidget {
   final ValueChanged<Set<int>> onMultiChanged;
   final ValueChanged<String?> onTfChanged;
   final VoidCallback onPickDateTime;
+  final bool disablePaste;
 
   const RunnerQuestionCard({
     super.key,
@@ -44,6 +45,7 @@ class RunnerQuestionCard extends StatelessWidget {
     required this.onMultiChanged,
     required this.onTfChanged,
     required this.onPickDateTime,
+    this.disablePaste = false,
   });
 
   @override
@@ -114,6 +116,7 @@ class RunnerQuestionCard extends StatelessWidget {
           AnswerFields(
             zoom: zoom,
             typeId: q.typeId,
+            disablePaste: disablePaste,
             options: [
               for (final o in q.options) AnswerOption(o.id, o.optionText),
             ],

@@ -59,6 +59,9 @@ class FormMakerSettingsCard extends StatelessWidget {
               onChanged: (v) {
                 if (v != null) {
                   c.formTypeId = v;
+                  // Tipe "Ujian" otomatis mengaktifkan Mode Ujian
+                  // (sub-pengaman tetap diatur manual oleh pembuat form).
+                  if (v == 2) c.isExamMode = true;
                   onChanged();
                 }
               },

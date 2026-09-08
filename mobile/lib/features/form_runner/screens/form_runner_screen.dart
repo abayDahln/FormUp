@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/services/exam_lock_service.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/services/exam_session_client.dart';
 import 'package:form_up/core/router/app_router.dart';
@@ -85,6 +88,14 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   int _tabSwitchCount = 0;
   ExamSessionClient? _exam;
 
+  // Guard pengaman ujian: overlay/floating app & split-screen.
+  Timer? _examGuardTimer;
+  bool _sawInactive = false;
+  bool _sawPaused = false;
+  bool _multiWindowFlagged = false;
+  DateTime? _lastWindowBlurAt;
+  static const _windowBlurCooldown = Duration(seconds: 10);
+
   // ID soal wajib yang belum dijawab (untuk indikator merah saat submit gagal).
   final Set<int> _errorQuestionIds = {};
 
@@ -115,10 +126,27 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_examActive || !_detectSwitch || _step != _RunnerStep.fill) return;
-    // Aturan counting server: 1 event per siklus, hanya saat pergi.
+    if (!_examActive || _step != _RunnerStep.fill) return;
+    if (state == AppLifecycleState.inactive) {
+      // Kemungkinan overlay/floating app menutup fokus (tanpa pause).
+      // Keputusan lapor ditunda sampai resumed: bila ternyata lanjut ke
+      // paused, tab_switch yang melapor (anti double-count).
+      _sawInactive = true;
+      return;
+    }
     if (state == AppLifecycleState.paused) {
+      _sawPaused = true;
+      if (!_detectSwitch) return;
+      // Aturan counting server: 1 event per siklus, hanya saat pergi.
       _reportTabSwitch();
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      // Kembali tanpa pernah pause = interupsi overlay/floating semata.
+      final wasOverlayOnly = _sawInactive && !_sawPaused;
+      _sawInactive = false;
+      _sawPaused = false;
+      if (wasOverlayOnly) _reportWindowBlur();
     }
   }
 
@@ -159,11 +187,81 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     }
   }
 
+  /// Lapor 1x gangguan fokus/overlay ke server; auto-submit bila diminta.
+  /// Cooldown 10 detik agar interupsi beruntun tidak spam pelanggaran.
+  Future<void> _reportWindowBlur() async {
+    if (!_examActive || _step != _RunnerStep.fill) return;
+    final now = DateTime.now();
+    if (_lastWindowBlurAt != null &&
+        now.difference(_lastWindowBlurAt!) < _windowBlurCooldown) {
+      return;
+    }
+    _lastWindowBlurAt = now;
+    final exam = _exam;
+    bool serverAutoSubmit = false;
+    if (exam != null && _c.formLink != null) {
+      serverAutoSubmit = await exam.reportWindowBlur();
+      if (mounted) setState(() => _tabSwitchCount = exam.tabSwitchCount);
+    }
+    if (!mounted) return;
+    if (serverAutoSubmit) {
+      await _autoSubmit();
+      if (mounted) {
+        showAuthToast(
+          context,
+          'Batas pelanggaran tercapai - jawaban otomatis dikirim',
+          isError: true,
+        );
+      }
+      return;
+    }
+    if (mounted) {
+      showAuthToast(
+        context,
+        'Peringatan mode ujian: gangguan layar terdeteksi, kembali fokus ke aplikasi',
+        isError: true,
+      );
+    }
+  }
+
+  /// Cek split-screen berkala selama ujian (tiap 5 detik). Dilaporkan 1x
+  /// sebagai window_blur sampai user keluar dari split-screen.
+  void _startExamGuard() {
+    _examGuardTimer?.cancel();
+    _examGuardTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (!_examActive || _step != _RunnerStep.fill) return;
+      bool inMulti = false;
+      try {
+        inMulti = await ExamLockService.isInMultiWindowMode();
+      } catch (_) {
+        return;
+      }
+      if (inMulti && !_multiWindowFlagged) {
+        _multiWindowFlagged = true;
+        await _reportWindowBlur();
+      } else if (!inMulti) {
+        _multiWindowFlagged = false;
+      }
+    });
+  }
+
+  /// Lepas seluruh pengaman perangkat + hentikan guard. Wajib di semua
+  /// jalur keluar ujian agar FLAG_SECURE tidak bocor ke layar lain.
+  Future<void> _releaseExamLock() async {
+    _examGuardTimer?.cancel();
+    _examGuardTimer = null;
+    _multiWindowFlagged = false;
+    try {
+      await ExamLockService.unlock();
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _router?.popBackGuard();
     _exam?.stop();
+    unawaited(_releaseExamLock());
     _c.dispose();
     super.dispose();
   }
@@ -270,8 +368,10 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       await _c.fetchQuestions(_c.tokenController.text);
       if (!mounted) return;
       setState(() => _step = _RunnerStep.fill);
-      // Mode ujian: mulai sesi server (session_start + heartbeat).
+      // Mode ujian: kunci perangkat + mulai sesi server + guard overlay.
       if (_c.info?.isExamMode == true && _c.formLink != null) {
+        // FLAG_SECURE + tolak sentuhan overlay (best-effort, tidak blokir).
+        unawaited(ExamLockService.lock());
         final exam = ExamSessionClient(
           formLink: _c.formLink!,
           respondentName: _c.isLoggedIn ? null : _c.nameController.text,
@@ -279,6 +379,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
         _exam = exam;
         await exam.start();
         if (mounted) setState(() => _tabSwitchCount = exam.tabSwitchCount);
+        _startExamGuard();
       }
     } catch (e) {
       if (!mounted) return;
@@ -307,6 +408,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       _exam?.stop();
+      await _releaseExamLock();
       if (mounted) setState(() => _submitting = false);
     }
     if (!mounted) return;
@@ -396,6 +498,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
         tabSwitchCount: _examActive ? _tabSwitchCount : null,
       );
       _exam?.stop();
+      await _releaseExamLock();
       if (!mounted) return false;
       if (returnToStartScreen) {
         await showDialog<void>(
@@ -465,6 +568,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
           store: _c.store,
           questions: _c.questions,
           isMultiPage: _c.formTypeId == 2 && _c.questions.length > 1,
+          disablePaste: _disableCopy && _step == _RunnerStep.fill,
           currentQuestion: _c.currentQuestion,
           submitting: _submitting,
           errorQuestionIds: _errorQuestionIds,

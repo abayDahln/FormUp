@@ -84,6 +84,30 @@ class ExamSessionClient {
     }
   }
 
+  /// Laporkan 1x gangguan fokus/overlay (tipe `window_blur`).
+  /// Dipakai untuk overlay/floating app & split-screen — dipetakan ke tipe
+  /// lama yang diterima server (tanpa ubah API). Mengembalikan true bila
+  /// server meminta auto-submit (batas tercapai).
+  Future<bool> reportWindowBlur() async {
+    if (!_started || _stopped) return false;
+    try {
+      final res = await PublicFormService.sendExamEvent(
+        formLink,
+        sessionId: sessionId,
+        respondentName: respondentName,
+        type: 'window_blur',
+        occurredAt: DateTime.now(),
+      );
+      if (res.sessionId.isNotEmpty) sessionId = res.sessionId;
+      violationCount = res.violationCount;
+      tabSwitchCount = res.tabSwitchCount;
+      shouldAutoSubmit = res.shouldAutoSubmit;
+      return res.shouldAutoSubmit;
+    } catch (_) {
+      return false;
+    }
+  }
+
   void stop() {
     _stopped = true;
     _heartbeat?.cancel();

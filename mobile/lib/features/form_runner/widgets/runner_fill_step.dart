@@ -22,6 +22,7 @@ class RunnerFillStep extends StatelessWidget {
   final ValueChanged<int> onJumpTo;
   final ValueChanged<int> onAnswerChanged;
   final ValueChanged<int> onPickDateTime;
+  final bool disablePaste;
 
   const RunnerFillStep({
     super.key,
@@ -38,6 +39,7 @@ class RunnerFillStep extends StatelessWidget {
     required this.onJumpTo,
     required this.onAnswerChanged,
     required this.onPickDateTime,
+    this.disablePaste = false,
   });
 
   @override
@@ -109,6 +111,7 @@ class RunnerFillStep extends StatelessWidget {
       index: index,
       question: q,
       hasError: errorQuestionIds.contains(q.id),
+      disablePaste: disablePaste,
       essayController: store.textAnswers[q.id],
       essayFocusNode: store.essayFocusNodes[q.id],
       singleValue: store.singleAnswers[q.id],

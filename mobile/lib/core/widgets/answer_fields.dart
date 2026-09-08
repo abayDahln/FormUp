@@ -24,8 +24,11 @@ class AnswerFields extends StatelessWidget {
   final ValueChanged<Set<int>>? onMultiChanged;
   final ValueChanged<String?>? onTfChanged;
   final VoidCallback? onPickDateTime;
-
   final double zoom;
+
+  /// Mode ujian dengan cegah salin-tempel: sembunyikan menu konteks
+  /// (salin/tempel) dan matikan seleksi interaktif pada field esai.
+  final bool disablePaste;
   const AnswerFields({
     super.key,
     required this.typeId,
@@ -42,6 +45,7 @@ class AnswerFields extends StatelessWidget {
     this.onTfChanged,
     this.onPickDateTime,
     this.zoom = 1.0,
+    this.disablePaste = false,
   });
   double _zs(double v) => (v * zoom).clamp(10, 48).toDouble();
 
@@ -54,6 +58,10 @@ class AnswerFields extends StatelessWidget {
           focusNode: essayFocusNode,
           maxLines: 3,
           onChanged: onEssayChanged,
+          enableInteractiveSelection: !disablePaste,
+          contextMenuBuilder: disablePaste
+              ? (context, editableTextState) => const SizedBox.shrink()
+              : null,
           style: TextStyle(fontSize: _zs(14)),
           decoration: _decoration("Tulis jawaban Anda..."),
         );
