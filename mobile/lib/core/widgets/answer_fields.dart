@@ -9,6 +9,32 @@ class AnswerOption {
   const AnswerOption(this.id, this.text);
 }
 
+/// Warna status hasil (benar/salah) yang adaptif tema: terang memakai
+/// hijau/merah baku, gelap diterangkan agar terbaca di atas permukaan gelap.
+Color resultStatusFg(BuildContext context, bool good) {
+  if (Theme.of(context).brightness != Brightness.dark) {
+    return good ? const Color(0xFF2E7D32) : const Color(0xFFC0392B);
+  }
+  return good ? const Color(0xFF81C784) : const Color(0xFFE57373);
+}
+
+/// Dekorasi blok status hasil: terang = filled pastel; gelap = stroke saja
+/// (transparan + border) agar tidak terlalu kontras tapi tetap terbaca.
+BoxDecoration resultStatusDecoration(BuildContext context, bool good) {
+  final fg = resultStatusFg(context, good);
+  if (Theme.of(context).brightness != Brightness.dark) {
+    return BoxDecoration(
+      color: good ? const Color(0xFFE3F4E8) : const Color(0xFFFDECEA),
+      borderRadius: BorderRadius.circular(10),
+    );
+  }
+  return BoxDecoration(
+    color: Colors.transparent,
+    borderRadius: BorderRadius.circular(10),
+    border: Border.all(color: fg.withValues(alpha: 0.7)),
+  );
+}
+
 /// Input jawaban per tipe soal
 class AnswerFields extends StatelessWidget {
   final int typeId;
@@ -363,26 +389,24 @@ class _OptionResultRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    const greenBg = Color(0xFFE3F4E8);
-    const greenFg = Color(0xFF2E7D32);
-    const redBg = Color(0xFFFDECEA);
-    const redFg = Color(0xFFC0392B);
+    final goodFg = resultStatusFg(context, true);
+    final badFg = resultStatusFg(context, false);
 
     final (bg, fg, icon) = switch (_status) {
       _OptionStatus.userCorrect => (
-          greenBg,
-          greenFg,
-          const Icon(Icons.check_circle, size: 16, color: greenFg),
+          null,
+          goodFg,
+          Icon(Icons.check_circle, size: 16, color: goodFg),
         ),
       _OptionStatus.correctKey => (
-          greenBg,
-          greenFg,
-          const Icon(Icons.check_circle, size: 16, color: greenFg),
+          null,
+          goodFg,
+          Icon(Icons.check_circle, size: 16, color: goodFg),
         ),
       _OptionStatus.userWrong => (
-          redBg,
-          redFg,
-          const Icon(Icons.cancel, size: 16, color: redFg),
+          null,
+          badFg,
+          Icon(Icons.cancel, size: 16, color: badFg),
         ),
       _OptionStatus.selectedNeutral => (
           const Color(0xFFE0F2F1),
@@ -395,18 +419,28 @@ class _OptionResultRow extends StatelessWidget {
           null,
         ),
     };
+    // Blok benar/salah memakai dekorasi status adaptif-tema (filled di
+    // terang, stroke di gelap); netral memakai fill biasa.
+    final bool isStatus =
+        _status == _OptionStatus.userCorrect ||
+        _status == _OptionStatus.correctKey ||
+        _status == _OptionStatus.userWrong;
+    final decoration = isStatus
+        ? resultStatusDecoration(
+            context, _status != _OptionStatus.userWrong)
+        : BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(10),
+          );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(10),
-      ),
+      decoration: decoration,
       child: Row(
         children: [
           Text(
             letter,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: FontWeight.bold,
               fontFamily: kFontBold,
               color: fg,

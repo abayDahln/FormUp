@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/exam_lock_service.dart';
+import 'package:form_up/core/services/exam_warning_sound.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/services/exam_session_client.dart';
 import 'package:form_up/core/router/app_router.dart';
@@ -101,6 +103,11 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
 
   bool get _isLoggedIn => _c.isLoggedIn;
   bool get _examActive => _c.info?.isExamMode == true;
+  // Pelacakan sesi/pelanggaran ikut server + web: aktif bila isExamMode
+  // ATAU detectTabSwitch. Sebelumnya hanya isExamMode sehingga form
+  // detectTabSwitch-saja tidak terpantau sama sekali dari mobile.
+  bool get _examTracking =>
+      _c.info?.isExamMode == true || _c.info?.detectTabSwitch == true;
   bool get _disableCopy => _c.info?.disableCopyPaste == true;
   bool get _detectSwitch => _c.info?.detectTabSwitch == true;
 
@@ -126,7 +133,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_examActive || _step != _RunnerStep.fill) return;
+    if (!_examTracking || _step != _RunnerStep.fill) return;
     if (state == AppLifecycleState.inactive) {
       // Kemungkinan overlay/floating app menutup fokus (tanpa pause).
       // Keputusan lapor ditunda sampai resumed: bila ternyata lanjut ke
@@ -136,6 +143,9 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     }
     if (state == AppLifecycleState.paused) {
       _sawPaused = true;
+      // Langsung bunyikan peringatan tiap keluar app saat ujian —
+      // tanpa menunggu limit tercapai.
+      unawaited(ExamWarningSound.playDeterrent());
       if (!_detectSwitch) return;
       // Aturan counting server: 1 event per siklus, hanya saat pergi.
       _reportTabSwitch();
@@ -168,21 +178,21 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
             maxSwitch > 0 &&
             _tabSwitchCount >= maxSwitch &&
             autoSubmit)) {
-      await _autoSubmit();
+      await _autoSubmit(violationLimit: true);
       if (mounted) {
-        showAuthToast(
+        showAppToast(
           context,
-          'Batas pindah aplikasi tercapai - jawaban otomatis dikirim',
-          isError: true,
+          'Jawaban otomatis terkirim',
+          type: ToastType.info,
         );
       }
       return;
     }
     if (mounted) {
-      showAuthToast(
+      showAppToast(
         context,
         'Peringatan mode ujian: jangan keluar aplikasi ($_tabSwitchCount${maxSwitch != null && maxSwitch > 0 ? '/$maxSwitch' : ''})',
-        isError: true,
+        type: ToastType.info,
       );
     }
   }
@@ -190,7 +200,9 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   /// Lapor 1x gangguan fokus/overlay ke server; auto-submit bila diminta.
   /// Cooldown 10 detik agar interupsi beruntun tidak spam pelanggaran.
   Future<void> _reportWindowBlur() async {
-    if (!_examActive || _step != _RunnerStep.fill) return;
+    if (!_examTracking || _step != _RunnerStep.fill) return;
+    // Bunyi dulu (deterrent), baru lapor — sama seperti keluar app.
+    unawaited(ExamWarningSound.playDeterrent());
     final now = DateTime.now();
     if (_lastWindowBlurAt != null &&
         now.difference(_lastWindowBlurAt!) < _windowBlurCooldown) {
@@ -205,21 +217,21 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     }
     if (!mounted) return;
     if (serverAutoSubmit) {
-      await _autoSubmit();
+      await _autoSubmit(violationLimit: true);
       if (mounted) {
-        showAuthToast(
+        showAppToast(
           context,
-          'Batas pelanggaran tercapai - jawaban otomatis dikirim',
-          isError: true,
+          'Jawaban otomatis terkirim',
+          type: ToastType.info,
         );
       }
       return;
     }
     if (mounted) {
-      showAuthToast(
+      showAppToast(
         context,
         'Peringatan mode ujian: gangguan layar terdeteksi, kembali fokus ke aplikasi',
-        isError: true,
+        type: ToastType.info,
       );
     }
   }
@@ -229,7 +241,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   void _startExamGuard() {
     _examGuardTimer?.cancel();
     _examGuardTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      if (!_examActive || _step != _RunnerStep.fill) return;
+      if (!_examTracking || _step != _RunnerStep.fill) return;
       bool inMulti = false;
       try {
         inMulti = await ExamLockService.isInMultiWindowMode();
@@ -262,6 +274,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     _router?.popBackGuard();
     _exam?.stop();
     unawaited(_releaseExamLock());
+    unawaited(ExamWarningSound.dispose());
     _c.dispose();
     super.dispose();
   }
@@ -368,15 +381,21 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       await _c.fetchQuestions(_c.tokenController.text);
       if (!mounted) return;
       setState(() => _step = _RunnerStep.fill);
-      // Mode ujian: kunci perangkat + mulai sesi server + guard overlay.
-      if (_c.info?.isExamMode == true && _c.formLink != null) {
-        // FLAG_SECURE + tolak sentuhan overlay (best-effort, tidak blokir).
-        unawaited(ExamLockService.lock());
+      // Pelacakan ujian: kunci perangkat (khusus isExamMode) + mulai sesi
+      // server + guard overlay. Sesi server jalan juga untuk form
+      // detectTabSwitch-saja (paritas web + aturan terima server).
+      if (_examTracking && _c.formLink != null) {
+        if (_examActive) {
+          // FLAG_SECURE + tolak sentuhan overlay (best-effort, tidak blokir).
+          unawaited(ExamLockService.lock());
+        }
         final exam = ExamSessionClient(
           formLink: _c.formLink!,
           respondentName: _c.isLoggedIn ? null : _c.nameController.text,
         );
         _exam = exam;
+        ExamWarningSound.reset();
+        unawaited(ExamWarningSound.prime());
         await exam.start();
         if (mounted) setState(() => _tabSwitchCount = exam.tabSwitchCount);
         _startExamGuard();
@@ -389,10 +408,15 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     }
   }
 
-  /// Auto submit saat waktu habis: langsung kirim hasil apa adanya
-  /// (selesai atau tidak selesai), tidak ada penambahan waktu.
-  Future<void> _autoSubmit() async {
+  /// Auto submit: langsung kirim hasil apa adanya (selesai atau tidak
+  /// selesai), tidak ada penambahan waktu. Bila karena pelanggaran
+  /// mencapai limit ([violationLimit]), volume dimaksimalkan + bunyi
+  /// peringatan diputar sebelum mengirim.
+  Future<void> _autoSubmit({bool violationLimit = false}) async {
     if (_submitting) return;
+    if (violationLimit) {
+      await ExamWarningSound.playLimitWarning();
+    }
     final answers = _c.store.collectAutoAnswers(_c.questions);
     setState(() => _submitting = true);
     try {
@@ -400,7 +424,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
         answers,
         isAutoSubmit: true,
         examSessionId: _exam?.sessionId,
-        tabSwitchCount: _examActive ? _tabSwitchCount : null,
+        tabSwitchCount: _examTracking ? _tabSwitchCount : null,
       );
     } catch (e) {
       if (!mounted) return;
@@ -417,8 +441,14 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title:  Text("Form Selesai", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Theme.of(ctx).colorScheme.onSurface)),
-        content:  Text("Waktu pengerjaan telah habis. Jawaban telah dikirim.", style: TextStyle(fontSize: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+        title: Text(
+            violationLimit ? "Jawaban Terkirim" : "Form Selesai",
+            style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Theme.of(ctx).colorScheme.onSurface)),
+        content: Text(
+            violationLimit
+                ? "Batas pelanggaran tercapai. Jawaban telah dikirim otomatis."
+                : "Waktu pengerjaan telah habis. Jawaban telah dikirim.",
+            style: TextStyle(fontSize: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
         actions: [
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: kAuthPrimary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
@@ -495,7 +525,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       await _c.submitAnswers(
         answers,
         examSessionId: _exam?.sessionId,
-        tabSwitchCount: _examActive ? _tabSwitchCount : null,
+        tabSwitchCount: _examTracking ? _tabSwitchCount : null,
       );
       _exam?.stop();
       await _releaseExamLock();

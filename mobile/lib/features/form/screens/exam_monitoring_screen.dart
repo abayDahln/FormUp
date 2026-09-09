@@ -48,7 +48,7 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
     super.initState();
     _fetch();
     _poller = Timer.periodic(
-        const Duration(seconds: 15), (_) => _fetch(silent: true));
+        const Duration(seconds: 5), (_) => _fetch(silent: true));
   }
 
   @override
@@ -566,16 +566,23 @@ class _SessionCardState extends State<_SessionCard> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final name = (s.respondentName?.isNotEmpty ?? false)
         ? s.respondentName!
         : 'Anonim';
     final hasViolations = s.violationCount > 0;
+    // Pelanggar berat: terang = fill pink; gelap = stroke saja
+    // (transparan + border merah) agar tidak terlalu kontras.
+    final highBorder =
+        dark ? Colors.red.shade400 : Colors.red.shade300;
     return Container(
       decoration: BoxDecoration(
-        color: _high ? const Color(0xFFFDF3F2) : cs.surface,
+        color: _high
+            ? (dark ? Colors.transparent : const Color(0xFFFDF3F2))
+            : cs.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: _high ? Colors.red.shade300 : cs.outlineVariant,
+          color: _high ? highBorder : cs.outlineVariant,
           width: _high ? 1.3 : 1,
         ),
         boxShadow: softShadow(),
@@ -724,14 +731,19 @@ class _SessionCardState extends State<_SessionCard> {
                   child: Row(
                     children: [
                       Icon(Icons.warning_amber_rounded,
-                          size: 13, color: Colors.red.shade700),
+                          size: 13,
+                          color: dark
+                              ? Colors.red.shade400
+                              : Colors.red.shade700),
                       const SizedBox(width: 4),
                       Text(
                         'Pelanggaran tinggi (batas ${widget.maxTabSwitch}x)',
                         style: TextStyle(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w800,
-                          color: Colors.red.shade700,
+                          color: dark
+                              ? Colors.red.shade400
+                              : Colors.red.shade700,
                         ),
                       ),
                     ],

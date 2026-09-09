@@ -68,9 +68,11 @@ class ApiCache {
   }
 
   // Poin 7: jangan persist data sensitif ke disk (SharedPreferences plaintext).
+  // Data live (monitoring/hasil/attempt) juga dikecualikan agar tidak
+  // disajikan basi berhari-hari dari disk saat offline/stale.
   static bool _isSensitiveKey(String key) {
     final k = key.toLowerCase();
-    return k.contains('responses') || k.contains('analytics') || k.contains('attempts') || k.contains('response') || k.contains('admin') || k.contains('users:me');
+    return k.contains('responses') || k.contains('analytics') || k.contains('attempts') || k.contains('response') || k.contains('admin') || k.contains('users:me') || k.contains('monitoring') || k.contains('result');
   }
 
   static Future<void> _persistValue(

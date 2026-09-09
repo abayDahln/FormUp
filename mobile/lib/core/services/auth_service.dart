@@ -579,7 +579,17 @@ class AuthService {
     return _send('POST', path, body, auth: true);
   }
 
-  static Future<Map<String, dynamic>> get(String path, {Duration? timeout}) {
+  static Future<Map<String, dynamic>> get(
+    String path, {
+    Duration? timeout,
+    // False untuk data live (monitoring, analytics, hasil): lewati cache
+    // agar selalu segar. Default true untuk data master yang memang
+    // di-cache (daftar form, soal, profil).
+    bool useCache = true,
+  }) {
+    if (!useCache) {
+      return _send('GET', path, null, auth: true, timeout: timeout);
+    }
     return ApiCache.get(
       'http:get:${cacheScope}:$path',
       const Duration(minutes: 30),

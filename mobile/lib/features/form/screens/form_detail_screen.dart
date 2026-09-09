@@ -23,6 +23,10 @@ class FormDetailScreen extends StatefulWidget {
 
 class _FormDetailScreenState extends State<FormDetailScreen> {
   FormData? _form;
+  // Settings detail (isExamMode/detectTabSwitch) — hanya ada di
+  // endpoint detail, tidak di list. Selama belum dimuat, pantau ujian
+  // tetap ditampilkan (perilaku lama) agar tidak hilang sesaat.
+  Map<String, dynamic>? _settings;
 
   @override
   void initState() {
@@ -31,11 +35,22 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
     _fetch();
   }
 
+  /// Pantau Ujian hanya untuk form tipe/mode ujian.
+  bool get _showExamMonitoring {
+    final s = _settings;
+    if (s == null) return true;
+    return s['isExamMode'] == true || s['detectTabSwitch'] == true;
+  }
+
   Future<void> _fetch() async {
     try {
       final data = await FormService.getForm(widget.formId);
       if (!mounted) return;
-      setState(() => _form = FormData.fromJson(data));
+      setState(() {
+        _form = FormData.fromJson(data);
+        final s = data['settings'];
+        _settings = s is Map<String, dynamic> ? s : null;
+      });
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
@@ -125,7 +140,11 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
               children: [
                 FormDetailHeader(form: form),
                 const SizedBox(height: 16),
-                FormDetailActions(form: form, onPush: _push, onShare: _openShare),
+                FormDetailActions(
+                    form: form,
+                    onPush: _push,
+                    onShare: _openShare,
+                    showExamMonitoring: _showExamMonitoring),
                 const SizedBox(height: 16),
                 FormDetailPublishCard(form: form, onToggle: _togglePublish),
               ],

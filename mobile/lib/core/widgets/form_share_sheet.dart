@@ -48,8 +48,12 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
     ),
     builder: (sheetContext) {
       final cs = Theme.of(sheetContext).colorScheme;
+      // Ukuran QR mengikuti lebar layar agar muat di HP kecil (320px).
+      final qrSize =
+          (MediaQuery.of(sheetContext).size.width * 0.45).clamp(120.0, 160.0);
       return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
+        child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -124,12 +128,12 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
                   ),
                   child: Image.memory(
                     qrBytes,
-                    width: 160,
-                    height: 160,
+                    width: qrSize,
+                    height: qrSize,
                     gaplessPlayback: true,
                     errorBuilder: (_, _, _) => Container(
-                      width: 160,
-                      height: 160,
+                      width: qrSize,
+                      height: qrSize,
                       color: cs.surfaceContainerHighest,
                       child: const Icon(
                         Icons.qr_code_2,
@@ -160,6 +164,7 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
               onPressed: () => _shareText(sheetContext, form, link),
             ),
           ],
+        ),
         ),
       ),
       );

@@ -12,11 +12,15 @@ class FormDetailActions extends StatelessWidget {
   final void Function(AppPage page, Map<String, dynamic> args) onPush;
   final Future<void> Function(FormData form) onShare;
 
+  /// Pantau Ujian hanya relevan untuk form tipe/mode ujian.
+  final bool showExamMonitoring;
+
   const FormDetailActions({
     super.key,
     required this.form,
     required this.onPush,
     required this.onShare,
+    this.showExamMonitoring = true,
   });
 
   @override
@@ -59,15 +63,17 @@ class FormDetailActions extends StatelessWidget {
               }),
             ),
             _divider(),
-            _ActionTile(
-              Icons.shield_outlined,
-              'Pantau Ujian',
-              () => onPush(AppPage.examMonitoring, {
-                'formId': form.id,
-                'title': richToPlainText(form.title),
-              }),
-            ),
-            _divider(),
+            if (showExamMonitoring) ...[
+              _ActionTile(
+                Icons.shield_outlined,
+                'Pantau Ujian',
+                () => onPush(AppPage.examMonitoring, {
+                  'formId': form.id,
+                  'title': richToPlainText(form.title),
+                }),
+              ),
+              _divider(),
+            ],
             _ActionTile(
               Icons.feedback_outlined,
               'Lihat Umpan Balik',

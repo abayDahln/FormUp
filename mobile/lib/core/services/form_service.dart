@@ -880,7 +880,9 @@ class FormService {
       'forms:analytics:$_scope:$formId:$query',
       const Duration(seconds: 20),
       () async {
-        final json = await AuthService.get('/forms/$formId/analytics$query', timeout: const Duration(seconds: 20));
+        // useCache:false: AuthService.get men-cache 30 menit yang akan
+        // mengalahkan TTL 20 detik di atas (data basi untuk skor live).
+        final json = await AuthService.get('/forms/$formId/analytics$query', timeout: const Duration(seconds: 20), useCache: false);
         final data = json['data'];
         if (data is Map<String, dynamic>) {
           return FormAnalytics.fromJson(data);
@@ -904,6 +906,7 @@ class FormService {
       () async {
         final json = await AuthService.get(
           '/forms/$formId/responses/$responseId/result',
+          useCache: false,
         );
         return PublicFormResult.fromJson(
           json['data'] as Map<String, dynamic>,
@@ -924,6 +927,7 @@ class FormService {
       () async {
         final json = await AuthService.get(
           '/forms/$formId/responses/$responseId/attempts',
+          useCache: false,
         );
         return [
           for (final a in json['data'] as List<dynamic>? ?? [])
@@ -1095,7 +1099,8 @@ class FormService {
   /// GET /forms/{formId}/exam-monitoring — pantauan live mode ujian.
   /// Dipolling berkala (tiap 10–30 detik); tanpa cache agar near-real-time.
   static Future<ExamMonitoringData> getExamMonitoring(int formId) async {
-    final json = await AuthService.get('/forms/$formId/exam-monitoring');
+    final json = await AuthService.get('/forms/$formId/exam-monitoring',
+        useCache: false);
     return ExamMonitoringData.fromJson(json['data'] as Map<String, dynamic>);
   }
 

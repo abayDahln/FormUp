@@ -395,6 +395,7 @@ class PublicFormService {
       () async {
         final json = await AuthService.get(
           '/public/forms/$formLink/responses/$responseId',
+          useCache: false,
         );
         return PublicFormResult.fromJson(json['data'] as Map<String, dynamic>);
       },
@@ -410,6 +411,7 @@ class PublicFormService {
       () async {
         final json = await AuthService.get(
           '/public/forms/$formLink/my-responses',
+          useCache: false,
         );
         final list = [
           for (final a in json['data'] as List<dynamic>? ?? [])

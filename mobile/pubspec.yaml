@@ -49,6 +49,7 @@ dependencies:
   material3_expressive_loading_indicator: ^0.1.2
   custom_refresh_indicator: ^4.0.2
   gpt_markdown: ^1.2.1
+  volume_controller: ^3.6.1
 
 dev_dependencies:
   flutter_test:
@@ -90,6 +91,8 @@ flutter:
   # Konfigurasi runtime (API_BASE_URL) — wajib dibundle agar terbaca di APK.
   assets:
     - .env
+    # Bunyi peringatan batas pelanggaran mode ujian.
+    - public/sound/exam-warning.mp3
 
   # To add assets to your application, add an assets section, like this:
   # assets:

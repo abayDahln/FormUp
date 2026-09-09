@@ -127,31 +127,28 @@ class HistoryAnswerCard extends StatelessWidget {
             showScore: showScore,
             isCorrect: a.isCorrect,
           ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: !scorable
-                  ? cs.surfaceContainerHighest
-                  : (a.isCorrect == true
-                      ? const Color(0xFFE3F4E8) // jawaban benar: hijau
-                      : const Color(0xFFFDECEA)), // jawaban salah: merah
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Jawaban Anda",
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: !scorable
-                        ? cs.onSurfaceVariant
-                        : (a.isCorrect == true
-                            ? const Color(0xFF2E7D32)
-                            : const Color(0xFFC0392B)),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: !scorable
+                  ? BoxDecoration(
+                      color: cs.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(10),
+                    )
+                  : resultStatusDecoration(
+                      context, a.isCorrect == true),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Jawaban Anda",
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: !scorable
+                          ? cs.onSurfaceVariant
+                          : resultStatusFg(context, a.isCorrect == true),
+                    ),
                   ),
-                ),
                 const SizedBox(height: 4),
                 if (answered)
                   RichTextView(
@@ -181,23 +178,22 @@ class HistoryAnswerCard extends StatelessWidget {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE3F4E8),
-                borderRadius: BorderRadius.circular(10),
-              ),
+              decoration: resultStatusDecoration(context, true),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     "Jawaban Benar",
-                    style: TextStyle(fontSize: 11, color: Color(0xFF2E7D32)),
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: resultStatusFg(context, true)),
                   ),
                   const SizedBox(height: 4),
                   RichTextView(
                     text: a.correctAnswer!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF2E7D32),
+                      color: resultStatusFg(context, true),
                     ),
                   ),
                 ],

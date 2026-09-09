@@ -60,9 +60,9 @@ class FormMakerSettingsCard extends StatelessWidget {
               onChanged: (v) {
                 if (v != null) {
                   c.formTypeId = v;
-                  // Tipe "Ujian" otomatis mengaktifkan Mode Ujian
-                  // (sub-pengaman tetap diatur manual oleh pembuat form).
-                  if (v == 2) c.isExamMode = true;
+                  // Tipe "Ujian" otomatis mengaktifkan Mode Ujian;
+                  // "Formulir" selalu non-ujian (tanpa pilihan manual).
+                  c.isExamMode = (v == 2);
                   onChanged();
                 }
               },
@@ -174,22 +174,8 @@ class FormMakerSettingsCard extends StatelessWidget {
           },
         ),
         const Divider(height: 24),
-        _settingsLabel("Mode Ujian (FEAT-6)"),
-        _SettingSwitch(
-          "Mode ujian",
-          "Aktifkan pembatasan ujian",
-          c.isExamMode,
-          (v) {
-            c.isExamMode = v;
-            if (!v) {
-              c.disableCopyPaste = false;
-              c.detectTabSwitch = false;
-              c.autoSubmitOnTabSwitch = false;
-            }
-            onChanged();
-          },
-        ),
-        if (c.isExamMode) ...[
+        if (c.formTypeId == 2) ...[
+          _settingsLabel("Pengaturan Ujian"),
           _SettingSwitch(
             "Cegah salin-tempel",
             "Nonaktifkan copy-paste saat mengerjakan",
@@ -231,34 +217,23 @@ class FormMakerSettingsCard extends StatelessWidget {
           ),
         ],
         const Divider(height: 24),
-        _settingsLabel("Tema Per-Form (FEAT-9)"),
-        _settingsLabel("Warna primer (#RRGGBB)"),
-        TextField(
-          controller: TextEditingController(text: c.themePrimaryColor ?? ''),
-          decoration: _fieldDecoration("#2A9D8F"),
+        _settingsLabel("Tema Per-Form"),
+        _ThemeColorSetting(
+          label: "Warna primer",
+          value: c.themePrimaryColor,
+          defaultHex: "#2A9D8F",
           onChanged: (v) {
-            c.themePrimaryColor = v.trim().isEmpty ? null : v.trim();
+            c.themePrimaryColor = v;
             onChanged();
           },
         ),
         const SizedBox(height: 8),
-        _settingsLabel("Warna background (#RRGGBB)"),
-        TextField(
-          controller: TextEditingController(text: c.themeBackgroundColor ?? ''),
-          decoration: _fieldDecoration("#E1F9F4"),
+        _ThemeColorSetting(
+          label: "Warna background",
+          value: c.themeBackgroundColor,
+          defaultHex: "#E1F9F4",
           onChanged: (v) {
-            c.themeBackgroundColor = v.trim().isEmpty ? null : v.trim();
-            onChanged();
-          },
-        ),
-        const SizedBox(height: 8),
-        _settingsLabel("Konfigurasi tema (JSON opsional)"),
-        TextField(
-          controller: TextEditingController(text: c.themeConfig ?? ''),
-          maxLines: 3,
-          decoration: _fieldDecoration('{"font":"Inter"}'),
-          onChanged: (v) {
-            c.themeConfig = v.trim().isEmpty ? null : v.trim();
+            c.themeBackgroundColor = v;
             onChanged();
           },
         ),
@@ -412,3 +387,223 @@ Widget _dropdownCard(Widget child) {
 
 InputDecoration _fieldDecoration(String hint) =>
     formUpInputDecoration(hintText: hint);
+
+/// Parse "#RGB" / "#RRGGBB" ( boleh tanpa '#') → Color, null bila invalid.
+Color? _parseHexColor(String raw) {
+  var s = raw.trim().replaceAll('#', '');
+  if (s.length == 3) s = s.split('').map((c) => '$c$c').join();
+  if (s.length != 6) return null;
+  final v = int.tryParse(s, radix: 16);
+  if (v == null) return null;
+  return Color(0xFF000000 | v);
+}
+
+String _toHex(Color c) =>
+    '#${c.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
+
+const _presetColors = [
+  "#2A9D8F", "#018081", "#2E7D32", "#1565C0", "#3949AB", "#6A1B9A",
+  "#C2185B", "#C0392B", "#E65100", "#B26A00", "#5D4037", "#607D8B",
+];
+
+/// Pengaturan satu warna tema: preview + field hex + preset + slider RGB.
+/// Nilai null = pakai default aplikasi.
+class _ThemeColorSetting extends StatefulWidget {
+  final String label;
+  final String? value;
+  final String defaultHex;
+  final ValueChanged<String?> onChanged;
+
+  const _ThemeColorSetting({
+    required this.label,
+    required this.value,
+    required this.defaultHex,
+    required this.onChanged,
+  });
+
+  @override
+  State<_ThemeColorSetting> createState() => _ThemeColorSettingState();
+}
+
+class _ThemeColorSettingState extends State<_ThemeColorSetting> {
+  late final TextEditingController _hexCtrl;
+  bool _expanded = false;
+
+  Color get _current =>
+      _parseHexColor(widget.value ?? '') ??
+      _parseHexColor(widget.defaultHex) ??
+      const Color(0xFF2A9D8F);
+
+  @override
+  void initState() {
+    super.initState();
+    _hexCtrl = TextEditingController(text: widget.value ?? '');
+  }
+
+  @override
+  void didUpdateWidget(_ThemeColorSetting old) {
+    super.didUpdateWidget(old);
+    final v = widget.value ?? '';
+    if (v.toUpperCase() != _hexCtrl.text.toUpperCase()) {
+      _hexCtrl.text = v;
+    }
+  }
+
+  @override
+  void dispose() {
+    _hexCtrl.dispose();
+    super.dispose();
+  }
+
+  void _apply(Color c) => widget.onChanged(_toHex(c));
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final current = _current;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: current,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: cs.outlineVariant),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _hexCtrl,
+                textCapitalization: TextCapitalization.characters,
+                decoration: _fieldDecoration("#RRGGBB"),
+                onChanged: (v) {
+                  final c = _parseHexColor(v);
+                  if (c != null) widget.onChanged(_toHex(c));
+                },
+              ),
+            ),
+            IconButton(
+              tooltip: "Kembali ke default",
+              icon: const Icon(Icons.restart_alt, size: 20),
+              color: cs.onSurfaceVariant,
+              onPressed: () {
+                _hexCtrl.text = '';
+                widget.onChanged(null);
+              },
+            ),
+            IconButton(
+              tooltip: _expanded ? "Tutup" : "Pilih warna",
+              icon: Icon(
+                _expanded ? Icons.expand_less : Icons.palette_outlined,
+                size: 20,
+              ),
+              color: cs.primary,
+              onPressed: () => setState(() => _expanded = !_expanded),
+            ),
+          ],
+        ),
+        if (_expanded) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final hex in _presetColors)
+                Builder(builder: (_) {
+                  final c = _parseHexColor(hex)!;
+                  final selected =
+                      _toHex(current) == _toHex(c);
+                  return InkWell(
+                    onTap: () {
+                      _hexCtrl.text = _toHex(c);
+                      _apply(c);
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: c,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: selected ? cs.primary : cs.outlineVariant,
+                          width: selected ? 2.5 : 1,
+                        ),
+                      ),
+                      child: selected
+                          ? const Icon(Icons.check,
+                              size: 16, color: Colors.white)
+                          : null,
+                    ),
+                  );
+                }),
+            ],
+          ),
+          const SizedBox(height: 4),
+          for (final ch in ['R', 'G', 'B'])
+            Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  child: Text(ch,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: cs.onSurfaceVariant)),
+                ),
+                Expanded(
+                  child: Slider(
+                    value: (ch == 'R'
+                            ? current.r
+                            : ch == 'G'
+                                ? current.g
+                                : current.b) *
+                        255,
+                    min: 0,
+                    max: 255,
+                    divisions: 255,
+                    activeColor: cs.primary,
+                    label:
+                        '${((ch == 'R' ? current.r : ch == 'G' ? current.g : current.b) * 255).round()}',
+                    onChanged: (v) {
+                      final r = ch == 'R'
+                          ? (v / 255)
+                          : current.r.toDouble();
+                      final g = ch == 'G'
+                          ? (v / 255)
+                          : current.g.toDouble();
+                      final b = ch == 'B'
+                          ? (v / 255)
+                          : current.b.toDouble();
+                      final c = Color.from(
+                        alpha: 1,
+                        red: r,
+                        green: g,
+                        blue: b,
+                      );
+                      _hexCtrl.text = _toHex(c);
+                      _apply(c);
+                    },
+                  ),
+                ),
+                SizedBox(
+                  width: 30,
+                  child: Text(
+                    '${((ch == 'R' ? current.r : ch == 'G' ? current.g : current.b) * 255).round()}',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                        fontSize: 12, color: cs.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ],
+    );
+  }
+}
