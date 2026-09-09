@@ -14,6 +14,8 @@ public class FeedbackResponse
     public string FormTitle { get; set; } = null!;
     public int? UserId { get; set; }
     public string UserName { get; set; } = null!;
+    public int? ResponseId { get; set; }
+    public string? RespondentName { get; set; }
     public string Reason { get; set; } = null!;
     public string? Description { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -28,6 +30,8 @@ public class AdminFeedbackListItem
     public int? UserId { get; set; }
     public string UserName { get; set; } = null!;
     public string UserEmail { get; set; } = null!;
+    public int? ResponseId { get; set; }
+    public string? RespondentName { get; set; }
     public string Reason { get; set; } = null!;
     public string? Description { get; set; }
     public DateTime CreatedAt { get; set; }

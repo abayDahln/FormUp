@@ -137,7 +137,8 @@ public class FeedbacksController : ControllerBase
                 (f.Reason != null && f.Reason.Contains(s)) ||
                 (f.Description != null && f.Description.Contains(s)) ||
                 (f.User != null && f.User.Fullname != null && f.User.Fullname.Contains(s)) ||
-                (f.User != null && f.User.Email != null && f.User.Email.Contains(s)));
+                (f.User != null && f.User.Email != null && f.User.Email.Contains(s)) ||
+                (f.Response != null && f.Response.RespondentName != null && f.Response.RespondentName.Contains(s)));
         }
 
         var projected = query
@@ -148,7 +149,9 @@ public class FeedbacksController : ControllerBase
                 FormId = f.FormId,
                 FormTitle = form.Title,
                 UserId = f.UserId,
-                UserName = f.User != null ? f.User.Fullname : "Anonim",
+                UserName = f.User != null ? f.User.Fullname : (f.Response != null && f.Response.RespondentName != null ? f.Response.RespondentName : "Anonim"),
+                ResponseId = f.ResponseId,
+                RespondentName = f.Response != null ? f.Response.RespondentName : null,
                 Reason = f.Reason,
                 Description = f.Description,
                 CreatedAt = f.CreatedAt ?? DateTime.MinValue,
@@ -192,7 +195,8 @@ public class FeedbacksController : ControllerBase
             query = query.Where(f =>
                 (f.User != null && f.User.Fullname != null && f.User.Fullname.Contains(s)) ||
                 (f.User != null && f.User.Email != null && f.User.Email.Contains(s)) ||
-                (f.Description != null && f.Description.Contains(s)));
+                (f.Description != null && f.Description.Contains(s)) ||
+                (f.Response != null && f.Response.RespondentName != null && f.Response.RespondentName.Contains(s)));
         }
 
         if (formId.HasValue)
@@ -212,8 +216,10 @@ public class FeedbacksController : ControllerBase
                 FormTitle = f.Form != null ? f.Form.Title : "",
                 FormLink = f.Form != null ? f.Form.FormLink : "",
                 UserId = f.UserId,
-                UserName = f.User != null ? f.User.Fullname : "",
+                UserName = f.User != null ? f.User.Fullname : (f.Response != null && f.Response.RespondentName != null ? f.Response.RespondentName : "Anonim"),
                 UserEmail = f.User != null ? f.User.Email : "",
+                ResponseId = f.ResponseId,
+                RespondentName = f.Response != null ? f.Response.RespondentName : null,
                 Reason = f.Reason,
                 Description = f.Description,
                 CreatedAt = f.CreatedAt ?? DateTime.MinValue,

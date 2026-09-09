@@ -79,6 +79,27 @@ public class ExamEventResult
     public bool ShouldAutoSubmit { get; set; }
 }
 
+/// <summary>Jenis log khusus saat pengawas memaksa submit sesi ujian.</summary>
+public static class ExamProctorActions
+{
+    public const string ForceSubmitByProctor = "FORCE_SUBMIT_BY_PROCTOR";
+}
+
+/// <summary>Draft jawaban sementara dari client (heartbeat/sync).</summary>
+public class SyncAnswerItem
+{
+    public int QuestionId { get; set; }
+    public string? AnswerValue { get; set; }
+    public int? OptionId { get; set; }
+}
+
+public class SyncAnswersRequest
+{
+    public string? SessionId { get; set; }
+    public string? RespondentName { get; set; }
+    public List<SyncAnswerItem> Answers { get; set; } = new();
+}
+
 public class ExamViolationItem
 {
     public string Type { get; set; } = null!;
@@ -108,5 +129,9 @@ public class ExamMonitoringSessionDto
     public DateTime? SubmittedAt { get; set; }
     public int ViolationCount { get; set; }
     public int TabSwitchCount { get; set; }
+    /// <summary>Jumlah soal terjawab pada attempt ini (X dari TotalQuestions).</summary>
+    public int AnsweredCount { get; set; }
+    /// <summary>Total soal aktif pada form.</summary>
+    public int TotalQuestions { get; set; }
     public List<ExamMonitoringViolationDto> Violations { get; set; } = new();
 }

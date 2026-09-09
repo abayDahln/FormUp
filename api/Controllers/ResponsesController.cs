@@ -351,7 +351,7 @@ public class ResponsesController : ControllerBase
     }
 
     [HttpGet("api/forms/{formId}/responses/export")]
-    public async Task<IActionResult> Export(int formId, [FromQuery] string format = "csv", CancellationToken ct = default)
+    public async Task<IActionResult> Export(int formId, [FromQuery] string format = "csv", [FromQuery] bool includeAnswerKey = true, CancellationToken ct = default)
     {
         var user = await GetCurrentUser();
         if (user == null)
@@ -364,6 +364,7 @@ public class ResponsesController : ControllerBase
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
         var questions = await _db.Questions
+            .Include(q => q.OptionQuestions)
             .Where(q => q.FormId == formId && q.DeletedAt == null)
             .OrderBy(q => q.QuestionOrder)
             .ToListAsync(ct);
@@ -380,14 +381,14 @@ public class ResponsesController : ControllerBase
         var fmt = (format ?? "csv").ToLowerInvariant();
         return fmt switch
         {
-            "xlsx" => ExportXlsx(formId, questions, responses),
-            "pdf" => ExportPdf(formId, form, questions, responses),
-            "csv" => ExportCsv(formId, questions, responses),
+            "xlsx" => ExportXlsx(formId, questions, responses, includeAnswerKey),
+            "pdf" => ExportPdf(formId, form, questions, responses, includeAnswerKey),
+            "csv" => ExportCsv(formId, questions, responses, includeAnswerKey),
             _ => BadRequest(new ApiResponse<object>(400, "Supported formats: csv, xlsx, pdf")),
         };
     }
 
-    private IActionResult ExportCsv(int formId, List<Question> questions, List<Response> responses)
+    private IActionResult ExportCsv(int formId, List<Question> questions, List<Response> responses, bool includeAnswerKey = true)
     {
         using var writer = new System.IO.StringWriter();
 
@@ -395,6 +396,15 @@ public class ResponsesController : ControllerBase
         foreach (var q in questions)
             writer.Write($",{EscapeCsv(q.Question1)}");
         writer.WriteLine(",Status");
+
+        // Spec A5: baris ke-2 tepat di bawah header khusus [KUNCI JAWABAN].
+        if (includeAnswerKey)
+        {
+            writer.Write("KUNCI,JAWABAN,-");
+            foreach (var q in questions)
+                writer.Write($",{EscapeCsv(ResolveAnswerKey(q))}");
+            writer.WriteLine(",");
+        }
 
         foreach (var r in responses)
         {
@@ -430,7 +440,7 @@ public class ResponsesController : ControllerBase
         return File(csvBytes, "text/csv; charset=utf-8", $"responses-form-{formId}.csv");
     }
 
-    private IActionResult ExportXlsx(int formId, List<Question> questions, List<Response> responses)
+    private IActionResult ExportXlsx(int formId, List<Question> questions, List<Response> responses, bool includeAnswerKey = true)
     {
         using var workbook = new ClosedXML.Excel.XLWorkbook();
         var sheet = workbook.Worksheets.Add("Responses");
@@ -449,7 +459,23 @@ public class ResponsesController : ControllerBase
             cell.Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Center;
         }
 
+        // Spec A5: baris KUNCI JAWABAN pada Row 2, background abu/kuning muda.
         var row = 2;
+        if (includeAnswerKey)
+        {
+            sheet.Cell(row, 1).Value = "KUNCI";
+            sheet.Cell(row, 2).Value = "JAWABAN";
+            sheet.Cell(row, 3).Value = "-";
+            var kc = 4;
+            foreach (var q in questions)
+                sheet.Cell(row, kc++).Value = StripHtml(ResolveAnswerKey(q));
+            var keyRange = sheet.Range(row, 1, row, headers.Count);
+            keyRange.Style.Font.Bold = true;
+            keyRange.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#FEF3C7");
+            keyRange.Style.Font.FontColor = ClosedXML.Excel.XLColor.FromHtml("#92400E");
+            row++;
+        }
+
         foreach (var r in responses)
         {
             var col = 1;
@@ -469,7 +495,7 @@ public class ResponsesController : ControllerBase
         }
 
         sheet.Columns().AdjustToContents();
-        sheet.SheetView.FreezeRows(1);
+        sheet.SheetView.FreezeRows(includeAnswerKey ? 2 : 1);
 
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
@@ -477,12 +503,14 @@ public class ResponsesController : ControllerBase
         return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"responses-form-{formId}.xlsx");
     }
 
-    private IActionResult ExportPdf(int formId, Form form, List<Question> questions, List<Response> responses)
+    private IActionResult ExportPdf(int formId, Form form, List<Question> questions, List<Response> responses, bool includeAnswerKey = true)
     {
         QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
         var headers = new List<string> { "ID", "Submitted", "Respondent" };
         headers.AddRange(questions.Select(q => StripHtml(q.Question1)));
+        if (includeAnswerKey)
+            headers.AddRange(questions.Select(q => "Kunci_" + StripHtml(q.Question1)));
         headers.Add("Status");
 
         var title = StripHtml(form.Title ?? $"Form {formId}");
@@ -510,6 +538,8 @@ public class ResponsesController : ControllerBase
                         cols.RelativeColumn(1f);
                         cols.RelativeColumn(1f);
                         foreach (var _ in questions) cols.RelativeColumn(1.5f);
+                        if (includeAnswerKey)
+                            foreach (var _ in questions) cols.RelativeColumn(1.2f);
                         cols.RelativeColumn(0.7f);
                     });
 
@@ -540,6 +570,9 @@ public class ResponsesController : ControllerBase
                                 val = answer.OptionId.HasValue ? (answer.Option?.OptionText ?? "") : (answer.AnswerValue ?? "");
                             vals.Add(StripHtml(val));
                         }
+                        if (includeAnswerKey)
+                            foreach (var q in questions)
+                                vals.Add(StripHtml(ResolveAnswerKey(q)));
                         vals.Add(r.Status?.Status ?? "unknown");
 
                         foreach (var v in vals)
@@ -573,6 +606,21 @@ public class ResponsesController : ControllerBase
         var clean = System.Text.RegularExpressions.Regex.Replace(value, "<.*?>", string.Empty);
         clean = System.Text.RegularExpressions.Regex.Replace(clean, @"[\r\n]+", " ").Trim();
         return clean;
+    }
+
+    /// <summary>
+    /// Spec A5: kunci jawaban per soal — q.CorrectAnswer untuk Essay/Benar-Salah,
+    /// atau teks opsi dengan IsCorrect == true (Pilihan Ganda/Checkbox, digabung "; ").
+    /// </summary>
+    private static string ResolveAnswerKey(Question q)
+    {
+        if (!string.IsNullOrWhiteSpace(q.CorrectAnswer))
+            return StripHtml(q.CorrectAnswer);
+        var correct = (q.OptionQuestions ?? Enumerable.Empty<OptionQuestion>())
+            .Where(o => o.IsCorrect == true && !string.IsNullOrWhiteSpace(o.OptionText))
+            .Select(o => StripHtml(o.OptionText))
+            .ToList();
+        return string.Join("; ", correct);
     }
 
     private async Task<User?> GetCurrentUser()
