@@ -52,6 +52,15 @@ class AiFormContextService {
           buffer.writeln('```json');
           buffer.writeln(encoder.convert(schema));
           buffer.writeln('```');
+          // Agregat jawaban responden (anonim) agar AI bisa menganalisis
+          // pemahaman soal: distribusi opsi, % benar, contoh jawaban essay.
+          try {
+            final summary = await _buildResponseSummary(id, qs.map((q) => q.id).toSet());
+            if (summary.isNotEmpty) {
+              buffer.writeln('Agregat jawaban responden (anonim):');
+              buffer.writeln(summary);
+            }
+          } catch (_) {}
         } catch (e) {
           buffer.writeln('Gagal ambil soal form $id: $e');
         }
@@ -83,5 +92,63 @@ class AiFormContextService {
 
   static String _stripHtml(String s) {
     return s.replaceAll(RegExp(r'<[^>]*>'), '').replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  /// Ringkasan agregat jawaban per soal (tanpa identitas responden).
+  /// Format per baris: Soal <id>: dijawab X, benar Y, opsi teratas [...],
+  /// contoh essay [...]. Dibatasi agar prompt tetap ringan.
+  static Future<String> _buildResponseSummary(int formId, Set<int> questionIds) async {
+    final analytics = await FormService.getAnalytics(formId);
+    if (analytics.respondents.isEmpty) return '';
+    final answered = <int, int>{};
+    final correct = <int, int>{};
+    final optionHits = <int, Map<String, int>>{};
+    final essaySamples = <int, List<String>>{};
+    for (final r in analytics.respondents) {
+      for (final a in r.answers) {
+        if (!questionIds.contains(a.questionId)) continue;
+        final text = (a.answerText ?? '').trim();
+        if (text.isEmpty) continue;
+        answered[a.questionId] = (answered[a.questionId] ?? 0) + 1;
+        if (a.isCorrect == true) {
+          correct[a.questionId] = (correct[a.questionId] ?? 0) + 1;
+        }
+        if (a.typeId == 1 || a.typeId == 4 || a.typeId == 5) {
+          final list = essaySamples.putIfAbsent(a.questionId, () => []);
+          if (list.length < 3) {
+            final clean = _stripHtml(text);
+            list.add(clean.length > 120 ? '${clean.substring(0, 120)}...' : clean);
+          }
+        } else {
+          final map = optionHits.putIfAbsent(a.questionId, () => {});
+          map[text] = (map[text] ?? 0) + 1;
+        }
+      }
+    }
+    if (answered.isEmpty) return '';
+    final sb = StringBuffer();
+    final ids = answered.keys.toList()..sort();
+    for (final qid in ids) {
+      final total = answered[qid]!;
+      final ok = correct[qid] ?? 0;
+      sb.write('Soal $qid: dijawab $total, benar $ok');
+      final opts = optionHits[qid];
+      if (opts != null && opts.isNotEmpty) {
+        final top = opts.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+        final shown = top.take(5).map((e) {
+          final label = _stripHtml(e.key);
+          final short = label.length > 40 ? '${label.substring(0, 40)}...' : label;
+          return '"$short" (${e.value})';
+        }).join(', ');
+        sb.write(', opsi: [$shown]');
+      }
+      final samples = essaySamples[qid];
+      if (samples != null && samples.isNotEmpty) {
+        sb.write(', contoh: ["${samples.join('"; "')}"]');
+      }
+      sb.writeln();
+    }
+    return sb.toString().trimRight();
   }
 }

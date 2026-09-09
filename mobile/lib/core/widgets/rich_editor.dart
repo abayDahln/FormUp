@@ -1435,8 +1435,26 @@ Widget _mathWidget(String formula, {required bool display, TextStyle? style}) {
   );
 }
 
-/// Regex math $$/$
-final _mathRegex = RegExp(r'\$\$[^$]+\$\$|\$[^$\n]+?\$');
+/// Regex math: $$...$$, \[...\], \(...\), $...$
+/// Urutan penting: $$ dulu, lalu \[ \], \( \), terakhir $ inline.
+/// Isi \( \) boleh mengandung backslash (perintah seperti \int, \frac) —
+/// lazy match berhenti di penutup \) pertama (. tak cocokkan newline).
+final _mathRegex =
+    RegExp(r'\$\$[^$]+\$\$|\\\[.+?\\\]|\\\(.+?\\\)|\$[^$\n]+?\$');
+
+/// Ambil isi formula + flag display dari segmen yang cocok [_mathRegex].
+({String formula, bool display}) _splitMathSegment(String seg) {
+  if (seg.startsWith('\$\$')) {
+    return (formula: seg.substring(2, seg.length - 2).trim(), display: true);
+  }
+  if (seg.startsWith(r'\[')) {
+    return (formula: seg.substring(2, seg.length - 2).trim(), display: true);
+  }
+  if (seg.startsWith(r'\(')) {
+    return (formula: seg.substring(2, seg.length - 2).trim(), display: false);
+  }
+  return (formula: seg.substring(1, seg.length - 1).trim(), display: false);
+}
 
 /// Split teks + math
 List<InlineSpan> _spansWithMath(String text, TextStyle? style) {
@@ -1447,14 +1465,10 @@ List<InlineSpan> _spansWithMath(String text, TextStyle? style) {
       out.add(TextSpan(text: text.substring(last, m.start), style: style));
     }
     final seg = m.group(0)!;
-    final display = seg.startsWith('\$\$');
-    final formula = seg.substring(
-      display ? 2 : 1,
-      seg.length - (display ? 2 : 1),
-    ).trim();
+    final split = _splitMathSegment(seg);
     out.add(WidgetSpan(
       alignment: PlaceholderAlignment.middle,
-      child: _mathWidget(formula, display: display, style: style),
+      child: _mathWidget(split.formula, display: split.display, style: style),
     ));
     last = m.end;
   }
@@ -1605,7 +1619,8 @@ class RichTextView extends StatelessWidget {
         continue;
       }
 
-      final math = RegExp(r'^\$\$([\s\S]+?)\$\$$').firstMatch(t);
+      final math = RegExp(r'^\$\$([\s\S]+?)\$\$$').firstMatch(t) ??
+          RegExp(r'^\\\[([\s\S]+?)\\\]$').firstMatch(t);
       if (math != null) {
         widgets.add(Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),

@@ -83,7 +83,13 @@ class AppPageBuilder extends Page<void> {
   final AppRoute route;
   final WidgetBuilder builder;
 
-  AppPageBuilder(this.route, this.builder) : super(key: ValueKey(route.page));
+  // Key unik per entri stack (bukan per jenis halaman): mendorong halaman
+  // yang sama dua kali (mis. formDetail → ... → formDetail) sebelumnya
+  // menghasilkan ValueKey ganda → "GlobalKey was used multiple times" +
+  // assertion navigator. identityHashCode stabil selama objek AppRoute
+  // masih di stack, jadi state tiap halaman tetap terjaga.
+  AppPageBuilder(this.route, this.builder)
+      : super(key: ValueKey('${route.page.name}#${identityHashCode(route)}'));
 
   @override
   Route<void> createRoute(BuildContext context) {
@@ -101,7 +107,9 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   final List<AppRoute> _stack = <AppRoute>[];
-  final Map<AppPage, Completer<void>> _popCompleters = {};
+  // Completer per entri stack (bukan per jenis halaman) agar push halaman
+  // yang sama dua kali tidak saling menimpa future penyelesaiannya.
+  final Map<AppRoute, Completer<void>> _popCompleters = {};
   String _username = '';
   bool _initialSet = false;
 
@@ -154,7 +162,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
       onDidRemovePage: (page) {
         if (_stack.length > 1) _stack.removeLast();
         if (page is AppPageBuilder) {
-          _popCompleters.remove(page.route.page)?.complete();
+          _popCompleters.remove(page.route)?.complete();
         }
         notifyListeners();
       },
@@ -176,7 +184,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
     }
     if (_stack.length > 1) {
       final removed = _stack.removeLast();
-      _popCompleters.remove(removed.page)?.complete();
+      _popCompleters.remove(removed)?.complete();
       notifyListeners();
       return true;
     }
@@ -246,9 +254,10 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
 
   /// Push halaman, selesai saat di-pop
   Future<void> push(AppPage page, [Map<String, dynamic> args = const {}]) {
+    final entry = AppRoute(page, args);
     final completer = Completer<void>();
-    _popCompleters[page] = completer;
-    _stack.add(AppRoute(page, args));
+    _popCompleters[entry] = completer;
+    _stack.add(entry);
     notifyListeners();
     return completer.future;
   }
@@ -257,7 +266,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   void replaceTop(AppPage page, [Map<String, dynamic> args = const {}]) {
     if (_stack.isNotEmpty) {
       final removed = _stack.removeLast();
-      _popCompleters.remove(removed.page)?.complete();
+      _popCompleters.remove(removed)?.complete();
     }
     _stack.add(AppRoute(page, args));
     notifyListeners();
@@ -266,7 +275,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   void pop([Object? result]) {
     if (_stack.length > 1) {
       final removed = _stack.removeLast();
-      _popCompleters.remove(removed.page)?.complete();
+      _popCompleters.remove(removed)?.complete();
       notifyListeners();
     } else if (_viaDeepLink) {
       // Root dari deep link → fallback ke halaman root sesuai role

@@ -502,7 +502,8 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
                     backgroundColor: cs.primaryContainer,
                     backgroundImage:
                         (_profile?.profileImage ?? '').isNotEmpty
-                            ? CachedNetworkImageProvider(_profile!.profileImage!)
+                            ? CachedNetworkImageProvider(
+                                profileImageUrl(_profile!.profileImage))
                             : null,
                     child: (_profile?.profileImage ?? '').isEmpty
                         ? Text(

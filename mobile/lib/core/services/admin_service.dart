@@ -278,7 +278,8 @@ class AdminService {
         total: map['total'] as int? ?? 0,
       );
 
-  /// GET /admin/users
+  /// GET /admin/users — data moderasi live: tanpa cache agar status
+  /// ban/aktif selalu segar setelah aksi (termasuk pull-to-refresh).
   static Future<PagedResult<AdminUserItem>> getUsers({
     int? page,
     int? pageSize,
@@ -290,13 +291,13 @@ class AdminService {
         'search=${Uri.encodeQueryComponent(search.trim())}',
     ];
     final query = params.isEmpty ? '' : '?${params.join('&')}';
-    final json = await AuthService.get('/admin/users$query');
+    final json = await AuthService.get('/admin/users$query', useCache: false);
     return _paged(json['data'] as Map<String, dynamic>, AdminUserItem.fromJson);
   }
 
-  /// GET /admin/users/{id}
+  /// GET /admin/users/{id} — tanpa cache (lihat getUsers).
   static Future<AdminUserDetail> getUserDetail(int id) async {
-    final json = await AuthService.get('/admin/users/$id');
+    final json = await AuthService.get('/admin/users/$id', useCache: false);
     return AdminUserDetail.fromJson(json['data'] as Map<String, dynamic>);
   }
 
@@ -323,13 +324,13 @@ class AdminService {
         'status=$status',
     ];
     final query = params.isEmpty ? '' : '?${params.join('&')}';
-    final json = await AuthService.get('/admin/forms$query');
+    final json = await AuthService.get('/admin/forms$query', useCache: false);
     return _paged(json['data'] as Map<String, dynamic>, AdminFormItem.fromJson);
   }
 
-  /// GET /admin/forms/{id}
+  /// GET /admin/forms/{id} — tanpa cache (lihat getUsers).
   static Future<AdminFormDetail> getFormDetail(int id) async {
-    final json = await AuthService.get('/admin/forms/$id');
+    final json = await AuthService.get('/admin/forms/$id', useCache: false);
     return AdminFormDetail.fromJson(json['data'] as Map<String, dynamic>);
   }
 
@@ -350,7 +351,7 @@ class AdminService {
       if (page != null && pageSize != null) ...['page=$page', 'pageSize=$pageSize'],
     ];
     final query = params.isEmpty ? '' : '?${params.join('&')}';
-    final json = await AuthService.get('/admin/feedback$query');
+    final json = await AuthService.get('/admin/feedback$query', useCache: false);
     return _paged(
         json['data'] as Map<String, dynamic>, AdminFeedbackItem.fromJson);
   }

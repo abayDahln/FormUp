@@ -177,7 +177,6 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
   final _searchController = TextEditingController();
   Timer? _debounce;
   String _query = '';
-  final _acting = <int>{};
   List<AdminUserItem> _users = [];
   bool _loading = true;
   int _page = 1;
@@ -223,7 +222,8 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
       );
       if (!mounted) return;
       setState(() {
-        _users = result.items;
+        // Sabuk pengaman: user soft-delete tidak ditampilkan sama sekali.
+        _users = result.items.where((u) => u.deletedAt == null).toList();
         _page = page;
         _totalPages = result.total <= 0
             ? 1
@@ -234,49 +234,6 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  /// Aksi cepat ban/aktifkan langsung dari daftar (bolak-balik).
-  Future<void> _toggleBan(AdminUserItem u) async {
-    if (_acting.contains(u.id)) return;
-    final ban = u.isActive;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(ban ? 'Ban User' : 'Aktifkan User',
-            style: const TextStyle(fontFamily: kFontBold)),
-        content: Text(ban
-            ? 'User "${u.fullname}" tidak akan bisa login lagi.'
-            : 'User "${u.fullname}" akan bisa login kembali.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Batal')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(ban ? 'Ban' : 'Aktifkan',
-                style: TextStyle(color: Theme.of(context).colorScheme.primary)),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    setState(() => _acting.add(u.id));
-    try {
-      if (ban) {
-        await AdminService.banUser(u.id);
-      } else {
-        await AdminService.activateUser(u.id);
-      }
-      if (!mounted) return;
-      showAuthToast(context, ban ? 'User di-ban' : 'User diaktifkan');
-      await _load(page: _page);
-    } catch (e) {
-      if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
-    } finally {
-      if (mounted) setState(() => _acting.remove(u.id));
     }
   }
 
@@ -369,25 +326,6 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
                               );
                               _load(page: _page);
                             },
-                            trailing: u.role == 'ADMIN'
-                                ? null
-                                : IconButton(
-                                    tooltip: u.isActive
-                                        ? 'Ban user'
-                                        : 'Aktifkan user',
-                                    onPressed: _acting.contains(u.id)
-                                        ? null
-                                        : () => _toggleBan(u),
-                                    icon: Icon(
-                                      u.isActive
-                                          ? Icons.block_outlined
-                                          : Icons.check_circle_outline,
-                                      color: u.isActive
-                                          ? kWarningColor
-                                          : kSuccessColor,
-                                      size: 22,
-                                    ),
-                                  ),
                           );
                         },
                       ),

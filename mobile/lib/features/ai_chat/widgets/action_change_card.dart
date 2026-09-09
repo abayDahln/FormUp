@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/router/app_router.dart';
+import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/features/ai_chat/models/chat_message.dart';
 
 /// Kartu ringkasan perubahan (gaya diff) di bawah bubble AI yang berisi
@@ -34,8 +36,48 @@ class ActionChangeCard extends StatefulWidget {
 
 class _ActionChangeCardState extends State<ActionChangeCard> {
   bool _expanded = false;
+  bool _opening = false;
 
   ChatMessage get m => widget.message;
+
+  /// Buka form dengan validasi dulu: preload data form agar layar tujuan
+  /// tidak terbuka kosong/error (mis. formId basi atau form sudah dihapus).
+  Future<void> _openForm() async {
+    final formId = m.actionFormId;
+    if (formId == null || _opening) return;
+    setState(() => _opening = true);
+    try {
+      final data = await FormService.getForm(formId);
+      if (!mounted) return;
+      AppRouter.of(context).push(AppPage.formDetail, {
+        'formId': formId,
+        'form': FormData.fromJson(data),
+      });
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context,
+          'Form tidak bisa dibuka: ${AuthService.errorMessage(e)}',
+          isError: true);
+    } finally {
+      if (mounted) setState(() => _opening = false);
+    }
+  }
+
+  /// Langsung ke kelola soal (tempat user biasa memulai edit via AI).
+  void _openQuestions() {
+    final formId = m.actionFormId;
+    if (formId == null) return;
+    AppRouter.of(context).push(AppPage.formQuestions, {'formId': formId});
+  }
+
+  /// True bila aksi menyentuh daftar soal (pantas ada tombol Kelola Soal).
+  bool get _touchesQuestions {
+    final act = m.actionJson?['action'] as String?;
+    return act == 'edit_questions' ||
+        act == 'add_questions' ||
+        act == 'delete_questions' ||
+        act == 'create_form';
+  }
 
   String _clean(String? s) => (s ?? '')
       .replaceAll(RegExp(r'<[^>]*>'), '')
@@ -478,32 +520,58 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                 ],
               ),
             ),
-          // Aksi sudah dijalankan & form diketahui: langsung ke detail form.
+          // Aksi sudah dijalankan & form diketahui: validasi dulu lalu buka.
           if (m.actionExecuted && m.actionFormId != null)
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: cs.primary,
-                    backgroundColor: cs.primaryContainer,
-                    side: BorderSide(color: cs.primary, width: 1.2),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: cs.primary,
+                        backgroundColor: cs.primaryContainer,
+                        side: BorderSide(color: cs.primary, width: 1.2),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                      onPressed: _opening ? null : _openForm,
+                      icon: _opening
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.open_in_new, size: 14),
+                      label: const Text(
+                        'Buka Form',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, fontFamily: kFontBold),
+                      ),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
                   ),
-                  onPressed: () => AppRouter.of(context).push(
-                    AppPage.formDetail,
-                    {'formId': m.actionFormId},
-                  ),
-                  icon: const Icon(Icons.open_in_new, size: 14),
-                  label: const Text(
-                    'Buka Form',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, fontFamily: kFontBold),
-                  ),
-                ),
+                  if (_touchesQuestions) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: cs.primary,
+                          side: BorderSide(color: cs.primary, width: 1.2),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                        onPressed: _openQuestions,
+                        icon: const Icon(Icons.quiz_outlined, size: 14),
+                        label: const Text(
+                          'Kelola Soal',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, fontFamily: kFontBold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
         ],

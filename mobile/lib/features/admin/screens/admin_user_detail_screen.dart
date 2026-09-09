@@ -144,7 +144,8 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                               radius: 34,
                               backgroundColor: cs.primaryContainer,
                               backgroundImage: (u.profileImage ?? '').isNotEmpty
-                                  ? CachedNetworkImageProvider(u.profileImage!)
+                                  ? CachedNetworkImageProvider(
+                                      profileImageUrl(u.profileImage))
                                   : null,
                               child: (u.profileImage ?? '').isEmpty
                                   ? Text(

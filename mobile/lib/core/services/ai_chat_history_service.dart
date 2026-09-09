@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:form_up/core/services/auth_service.dart';
 
 class ChatHistoryMessage {
   final String role;
@@ -111,11 +112,32 @@ class ChatSession {
 }
 
 class AiChatHistoryService {
-  static const _key = 'ai_chat_history_v1';
+  static const _legacyKey = 'ai_chat_history_v1';
 
-  static Future<List<ChatSession>> loadAll() async {
+  /// Key penyimpanan per-akun agar chat tidak bocor lintas akun.
+  /// Tanpa accountId (belum login) → key legacy bersama.
+  static String _keyFor(String? accountId) {
+    final id = (accountId ?? AuthService.email ?? '').trim().toLowerCase();
+    if (id.isEmpty) return _legacyKey;
+    return '$_legacyKey::$id';
+  }
+
+  /// Pindahkan data key global lama ke key akun saat ini (sekali saja).
+  static Future<void> _migrateLegacy(String key) async {
+    if (key == _legacyKey) return;
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
+    if (prefs.getString(key) != null) return;
+    final legacy = prefs.getString(_legacyKey);
+    if (legacy == null || legacy.isEmpty) return;
+    await prefs.setString(key, legacy);
+    await prefs.remove(_legacyKey);
+  }
+
+  static Future<List<ChatSession>> loadAll({String? accountId}) async {
+    final key = _keyFor(accountId);
+    await _migrateLegacy(key);
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(key);
     if (raw == null || raw.isEmpty) return [];
     try {
       final list = jsonDecode(raw) as List<dynamic>;
@@ -126,31 +148,31 @@ class AiChatHistoryService {
     }
   }
 
-  static Future<void> saveAll(List<ChatSession> sessions) async {
+  static Future<void> saveAll(List<ChatSession> sessions, {String? accountId}) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = jsonEncode(sessions.map((e) => e.toJson()).toList());
-    await prefs.setString(_key, raw);
+    await prefs.setString(_keyFor(accountId), raw);
   }
 
-  static Future<void> upsert(ChatSession session) async {
-    final all = await loadAll();
+  static Future<void> upsert(ChatSession session, {String? accountId}) async {
+    final all = await loadAll(accountId: accountId);
     final idx = all.indexWhere((e) => e.id == session.id);
     if (idx >= 0) {
       all[idx] = session;
     } else {
       all.insert(0, session);
     }
-    await saveAll(all);
+    await saveAll(all, accountId: accountId);
   }
 
-  static Future<void> delete(String id) async {
-    final all = await loadAll();
+  static Future<void> delete(String id, {String? accountId}) async {
+    final all = await loadAll(accountId: accountId);
     all.removeWhere((e) => e.id == id);
-    await saveAll(all);
+    await saveAll(all, accountId: accountId);
   }
 
-  static Future<void> clearAll() async {
+  static Future<void> clearAll({String? accountId}) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_key);
+    await prefs.remove(_keyFor(accountId));
   }
 }
