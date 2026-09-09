@@ -304,13 +304,9 @@ class AdminService {
   static Future<void> banUser(int id) =>
       AuthService.put('/admin/users/$id/ban', {});
 
-  /// PUT /admin/users/{id}/activate
+  /// PUT /admin/users/{id}/activate — kembalikan user yang di-ban
   static Future<void> activateUser(int id) =>
       AuthService.put('/admin/users/$id/activate', {});
-
-  /// DELETE /admin/users/{id}
-  static Future<void> deleteUser(int id) =>
-      AuthService.delete('/admin/users/$id');
 
   /// GET /admin/forms
   static Future<PagedResult<AdminFormItem>> getForms({
@@ -341,13 +337,9 @@ class AdminService {
   static Future<void> takedownForm(int id) =>
       AuthService.post('/admin/forms/$id/takedown', {});
 
-  /// POST /admin/forms/{id}/restore
+  /// POST /admin/forms/{id}/restore — kembalikan form yang di-takedown
   static Future<void> restoreForm(int id) =>
       AuthService.post('/admin/forms/$id/restore', {});
-
-  /// DELETE /admin/forms/{id}
-  static Future<void> deleteForm(int id) =>
-      AuthService.delete('/admin/forms/$id');
 
   /// GET /admin/feedback
   static Future<PagedResult<AdminFeedbackItem>> getFeedbacks({

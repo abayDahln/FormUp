@@ -177,6 +177,7 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
   final _searchController = TextEditingController();
   Timer? _debounce;
   String _query = '';
+  final _acting = <int>{};
   List<AdminUserItem> _users = [];
   bool _loading = true;
   int _page = 1;
@@ -233,6 +234,49 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Aksi cepat ban/aktifkan langsung dari daftar (bolak-balik).
+  Future<void> _toggleBan(AdminUserItem u) async {
+    if (_acting.contains(u.id)) return;
+    final ban = u.isActive;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(ban ? 'Ban User' : 'Aktifkan User',
+            style: const TextStyle(fontFamily: kFontBold)),
+        content: Text(ban
+            ? 'User "${u.fullname}" tidak akan bisa login lagi.'
+            : 'User "${u.fullname}" akan bisa login kembali.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(ban ? 'Ban' : 'Aktifkan',
+                style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _acting.add(u.id));
+    try {
+      if (ban) {
+        await AdminService.banUser(u.id);
+      } else {
+        await AdminService.activateUser(u.id);
+      }
+      if (!mounted) return;
+      showAuthToast(context, ban ? 'User di-ban' : 'User diaktifkan');
+      await _load(page: _page);
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _acting.remove(u.id));
     }
   }
 
@@ -325,6 +369,25 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
                               );
                               _load(page: _page);
                             },
+                            trailing: u.role == 'ADMIN'
+                                ? null
+                                : IconButton(
+                                    tooltip: u.isActive
+                                        ? 'Ban user'
+                                        : 'Aktifkan user',
+                                    onPressed: _acting.contains(u.id)
+                                        ? null
+                                        : () => _toggleBan(u),
+                                    icon: Icon(
+                                      u.isActive
+                                          ? Icons.block_outlined
+                                          : Icons.check_circle_outline,
+                                      color: u.isActive
+                                          ? kWarningColor
+                                          : kSuccessColor,
+                                      size: 22,
+                                    ),
+                                  ),
                           );
                         },
                       ),
@@ -356,6 +419,7 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
   bool _loading = true;
   int _page = 1;
   int _totalPages = 1;
+  final _acting = <int>{};
 
   @override
   void initState() {
@@ -409,6 +473,51 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Aksi cepat takedown/restore langsung dari daftar (bolak-balik).
+  Future<void> _toggleTakedown(AdminFormItem f) async {
+    if (_acting.contains(f.id)) return;
+    final takeDown = f.takenDownAt == null && f.deletedAt == null;
+    if (!takeDown && f.deletedAt != null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(takeDown ? 'Takedown Form' : 'Restore Form',
+            style: const TextStyle(fontFamily: kFontBold)),
+        content: Text(takeDown
+            ? 'Form "${f.title}" akan disembunyikan dari publik.'
+            : 'Form "${f.title}" akan bisa diakses publik kembali.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(takeDown ? 'Takedown' : 'Restore',
+                style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _acting.add(f.id));
+    try {
+      if (takeDown) {
+        await AdminService.takedownForm(f.id);
+      } else {
+        await AdminService.restoreForm(f.id);
+      }
+      if (!mounted) return;
+      showAuthToast(
+          context, takeDown ? 'Form di-takedown' : 'Form di-restore');
+      await _load(page: _page);
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _acting.remove(f.id));
     }
   }
 
@@ -536,6 +645,7 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                             );
                           }
                           final f = _forms[i];
+                          final takenDown = f.takenDownAt != null;
                           return _AdminCard(
                             icon: Icons.description_outlined,
                             title: f.title,
@@ -543,7 +653,7 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                                 'Oleh ${f.ownerName.isEmpty ? "—" : f.ownerName}\n${f.responseCount} respons · dibuat ${_formatDate(f.createdAt)}',
                             badges: [
                               _Badge(f.status, _statusColor(f.status)),
-                              if (f.takenDownAt != null)
+                              if (takenDown)
                                 const _Badge('Taken Down', kDangerColor),
                             ],
                             onTap: () async {
@@ -553,6 +663,25 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                               );
                               _load(page: _page);
                             },
+                            trailing: f.deletedAt != null
+                                ? null
+                                : IconButton(
+                                    tooltip: takenDown
+                                        ? 'Restore form'
+                                        : 'Takedown form',
+                                    onPressed: _acting.contains(f.id)
+                                        ? null
+                                        : () => _toggleTakedown(f),
+                                    icon: Icon(
+                                      takenDown
+                                          ? Icons.restore
+                                          : Icons.block_outlined,
+                                      color: takenDown
+                                          ? kSuccessColor
+                                          : kWarningColor,
+                                      size: 22,
+                                    ),
+                                  ),
                           );
                         },
                       ),

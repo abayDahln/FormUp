@@ -240,14 +240,14 @@ class _AdminBerandaTabState extends State<_AdminBerandaTab> {
             _QuickActionTile(
               icon: Icons.people_outline,
               title: 'Kelola User',
-              subtitle: 'Lihat, ban, dan hapus user terdaftar',
+              subtitle: 'Lihat, ban, dan aktifkan user terdaftar',
               onTap: widget.onOpenManage,
             ),
             const SizedBox(height: 12),
             _QuickActionTile(
               icon: Icons.description_outlined,
               title: 'Kelola Form',
-              subtitle: 'Takedown, restore, dan hapus form',
+              subtitle: 'Takedown dan restore form',
               onTap: widget.onOpenManage,
             ),
             const SizedBox(height: 12),
