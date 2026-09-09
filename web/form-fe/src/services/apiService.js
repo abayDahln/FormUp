@@ -240,28 +240,58 @@ export const importQuestions = async (formId, file) => {
     return parseResponse(res);
 };
 
-export const uploadQuestionImage = async (formId, questionId, file) => {
-    const form = new FormData();
-    form.append('file', file);
-    const token = getToken();
-    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/questions/${questionId}/upload-image`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: form,
+// B1: Use XMLHttpRequest for upload progress support
+export const uploadQuestionImage = (formId, questionId, file, onProgress) => {
+    return new Promise((resolve) => {
+        const token = getToken();
+        const form = new FormData();
+        form.append('file', file);
+        const xhr = new XMLHttpRequest();
+        if (typeof onProgress === 'function') {
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+            });
+        }
+        xhr.onload = () => {
+            try {
+                const data = JSON.parse(xhr.responseText);
+                resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data: data?.data ?? data, message: data?.message });
+            } catch {
+                resolve({ ok: false, status: xhr.status, message: 'Response parse error' });
+            }
+        };
+        xhr.onerror = () => resolve({ ok: false, status: 0, message: 'Network error' });
+        xhr.open('POST', `${API_BASE_URL}/api/forms/${formId}/questions/${questionId}/upload-image`);
+        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.send(form);
     });
-    return parseResponse(res);
 };
 
-export const uploadQuestionAudio = async (formId, questionId, file) => {
-    const form = new FormData();
-    form.append('file', file);
-    const token = getToken();
-    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/questions/${questionId}/upload-audio`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: form,
+// B1: Use XMLHttpRequest for upload progress support
+export const uploadQuestionAudio = (formId, questionId, file, onProgress) => {
+    return new Promise((resolve) => {
+        const token = getToken();
+        const form = new FormData();
+        form.append('file', file);
+        const xhr = new XMLHttpRequest();
+        if (typeof onProgress === 'function') {
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+            });
+        }
+        xhr.onload = () => {
+            try {
+                const data = JSON.parse(xhr.responseText);
+                resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data: data?.data ?? data, message: data?.message });
+            } catch {
+                resolve({ ok: false, status: xhr.status, message: 'Response parse error' });
+            }
+        };
+        xhr.onerror = () => resolve({ ok: false, status: 0, message: 'Network error' });
+        xhr.open('POST', `${API_BASE_URL}/api/forms/${formId}/questions/${questionId}/upload-audio`);
+        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.send(form);
     });
-    return parseResponse(res);
 };
 
 // ── Response Endpoints (Owner) ────────────────────────────────────────────────

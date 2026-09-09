@@ -10,6 +10,20 @@ import {
 } from '../../services/apiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
 
+const OWNER_FEEDBACK_REASONS = [
+    { value: 'PERTANYAAN_TIDAK_JELAS', label: 'Pertanyaan tidak jelas atau membingungkan' },
+    { value: 'KUNCI_JAWABAN_SALAH', label: 'Kunci jawaban dinilai salah' },
+    { value: 'KENDALA_TEKNIS', label: 'Kendala teknis saat pengisian' },
+    { value: 'LAINNYA', label: 'Masukan lainnya untuk pemilik formulir' },
+];
+
+const ADMIN_REPORT_REASONS = [
+    { value: 'ADMIN_KONTEN_TIDAK_PANTAS', label: 'Konten formulir tidak pantas / melanggar aturan' },
+    { value: 'ADMIN_SPAM_PENYALAHGUNAAN', label: 'Formulir terindikasi spam atau disalahgunakan' },
+    { value: 'ADMIN_DATA_PRIBADI', label: 'Formulir meminta data pribadi secara mencurigakan' },
+    { value: 'ADMIN_LAINNYA', label: 'Pelanggaran lainnya (laporkan ke Admin FormUp)' },
+];
+
 export default function FormResultPage() {
     const { formLink, responseId } = useParams();
     const navigate = useNavigate();
@@ -21,13 +35,23 @@ export default function FormResultPage() {
 
     // Feedback State
     const [feedbackOpen, setFeedbackOpen] = useState(false);
+    const [feedbackTarget, setFeedbackTarget] = useState('owner'); 
     const [reason, setReason] = useState('PERTANYAAN_TIDAK_JELAS');
     const [description, setDescription] = useState('');
     const [sendingFeedback, setSendingFeedback] = useState(false);
     const [feedbackSuccess, setFeedbackSuccess] = useState(false);
     const [feedbackError, setFeedbackError] = useState('');
 
-    const user = getLocalUser();
+        const user = getLocalUser();
+
+    const currentReasonOptions = feedbackTarget === 'admin' ? ADMIN_REPORT_REASONS : OWNER_FEEDBACK_REASONS;
+
+    const handleChangeFeedbackTarget = (target) => {
+        setFeedbackTarget(target);
+        const options = target === 'admin' ? ADMIN_REPORT_REASONS : OWNER_FEEDBACK_REASONS;
+        setReason(options[0].value);
+        setFeedbackError('');
+    };
 
     useEffect(() => {
         const load = async () => {
@@ -148,7 +172,7 @@ export default function FormResultPage() {
                 </div>
 
                 {/* Feedback Modal / Box */}
-                {feedbackOpen && (
+                 {feedbackOpen && (
                     <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-lg space-y-4 animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex items-center gap-2">
                             <AlertTriangle size={18} className="text-amber-500" />
@@ -157,10 +181,46 @@ export default function FormResultPage() {
 
                         {feedbackSuccess ? (
                             <div className="p-4 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                                Masukan Anda telah berhasil dikirimkan ke pembuat formulir. Terima kasih!
+                                {feedbackTarget === 'admin'
+                                    ? 'Laporan Anda telah berhasil dikirimkan ke Admin FormUp untuk ditinjau. Terima kasih!'
+                                    : 'Masukan Anda telah berhasil dikirimkan ke pembuat formulir. Terima kasih!'}
                             </div>
                         ) : (
                             <form onSubmit={handleSendFeedback} className="space-y-4">
+                                {/* Target Pemilihan: Pemilik Formulir vs Admin FormUp */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Tujuan Kirim</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleChangeFeedbackTarget('owner')}
+                                            className={`p-2.5 rounded-xl border text-xs font-bold text-center cursor-pointer transition-all ${
+                                                feedbackTarget === 'owner'
+                                                    ? 'bg-teal-50 dark:bg-teal-950/60 border-[#00897B] text-[#00897B] dark:text-teal-400'
+                                                    : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                            }`}
+                                        >
+                                            Pemilik Formulir
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleChangeFeedbackTarget('admin')}
+                                            className={`p-2.5 rounded-xl border text-xs font-bold text-center cursor-pointer transition-all ${
+                                                feedbackTarget === 'admin'
+                                                    ? 'bg-red-50 dark:bg-red-950/60 border-red-400 text-red-600 dark:text-red-400'
+                                                    : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                            }`}
+                                        >
+                                            Laporkan ke Admin
+                                        </button>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">
+                                        {feedbackTarget === 'admin'
+                                            ? 'Untuk pelanggaran serius (konten tidak pantas, spam, penyalahgunaan). Ditinjau langsung oleh tim Admin FormUp.'
+                                            : 'Untuk kendala teknis, pertanyaan membingungkan, atau kunci jawaban yang salah. Dikirim langsung ke pembuat formulir.'}
+                                    </p>
+                                </div>
+
                                 {feedbackError && (
                                     <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-xl text-xs font-bold text-red-600 dark:text-red-400">
                                         {feedbackError}
@@ -168,51 +228,60 @@ export default function FormResultPage() {
                                 )}
 
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Alasan Laporan</label>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                        {feedbackTarget === 'admin' ? 'Kategori Laporan' : 'Alasan Masukan'}
+                                    </label>
                                     <select
                                         value={reason}
                                         onChange={e => setReason(e.target.value)}
                                         className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]"
                                     >
-                                        <option value="PERTANYAAN_TIDAK_JELAS">Pertanyaan tidak jelas atau membingungkan</option>
-                                        <option value="KUNCI_JAWABAN_SALAH">Kunci jawaban dinilai salah</option>
-                                        <option value="KENDALA_TEKNIS">Kendala teknis saat pengisian</option>
-                                        <option value="KONTEN_TIDAK_PANTAS">Konten mengandung unsur tidak pantas</option>
-                                        <option value="LAINNYA">Alasan lainnya</option>
+                                        {currentReasonOptions.map(opt => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
                                     </select>
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Deskripsi Tambahan (Opsional)</label>
-                                    <textarea
-                                        rows={3}
-                                        value={description}
-                                        onChange={e => setDescription(e.target.value)}
-                                        placeholder="Jelaskan detail kendala atau saran Anda..."
-                                        className="w-full border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]"
-                                    />
-                                </div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                    Deskripsi Tambahan (Opsional)
+                                </label>
 
-                                <div className="flex justify-end gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setFeedbackOpen(false)}
-                                        className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50"
-                                    >
-                                        Batal
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={sendingFeedback}
-                                        className="px-5 py-2 bg-[#00897B] hover:bg-[#00796B] text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
-                                    >
-                                        <Send size={13} /> {sendingFeedback ? 'Mengirim...' : 'Kirim Masukan'}
-                                    </button>
-                                </div>
+                                <textarea
+                                    rows={3}
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    placeholder={
+                                        feedbackTarget === 'admin'
+                                            ? 'Jelaskan pelanggaran yang Anda temukan...'
+                                            : 'Jelaskan kendala atau masukan Anda...'
+                                    }
+                                    className="w-full border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]"
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setFeedbackOpen(false)}
+                                    className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300"
+                                >
+                                    Batal
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    disabled={sendingFeedback}
+                                    className="px-5 py-2 bg-[#00897B] hover:bg-[#00796B] text-white rounded-xl text-xs font-bold disabled:opacity-60"
+                                >
+                                    {sendingFeedback ? 'Mengirim...' : 'Kirim'}
+                                </button>
+                            </div>
+
                             </form>
-                        )}
-                    </div>
-                )}
+                            )}
+                            </div>
+                            )}
 
                 {/* Detailed Answer Review Section */}
                 {result?.answers && result.answers.length > 0 && (

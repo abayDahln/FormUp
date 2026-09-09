@@ -23,10 +23,13 @@ export default function AdminDashboardPage() {
     const [feedbacks, setFeedbacks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('users');
+    // A3: Sub-tab within feedback tab: 'all' | 'report' | 'masukan'
+    const [feedbackSubTab, setFeedbackSubTab] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const debouncedSearch = useDebounce(searchQuery, 300);
     const [toast, setToast] = useState(null);
     const [actionLoadingId, setActionLoadingId] = useState(null);
+    const [feedbackTypeFilter, setFeedbackTypeFilter] = useState('all'); 
 
     // Modals
     const [selectedUserDetail, setSelectedUserDetail] = useState(null);
@@ -78,9 +81,20 @@ export default function AdminDashboardPage() {
         load();
     }, [navigate, user]);
 
-    const showToast = (msg, type = 'success') => {
+        const showToast = (msg, type = 'success') => {
         setToast({ msg, type });
         setTimeout(() => setToast(null), 3000);
+    };
+
+    const isAdminReport = (fb) => (fb.reason || '').startsWith('ADMIN_');
+
+    const formatFeedbackReason = (rawReason) => {
+        if (!rawReason) return 'Laporan';
+        const stripped = rawReason.startsWith('ADMIN_') ? rawReason.slice(6) : rawReason;
+        return stripped
+            .split('_')
+            .map(w => w.charAt(0) + w.slice(1).toLowerCase())
+            .join(' ');
     };
 
     // ── User Handlers ───────────────────────────────────────────────────────────
@@ -249,7 +263,10 @@ export default function AdminDashboardPage() {
         );
     });
 
-    const filteredFeedbacks = feedbacks.filter(fb => {
+        const filteredFeedbacks = feedbacks.filter(fb => {
+        if (feedbackTypeFilter === 'reports' && !isAdminReport(fb)) return false;
+        if (feedbackTypeFilter === 'owner' && isAdminReport(fb)) return false;
+
         if (!debouncedSearch.trim()) return true;
         const q = debouncedSearch.toLowerCase();
         return (
@@ -260,6 +277,14 @@ export default function AdminDashboardPage() {
             (fb.userEmail && fb.userEmail.toLowerCase().includes(q))
         );
     });
+
+    // A3: Sub-tab filtering for Report vs Masukan
+    const REPORT_REASONS = ['KONTEN', 'SPAM', 'LAPORAN', 'TIDAK_PANTAS', 'PELECEHAN', 'ILLEGAL'];
+    const subTabFeedbacks = feedbackSubTab === 'all'
+        ? filteredFeedbacks
+        : feedbackSubTab === 'report'
+        ? filteredFeedbacks.filter(fb => REPORT_REASONS.some(r => (fb.reason || '').toUpperCase().includes(r)))
+        : filteredFeedbacks.filter(fb => !REPORT_REASONS.some(r => (fb.reason || '').toUpperCase().includes(r)));
 
     if (loading) return (
         <div className="flex items-center justify-center min-h-screen bg-[#F4F8F7] dark:bg-slate-950">
@@ -622,10 +647,53 @@ export default function AdminDashboardPage() {
                             </div>
                         )}
 
-                        {/* ── TAB 3: FEEDBACK ─────────────────────────────────────────── */}
+                                               {/* ── TAB 3: FEEDBACK ─────────────────────────────────────────── */}
                         {activeTab === 'feedback' && (
+                            <div className="w-full">
+                                <div className="p-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
+                                    {[
+                                        { id: 'all', label: 'Semua' },
+                                        { id: 'reports', label: '🚩 Laporan ke Admin' },
+                                        { id: 'owner', label: 'Masukan ke Pemilik' },
+                                    ].map(f => (
+                                        <button
+                                            key={f.id}
+                                            type="button"
+                                            onClick={() => setFeedbackTypeFilter(f.id)}
+                                            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                                                feedbackTypeFilter === f.id
+                                                    ? 'bg-[#00897B] text-white shadow-xs'
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            {f.label}
+                                        </button>
+                                    ))}
+                                </div>
                             <div className="overflow-x-auto w-full">
+                                {/* A3: Sub-tab navigation */}
+                                <div className="flex items-center gap-1 mb-4 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
+                                    {[
+                                        { key: 'all', label: 'Semua', count: filteredFeedbacks.length },
+                                        { key: 'report', label: '🚨 Laporan', count: filteredFeedbacks.filter(fb => REPORT_REASONS.some(r => (fb.reason || '').toUpperCase().includes(r))).length },
+                                        { key: 'masukan', label: '💬 Masukan', count: filteredFeedbacks.filter(fb => !REPORT_REASONS.some(r => (fb.reason || '').toUpperCase().includes(r))).length },
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.key}
+                                            type="button"
+                                            onClick={() => setFeedbackSubTab(tab.key)}
+                                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                                                feedbackSubTab === tab.key
+                                                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            {tab.label} <span className="ml-1 text-[10px] text-slate-400">({tab.count})</span>
+                                        </button>
+                                    ))}
+                                </div>
                                 <table className="w-full text-sm text-left">
+
                                     <thead>
                                         <tr className="bg-slate-50 dark:bg-slate-800/60 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
                                             <th className="py-3 px-4">Pengirim</th>
@@ -637,22 +705,32 @@ export default function AdminDashboardPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {filteredFeedbacks.length === 0 ? (
+                                        {subTabFeedbacks.length === 0 ? (
                                             <tr>
-                                                <td colSpan={6} className="text-center py-8 text-xs text-slate-400">Tidak ada umpan balik / laporan masuk.</td>
+                                                <td colSpan={6} className="text-center py-8 text-xs text-slate-400">
+                                                    {feedbackSubTab === 'report' ? 'Tidak ada laporan masuk.' : feedbackSubTab === 'masukan' ? 'Tidak ada masukan masuk.' : 'Tidak ada umpan balik / laporan masuk.'}
+                                                </td>
                                             </tr>
                                         ) : (
-                                            filteredFeedbacks.map(fb => (
+                                            subTabFeedbacks.map(fb => (
                                                 <tr key={fb.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                                                     <td className="py-3.5 px-4">
                                                         <div className="font-bold text-slate-900 dark:text-white text-xs">{fb.userName || fb.user?.fullname || 'Anonim'}</div>
                                                         <div className="text-[10px] text-slate-400 font-mono">{fb.userEmail || fb.user?.email || '—'}</div>
                                                     </td>
-                                                    <td className="py-3.5 px-4">
-                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
-                                                            {fb.reason || 'Laporan'}
-                                                        </span>
+                                                                                                        <td className="py-3.5 px-4">
+                                                        <div className="flex flex-col gap-1">
+                                                            {isAdminReport(fb) && (
+                                                                <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded w-fit bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-400 border border-red-200 dark:border-red-800">
+                                                                    🚩 LAPORAN ADMIN
+                                                                </span>
+                                                            )}
+                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 w-fit">
+                                                                {formatFeedbackReason(fb.reason)}
+                                                            </span>
+                                                        </div>
                                                     </td>
+                                                    
                                                     <td className="py-3.5 px-4 text-xs text-slate-700 dark:text-slate-300 max-w-xs break-words">
                                                         {fb.description || fb.content || fb.message || '—'}
                                                     </td>
@@ -702,9 +780,10 @@ export default function AdminDashboardPage() {
                                                     </td>
                                                 </tr>
                                             ))
-                                        )}
+                                                                                )}
                                     </tbody>
                                 </table>
+                            </div>
                             </div>
                         )}
 

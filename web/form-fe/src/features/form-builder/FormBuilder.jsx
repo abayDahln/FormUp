@@ -5,7 +5,7 @@ import {
     Globe, Lock, ArrowLeft, Upload, FileUp, Image, Music, Download,
     Code, Calculator, Eye, EyeOff, X, Sparkles,
     Copy, Undo2, Redo2, FileDown, Wand2, ToggleLeft, ToggleRight,
-    ShieldAlert, Palette, CheckSquare, MoreHorizontal, ChevronDown as ChevDown,
+    ShieldAlert, Palette, CheckSquare, MoreHorizontal, MoreVertical, ChevronDown as ChevDown,
     Sliders, Share2, HelpCircle, Compass
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
@@ -145,6 +145,12 @@ export default function FormBuilder() {
 
     // Guided Onboarding Tour for Form Builder
     const [builderTourOpen, setBuilderTourOpen] = useState(false);
+
+    // B1: Upload progress per question index { [idx]: 0-100 | null }
+    const [uploadProgress, setUploadProgress] = useState({});
+
+    // B9: Ref to store last AI generation params for FAB quick-generate
+    const lastAIPromptRef = useRef(null);
 
     useEffect(() => {
         // Cek apakah ada query param ?tour=builder atau pemicu onboarding
@@ -915,12 +921,19 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
     };
 
         const handleUploadQuestionImage = async (idx, file) => {
+        // A1 FIX: Snapshot taken BEFORE await so it reflects pre-upload state
+        const snapshotBeforeUpload = JSON.parse(JSON.stringify(questionsRef.current));
         const qId = await autoSaveBeforeUpload(idx);
         if (!qId) { showToast('Gagal memproses soal sebelum mengunggah gambar', 'error'); return; }
 
-        const res = await uploadQuestionImage(id, qId, file);
+        // B1: Pass onProgress to show real upload progress
+        const res = await uploadQuestionImage(id, qId, file, (pct) => {
+            setUploadProgress(prev => ({ ...prev, [idx]: pct }));
+        });
+        setUploadProgress(prev => ({ ...prev, [idx]: null }));
         if (res.ok) {
-            pushHistory(questionsRef.current);
+            // A1 FIX: Push the pre-upload snapshot so undo restores state before image
+            pushHistory(snapshotBeforeUpload);
             updateQuestion(idx, 'questionImage', res.data?.questionImage ?? null);
             showToast('Gambar soal berhasil diunggah!');
         } else {
@@ -929,12 +942,19 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
     };
 
         const handleUploadQuestionAudio = async (idx, file) => {
+        // A1 FIX: Snapshot taken BEFORE await so it reflects pre-upload state
+        const snapshotBeforeUpload = JSON.parse(JSON.stringify(questionsRef.current));
         const qId = await autoSaveBeforeUpload(idx);
         if (!qId) { showToast('Gagal memproses soal sebelum mengunggah audio', 'error'); return; }
 
-        const res = await uploadQuestionAudio(id, qId, file);
+        // B1: Pass onProgress to show real upload progress
+        const res = await uploadQuestionAudio(id, qId, file, (pct) => {
+            setUploadProgress(prev => ({ ...prev, [idx]: pct }));
+        });
+        setUploadProgress(prev => ({ ...prev, [idx]: null }));
         if (res.ok) {
-            pushHistory(questionsRef.current);
+            // A1 FIX: Push the pre-upload snapshot so undo restores state before audio
+            pushHistory(snapshotBeforeUpload);
             updateQuestion(idx, 'questionAudio', res.data?.questionAudio ?? null);
             showToast('Audio soal berhasil diunggah!');
         } else {
@@ -1385,6 +1405,25 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
 
                                         {/* Media Attachments at the TOP of the Question */}
                                         <div className="pb-3 border-b border-slate-100 dark:border-slate-800 space-y-2">
+                                            {/* B1: Live Upload Progress Bar UI */}
+                                            {uploadProgress[idx] != null && (
+                                                <div className="w-full bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 rounded-xl p-2.5 space-y-1.5 animate-fadeIn">
+                                                    <div className="flex items-center justify-between text-[11px] font-bold text-teal-800 dark:text-teal-300">
+                                                        <span className="flex items-center gap-1.5">
+                                                            <Loader2 size={12} className="animate-spin text-teal-600" />
+                                                            Mengunggah media ke server ({uploadProgress[idx]}%)...
+                                                        </span>
+                                                        <span>{uploadProgress[idx]}%</span>
+                                                    </div>
+                                                    <div className="w-full bg-teal-200/60 dark:bg-teal-900/60 h-1.5 rounded-full overflow-hidden">
+                                                        <div
+                                                            className="bg-teal-600 h-full transition-all duration-200 rounded-full"
+                                                            style={{ width: `${uploadProgress[idx]}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <div className="flex flex-wrap items-center gap-3">
                                                 {/* Image attachment */}
                                                 {q.questionImage ? (
@@ -1571,7 +1610,7 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                                     )}
                                                 </div>
                                                 {q.options.map((opt, oIdx) => (
-                                                    <div key={oIdx} className="space-y-1">
+                                                    <div key={opt._id || opt.id || `opt_${idx}_${oIdx}`} className="space-y-1">
                                                         <div className="flex items-center gap-2">
                                                             {q.isScorable !== false ? (
                                                                 <label className="flex items-center gap-1 cursor-pointer">
@@ -1724,9 +1763,8 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Form tanpa soal akan tersimpan kosong (0 soal) dan otomatis kembali menjadi draf.</p>
                                 </div>
                             )}
-                            {/* A-2: Reorganized toolbar — Tambah Soal + Aksi Lainnya dropdown */}
+                           {/* Tambah Soal Manual — Aksi Lainnya dipindah ke FAB */}
                             <div className="flex flex-wrap gap-2 items-center">
-                                {/* Primary action: Tambah Soal Manual — always visible */}
                                 <button
                                     onClick={addQuestion}
                                     data-tour="builder-add-question"
@@ -1734,44 +1772,6 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                 >
                                     <Plus size={18} /> Tambah Soal Manual
                                 </button>
-
-                                {/* A-2: Aksi Lainnya dropdown */}
-                                <div className="relative" ref={actionsMenuRef}>
-                                    <button
-                                        type="button"
-                                        onClick={() => setActionsMenuOpen(prev => !prev)}
-                                        className="flex items-center gap-1.5 px-4 py-3.5 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-extrabold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all bg-white dark:bg-slate-900 cursor-pointer shadow-xs"
-                                    >
-                                        <MoreHorizontal size={16} />
-                                        <span>Aksi Lainnya</span>
-                                        <ChevDown size={13} className={`transition-transform duration-200 ${actionsMenuOpen ? 'rotate-180' : ''}`} />
-                                    </button>
-
-                                    {actionsMenuOpen && (
-                                        <div className="absolute bottom-full mb-2 left-0 z-30 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-                                            <button type="button" onClick={() => { setActionsMenuOpen(false); setAiModalOpen(true); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-700 dark:hover:text-teal-300 transition-colors cursor-pointer">
-                                                <Sparkles size={14} className="text-teal-600 dark:text-teal-400 shrink-0" /> Buat dengan AI
-                                            </button>
-                                            <button type="button" onClick={() => { setActionsMenuOpen(false); setBulkReviseMode(prev => !prev); setBulkReviseSelected(new Set()); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:text-purple-700 dark:hover:text-purple-300 transition-colors cursor-pointer">
-                                                <Wand2 size={14} className="text-purple-600 dark:text-purple-400 shrink-0" /> {bulkReviseMode ? 'Selesai Pilih (Revisi)' : 'Revisi Massal AI'}
-                                            </button>
-                                            <div className="h-px bg-slate-100 dark:bg-slate-800 mx-3 my-1" />
-                                            <button type="button" onClick={() => { setActionsMenuOpen(false); handleUndo(); }} disabled={historyIndex <= 0} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-                                                <Undo2 size={14} className="text-slate-500 shrink-0" /> Undo <span className="ml-auto text-[10px] font-normal text-slate-400">Ctrl+Z</span>
-                                            </button>
-                                            <button type="button" onClick={() => { setActionsMenuOpen(false); handleRedo(); }} disabled={historyIndex >= history.length - 1} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-                                                <Redo2 size={14} className="text-slate-500 shrink-0" /> Redo <span className="ml-auto text-[10px] font-normal text-slate-400">Ctrl+Y</span>
-                                            </button>
-                                            <div className="h-px bg-slate-100 dark:bg-slate-800 mx-3 my-1" />
-                                            <button type="button" onClick={() => { setActionsMenuOpen(false); handleExportQuestions(); }} disabled={questions.length === 0} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-700 dark:hover:text-blue-300 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-                                                <FileDown size={14} className="text-blue-600 dark:text-blue-400 shrink-0" /> Export Soal (CSV)
-                                            </button>
-                                            <button type="button" onClick={() => { setActionsMenuOpen(false); handleClearAllQuestions(); }} disabled={questions.length === 0} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-                                                <Trash2 size={14} className="shrink-0" /> Hapus Semua Soal
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
                             </div>
                             {bulkReviseMode && (
                                 <div className="sticky bottom-4 z-20 bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 rounded-2xl shadow-xl p-4 flex flex-wrap items-center gap-3">
@@ -2229,6 +2229,76 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                 </span>
                             </button>
 
+
+{activeTab === 'questions' && (
+    <>
+        <div className="h-px bg-slate-100 dark:bg-slate-800 my-0.5" />
+
+        <button
+            type="button"
+            onClick={() => { setFabMenuOpen(false); setAiModalOpen(true); }}
+            className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl text-slate-700 dark:text-slate-200 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-700 dark:hover:text-teal-300 transition-colors cursor-pointer"
+        >
+            <Sparkles size={14} className="text-teal-600 dark:text-teal-400 shrink-0" />
+            <span>Buat dengan AI</span>
+        </button>
+
+        <button
+            type="button"
+            onClick={() => { setFabMenuOpen(false); setBulkReviseMode(prev => !prev); setBulkReviseSelected(new Set()); }}
+            className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl text-slate-700 dark:text-slate-200 hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:text-purple-700 dark:hover:text-purple-300 transition-colors cursor-pointer"
+        >
+            <Wand2 size={14} className="text-purple-600 dark:text-purple-400 shrink-0" />
+            <span>{bulkReviseMode ? 'Selesai Pilih (Revisi)' : 'Revisi Massal AI'}</span>
+        </button>
+
+        <button
+            type="button"
+            onClick={() => { setFabMenuOpen(false); handleUndo(); }}
+            disabled={historyIndex <= 0}
+            className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+            <Undo2 size={14} className="text-slate-500 shrink-0" />
+            <span>Undo</span>
+            <span className="ml-auto text-[10px] font-normal text-slate-400">Ctrl+Z</span>
+        </button>
+
+        <button
+            type="button"
+            onClick={() => { setFabMenuOpen(false); handleRedo(); }}
+            disabled={historyIndex >= history.length - 1}
+            className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+            <Redo2 size={14} className="text-slate-500 shrink-0" />
+            <span>Redo</span>
+            <span className="ml-auto text-[10px] font-normal text-slate-400">Ctrl+Y</span>
+        </button>
+
+        <button
+            type="button"
+            onClick={() => { setFabMenuOpen(false); handleExportQuestions(); }}
+            disabled={questions.length === 0}
+            className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-700 dark:hover:text-blue-300 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+            <FileDown size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />
+            <span>Export Soal (CSV)</span>
+        </button>
+
+        <button
+            type="button"
+            onClick={() => { setFabMenuOpen(false); handleClearAllQuestions(); }}
+            disabled={questions.length === 0}
+            className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+            <Trash2 size={14} className="shrink-0" />
+            <span>Hapus Semua Soal</span>
+        </button>
+    </>
+)}
+
+<div className="h-px bg-slate-100 dark:bg-slate-800 my-0.5" />
+
+
                             <div className="h-px bg-slate-100 dark:bg-slate-800 my-0.5" />
 
                             {/* Scroll to Top */}
@@ -2266,7 +2336,7 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                         {isDirty && (
                             <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 border-2 border-white dark:border-slate-900" />
                         )}
-                        {fabMenuOpen ? <X size={20} /> : <Save size={20} />}
+                        {fabMenuOpen ? <X size={20} /> : <MoreVertical size={20} />}
                     </button>
                 </div>
 

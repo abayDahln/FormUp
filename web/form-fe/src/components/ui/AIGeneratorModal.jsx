@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import {
     generateQuestionsWithAI,
+    streamGenerateQuestionsWithAI,
     getGeminiApiKey,
     saveGeminiApiKey,
     removeGeminiApiKey,
@@ -132,30 +133,44 @@ export default function AIGeneratorModal({ isOpen, onClose, onAddQuestions, form
         setError(null);
         setGenerating(true);
         setStatusMessage('Menghubungkan ke Google AI Studio...');
+        setGeneratedQuestions([]);
+        setSelectedIndices([]);
 
-        const res = await generateQuestionsWithAI({
-            topic: topic.trim(),
-            contextText: contextText.trim(),
-            count: parseInt(count, 10) || 5,
-            typePreference,
-            difficulty,
-            includeMath,
-            includeCode,
-            selectedModel,
-            customApiKey: currentKey,
-            onStatus: (msg) => setStatusMessage(msg),
-        });
-
-        setGenerating(false);
-
-        if (res.ok && res.data && res.data.length > 0) {
-            setGeneratedQuestions(res.data);
-            setResultInfo({ model: res.modelUsed, time: res.elapsedSec });
-            setSelectedIndices(res.data.map((_, i) => i)); // Select all by default
-            setStep('preview');
-        } else {
-            setError(res.message || 'Gagal membuat soal. Periksa kembali koneksi atau API Key Anda.');
-        }
+        await streamGenerateQuestionsWithAI(
+            {
+                topic: topic.trim(),
+                contextText: contextText.trim(),
+                count: parseInt(count, 10) || 5,
+                typePreference,
+                difficulty,
+                includeMath,
+                includeCode,
+                selectedModel,
+                customApiKey: currentKey,
+            },
+            (question) => {
+                // B9: Live stream question into preview list
+                setGeneratedQuestions(prev => {
+                    const next = [...prev, question];
+                    setSelectedIndices(next.map((_, i) => i));
+                    return next;
+                });
+                setStep('preview');
+            },
+            (statusMsg) => {
+                setStatusMessage(statusMsg);
+            },
+            (doneRes) => {
+                setGenerating(false);
+                if (doneRes.ok) {
+                    setResultInfo({ model: doneRes.modelUsed, time: doneRes.elapsedSec });
+                } else {
+                    if (generatedQuestions.length === 0) {
+                        setError(doneRes.message || 'Gagal membuat soal. Periksa kembali koneksi atau API Key Anda.');
+                    }
+                }
+            }
+        );
     };
 
     const toggleSelect = (index) => {

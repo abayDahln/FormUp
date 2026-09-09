@@ -1,655 +1,988 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from '@studio-freight/lenis';
-import { 
-  ArrowRight, Smartphone, Check, ChevronDown,
-  Layers, BarChart2, QrCode, Globe, Zap, Sparkles, Send,
-  FileText, CheckCircle2
+import {
+  ArrowUpRight, Smartphone, Check, ChevronDown,
+  Layers, BarChart2, QrCode, Globe, Download, Plus
 } from 'lucide-react';
 import { isAuthenticated } from '../../services/apiService';
 import logo from "../../assets/logo.png";
 
 gsap.registerPlugin(ScrollTrigger);
+ScrollTrigger.config({ ignoreMobileResize: true });
 
+/* ─────────────────────────────────────────────
+   PALET — krem hangat + hijau (warna app)
+───────────────────────────────────────────── */
+const CREAM = '#F6F4ED';
+const INK = '#1C2620';
+const GREEN = '#157A4E';
+const GREEN_DEEP = '#0E5A3A';
+const DARK = '#0D1F17';
+const TINT = '#ECEFE4';
+const LIGHT = '#5BC98C';
+
+/* ─────────────────────────────────────────────
+   DATA
+───────────────────────────────────────────── */
+const RITUAL_LINES = [
+  'Buka laptop, tunggu loading.',
+  'Rancang formulir dari nol.',
+  'Tempel link ke tiap grup chat.',
+  'Susun nilai manual di spreadsheet.',
+  'Ulangi semuanya besok pagi.',
+];
+
+const WORKFLOW = [
+  { num: '01', title: 'Rancang',
+    desc: 'Pilihan ganda, essay, atau skala penilaian — lengkap dengan bobot nilai per soal.' },
+  { num: '02', title: 'Atur',
+    desc: 'Batas waktu, acak urutan soal, dan batasi satu kali pengisian per responden.' },
+  { num: '03', title: 'Bagikan',
+    desc: 'Link pendek dan QR code siap ditampilkan di proyektor, papan tulis, atau story.' },
+  { num: '04', title: 'Pantau',
+    desc: 'Rekap nilai dan grafik jawaban terhitung otomatis. Ekspor ke CSV / XLSX satu klik.' },
+];
+
+const BEATS = [
+  { num: '01', screen: 'build', title: 'Rancang',
+    desc: 'Susun kuis atau survei lewat builder yang ringan — tersedia di web dan aplikasi Android.' },
+  { num: '02', screen: 'share', title: 'Bagikan',
+    desc: 'Satu link, satu QR code. Peserta mengisi lewat browser tanpa perlu memasang apa pun.' },
+  { num: '03', screen: 'track', title: 'Pantau',
+    desc: 'Respons masuk real-time. Nilai dan grafik terhitung otomatis, siap diekspor kapan pun.' },
+];
+
+const FEATURES = [
+  { icon: Layers, title: 'Form builder yang ringan',
+    desc: 'Antarmuka bersih, tanpa iklan, nyaman dipakai di layar kecil maupun besar.' },
+  { icon: BarChart2, title: 'Hasil terhitung otomatis',
+    desc: 'Grafik jawaban dan rekap nilai langsung jadi. Tidak ada rumus spreadsheet manual.' },
+  { icon: QrCode, title: 'QR code bawaan',
+    desc: 'Peserta pindai, langsung mengisi. Tidak perlu mengetik alamat apa pun.' },
+];
+
+const MANIFESTO =
+  'Ide untuk kuis atau survei bisa muncul kapan saja — di kelas, di perjalanan, di sela rapat. FormUp membuat satu akunmu cukup: rancang di web, bagikan dan pantau dari mana saja. Data tidak perlu menunggu kamu duduk di depan laptop.';
+
+const FAQS = [
+  { q: 'Apakah FormUp gratis?',
+    a: 'Ya. Membuat formulir, membagikan, dan mengumpulkan respons tidak dikenakan biaya.' },
+  { q: 'Bagaimana sinkronisasi web dan mobile?',
+    a: 'Satu akun untuk keduanya. Formulir yang dibuat di web langsung muncul di aplikasi Android, dan sebaliknya.' },
+  { q: 'Ada batas jumlah respons?',
+    a: 'Tidak ada. Kumpulkan respons sebanyak apa pun dari siswa, peserta, atau responden survei.' },
+  { q: 'Bisakah hasil diekspor?',
+    a: 'Bisa. Rekapitulasi dapat diekspor ke CSV dan XLSX dari halaman respons.' },
+];
+
+const APK_URL = 'https://github.com/abayDahln/FormUp/releases/download/v1.0.0/FormUp.apk';
+
+/* ─────────────────────────────────────────────
+   MAGNETIC
+───────────────────────────────────────────── */
+function Magnetic({ children, className = '', strength = 0.35 }) {
+  const ref = useRef(null);
+  const xTo = useRef(null);
+  const yTo = useRef(null);
+
+  useEffect(() => {
+    xTo.current = gsap.quickTo(ref.current, 'x', { duration: 0.5, ease: 'power3.out' });
+    yTo.current = gsap.quickTo(ref.current, 'y', { duration: 0.5, ease: 'power3.out' });
+  }, []);
+
+  const onMove = useCallback((e) => {
+    const rect = ref.current.getBoundingClientRect();
+    xTo.current((e.clientX - (rect.left + rect.width / 2)) * strength);
+    yTo.current((e.clientY - (rect.top + rect.height / 2)) * strength);
+  }, [strength]);
+  const onLeave = useCallback(() => { xTo.current(0); yTo.current(0); }, []);
+
+  return (
+    <div ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} className={`inline-block ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   STAT — count-up mandiri via IntersectionObserver
+───────────────────────────────────────────── */
+function Stat({ value, suffix, label }) {
+  const [n, setN] = useState(value);
+  const started = useRef(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    const io = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting || started.current) return;
+      started.current = true;
+      io.disconnect();
+      const start = performance.now();
+      const dur = 1400;
+      const tick = (t) => {
+        const p = Math.min(1, (t - start) / dur);
+        setN(Math.round(value * (1 - Math.pow(1 - p, 3))));
+        if (p < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }, { threshold: 0.4 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [value]);
+
+  return (
+    <div ref={ref}>
+      <p className="text-5xl md:text-6xl font-extrabold tracking-tight" style={{ color: INK }}>
+        {n}<span style={{ color: GREEN }}>{suffix}</span>
+      </p>
+      <p className="text-sm mt-3 leading-relaxed" style={{ color: `${INK}80` }}>{label}</p>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   LAYAR PONSEL CERITA (build / share / track)
+───────────────────────────────────────────── */
+function StoryPhone({ screen }) {
+  return (
+    <div className="relative w-[250px]">
+      <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-48 h-7 rounded-full blur-2xl"
+        style={{ backgroundColor: `${GREEN}40` }} />
+      <div className="relative rounded-[40px] p-2.5 border border-white/25"
+        style={{
+          background: 'linear-gradient(180deg, #2E3B33 0%, #141D18 100%)',
+          boxShadow: '0 36px 80px -22px rgba(13,31,23,0.55)',
+        }}>
+        <div className="rounded-[32px] p-5 aspect-[9/18] flex flex-col gap-4 text-left overflow-hidden"
+          style={{ backgroundColor: '#0D1512' }}>
+          <div className="w-20 h-4 rounded-full mx-auto flex items-center justify-end px-2"
+            style={{ backgroundColor: '#16211B' }}>
+            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: `${LIGHT}CC` }} />
+          </div>
+
+          {screen === 'build' && (
+            <>
+              <div>
+                <p className="text-xs font-bold text-white">Formulir baru</p>
+                <p className="text-[10px] mt-0.5" style={{ color: '#5BC98C' }}>Draf tersimpan otomatis</p>
+              </div>
+              <div className="rounded-xl p-3 space-y-2" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div className="h-2 w-3/4 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.18)' }} />
+                <div className="h-6 rounded-md flex items-center px-2 text-[9px] text-stone-400" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                  Pilihan ganda
+                </div>
+                <div className="h-6 rounded-md flex items-center px-2 text-[9px] text-stone-400" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
+                  Essay
+                </div>
+              </div>
+              <div className="rounded-xl px-3 py-2.5 flex items-center justify-center gap-1.5 text-[10px] font-bold text-white"
+                style={{ backgroundColor: GREEN }}>
+                <Plus size={11} /> Tambah pertanyaan
+              </div>
+            </>
+          )}
+
+          {screen === 'share' && (
+            <>
+              <div>
+                <p className="text-xs font-bold text-white">Ujian Harian Fisika</p>
+                <p className="text-[10px] mt-0.5 text-stone-400">Siap dibagikan</p>
+              </div>
+              <div className="rounded-xl p-4 flex flex-col items-center gap-3"
+                style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div className="w-24 h-24 rounded-xl flex items-center justify-center"
+                  style={{ backgroundColor: '#F6F4ED' }}>
+                  <QrCode size={64} style={{ color: INK }} />
+                </div>
+                <p className="text-[10px] font-semibold" style={{ color: LIGHT }}>formup.app/f/8x2k</p>
+              </div>
+              <div className="rounded-xl px-3 py-2 flex items-center justify-between"
+                style={{ backgroundColor: `${GREEN}1F`, border: `1px solid ${GREEN}40` }}>
+                <span className="text-[10px] font-medium" style={{ color: LIGHT }}>Siap dipindai</span>
+                <Check size={13} style={{ color: LIGHT }} />
+              </div>
+            </>
+          )}
+
+          {screen === 'track' && (
+            <>
+              <div>
+                <p className="text-xs font-bold text-white">Rekap respons</p>
+                <p className="text-[10px] mt-0.5" style={{ color: LIGHT }}>128 dari 140 sudah mengisi</p>
+              </div>
+              <div className="rounded-xl p-4 space-y-2.5"
+                style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <p className="text-[10px] text-stone-400">Persebaran nilai</p>
+                <div className="flex items-end gap-1.5 h-20">
+                  {[35, 55, 80, 100, 70, 45].map((h, i) => (
+                    <div key={i} className="flex-1 rounded-t-sm" style={{ height: `${h}%`, backgroundColor: i === 3 ? LIGHT : GREEN }} />
+                  ))}
+                </div>
+                <div className="flex justify-between text-[8px] text-stone-500">
+                  <span>0</span><span>50</span><span>100</span>
+                </div>
+              </div>
+              <div className="rounded-xl px-3 py-2 flex items-center justify-between"
+                style={{ backgroundColor: `${GREEN}1F`, border: `1px solid ${GREEN}40` }}>
+                <span className="text-[10px] font-medium" style={{ color: LIGHT }}>Ekspor CSV / XLSX</span>
+                <Download size={12} style={{ color: LIGHT }} />
+              </div>
+            </>
+          )}
+
+          <div className="mt-auto pt-3 flex items-center justify-between text-[10px] text-stone-500"
+            style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+            <span>formup.app</span>
+            <span style={{ color: LIGHT }}>Terhubung</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   MAIN
+───────────────────────────────────────────── */
 export default function LandingPage() {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
-  const [activeFaq, setActiveFaq] = useState(null);
-  const [activePreset, setActivePreset] = useState('quiz');
-
-  // 3D Phone Tilt State
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
-  const [glarePos, setGlarePos] = useState({ x: 50, y: 50 });
+  const [openFaq, setOpenFaq] = useState(null);
+  const [preset, setPreset] = useState('quiz');
+  const [beat, setBeat] = useState(0);
+  const [screen, setScreen] = useState('build');
 
   const containerRef = useRef(null);
-  const heroPhoneRef = useRef(null);
-  const storyRef = useRef(null);
+  const phoneIntroRef = useRef(null);
+  const phoneFloatRef = useRef(null);
+  const phoneFallRef = useRef(null);
+  const phoneTiltRef = useRef(null);
+  const glareRef = useRef(null);
+  const rotXTo = useRef(null);
+  const rotYTo = useRef(null);
 
-  // Redirect if already logged in
   useEffect(() => {
-    if (isAuthenticated()) {
-      navigate('/dashboard', { replace: true });
-    }
+    if (isAuthenticated()) navigate('/dashboard', { replace: true });
   }, [navigate]);
 
-  // Lenis & GSAP Setup
+  /* ── TILT 3D hero ── */
   useEffect(() => {
-    // 1. Lenis Smooth Scroll
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      smooth: true,
-      smoothTouch: false,
-    });
+    if (!phoneTiltRef.current) return;
+    rotXTo.current = gsap.quickTo(phoneTiltRef.current, 'rotationX', { duration: 0.6, ease: 'power3.out' });
+    rotYTo.current = gsap.quickTo(phoneTiltRef.current, 'rotationY', { duration: 0.6, ease: 'power3.out' });
+  }, []);
 
-    lenis.on('scroll', ScrollTrigger.update);
+  const handleMouseMove = useCallback((e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width;
+    const py = (e.clientY - rect.top) / rect.height;
+    rotXTo.current?.((py - 0.5) * -18);
+    rotYTo.current?.((px - 0.5) * 22);
+    if (glareRef.current) {
+      glareRef.current.style.background =
+        `radial-gradient(circle at ${px * 100}% ${py * 100}%, rgba(255,255,255,0.4) 0%, transparent 55%)`;
+    }
+  }, []);
+  const handleMouseLeave = useCallback(() => {
+    rotXTo.current?.(0);
+    rotYTo.current?.(0);
+    if (glareRef.current) {
+      glareRef.current.style.background =
+        'radial-gradient(circle at 50% 20%, rgba(255,255,255,0.18) 0%, transparent 55%)';
+    }
+  }, []);
 
-    const updateLenis = (time) => {
-      lenis.raf(time * 1000);
-    };
+  /* ── LENIS + GSAP ── */
+  useEffect(() => {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    gsap.ticker.add(updateLenis);
+    let lenis = null;
+    if (!reduced) {
+      lenis = new Lenis({ duration: 1.15, smoothWheel: true });
+      lenis.on('scroll', ScrollTrigger.update);
+    }
+    const raf = (time) => lenis?.raf(time * 1000);
+    gsap.ticker.add(raf);
     gsap.ticker.lagSmoothing(0);
 
-    // 2. Navbar Scroll Listener
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    window.addEventListener('scroll', onScroll, { passive: true });
 
-    // 3. GSAP Animations Context
+    const mm = gsap.matchMedia();
+
     const ctx = gsap.context(() => {
-      // Hero 3D phone floating levitation
-      gsap.to(heroPhoneRef.current, {
-        y: -18,
-        duration: 3,
-        repeat: -1,
-        yoyo: true,
-        ease: 'sine.inOut'
+      /* ── progress bar halaman ── */
+      gsap.to('#page-progress', {
+        scaleX: 1, ease: 'none',
+        scrollTrigger: { trigger: document.body, start: 'top top', end: 'bottom bottom', scrub: 0.3 },
       });
 
-      // Hero Parallax on Scroll
-      gsap.to(heroPhoneRef.current, {
-        rotateX: 18,
-        rotateY: -10,
-        z: -60,
-        scale: 0.94,
-        ease: 'none',
+      /* ── HERO ENTRANCE (time-based, pasti jalan) ── */
+      gsap.timeline({ defaults: { ease: 'power4.out' } })
+        .fromTo('.nav-item', { y: -18, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.08, duration: 0.8 }, 0.1)
+        .fromTo('.hero-kicker', { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8 }, 0.25)
+        .fromTo('.hero-line', { yPercent: 110 }, { yPercent: 0, stagger: 0.12, duration: 1.1 }, 0.3)
+        .fromTo('.hero-sub', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8 }, 0.7)
+        .fromTo('.hero-cta', { y: 16, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.1, duration: 0.7 }, 0.85)
+        .fromTo('.hero-meta', { opacity: 0 }, { opacity: 1, duration: 0.9 }, 1)
+        .fromTo(phoneIntroRef.current, { y: 80, opacity: 0, scale: 0.94 },
+          { y: 0, opacity: 1, scale: 1, duration: 1.3, ease: 'power3.out' }, 0.45);
+
+      /* levitasi */
+      gsap.to(phoneFloatRef.current, { y: -12, duration: 3.2, repeat: -1, yoyo: true, ease: 'sine.inOut' });
+
+      /* hp "jatuh" keluar hero — scrub di wrapper terluar, tween tunggal */
+      gsap.to(phoneFallRef.current, {
+        y: 340, rotate: -14, opacity: 0, ease: 'none',
+        scrollTrigger: { trigger: '#hero', start: 'top top', end: 'bottom top', scrub: 1 },
+      });
+
+      /* ── RITUAL — stacked pinning (konten nyata, anti blank) ── */
+      mm.add('(min-width: 768px)', () => {
+        gsap.utils.toArray('.ritual-panel').forEach((panel) => {
+          gsap.from(panel.querySelector('.ritual-inner'), {
+            y: 70, opacity: 0, duration: 1, ease: 'power3.out',
+            scrollTrigger: { trigger: panel, start: 'top 62%', toggleActions: 'play none none reverse' },
+          });
+          ScrollTrigger.create({ trigger: panel, start: 'top top', pin: true, pinSpacing: false });
+        });
+      });
+
+      mm.add('(max-width: 767px)', () => {
+        gsap.utils.toArray('.m-reveal').forEach((el) => {
+          gsap.from(el, {
+            y: 36, opacity: 0, duration: 0.9, ease: 'power3.out',
+            scrollTrigger: { trigger: el, start: 'top 88%', once: true },
+          });
+        });
+      });
+
+      /* ── MANIFESTO — kata menyala ── */
+      gsap.fromTo('.mword', { opacity: 0.15 }, {
+        opacity: 1, stagger: 0.05, ease: 'none',
         scrollTrigger: {
-          trigger: '#hero-section',
-          start: 'top top',
-          end: 'bottom top',
-          scrub: 1.2
-        }
+          trigger: '#manifesto', start: 'top 78%', end: 'bottom 65%',
+          scrub: 1, invalidateOnRefresh: true,
+        },
       });
 
-      // Story Section Typography Reveal
-      gsap.fromTo('.story-reveal', 
-        { opacity: 0.2, y: 30 },
-        {
-          opacity: 1,
-          y: 0,
-          stagger: 0.2,
-          duration: 1,
-          ease: 'power3.out',
+      /* ── ALUR — GSAP PIN (bukan CSS sticky, fixes overflow-x bug).
+         Track mulai dari posisi natural → walau tween gagal, kartu pertama tetap terlihat. ── */
+      mm.add('(min-width: 768px)', () => {
+        const track = document.querySelector('.wf-track');
+        const dist = () => Math.max(0, track.scrollWidth - window.innerWidth + 60);
+        gsap.to(track, {
+          x: () => -dist(), ease: 'none',
           scrollTrigger: {
-            trigger: storyRef.current,
-            start: 'top 75%',
-            end: 'bottom 70%',
-            scrub: 1
-          }
-        }
-      );
-
-      // Workflow Cards Stagger Animation
-      gsap.fromTo('.workflow-card',
-        { opacity: 0, y: 50, scale: 0.95 },
-        {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-          stagger: 0.15,
-          duration: 0.8,
-          ease: 'power2.out',
+            trigger: '#alur', start: 'top top',
+            end: () => '+=' + dist(),
+            scrub: 1, pin: true, anticipatePin: 1, invalidateOnRefresh: true,
+          },
+        });
+        gsap.fromTo('.wf-progress', { scaleX: 0 }, {
+          scaleX: 1, ease: 'none',
           scrollTrigger: {
-            trigger: '#workflow-section',
-            start: 'top 75%'
-          }
-        }
-      );
+            trigger: '#alur', start: 'top top',
+            end: () => '+=' + dist(), scrub: 1, invalidateOnRefresh: true,
+          },
+        });
+      });
 
-      // ── PHONE TRIO 3D FAN-OUT / SPREAD ANIMATION ──
-      // The left and right phones start tucked behind the center phone,
-      // and fan out ONLY when the user scrolls into the trio container.
+      /* ── CERITA — ponsel menemani scroll 2,5 layar.
+         Beat pakai toggleClass (CSS transition) → tidak ada konten yang
+         nyangkut hidden walau pengukuran meleset. ── */
+      mm.add('(min-width: 768px)', () => {
+        ScrollTrigger.create({
+          trigger: '#cerita', start: 'top top', end: '+=250%',
+          pin: '.cerita-stage', anticipatePin: 1,
+        });
+
+        const beats = gsap.utils.toArray('.beat');
+        const step = () => window.innerHeight * 0.8;
+        beats.forEach((b, i) => {
+          ScrollTrigger.create({
+            trigger: '#cerita',
+            start: () => 'top+=' + i * step() + ' top',
+            end: () => 'top+=' + (i + 1) * step() + ' top',
+            onToggle: (self) => {
+              if (!self.isActive) return;
+              beats.forEach((x) => x.classList.remove('beat-active'));
+              b.classList.add('beat-active');
+              setBeat(i);
+              setScreen(BEATS[i].screen);
+            },
+          });
+        });
+
+        /* gerak ponsel: melayang → jatuh keluar di akhir */
+        gsap.timeline({
+          scrollTrigger: { trigger: '#cerita', start: 'top top', end: '+=250%', scrub: 1 },
+        })
+          .fromTo('.cerita-phone', { y: 90, rotate: 5 }, { y: -30, rotate: -4, ease: 'none', duration: 3 })
+          .to('.cerita-phone', { y: 320, rotate: 16, opacity: 0, ease: 'power1.in', duration: 1 });
+      });
+
+      /* ── FITUR ── */
+      gsap.from('.feature-card', {
+        y: 56, opacity: 0, duration: 0.9, stagger: 0.12, ease: 'power3.out',
+        scrollTrigger: { trigger: '#fitur', start: 'top 78%', once: true },
+      });
+
+      /* ── TRIO FAN-OUT 3D (play-once) ── */
       const trioTl = gsap.timeline({
-        scrollTrigger: {
-          trigger: '#trio-container',
-          start: 'top 85%',
-          end: 'center 55%',
-          scrub: 1.2
-        }
+        scrollTrigger: { trigger: '#trio', start: 'top 85%', once: true },
+        defaults: { duration: 1.1, ease: 'power3.out' },
       });
-
       trioTl
-        .fromTo('.trio-left', 
-          { x: 110, y: 0, rotateY: 0, rotateZ: 0, scale: 0.8, opacity: 0 },
-          { x: 0, y: 20, rotateY: 20, rotateZ: -10, scale: 0.92, opacity: 0.85, ease: 'power2.out' }, 0)
-        .fromTo('.trio-right', 
-          { x: -110, y: 0, rotateY: 0, rotateZ: 0, scale: 0.8, opacity: 0 },
-          { x: 0, y: 20, rotateY: -20, rotateZ: 10, scale: 0.92, opacity: 0.85, ease: 'power2.out' }, 0)
-        .fromTo('.trio-center',
-          { scale: 0.92, y: 30 },
-          { scale: 1.05, y: -10, ease: 'power2.out' }, 0);
+        .fromTo('.trio-left',
+          { x: 90, rotateY: 0, rotateZ: 0, scale: 0.72, opacity: 0 },
+          { x: 0, rotateY: 22, rotateZ: -8, scale: 0.9, opacity: 1 }, 0)
+        .fromTo('.trio-right',
+          { x: -90, rotateY: 0, rotateZ: 0, scale: 0.72, opacity: 0 },
+          { x: 0, rotateY: -22, rotateZ: 8, scale: 0.9, opacity: 1 }, 0)
+        .fromTo('.trio-center', { scale: 0.88, y: 36 }, { scale: 1.04, y: -6 }, 0);
 
-      // FAQ Cards Stagger Reveal on scroll
-      gsap.fromTo('.faq-card',
-        { opacity: 0, y: 25 },
-        {
-          opacity: 1,
-          y: 0,
-          stagger: 0.1,
-          duration: 0.7,
-          ease: 'power2.out',
-          scrollTrigger: {
-            trigger: '#faq-section',
-            start: 'top 80%'
-          }
-        }
-      );
-
+      /* ── FAQ ── */
+      gsap.from('.faq-card', {
+        y: 28, opacity: 0, duration: 0.7, stagger: 0.08, ease: 'power2.out',
+        scrollTrigger: { trigger: '#faq', start: 'top 82%', once: true },
+      });
     }, containerRef);
 
+    /* refresh setelah font, gambar, dan layout stabil */
+    if (document.fonts?.ready) document.fonts.ready.then(() => ScrollTrigger.refresh());
+    const onLoad = () => ScrollTrigger.refresh();
+    window.addEventListener('load', onLoad);
+    const t = setTimeout(() => ScrollTrigger.refresh(), 600);
+
     return () => {
+      clearTimeout(t);
       ctx.revert();
-      lenis.destroy();
-      gsap.ticker.remove(updateLenis);
-      window.removeEventListener('scroll', handleScroll);
-      ScrollTrigger.getAll().forEach(st => st.kill());
+      mm.revert();
+      gsap.ticker.remove(raf);
+      lenis?.destroy();
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('load', onLoad);
     };
   }, []);
 
-  // 3D Mouse Movement Tracker for Hero Phone
-  const handleMouseMove = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-    
-    const rotateX = ((y - centerY) / centerY) * -14;
-    const rotateY = ((x - centerX) / centerX) * 14;
-    
-    setTilt({ x: rotateX, y: rotateY });
-    setGlarePos({ x: (x / rect.width) * 100, y: (y / rect.height) * 100 });
-  };
-
-  const handleMouseLeave = () => {
-    setTilt({ x: 0, y: 0 });
-    setGlarePos({ x: 50, y: 50 });
-  };
-
-  const faqs = [
-    {
-      q: 'Apakah FormUp benar-benar gratis?',
-      a: 'Ya, Anda bisa membuat formulir, menyebarkannya, dan mengumpulkan respons tanpa batas biaya sepeser pun.'
-    },
-    {
-      q: 'Bagaimana integrasi antara versi web dan mobile?',
-      a: 'Akun Anda tersinkronisasi secara instan. Semua form yang dibuat di web langsung tersedia di aplikasi mobile dan sebaliknya.'
-    },
-    {
-      q: 'Apakah ada batasan jumlah respons atau pengisi?',
-      a: 'Tidak ada batasan kuota. Anda bebas mengumpulkan ribuan respons dari siswa, peserta, atau responden survei.'
-    },
-    {
-      q: 'Bisakah data hasil diekspor ke Excel / CSV?',
-      a: 'Tentu. Anda dapat mengekspor rekapitulasi data ke format CSV dan Excel (XLSX) dengan satu klik dari menu respon.'
-    }
-  ];
+  const setActiveBeat = (i) => { setBeat(i); setScreen(BEATS[i].screen); };
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-[#06080D] text-slate-100 font-sans selection:bg-[#00897B] selection:text-white overflow-x-hidden antialiased">
-      
-      {/* ── GOOGLE FONT INJECTION (Instrument Serif) ──────── */}
+    <div ref={containerRef} className="min-h-screen overflow-x-clip antialiased"
+      style={{ backgroundColor: CREAM, color: INK, fontFamily: "'Inter', system-ui, sans-serif" }}>
+
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
-        .font-serif-italic {
-          font-family: 'Instrument Serif', serif;
-          font-style: italic;
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap');
+        .font-serifit { font-family: 'Instrument Serif', Georgia, serif; }
+
+        @keyframes blink { 50% { opacity: .2 } }
+        .blink { animation: blink 1.6s ease-in-out infinite; }
+
+        /* beat cerita — desktop: tumpukan absolut; mobile: alur normal */
+        @media (min-width: 768px) {
+          .beat {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column; justify-content: center;
+            opacity: 0; transform: translateY(28px);
+            transition: opacity .55s ease, transform .55s ease;
+            pointer-events: none;
+          }
+          .beat-active { opacity: 1 !important; transform: none !important; pointer-events: auto; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .blink { animation: none !important; }
+          .beat { transition: none !important; }
         }
       `}</style>
 
-      {/* ── NAVBAR ────────────────────────────────────────── */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 px-6 py-3.5 ${
-        scrolled 
-          ? 'bg-[#06080D]/80 backdrop-blur-md border-b border-white/[0.08] shadow-lg shadow-black/20' 
-          : 'bg-transparent'
-      }`}>
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          
-          {/* Branding & Logo */}
-          <Link to="/" className="flex items-center gap-2.5 group select-none">
-            <img 
-              src={logo} 
-              alt="FormUp Logo" 
-              className="w-8 h-8 object-contain transition-transform duration-300 group-hover:scale-105" 
-            />
-            <span className="text-xl font-black tracking-tight text-white flex items-center">
-              Form<span className="text-[#00C4B4]">Up</span>
-            </span>
-          </Link>
+      <div id="page-progress" className="fixed top-0 left-0 right-0 h-[3px] origin-left scale-x-0 z-[60]"
+        style={{ backgroundColor: GREEN }} />
 
-          {/* Right Action Buttons */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Link 
-              to="/login" 
-              className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors duration-200"
-            >
+      {/* ── NAVBAR ── */}
+      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 px-6 ${
+        scrolled ? 'backdrop-blur-md border-b py-3' : 'bg-transparent py-5'
+      }`} style={scrolled ? { backgroundColor: `${CREAM}D9`, borderColor: `${INK}1A` } : {}}>
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <Link to="/" className="nav-item flex items-center gap-2.5">
+            <img src={logo} alt="FormUp" className="w-8 h-8 object-contain" />
+            <span className="text-lg font-bold tracking-tight">Form<span style={{ color: GREEN }}>Up</span></span>
+          </Link>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <Link to="/login" className="nav-item px-3 py-2 text-sm font-medium transition-colors"
+              style={{ color: `${INK}99` }}>
               Masuk
             </Link>
-            <Link 
-              to="/register" 
-              className="px-4 sm:px-5 py-2 text-xs font-bold text-slate-950 bg-[#00C4B4] hover:bg-[#00E5D0] active:scale-95 rounded-full transition-all duration-200 shadow-md shadow-[#00C4B4]/20 hover:shadow-[#00C4B4]/30 flex items-center justify-center"
-            >
-              Daftar Gratis
-            </Link>
+            <Magnetic>
+              <Link to="/register"
+                className="nav-item px-5 py-2.5 text-sm font-semibold text-[#F6F4ED] rounded-full transition-colors duration-300"
+                style={{ backgroundColor: INK }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = GREEN)}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = INK)}
+              >
+                Daftar gratis
+              </Link>
+            </Magnetic>
           </div>
-
         </div>
       </nav>
 
-      {/* ── CHAPTER 01: HERO (3D PERSPECTIVE PHONE) ───────── */}
-      <section id="hero-section" className="relative min-h-[95vh] flex flex-col items-center justify-center text-center px-6 pt-32 pb-20 overflow-hidden">
-        {/* Deep Atmospheric Glows */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[450px] bg-teal-500/[0.08] blur-[160px] rounded-full pointer-events-none" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] h-[320px] bg-[#00897B]/[0.15] blur-[110px] rounded-full pointer-events-none" />
-
-        <div className="max-w-4xl mx-auto space-y-6 relative z-10">
-          <h1 className="text-5xl sm:text-7xl md:text-8xl font-extrabold tracking-tight text-white leading-[0.95]">
-            Buat formulir,<br />
-            <span className="font-serif-italic font-normal text-[#00C4B4] tracking-normal text-6xl sm:text-8xl md:text-9xl">
-              dari mana saja.
-            </span>
-          </h1>
-
-          <p className="text-sm sm:text-base text-slate-400 max-w-lg mx-auto font-normal leading-relaxed">
-            FormUp hadir di genggamanmu. Buat kuis interaktif, kumpulkan data survei, dan pantau skor secara instan langsung dari smartphone.
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
-          <a 
-            href="https://github.com/abayDahln/FormUp/releases/download/v1.0.0/FormUp.apk"
-            download="FormUp.apk"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full sm:w-auto px-8 py-3.5 bg-[#00C4B4] hover:bg-[#00E5D0] text-slate-950 text-xs font-extrabold rounded-full transition-all duration-200 hover:-translate-y-0.5 shadow-xl shadow-teal-500/25 flex items-center justify-center gap-2 group cursor-pointer"
-          >
-            <Smartphone size={16} />
-            <span>Download Mobile App</span>
-          </a>
-
-            <Link 
-              to="/login"
-              className="w-full sm:w-auto px-8 py-3.5 bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/[0.08] hover:border-white/20 text-xs font-semibold rounded-full transition-all duration-200 flex items-center justify-center gap-2"
-            >
-              <Globe size={15} className="text-slate-400" />
-              <span>Coba Versi Web</span>
-            </Link>
+      {/* ═══ HERO ═══ */}
+      <section id="hero" className="relative px-6 pt-36 pb-24 lg:pt-40 overflow-hidden">
+        <div className="max-w-6xl mx-auto grid lg:grid-cols-[1.1fr_0.9fr] gap-16 items-center">
+          <div>
+            <p className="hero-kicker text-xs font-bold tracking-[0.18em] uppercase mb-7 flex items-center gap-2.5"
+              style={{ color: GREEN }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: GREEN }} />
+              Form builder untuk web &amp; mobile
+            </p>
+            <h1 className="text-5xl sm:text-7xl lg:text-[5.4rem] font-extrabold tracking-[-0.03em] leading-[1.02]">
+              <span className="block overflow-hidden pb-1"><span className="hero-line block">Buat formulir,</span></span>
+              <span className="block overflow-hidden pb-2">
+                <span className="hero-line block">
+                  <span className="font-serifit italic font-normal" style={{ color: GREEN }}>dari mana saja.</span>
+                </span>
+              </span>
+            </h1>
+            <p className="hero-sub text-base max-w-md leading-relaxed mt-7" style={{ color: `${INK}99` }}>
+              Kuis, survei, dan pantauan nilai dalam hitungan menit. Rancang di browser,
+              bagikan lewat link atau QR, pantau hasilnya langsung.
+            </p>
+            <div className="flex flex-col sm:flex-row items-start gap-3.5 mt-9">
+              <Magnetic className="hero-cta w-full sm:w-auto">
+                <a href={APK_URL} download="FormUp.apk" target="_blank" rel="noopener noreferrer"
+                  className="w-full sm:w-auto px-7 py-3.5 text-[#F6F4ED] text-sm font-semibold rounded-full transition-colors duration-300 flex items-center justify-center gap-2"
+                  style={{ backgroundColor: GREEN }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = GREEN_DEEP)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = GREEN)}
+                >
+                  <Smartphone size={16} /> Unduh aplikasi <ArrowUpRight size={15} />
+                </a>
+              </Magnetic>
+              <Magnetic className="hero-cta w-full sm:w-auto" strength={0.25}>
+                <Link to="/login"
+                  className="w-full sm:w-auto px-7 py-3.5 text-sm font-semibold rounded-full border transition-all flex items-center justify-center gap-2"
+                  style={{ borderColor: `${INK}33`, color: INK }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${INK}80`; e.currentTarget.style.backgroundColor = `${INK}0D`; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = `${INK}33`; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <Globe size={16} style={{ color: `${INK}80` }} /> Buka di browser
+                </Link>
+              </Magnetic>
+            </div>
+            <p className="hero-meta text-sm mt-9 font-medium" style={{ color: `${INK}66` }}>
+              Gratis tanpa batas respons
+              <span className="mx-2.5" style={{ color: GREEN }}>•</span>
+              Sinkron web &amp; mobile
+              <span className="mx-2.5" style={{ color: GREEN }}>•</span>
+              QR code bawaan
+            </p>
           </div>
-        </div>
 
-        {/* ── 3D INTERACTIVE SMARTPHONE (MOUSE TRACKING TILT) ── */}
-        <div 
-          className="mt-14 relative z-10 w-full max-w-[310px] sm:max-w-[330px] mx-auto cursor-pointer"
-          style={{ perspective: '1200px' }}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-        >
-          {/* Ambient Ground Reflection */}
-          <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 w-48 h-8 bg-teal-500/20 blur-xl rounded-full pointer-events-none" />
-
-          {/* 3D Chassis */}
-          <div 
-            ref={heroPhoneRef}
-            className="relative rounded-[50px] p-3 bg-gradient-to-b from-slate-700/70 via-slate-800/50 to-slate-950 border border-white/20 shadow-[0_30px_90px_-20px_rgba(0,0,0,0.95)] backdrop-blur-xl transition-transform duration-150 ease-out"
-            style={{
-              transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) translateZ(10px)`,
-              transformStyle: 'preserve-3d',
-            }}
-          >
-            {/* Dynamic Glass Glare Overlay */}
-            <div 
-              className="absolute inset-0 rounded-[48px] pointer-events-none opacity-40 mix-blend-overlay transition-opacity duration-300"
-              style={{
-                background: `radial-gradient(circle at ${glarePos.x}% ${glarePos.y}%, rgba(255,255,255,0.6) 0%, transparent 60%)`,
-              }}
-            />
-
-            {/* Inner Phone Bezel & Screen */}
-            <div className="rounded-[40px] bg-[#0A0D14] border border-white/[0.08] overflow-hidden p-5 pt-3 aspect-[9/19] flex flex-col justify-between relative shadow-inner text-left">
-              
-              {/* Dynamic Island */}
-              <div className="w-24 h-4 bg-slate-900 rounded-full mx-auto mb-3 border border-white/[0.06] flex items-center justify-end px-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-teal-400/80" />
-              </div>
-
-              {/* Preset Switcher (Interactive Tabs) */}
-              <div className="space-y-3.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-1 bg-white/[0.04] p-0.5 rounded-lg border border-white/[0.06]">
-                    <button 
-                      onClick={() => setActivePreset('quiz')}
-                      className={`px-2 py-0.5 text-[9px] font-bold rounded-md transition-all ${activePreset === 'quiz' ? 'bg-[#00897B] text-white' : 'text-slate-400'}`}
+          {/* ponsel hero: intro → fall wrapper → float → tilt */}
+          <div className="flex justify-center lg:justify-end" style={{ perspective: '1400px' }}>
+            <div ref={phoneFallRef}>
+              <div ref={phoneIntroRef}>
+                <div ref={phoneFloatRef}>
+                  <div className="relative w-[270px]" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-52 h-7 rounded-full blur-2xl"
+                      style={{ backgroundColor: `${GREEN}40` }} />
+                    <div ref={phoneTiltRef}
+                      className="relative rounded-[44px] p-2.5 border border-white/25"
+                      style={{
+                        transformStyle: 'preserve-3d',
+                        background: 'linear-gradient(180deg, #33413A 0%, #17211C 100%)',
+                        boxShadow: '0 36px 80px -22px rgba(28,38,32,0.55)',
+                      }}
                     >
-                      Kuis
-                    </button>
-                    <button 
-                      onClick={() => setActivePreset('survey')}
-                      className={`px-2 py-0.5 text-[9px] font-bold rounded-md transition-all ${activePreset === 'survey' ? 'bg-[#00897B] text-white' : 'text-slate-400'}`}
-                    >
-                      Survei
-                    </button>
-                  </div>
-                  <span className="text-[9px] font-mono text-[#00C4B4] flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE
-                  </span>
-                </div>
-
-                {/* Simulated Screen Body */}
-                {activePreset === 'quiz' ? (
-                  <div className="space-y-2.5">
-                    <div>
-                      <h4 className="text-xs font-bold text-white leading-tight">Ujian Harian Fisika</h4>
-                      <p className="text-[9px] text-slate-400">Poin: 10/10 · Waktu: 15 Menit</p>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-1.5">
-                      <p className="text-[10px] font-medium text-slate-200">1. Satuan internasional untuk gaya adalah?</p>
-                      <div className="grid grid-cols-2 gap-1 pt-1">
-                        <div className="p-1 rounded-md bg-[#00897B] text-[8px] font-bold text-center text-white flex items-center justify-center gap-1">
-                          <Check size={9} /> Newton
+                      <div ref={glareRef}
+                        className="absolute inset-0 rounded-[42px] pointer-events-none opacity-60 mix-blend-overlay"
+                        style={{ background: 'radial-gradient(circle at 50% 20%, rgba(255,255,255,0.18) 0%, transparent 55%)' }}
+                      />
+                      <div className="rounded-[34px] p-5 aspect-[9/18] flex flex-col gap-4 text-left overflow-hidden"
+                        style={{ backgroundColor: '#0E1613' }}>
+                        <div className="w-20 h-4 rounded-full mx-auto flex items-center justify-end px-2"
+                          style={{ backgroundColor: '#182420' }}>
+                          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: `${LIGHT}CC` }} />
                         </div>
-                        <div className="p-1 rounded-md bg-white/[0.04] text-[8px] text-center text-slate-400">Joule</div>
-                        <div className="p-1 rounded-md bg-white/[0.04] text-[8px] text-center text-slate-400">Pascal</div>
-                        <div className="p-1 rounded-md bg-white/[0.04] text-[8px] text-center text-slate-400">Watt</div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-1 p-1 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
+                            {[['quiz', 'Kuis'], ['survey', 'Survei']].map(([id, label]) => (
+                              <button key={id} onClick={() => setPreset(id)}
+                                className={`px-3 py-1 text-[11px] font-semibold rounded-md transition-colors duration-200 ${preset === id ? 'text-white' : 'text-stone-400 hover:text-stone-200'}`}
+                                style={preset === id ? { backgroundColor: GREEN } : {}}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                          <span className="text-[10px] font-semibold flex items-center gap-1.5 blink" style={{ color: LIGHT }}>
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: LIGHT }} /> LIVE
+                          </span>
+                        </div>
+
+                        {preset === 'quiz' ? (
+                          <div className="rounded-xl p-3.5 space-y-2.5"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                            <div>
+                              <p className="text-xs font-bold text-white">Ujian Harian Fisika</p>
+                              <p className="text-[10px] text-stone-400 mt-0.5">10 soal · 15 menit</p>
+                            </div>
+                            <p className="text-[11px] text-stone-200">1. Satuan SI untuk gaya adalah…</p>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <div className="py-1.5 rounded-md text-[10px] font-semibold text-center text-white flex items-center justify-center gap-1"
+                                style={{ backgroundColor: GREEN }}>
+                                <Check size={10} /> Newton
+                              </div>
+                              {['Joule', 'Pascal', 'Watt'].map((o) => (
+                                <div key={o} className="py-1.5 rounded-md text-[10px] text-center text-stone-400"
+                                  style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>{o}</div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="rounded-xl p-3.5 space-y-2.5"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,0.07)' }}>
+                            <div>
+                              <p className="text-xs font-bold text-white">Survei Kepuasan Kelas</p>
+                              <p className="text-[10px] text-stone-400 mt-0.5">Anonim · 2 pertanyaan</p>
+                            </div>
+                            <p className="text-[11px] text-stone-200">Seberapa jelas materi hari ini?</p>
+                            <div className="flex gap-1.5">
+                              <div className="flex-1 py-1.5 rounded-md text-[10px] font-semibold text-center text-white"
+                                style={{ backgroundColor: GREEN }}>Sangat jelas</div>
+                              <div className="flex-1 py-1.5 rounded-md text-[10px] text-center text-stone-400"
+                                style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>Cukup</div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="rounded-xl px-3 py-2 flex items-center justify-between"
+                          style={{ backgroundColor: `${GREEN}1F`, border: `1px solid ${GREEN}40` }}>
+                          <span className="text-[10px] font-medium" style={{ color: LIGHT }}>Tersinkron dengan web</span>
+                          <Check size={13} style={{ color: LIGHT }} />
+                        </div>
+
+                        <div className="mt-auto pt-3 flex items-center justify-between text-[10px] text-stone-500"
+                          style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                          <span>formup.app</span>
+                          <span style={{ color: LIGHT }}>Terhubung</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="space-y-2.5">
-                    <div>
-                      <h4 className="text-xs font-bold text-white leading-tight">Survei Pengalaman Siswa</h4>
-                      <p className="text-[9px] text-slate-400">Anonim · 2 Pertanyaan</p>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-1.5">
-                      <p className="text-[10px] font-medium text-slate-200">Bagaimana kemudahan materi hari ini?</p>
-                      <div className="flex gap-1 pt-1">
-                        <div className="flex-1 py-1 rounded bg-[#00897B] text-[8px] font-bold text-center text-white">Sangat Jelas</div>
-                        <div className="flex-1 py-1 rounded bg-white/[0.04] text-[8px] text-center text-slate-400">Cukup</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="p-2 rounded-xl bg-teal-500/[0.08] border border-teal-500/20 flex items-center justify-between">
-                  <span className="text-[9px] text-teal-300 font-medium">Auto-Sync Database</span>
-                  <CheckCircle2 size={12} className="text-[#00C4B4]" />
                 </div>
               </div>
-
-              {/* Bottom Simulation Bar */}
-              <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between text-[9px] text-slate-400 font-mono">
-                <span>formup.app/mobile</span>
-                <span className="text-[#00C4B4]">Connected</span>
-              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── TICKER LINE ───────────────────────────────────── */}
-      <div className="border-y border-white/[0.06] bg-white/[0.01] py-4 overflow-hidden">
-        <div className="flex gap-8 whitespace-nowrap text-xs font-mono tracking-widest text-slate-400 uppercase justify-center flex-wrap px-4">
-          <span>Formulir Cepat</span>
-          <span className="text-teal-500">✦</span>
-          <span>Analisis Real-Time</span>
-          <span className="text-teal-500">✦</span>
-          <span>QR Code Generator</span>
-          <span className="text-teal-500">✦</span>
-          <span>Kuis & Poin Otomatis</span>
-          <span className="text-teal-500">✦</span>
-          <span>100% Gratis</span>
-        </div>
-      </div>
-
-      {/* ── CHAPTER 02: STORYTELLING (THE PHILOSOPHY) ─────── */}
-      <section ref={storyRef} className="py-28 px-6 max-w-4xl mx-auto text-center space-y-8">
-        {/* <p className="text-[11px] font-mono tracking-widest text-teal-400 uppercase story-reveal">01 — Narasi & Cerita</p> */}
-        <h2 className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white leading-tight story-reveal">
-          Mengapa membuat formulir harus <br className="hidden sm:block" />
-          <span className="font-serif-italic font-normal text-[#00C4B4] text-4xl sm:text-6xl md:text-7xl">selalu di depan laptop?</span>
-        </h2>
-        <p className="text-sm sm:text-base text-slate-400 max-w-2xl mx-auto leading-relaxed story-reveal">
-          Di ruang kelas, saat seminar, atau di tengah perjalanan — inspirasi membuat kuis atau survei bisa datang kapan saja. FormUp mengubah ponsel pintar Anda menjadi studio pembuatan formulir yang tangguh dan ringan.
-        </p>
-      </section>
-
-      {/* ── CHAPTER 03: WORKFLOW JOURNEY (4 STEPS) ────────── */}
-      <section id="workflow-section" className="py-16 px-6 max-w-6xl mx-auto space-y-12">
-        <div className="text-center space-y-2">
-          {/* <p className="text-[11px] font-mono tracking-widest text-teal-400 uppercase">02 — Alur 4 Langkah</p> */}
-          <h2 className="text-2xl sm:text-4xl font-bold text-white">Semua Selesai dalam Hitungan Menit</h2>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
-          <div className="workflow-card p-6 rounded-3xl bg-white/[0.02] border border-white/[0.06] hover:border-teal-500/30 hover:bg-white/[0.04] transition-all duration-300 space-y-3 text-left">
-            <span className="text-2xl font-black font-serif-italic text-[#00C4B4]">01</span>
-            <h3 className="text-sm font-bold text-white">Rancang Soal</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Tentukan pilihan ganda, essay, atau skala rating lengkap dengan bobot nilai.
-            </p>
+      {/* ═══ RITUAL — stacked pinning ═══ */}
+      <section className="relative">
+        {RITUAL_LINES.map((line, i) => (
+          <div key={i} className="ritual-panel relative min-h-[85vh] md:min-h-screen flex items-center justify-center px-6"
+            style={{ backgroundColor: i % 2 === 1 ? TINT : CREAM, zIndex: i + 2 }}>
+            <div className="ritual-inner text-center max-w-3xl">
+              <p className="text-xs font-bold tracking-[0.2em] uppercase mb-6" style={{ color: GREEN }}>
+                Ritual lama · {i + 1} dari {RITUAL_LINES.length}
+              </p>
+              <p className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.08]">{line}</p>
+            </div>
           </div>
-
-          <div className="workflow-card p-6 rounded-3xl bg-white/[0.02] border border-white/[0.06] hover:border-teal-500/30 hover:bg-white/[0.04] transition-all duration-300 space-y-3 text-left">
-            <span className="text-2xl font-black font-serif-italic text-[#00C4B4]">02</span>
-            <h3 className="text-sm font-bold text-white">Atur Kustomisasi</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Batas waktu, acak urutan soal, dan batas satu pengisian per akun.
+        ))}
+        <div className="ritual-panel relative min-h-[85vh] md:min-h-screen flex items-center justify-center px-6"
+          style={{ backgroundColor: GREEN, zIndex: RITUAL_LINES.length + 2 }}>
+          <div className="ritual-inner text-center max-w-3xl">
+            <p className="text-xs font-bold tracking-[0.2em] uppercase mb-7" style={{ color: '#F6F4EDB3' }}>
+              Lalu FormUp bertanya
             </p>
-          </div>
-
-          <div className="workflow-card p-6 rounded-3xl bg-white/[0.02] border border-white/[0.06] hover:border-teal-500/30 hover:bg-white/[0.04] transition-all duration-300 space-y-3 text-left">
-            <span className="text-2xl font-black font-serif-italic text-[#00C4B4]">03</span>
-            <h3 className="text-sm font-bold text-white">Sebar Link & QR</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Dapatkan tautan pendek dan kode QR siap cetak atau dipajang di proyektor.
-            </p>
-          </div>
-
-          <div className="workflow-card p-6 rounded-3xl bg-white/[0.02] border border-white/[0.06] hover:border-teal-500/30 hover:bg-white/[0.04] transition-all duration-300 space-y-3 text-left">
-            <span className="text-2xl font-black font-serif-italic text-[#00C4B4]">04</span>
-            <h3 className="text-sm font-bold text-white">Analisis Instan</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Lihat grafik nilai langsung dan ekspor rekapan ke spreadsheet Excel.
+            <p className="text-5xl sm:text-7xl font-extrabold tracking-tight leading-[1.05] text-[#F6F4ED]">
+              Kenapa harus{' '}
+              <span className="font-serifit italic font-normal">sesulit itu?</span>
             </p>
           </div>
         </div>
       </section>
 
-      {/* ── CHAPTER 04: CORE CAPABILITIES ─────────────────── */}
-      <section className="py-20 px-6 max-w-6xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/[0.06] hover:border-teal-500/30 transition-all space-y-4 text-left">
-            <div className="w-12 h-12 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-[#00C4B4]">
-              <Layers size={22} />
-            </div>
-            <h3 className="text-base font-bold text-white">Form Builder Ringan</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Antarmuka bersih tanpa gangguan iklan atau lag. Mudah digunakan di layar smartphone mana pun.
-            </p>
-          </div>
-
-          <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/[0.06] hover:border-teal-500/30 transition-all space-y-4 text-left">
-            <div className="w-12 h-12 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-[#00C4B4]">
-              <BarChart2 size={22} />
-            </div>
-            <h3 className="text-base font-bold text-white">Grafik & Rekap Nilai</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Persebaran jawaban dihitung otomatis sehingga Anda tidak perlu membuat rumus manual.
-            </p>
-          </div>
-
-          <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/[0.06] hover:border-teal-500/30 transition-all space-y-4 text-left">
-            <div className="w-12 h-12 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-[#00C4B4]">
-              <QrCode size={22} />
-            </div>
-            <h3 className="text-base font-bold text-white">QR Code Bawaan</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Cukup tampilkan barcode di layar, audiens bisa langsung memindai dan mulai mengisi.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ── CHAPTER 05: 3D TRIO PHONE SILHOUETTE (FINALE) ─── */}
-      <section id="download" className="relative py-28 px-6 border-t border-white/[0.06] overflow-hidden text-center">
-        {/* Glow Centerpiece */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-teal-500/[0.09] blur-[160px] rounded-full pointer-events-none" />
-
-        <div className="max-w-3xl mx-auto space-y-6 relative z-10 mb-16">
-          {/* <p className="text-[11px] font-mono tracking-widest text-teal-400 uppercase">03 — Mobile App</p> */}
-          <h2 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-[1.05]">
-            Di genggaman<br />
-            <span className="font-serif-italic font-normal text-[#00C4B4] text-5xl sm:text-7xl">tanganmu.</span>
-          </h2>
-          <p className="text-sm sm:text-base text-slate-400 max-w-lg mx-auto leading-relaxed">
-            Daftar sekarang melalui browser untuk mulai membuat formulir, dan nikmati sinkronisasi otomatis saat aplikasi mobile dirilis.
+      {/* ═══ MANIFESTO ═══ */}
+      <section id="manifesto" className="relative px-6 py-28 md:py-40" style={{ backgroundColor: CREAM, zIndex: 10 }}>
+        <div className="max-w-3xl mx-auto">
+          <p className="m-reveal text-xs font-bold tracking-[0.18em] uppercase mb-8" style={{ color: GREEN }}>
+            Manifesto
           </p>
+          <p className="text-2xl sm:text-3xl md:text-[2.4rem] font-medium leading-snug md:leading-[1.35] tracking-[-0.01em]">
+            {MANIFESTO.split(' ').map((w, i) => (
+              <span key={i} className="mword inline-block mr-[0.28em]">{w}</span>
+            ))}
+          </p>
+        </div>
+      </section>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-            <Link
-              to="/register"
-              className="px-8 py-3.5 bg-[#00C4B4] hover:bg-[#00E5D0] text-slate-950 text-xs font-black rounded-full shadow-xl shadow-teal-500/20 transition-all hover:scale-[1.03] flex items-center justify-center gap-2"
-            >
-              <span>Mulai Sekarang</span>
-            </Link>
+      {/* ═══ ALUR — GSAP pin horizontal scrub ═══ */}
+      <section id="alur" className="relative" style={{ backgroundColor: TINT, zIndex: 10 }}>
+        <div className="wf-progress absolute top-0 left-0 right-0 h-1 origin-left scale-x-0 z-30" style={{ backgroundColor: GREEN }} />
+        <div className="min-h-screen flex flex-col justify-center overflow-hidden py-24 md:py-0">
+          <div className="px-6 md:px-[7vw] mb-10 md:mb-14 flex items-end justify-between gap-6">
+            <div>
+              <p className="m-reveal text-xs font-bold tracking-[0.18em] uppercase mb-4" style={{ color: GREEN }}>
+                Cara kerja
+              </p>
+              <h2 className="m-reveal text-3xl sm:text-5xl font-extrabold tracking-tight leading-[1.05]">
+                Empat langkah.<br />
+                <span className="font-serifit italic font-normal" style={{ color: GREEN }}>Nol ribet.</span>
+              </h2>
+            </div>
+            <p className="hidden md:flex items-center gap-2 text-xs font-semibold tracking-wide uppercase" style={{ color: `${INK}66` }}>
+              Scroll <ArrowUpRight size={14} />
+            </p>
+          </div>
 
-            <Link
-              to="/login"
-              className="px-8 py-3.5 bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/[0.08] text-xs font-semibold rounded-full transition-all"
-            >
-              Masuk ke Akun
-            </Link>
+          <div className="wf-track flex flex-col md:flex-row gap-5 md:gap-[2.5vw] px-6 md:px-[7vw] md:w-max will-change-transform">
+            {WORKFLOW.map((step) => (
+              <article key={step.num}
+                className="group relative shrink-0 p-8 md:p-10 rounded-3xl border overflow-hidden md:w-[36vw] lg:w-[28vw] transition-colors duration-500"
+                style={{ backgroundColor: CREAM, borderColor: `${INK}1A` }}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = `${GREEN}80`)}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = `${INK}1A`)}
+              >
+                <div className="absolute -top-8 -right-3 text-[10rem] font-extrabold leading-none select-none pointer-events-none"
+                  style={{ color: `${INK}08` }}>
+                  {step.num}
+                </div>
+                <p className="text-sm font-extrabold mb-6 relative" style={{ color: GREEN }}>{step.num}</p>
+                <h3 className="text-2xl font-extrabold mb-3 relative">{step.title}</h3>
+                <p className="text-sm leading-relaxed relative" style={{ color: `${INK}99` }}>{step.desc}</p>
+              </article>
+            ))}
           </div>
         </div>
+      </section>
 
-        {/* ── 3D PERSPECTIVE PHONE TRIO COMPOSITE (MENCAR 3 PADA SAAT SCROLL) ── */}
-        <div 
-          id="trio-container"
-          className="relative max-w-2xl mx-auto flex items-end justify-center gap-2 sm:gap-6 pt-6 min-h-[380px]"
-          style={{ perspective: '1200px' }}
-        >
-          {/* Left Angled 3D Silhouette */}
-          <div className="trio-left hidden sm:block w-36 aspect-[9/19] rounded-[36px] bg-gradient-to-b from-slate-800/60 to-slate-950 border border-white/10 shadow-2xl p-2 z-0">
-            <div className="w-full h-full rounded-[28px] bg-[#0A0D14] p-3 flex flex-col justify-center gap-2 text-left">
-              <div className="w-8 h-1.5 bg-teal-500/40 rounded-full mx-auto" />
-              <div className="text-[8px] font-bold text-slate-400">Analitik Respon</div>
-              <div className="w-full h-8 bg-teal-500/10 rounded border border-teal-500/20 flex items-center justify-center text-[8px] text-teal-300">
-                98% Selesai
+      {/* ═══ CERITA — ponsel menemani scroll 2,5 layar ═══ */}
+      <section id="cerita" className="relative" style={{ backgroundColor: CREAM, zIndex: 10 }}>
+        <div className="cerita-stage relative h-screen overflow-hidden">
+          <div className="max-w-6xl mx-auto h-full px-6 grid md:grid-cols-2 gap-10 items-center">
+            <div className="relative md:h-[420px] py-10 md:py-0">
+              {BEATS.map((b, i) => (
+                <div key={b.num}
+                  className={`beat ${i === 0 ? 'beat-active' : ''} max-w-md`}
+                  onClick={() => setActiveBeat(i)}>
+                  <p className="text-xs font-bold tracking-[0.2em] uppercase mb-5" style={{ color: GREEN }}>
+                    {b.num} — {BEATS.length} langkah utama
+                  </p>
+                  <h3 className="text-4xl sm:text-6xl font-extrabold tracking-tight mb-5">
+                    {b.title}
+                    <span className="font-serifit italic font-normal" style={{ color: GREEN }}>.</span>
+                  </h3>
+                  <p className="text-base leading-relaxed" style={{ color: `${INK}99` }}>{b.desc}</p>
+                </div>
+              ))}
+              <div className="hidden md:flex absolute -bottom-2 left-0 gap-2">
+                {BEATS.map((b, i) => (
+                  <span key={b.num} className="h-1.5 rounded-full transition-all duration-500"
+                    style={{
+                      width: beat === i ? 28 : 10,
+                      backgroundColor: beat === i ? GREEN : `${INK}26`,
+                    }} />
+                ))}
               </div>
-              <div className="w-full h-1 bg-white/10 rounded-full" />
             </div>
-          </div>
-
-          {/* Center Main 3D Silhouette */}
-          <div className="trio-center w-48 sm:w-56 aspect-[9/19] rounded-[44px] bg-gradient-to-b from-slate-700/70 via-slate-800/50 to-slate-950 border border-white/20 shadow-[0_25px_70px_rgba(0,0,0,0.9)] p-2.5 z-20">
-            <div className="w-full h-full rounded-[34px] bg-[#0A0D14] p-4 flex flex-col justify-between text-left">
-              <div className="w-16 h-3 bg-slate-900 rounded-full mx-auto border border-white/10" />
-              <div className="space-y-2">
-                <div className="text-[10px] font-bold text-white">FormUp Mobile</div>
-                <div className="p-2 rounded-lg bg-teal-500/10 border border-teal-500/20 text-[9px] text-[#00C4B4] font-mono">Real-Time Sync Active</div>
+            <div className="hidden md:flex justify-center" style={{ perspective: '1400px' }}>
+              <div className="cerita-phone">
+                <StoryPhone screen={screen} />
               </div>
-              <div className="w-full py-1.5 bg-[#00897B] rounded-lg text-[9px] font-bold text-center text-white">Siap Digunakan</div>
-            </div>
-          </div>
-
-          {/* Right Angled 3D Silhouette */}
-          <div className="trio-right hidden sm:block w-36 aspect-[9/19] rounded-[36px] bg-gradient-to-b from-slate-800/60 to-slate-950 border border-white/10 shadow-2xl p-2 z-0">
-            <div className="w-full h-full rounded-[28px] bg-[#0A0D14] p-3 flex flex-col justify-center gap-2 text-left">
-              <div className="w-8 h-1.5 bg-teal-500/40 rounded-full mx-auto" />
-              <div className="text-[8px] font-bold text-slate-400">QR Code Preview</div>
-              <div className="w-12 h-12 bg-white/5 rounded-lg mx-auto flex items-center justify-center border border-white/10">
-                <QrCode size={20} className="text-[#00C4B4]" />
-              </div>
-              <div className="w-full h-1 bg-white/10 rounded-full" />
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── CHAPTER 06: FAQ ACCORDION (SMOOTH ANIMATION) ──── */}
-      <section id="faq-section" className="py-20 px-6 max-w-2xl mx-auto space-y-8">
-        <div className="text-center space-y-2">
-          <p className="text-[11px] font-mono tracking-widest text-teal-400 uppercase">FAQ</p>
-          <h2 className="text-2xl sm:text-3xl font-bold text-white">Pertanyaan Umum</h2>
-        </div>
-
-        <div className="space-y-3">
-          {faqs.map((faq, idx) => {
-            const isOpen = activeFaq === idx;
-            return (
-              <div 
-                key={idx} 
-                className="faq-card rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden transition-all duration-300 hover:border-white/10"
+      {/* ═══ FITUR + STATISTIK ═══ */}
+      <section id="fitur" className="relative px-6 py-24 md:py-32" style={{ backgroundColor: CREAM, zIndex: 10 }}>
+        <div className="max-w-6xl mx-auto">
+          <p className="text-xs font-bold tracking-[0.18em] uppercase mb-4" style={{ color: GREEN }}>
+            Kemampuan utama
+          </p>
+          <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight mb-14">
+            Yang kamu butuhkan,{' '}
+            <span className="font-serifit italic font-normal" style={{ color: GREEN }}>tidak lebih.</span>
+          </h2>
+          <div className="grid md:grid-cols-3 gap-5 mb-20">
+            {FEATURES.map((f) => (
+              <article key={f.title}
+                className="feature-card group relative p-8 rounded-3xl border bg-white transition-all duration-500 hover:-translate-y-1.5"
+                style={{ borderColor: `${INK}14`, boxShadow: '0 1px 2px rgba(28,38,32,0.05)' }}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = `${GREEN}66`)}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = `${INK}14`)}
               >
-                <button
-                  onClick={() => setActiveFaq(isOpen ? null : idx)}
-                  className="w-full p-4.5 text-left flex items-center justify-between gap-4 font-semibold text-xs sm:text-sm text-slate-200 hover:text-white cursor-pointer transition-colors"
-                >
-                  <span>{faq.q}</span>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform duration-300 shrink-0 ${isOpen ? 'rotate-180 bg-teal-500/10 text-[#00C4B4]' : 'text-slate-500'}`}>
-                    <ChevronDown size={15} />
-                  </div>
-                </button>
-                
-                {/* Smooth CSS Grid Expansion Animation */}
-                <div 
-                  className={`grid transition-all duration-300 ease-in-out ${
-                    isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-                  }`}
-                >
-                  <div className="overflow-hidden">
-                    <div className="px-4.5 pb-4.5 text-xs text-slate-400 leading-relaxed border-t border-white/[0.04] pt-3">
-                      {faq.a}
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-6 transition-transform duration-500 group-hover:scale-110"
+                  style={{ backgroundColor: `${GREEN}14`, color: GREEN }}>
+                  <f.icon size={20} />
+                </div>
+                <h3 className="text-base font-bold mb-2.5">{f.title}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: `${INK}99` }}>{f.desc}</p>
+              </article>
+            ))}
+          </div>
+          <div className="grid sm:grid-cols-3 gap-y-12 gap-x-8 pt-12" style={{ borderTop: `1px solid ${INK}14` }}>
+            <Stat value={3} suffix=" menit" label="rata-rata waktu membuat satu formulir" />
+            <Stat value={100} suffix="%" label="gratis, tanpa batas jumlah respons" />
+            <Stat value={1} suffix=" klik" label="untuk ekspor rekap ke CSV / XLSX" />
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ FAQ ═══ */}
+      <section id="faq" className="relative px-6 pb-24 md:pb-32" style={{ backgroundColor: CREAM, zIndex: 10 }}>
+        <div className="max-w-2xl mx-auto">
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-center mb-12">
+            Pertanyaan umum
+          </h2>
+          <div className="space-y-3">
+            {FAQS.map((faq, i) => {
+              const open = openFaq === i;
+              return (
+                <div key={i} className="faq-card rounded-2xl border bg-white overflow-hidden transition-colors duration-300"
+                  style={{ borderColor: open ? `${GREEN}80` : `${INK}14` }}>
+                  <button onClick={() => setOpenFaq(open ? null : i)}
+                    className="w-full p-5 text-left flex items-center justify-between gap-4 font-semibold text-sm transition-colors"
+                    style={{ color: open ? GREEN : INK }}>
+                    <span>{faq.q}</span>
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-transform duration-300"
+                      style={{
+                        transform: open ? 'rotate(180deg)' : 'none',
+                        backgroundColor: open ? `${GREEN}1F` : `${INK}0D`,
+                        color: open ? GREEN : `${INK}80`,
+                      }}>
+                      <ChevronDown size={15} />
+                    </div>
+                  </button>
+                  <div className="grid transition-all duration-300 ease-in-out"
+                    style={{ gridTemplateRows: open ? '1fr' : '0fr', opacity: open ? 1 : 0 }}>
+                    <div className="overflow-hidden">
+                      <p className="px-5 pb-5 text-sm leading-relaxed pt-4"
+                        style={{ color: `${INK}99`, borderTop: `1px solid ${INK}0F` }}>
+                        {faq.a}
+                      </p>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </section>
 
-      {/* ── CHAPTER 07: MINIMAL FOOTER ────────────────────── */}
-      <footer className="border-t border-white/[0.06] bg-[#05070B] py-10 px-6 text-slate-400 text-xs">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-white text-sm">FormUp</span>
-            <span className="text-slate-600">·</span>
-            <span className="text-slate-500">© {new Date().getFullYear()} Hak Cipta Dilindungi.</span>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <Link to="/login" className="hover:text-slate-200 transition-colors">Masuk</Link>
-            <Link to="/register" className="hover:text-slate-200 transition-colors">Daftar</Link>
-            <a href="#download" className="hover:text-slate-200 transition-colors">Mobile App</a>
+      {/* ═══ FINALE — tepat satu layar penuh ═══ */}
+      <section className="relative text-[#F6F4ED] overflow-hidden flex flex-col"
+        style={{ height: '100vh', background: `linear-gradient(180deg, ${CREAM} 0%, ${DARK} 14%, ${DARK} 100%)`, zIndex: 10 }}>
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-6 max-w-3xl mx-auto w-full pt-20">
+          <p className="m-reveal text-xs font-bold tracking-[0.18em] uppercase mb-5" style={{ color: LIGHT }}>
+            Aplikasi Android
+          </p>
+          <h2 className="m-reveal text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.05] mb-5">
+            Bawa FormUp{' '}
+            <span className="font-serifit italic font-normal" style={{ color: LIGHT }}>ke mana-mana.</span>
+          </h2>
+          <p className="m-reveal text-sm sm:text-base max-w-md mx-auto leading-relaxed mb-8" style={{ color: '#F6F4EDA6' }}>
+            Daftar lewat browser sekarang, pasang aplikasinya sesudahnya —
+            semua formulirmu sudah menunggu di sana.
+          </p>
+          <div className="m-reveal flex flex-col sm:flex-row items-center justify-center gap-3.5">
+            <Magnetic>
+              <a href={APK_URL} download="FormUp.apk" target="_blank" rel="noopener noreferrer"
+                className="px-7 py-3.5 text-sm font-bold rounded-full flex items-center gap-2 transition-colors duration-300"
+                style={{ backgroundColor: GREEN, color: '#F6F4ED' }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = LIGHT)}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = GREEN)}
+              >
+                <Download size={16} /> Unduh FormUp.apk
+              </a>
+            </Magnetic>
+            <Link to="/register"
+              className="px-7 py-3.5 text-sm font-semibold rounded-full border transition-all"
+              style={{ borderColor: '#F6F4ED33', color: '#F6F4EDCC' }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#F6F4ED80'; e.currentTarget.style.backgroundColor = '#F6F4ED0D'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#F6F4ED33'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+            >
+              Daftar gratis <ArrowUpRight size={15} />
+            </Link>
           </div>
         </div>
-      </footer>
+
+        {/* trio 3D (desktop saja, agar muat satu layar) */}
+        <div id="trio" className="hidden md:flex items-end justify-center gap-6 lg:gap-8 px-6 shrink-0"
+          style={{ perspective: '1400px' }}>
+          <div className="trio-left w-28 lg:w-32 shrink-0 rounded-[28px] border border-white/15 p-2 shadow-2xl"
+            style={{ background: 'linear-gradient(180deg, #2E3B33 0%, #131C17 100%)' }}>
+            <div className="w-full h-full rounded-[22px] p-3 flex flex-col justify-center gap-2 text-left aspect-[9/19]"
+              style={{ backgroundColor: '#0B1210' }}>
+              <div className="w-8 h-1.5 rounded-full mx-auto" style={{ backgroundColor: '#5BC98C66' }} />
+              <div className="text-[9px] font-bold text-stone-400">Analitik respon</div>
+              <div className="w-full h-9 rounded-lg flex items-center justify-center text-[9px] font-bold"
+                style={{ backgroundColor: `${GREEN}26`, border: `1px solid ${GREEN}59`, color: LIGHT }}>
+                98% selesai
+              </div>
+              <div className="w-full h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
+            </div>
+          </div>
+
+          <div className="trio-center w-36 lg:w-44 shrink-0 rounded-[34px] border border-white/25 p-2.5"
+            style={{ background: 'linear-gradient(180deg, #38473E 0%, #131C17 100%)', boxShadow: '0 30px 70px rgba(0,0,0,0.5)' }}>
+            <div className="w-full h-full rounded-[26px] p-4 flex flex-col justify-between text-left aspect-[9/19]"
+              style={{ backgroundColor: '#0B1210' }}>
+              <div className="w-16 h-3 rounded-full mx-auto" style={{ backgroundColor: '#16211B' }} />
+              <div className="space-y-2">
+                <div className="text-xs font-bold text-white">FormUp Mobile</div>
+                <div className="p-2 rounded-lg text-[10px] font-semibold"
+                  style={{ backgroundColor: `${GREEN}26`, border: `1px solid ${GREEN}59`, color: LIGHT }}>
+                  Sinkronisasi aktif
+                </div>
+              </div>
+              <div className="w-full py-2.5 rounded-lg text-[10px] font-bold text-center text-white"
+                style={{ backgroundColor: GREEN }}>
+                Siap digunakan
+              </div>
+            </div>
+          </div>
+
+          <div className="trio-right w-28 lg:w-32 shrink-0 rounded-[28px] border border-white/15 p-2 shadow-2xl"
+            style={{ background: 'linear-gradient(180deg, #2E3B33 0%, #131C17 100%)' }}>
+            <div className="w-full h-full rounded-[22px] p-3 flex flex-col justify-center gap-2 text-left aspect-[9/19]"
+              style={{ backgroundColor: '#0B1210' }}>
+              <div className="w-8 h-1.5 rounded-full mx-auto" style={{ backgroundColor: '#5BC98C66' }} />
+              <div className="text-[9px] font-bold text-stone-400">QR code</div>
+              <div className="w-12 h-12 rounded-lg mx-auto flex items-center justify-center border border-white/10"
+                style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
+                <QrCode size={20} style={{ color: LIGHT }} />
+              </div>
+              <div className="w-full h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
+            </div>
+          </div>
+        </div>
+
+        {/* footer bar di dalam layar penuh */}
+        <footer className="px-6 pt-5 pb-6 shrink-0" style={{ backgroundColor: DARK }}>
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm"
+            style={{ color: '#F6F4ED66', borderTop: '1px solid rgba(246,244,237,0.08)', paddingTop: '1.25rem' }}>
+            <div className="flex items-center gap-2">
+              <img src={logo} alt="FormUp" className="w-5 h-5 object-contain opacity-70" />
+              <span className="font-bold text-[#F6F4EDCC]">FormUp</span>
+              <span className="mx-1">·</span>
+              <span>© {new Date().getFullYear()}</span>
+            </div>
+            <div className="flex items-center gap-7">
+              <Link to="/login" className="hover:text-[#F6F4ED] transition-colors">Masuk</Link>
+              <Link to="/register" className="hover:text-[#F6F4ED] transition-colors">Daftar</Link>
+              <a href={APK_URL} target="_blank" rel="noopener noreferrer" className="hover:text-[#F6F4ED] transition-colors">Aplikasi Android</a>
+            </div>
+          </div>
+        </footer>
+      </section>
 
     </div>
   );

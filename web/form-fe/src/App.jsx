@@ -17,6 +17,7 @@ import AdminDashboardPage from './features/admin/AdminDashboardPage';
 import ProfilePage from './features/profile/ProfilePage';
 import ForgotPasswordPage from './features/auth/ForgotPasswordPage';
 import LandingPage from './features/landing/LandingPage';
+import AiChatPage from './features/ai-chat/AiChatPage';
 import ProtectedRoute from './components/ui/ProtectedRoute';
 import { isAuthenticated } from './services/apiService';
 
@@ -44,6 +45,7 @@ function App() {
       <Route path="/forms/:id/analytics" element={<ProtectedRoute><FormAnalyticsPage /></ProtectedRoute>} />
 
       <Route path="/admin" element={<ProtectedRoute><AdminDashboardPage /></ProtectedRoute>} />
+      <Route path="/ai-chat" element={<ProtectedRoute><AiChatPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
     </Routes>
   );
