@@ -3,6 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { register } from '../../services/apiService';
 import { FileText, ArrowRight, User, Mail, Lock, Calendar, Loader2, Eye, EyeOff } from 'lucide-react';
 
+const EMOJI_REGEX = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\uFE0F]/gu;
+const NAME_REGEX = /^[a-zA-Z\s.'-]+$/;
+const USERNAME_REGEX = /^[a-zA-Z0-9_.]+$/;
+
 const Register = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -20,31 +24,49 @@ const Register = () => {
     const navigate = useNavigate();
 
     const handleRegister = async (e) => {
-        e.preventDefault();
-        setError('');
+    e.preventDefault();
+    setError('');
 
-        if (password !== confirmPassword) {
-            setError('Password dan Konfirmasi Password tidak cocok.');
-            return;
-        }
+    const trimmedFullname = fullname.trim();
+    const trimmedUsername = username.trim();
 
-        if (password.length < 8) {
-            setError('Password minimal 8 karakter.');
-            return;
-        }
+    if (EMOJI_REGEX.test(trimmedFullname) || EMOJI_REGEX.test(trimmedUsername)) {
+        setError('Nama dan username tidak boleh mengandung emoji.');
+        return;
+    }
 
-        setLoading(true);
-        const result = await register(fullname.trim(), username.trim(), email.trim(), password, birthdate);
-        setLoading(false);
+    if (!NAME_REGEX.test(trimmedFullname)) {
+        setError('Nama lengkap hanya boleh berisi huruf, spasi, titik, apostrof, dan strip.');
+        return;
+    }
 
-        if (result.ok && result.status === 200) {
-            navigate('/verify', {
-                state: { fullname: fullname.trim(), username: username.trim(), email: email.trim(), password, birthdate }
-            });
-        } else {
-            setError(result.message || 'Registrasi gagal. Silakan coba lagi.');
-        }
-    };
+    if (!USERNAME_REGEX.test(trimmedUsername)) {
+        setError('Username hanya boleh berisi huruf, angka, titik, dan underscore (tanpa spasi/simbol).');
+        return;
+    }
+
+    if (password !== confirmPassword) {
+        setError('Password dan Konfirmasi Password tidak cocok.');
+        return;
+    }
+
+    if (password.length < 8) {
+        setError('Password minimal 8 karakter.');
+        return;
+    }
+
+    setLoading(true);
+    const result = await register(trimmedFullname, trimmedUsername, email.trim(), password, birthdate);
+    setLoading(false);
+
+    if (result.ok && result.status === 200) {
+        navigate('/verify', {
+            state: { fullname: trimmedFullname, username: trimmedUsername, email: email.trim(), password, birthdate }
+        });
+    } else {
+        setError(result.message || 'Registrasi gagal. Silakan coba lagi.');
+    }
+};
 
     return (
             <div className="h-screen max-h-screen w-full bg-[#004D4E] flex items-center justify-center p-4 sm:p-6 lg:p-12 relative overflow-hidden select-none touch-none">   
@@ -131,7 +153,11 @@ const Register = () => {
                                         type="text"
                                         placeholder="Nama Lengkap"
                                         value={fullname}
-                                        onChange={(e) => setFullname(e.target.value)}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            // Hanya izinkan huruf, spasi, titik, apostrof, strip
+                                            if (/^[a-zA-Z\s.'-]*$/.test(val)) setFullname(val);
+                                        }}
                                         required
                                         className="w-full pl-10 pr-3.5 py-3 rounded-xl border border-white/10 bg-black/30 text-white placeholder:text-white/40 font-medium focus:outline-none focus:bg-black/50 focus:border-[#2ED8C3] focus:ring-1 focus:ring-[#2ED8C3] text-xs sm:text-sm transition-all shadow-inner"
                                     />
@@ -147,7 +173,10 @@ const Register = () => {
                                         type="text"
                                         placeholder="username"
                                         value={username}
-                                        onChange={(e) => setUsername(e.target.value)}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (/^[a-zA-Z0-9_.]*$/.test(val)) setUsername(val);
+                                        }}
                                         required
                                         className="w-full px-3.5 py-3 rounded-xl border border-white/10 bg-black/30 text-white placeholder:text-white/40 font-medium focus:outline-none focus:bg-black/50 focus:border-[#2ED8C3] focus:ring-1 focus:ring-[#2ED8C3] text-xs sm:text-sm transition-all shadow-inner"
                                     />

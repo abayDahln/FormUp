@@ -12,7 +12,7 @@ import Sidebar from '../../components/layout/Sidebar';
 import {
     getFormById, getFormResponses, getFormAnalytics,
     getResponseResult, getQuestions,
-    updateResponseStatus, clearSession, exportFormResponses, getMyFeedback, assetUrl,
+    updateResponseStatus, clearSession, exportFormResponses, getFormFeedbacks, assetUrl,
     overrideAnswerScore, bulkOverrideAnswerScores, getExamMonitoring
 } from '../../services/apiService';
 import { getGeminiApiKey } from '../../services/aiService';
@@ -430,17 +430,28 @@ export default function FormResponsesPage() {
     }, [id, navigate]);
 
     // Load feedback tab
+        // Load feedback tab
+        // Load feedback tab — GET /api/forms/{formId}/feedbacks (plural) is the
+    // endpoint that returns ALL feedback submitted by respondents on this
+    // form, which is what the owner needs to see here. GET /api/forms/{formId}/feedback
+    // (singular, "getMyFeedback") returns only the logged-in user's own
+    // feedback submissions and returned 404 for owners who never submitted
+    // feedback themselves — the wrong endpoint for this purpose.
     useEffect(() => {
         if (activeTab !== 'feedback') return;
         const loadFeedback = async () => {
             setFeedbackLoading(true);
-            const res = await getMyFeedback(id);
+            const res = await getFormFeedbacks(id);
             setFeedbackLoading(false);
             if (res.ok) {
                 const data = res.data;
-                if (Array.isArray(data)) setFeedbacks(data);
-                else if (data && typeof data === 'object') setFeedbacks([data]);
-                else setFeedbacks([]);
+                let list = [];
+                if (Array.isArray(data)) list = data;
+                else if (data?.items && Array.isArray(data.items)) list = data.items;
+                else if (data && typeof data === 'object') list = [data];
+                setFeedbacks(list.filter(fb => !(fb.reason || '').startsWith('ADMIN_')));
+            } else {
+                setFeedbacks([]);
             }
         };
         loadFeedback();
@@ -1215,7 +1226,7 @@ Panduan penilaian:
                     </div>
                 </div>
 
-                {/* Sub-tabs: Respons / Monitoring Ujian */}
+                                {/* Sub-tabs: Respons / Feedback / Monitoring Ujian */}
                 <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6">
                     <div className="flex">
                         <button
@@ -1227,6 +1238,21 @@ Panduan penilaian:
                             }`}
                         >
                             <Eye size={14} /> Respons
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('feedback')}
+                            className={`flex items-center gap-1.5 py-3.5 px-5 text-xs font-extrabold border-b-2 transition-all cursor-pointer ${
+                                activeTab === 'feedback' 
+                                    ? 'border-amber-500 text-amber-600 dark:border-amber-400 dark:text-amber-400' 
+                                    : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }`}
+                        >
+                            <MessageSquare size={14} /> Masukan
+                            {feedbacks.length > 0 && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
+                                    {feedbacks.length}
+                                </span>
+                            )}
                         </button>
                         <button
                             onClick={() => setActiveTab('monitoring')}
