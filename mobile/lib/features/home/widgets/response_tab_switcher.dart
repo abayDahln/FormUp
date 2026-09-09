@@ -72,10 +72,11 @@ class _ResponseTabSwitcherState extends State<ResponseTabSwitcher>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(14),
         boxShadow: softShadow(),
       ),
@@ -98,7 +99,7 @@ class _ResponseTabSwitcherState extends State<ResponseTabSwitcher>
                     width: tabWidth,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: kAuthPrimary,
+                        color: cs.primary,
                         borderRadius: BorderRadius.circular(10),
                         boxShadow: [
                           BoxShadow(
@@ -147,8 +148,8 @@ class _ResponseTabSwitcherState extends State<ResponseTabSwitcher>
                                     ),
                                     size: 16,
                                     color: widget.activeIndex == tab.key
-                                        ? Colors.white
-                                        : Colors.black54,
+                                        ? cs.onPrimary
+                                        : cs.onSurfaceVariant,
                                   ),
                                 ),
                                 const SizedBox(width: 6),
@@ -159,8 +160,8 @@ class _ResponseTabSwitcherState extends State<ResponseTabSwitcher>
                                     fontWeight: FontWeight.bold,
                                     fontFamily: kFontBold,
                                     color: widget.activeIndex == tab.key
-                                        ? Colors.white
-                                        : Colors.black54,
+                                        ? cs.onPrimary
+                                        : cs.onSurfaceVariant,
                                   ),
                                 ),
                               ],

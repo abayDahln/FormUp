@@ -73,7 +73,7 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
             onPressed: () => Navigator.pop(context, true),
             child: Text(
               publish ? 'Terbit' : 'Tarik',
-              style: const TextStyle(color: kAuthPrimary),
+              style: TextStyle(color: Theme.of(context).colorScheme.primary),
             ),
           ),
         ],
@@ -96,18 +96,17 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final form = _form;
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        shape: Border(
+          bottom: BorderSide(color: cs.outlineVariant),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: cs.onSurface),
           onPressed: () => AppRouter.of(context).pop(),
         ),
         title: const Text(
@@ -116,7 +115,6 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
           ),
         ),
       ),

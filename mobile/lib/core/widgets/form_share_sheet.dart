@@ -42,11 +42,13 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
 
   await showModalBottomSheet<void>(
     context: context,
-    backgroundColor: Colors.white,
+    backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (sheetContext) => SafeArea(
+    builder: (sheetContext) {
+      final cs = Theme.of(sheetContext).colorScheme;
+      return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
         child: Column(
@@ -58,49 +60,49 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.black12,
+                  color: cs.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Bagikan Form',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
                 fontFamily: kFontBold,
-                color: Colors.black87,
+                color: cs.onSurface,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Pilih cara berbagi ke responden.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.black54),
+              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF0F4F4),
+                color: cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.link, size: 18, color: kAuthText),
+                  Icon(Icons.link, size: 18, color: cs.onSurfaceVariant),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       link,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13, color: Colors.black87),
+                      style: TextStyle(fontSize: 13, color: cs.onSurface),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.copy, size: 18, color: kAuthPrimary),
+                    icon: Icon(Icons.copy, size: 18, color: cs.primary),
                     tooltip: 'Salin link',
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: link));
@@ -116,9 +118,9 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cs.surface,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFBDC9C8)),
+                    border: Border.all(color: cs.outlineVariant),
                   ),
                   child: Image.memory(
                     qrBytes,
@@ -128,7 +130,7 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
                     errorBuilder: (_, _, _) => Container(
                       width: 160,
                       height: 160,
-                      color: const Color(0xFFF0F4F4),
+                      color: cs.surfaceContainerHighest,
                       child: const Icon(
                         Icons.qr_code_2,
                         color: Colors.grey,
@@ -141,14 +143,14 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
               const SizedBox(height: 8),
               TextButton.icon(
                 onPressed: () => _shareQrFile(sheetContext, form, qrBytes, link),
-                icon: const Icon(
+                icon: Icon(
                   Icons.image_outlined,
                   size: 18,
-                  color: kAuthPrimary,
+                  color: cs.primary,
                 ),
-                label: const Text(
+                label: Text(
                   'Bagikan QR sebagai gambar',
-                  style: TextStyle(color: kAuthPrimary, fontSize: 13),
+                  style: TextStyle(color: cs.primary, fontSize: 13),
                 ),
               ),
               const SizedBox(height: 8),
@@ -160,7 +162,8 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
           ],
         ),
       ),
-    ),
+      );
+    },
   ).whenComplete(() => _shareSheetOpen = false);
 }
 

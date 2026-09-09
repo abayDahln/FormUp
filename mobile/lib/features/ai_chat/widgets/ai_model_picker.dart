@@ -10,6 +10,7 @@ class AiModelPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return PopupMenuButton<String>(
       initialValue: GeminiService.selectedModelDisplay,
       onSelected: (v) async {
@@ -25,23 +26,27 @@ class AiModelPicker extends StatelessWidget {
             GeminiService.selectedModelDisplay,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontFamily: kFontBold, fontSize: 16, color: Colors.black87),
+            style: TextStyle(
+                fontFamily: kFontBold, fontSize: 16, color: cs.onSurface),
           ),
         ),
         const SizedBox(width: 2),
-        const Icon(Icons.keyboard_arrow_down, size: 20, color: Colors.black54),
+        Icon(Icons.keyboard_arrow_down, size: 20, color: cs.onSurfaceVariant),
       ]),
-      itemBuilder: (ctx) => [
-        for (final m in GeminiService.availableModels)
-          PopupMenuItem<String>(
-            value: m,
-            child: Row(children: [
-              Icon(m == GeminiService.selectedModelDisplay ? Icons.check : Icons.auto_awesome_outlined, size: 14, color: m == GeminiService.selectedModelDisplay ? const Color(0xFF018081) : Colors.black54),
-              const SizedBox(width: 8),
-              Text(m, style: TextStyle(fontSize: 12, fontWeight: m == GeminiService.selectedModelDisplay ? FontWeight.bold : FontWeight.normal, color: m == GeminiService.selectedModelDisplay ? const Color(0xFF018081) : Colors.black87)),
-            ]),
-          ),
-      ],
+      itemBuilder: (ctx) {
+        final mcs = Theme.of(ctx).colorScheme;
+        return [
+          for (final m in GeminiService.availableModels)
+            PopupMenuItem<String>(
+              value: m,
+              child: Row(children: [
+                Icon(m == GeminiService.selectedModelDisplay ? Icons.check : Icons.auto_awesome_outlined, size: 14, color: m == GeminiService.selectedModelDisplay ? mcs.primary : mcs.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Text(m, style: TextStyle(fontSize: 12, fontWeight: m == GeminiService.selectedModelDisplay ? FontWeight.bold : FontWeight.normal, color: m == GeminiService.selectedModelDisplay ? mcs.primary : mcs.onSurface)),
+              ]),
+            ),
+        ];
+      },
     );
   }
 }

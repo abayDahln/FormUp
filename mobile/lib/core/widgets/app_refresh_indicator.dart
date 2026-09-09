@@ -23,9 +23,10 @@ class AppRefreshIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return CustomMaterialIndicator(
       onRefresh: onRefresh,
-      backgroundColor: backgroundColor ?? Colors.white,
+      backgroundColor: backgroundColor ?? cs.surface,
       elevation: 2,
       // M3: 24dp small morphing saat refresh, pull progress tetap terlihat
       indicatorBuilder: (context, controller) {
@@ -43,16 +44,16 @@ class AppRefreshIndicator extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surface,
                 shape: BoxShape.circle,
                 boxShadow: softShadow(alpha: 0.08),
               ),
               alignment: Alignment.center,
               child: isLoading || isDragging
                   ? LoadingIndicator.small(
-                      color: indicatorColor ?? kPrimary,
+                      color: indicatorColor ?? cs.primary,
                     )
-                  : const LoadingIndicator.small(color: kPrimary),
+                  : LoadingIndicator.small(color: cs.primary),
             ),
           ),
         );

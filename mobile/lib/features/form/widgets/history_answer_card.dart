@@ -78,6 +78,7 @@ class HistoryAnswerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final a = answer;
     final answered = a.answerText != null && a.answerText!.isNotEmpty;
     // Soal teks/essay dinilai benar/salah hanya jika ada kunci jawaban.
@@ -85,7 +86,7 @@ class HistoryAnswerCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
       ),
@@ -99,11 +100,11 @@ class HistoryAnswerCard extends StatelessWidget {
                 child: RichTextView(
                   text: a.question,
                   prefix: '${index + 1}. ',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
-                    color: Colors.black87,
+                    color: cs.onSurface,
                   ),
                 ),
               ),
@@ -131,7 +132,7 @@ class HistoryAnswerCard extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: !scorable
-                  ? const Color(0xFFF0F4F4)
+                  ? cs.surfaceContainerHighest
                   : (a.isCorrect == true
                       ? const Color(0xFFE3F4E8) // jawaban benar: hijau
                       : const Color(0xFFFDECEA)), // jawaban salah: merah
@@ -145,7 +146,7 @@ class HistoryAnswerCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     color: !scorable
-                        ? Colors.black45
+                        ? cs.onSurfaceVariant
                         : (a.isCorrect == true
                             ? const Color(0xFF2E7D32)
                             : const Color(0xFFC0392B)),
@@ -155,17 +156,17 @@ class HistoryAnswerCard extends StatelessWidget {
                 if (answered)
                   RichTextView(
                     text: a.answerText!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: Colors.black87,
+                      color: cs.onSurface,
                     ),
                   )
                 else
-                  const Text(
+                  Text(
                     "Tidak dijawab",
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.black45,
+                      color: cs.onSurfaceVariant,
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -207,11 +208,11 @@ class HistoryAnswerCard extends StatelessWidget {
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: const Color(0xFFF0F4F4), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(8)),
               child: Row(children: [
-                const Icon(Icons.star, size: 14, color: Colors.black54),
+                Icon(Icons.star, size: 14, color: cs.onSurfaceVariant),
                 const SizedBox(width: 6),
-                Text('Poin: ${a.manualScore ?? a.earnedPoints}', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                Text('Poin: ${a.manualScore ?? a.earnedPoints}', style: TextStyle(fontSize: 12, color: cs.onSurface)),
                 if (a.isCorrectOverride != null) ...[
                   const SizedBox(width: 8),
                   Chip(label: Text(a.isCorrectOverride! ? 'Override: Benar' : 'Override: Salah', style: const TextStyle(fontSize: 10)), visualDensity: VisualDensity.compact),

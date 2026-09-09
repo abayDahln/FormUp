@@ -7,10 +7,12 @@ Future<int?> showQuestionTypePicker(BuildContext context) {
   return showModalBottomSheet<int>(
     context: context,
     backgroundColor: Colors.transparent,
-    builder: (context) => Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    builder: (context) => Builder(builder: (ctx) {
+      final cs = Theme.of(ctx).colorScheme;
+      return Container(
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       child: Column(
@@ -22,19 +24,19 @@ Future<int?> showQuestionTypePicker(BuildContext context) {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFFBDC9C8),
+                color: cs.outlineVariant,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             "Pilih Tipe Pertanyaan",
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               fontFamily: kFontBold,
-              color: Colors.black87,
+              color: cs.onSurface,
             ),
           ),
           const SizedBox(height: 12),
@@ -49,19 +51,19 @@ Future<int?> showQuestionTypePicker(BuildContext context) {
                   vertical: 14,
                 ),
                 decoration: BoxDecoration(
-                  color: kPrimarySoft,
+                  color: cs.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFBDC9C8)),
+                  border: Border.all(color: cs.outlineVariant),
                 ),
                 child: Row(
                   children: [
-                    Icon(entry.value.$2, color: kAuthPrimary, size: 20),
+                    Icon(entry.value.$2, color: cs.primary, size: 20),
                     const SizedBox(width: 10),
                     Text(
                       entry.value.$1,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
-                        color: Colors.black87,
+                        color: cs.onSurface,
                       ),
                     ),
                   ],
@@ -71,6 +73,7 @@ Future<int?> showQuestionTypePicker(BuildContext context) {
           ],
         ],
       ),
-    ),
+      );
+    })
   );
 }

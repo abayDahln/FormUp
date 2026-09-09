@@ -120,7 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHomeTab() {
     return AppRefreshIndicator(
       onRefresh: _load,
-      indicatorColor: kAuthPrimary,
+      indicatorColor: Theme.of(context).colorScheme.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
@@ -179,13 +179,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 25),
 
-            const Text(
+             Text(
               "Aktivitas Respon Terbaru",
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 fontFamily: kFontBold,
-                color: Colors.black87,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 12),
@@ -204,8 +204,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAppBg,
       body: SafeArea(
         child: IndexedStack(
           index: _currentIndex,
@@ -222,9 +222,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Color(0xCCBDC9C8))),
+        decoration:  BoxDecoration(
+          color: cs.surface,
+          border: Border(top: BorderSide(color: cs.outlineVariant)),
         ),
         child: NavigationBar(
           height: 62,
@@ -236,34 +236,34 @@ class _HomeScreenState extends State<HomeScreen> {
               _currentIndex = index;
             });
           },
-          backgroundColor: Colors.white,
+          backgroundColor: cs.surface,
           indicatorColor: kPrimary.withValues(alpha: 0.15),
           elevation: 0,
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: [
-          const NavigationDestination(
+           NavigationDestination(
             icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home, color: kPrimary),
+            selectedIcon: Icon(Icons.home, color: cs.primary),
             label: 'Beranda',
           ),
-          const NavigationDestination(
+           NavigationDestination(
             icon: Icon(Icons.description_outlined),
-            selectedIcon: Icon(Icons.description, color: kPrimary),
+            selectedIcon: Icon(Icons.description, color: cs.primary),
             label: 'Form',
           ),
           NavigationDestination(
-            icon: const AiChatIcon(color: Colors.black54, size: 24, filled: false),
-            selectedIcon: const AiChatIcon(color: kPrimary, size: 24, filled: true),
+            icon:  AiChatIcon(color: cs.onSurfaceVariant, size: 24, filled: false),
+            selectedIcon:  AiChatIcon(color: cs.primary, size: 24, filled: true),
             label: 'AI Chat',
           ),
           NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart, color: kPrimary),
+            selectedIcon: Icon(Icons.bar_chart, color: cs.primary),
             label: 'Respon',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person, color: kPrimary),
+            selectedIcon: Icon(Icons.person, color: cs.primary),
             label: 'Profil',
           ),
         ],
@@ -294,14 +294,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildRecentFormsHeader() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: const [
+      children:  [
         Text(
           "Form Terbaru",
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
       ],

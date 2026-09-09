@@ -13,6 +13,7 @@ class ResponseEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     // Dipakai di dalam Expanded/TabBarView — center vertikal & horizontal.
     // Untuk pull-to-refresh, parent sudah menyediakan scroll; di sini cukup Center.
     return Center(
@@ -21,12 +22,12 @@ class ResponseEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.black38, size: 40),
+            Icon(icon, color: cs.onSurfaceVariant, size: 40),
             const SizedBox(height: 10),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: Colors.black45),
+              style:  TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
             ),
           ],
         ),

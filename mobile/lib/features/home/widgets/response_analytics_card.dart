@@ -35,6 +35,7 @@ class ResponseAnalyticsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         InkWell(
@@ -46,12 +47,12 @@ class ResponseAnalyticsTile extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(11),
                   decoration: BoxDecoration(
-                    color: kPrimarySoft,
+                    color: cs.primaryContainer,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child:  Icon(
                     Icons.groups_outlined,
-                    color: kAuthPrimary,
+                    color: cs.primary,
                     size: 22,
                   ),
                 ),
@@ -64,31 +65,31 @@ class ResponseAnalyticsTile extends StatelessWidget {
                         text: form.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style:  TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                           fontFamily: kFontBold,
-                          color: Colors.black87,
+                          color: cs.onSurface,
                         ),
                       ),
                       const SizedBox(height: 3),
                       Text(
                         '${form.responseCount} respons',
-                        style: const TextStyle(
+                        style:  TextStyle(
                           fontSize: 12,
-                          color: Colors.black54,
+                          color: cs.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const Text(
+                 Text(
                   'Responden',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
-                    color: kAuthPrimary,
+                    color: cs.primary,
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -97,7 +98,7 @@ class ResponseAnalyticsTile extends StatelessWidget {
             ),
           ),
         ),
-        if (showDivider) const Divider(height: 1, thickness: 1, color: Color(0xFFE7E8E9)),
+        if (showDivider) Divider(height: 1, thickness: 1, color: cs.outlineVariant.withValues(alpha: 0.45)),
       ],
     );
   }

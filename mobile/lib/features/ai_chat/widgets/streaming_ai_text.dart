@@ -14,28 +14,29 @@ class StreamingAiText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ValueListenableBuilder<String>(
       valueListenable: notifier,
       builder: (ctx, text, _) {
         if (text.isEmpty) {
-          return const Row(
+          return Row(
             children: [
-              SizedBox(
+              const SizedBox(
                 width: 12,
                 height: 12,
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Text(
                 'AI mengetik...',
-                style: TextStyle(fontSize: 11, color: Colors.black54),
+                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
               ),
             ],
           );
         }
         return GptMarkdown(
           text,
-          style: const TextStyle(fontSize: 13, color: Colors.black87),
+          style: TextStyle(fontSize: 13, color: cs.onSurface),
         );
       },
     );

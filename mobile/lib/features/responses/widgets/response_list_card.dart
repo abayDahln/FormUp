@@ -18,11 +18,12 @@ class ResponseListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final r = response;
     final style = responseStatusStyle(r.status);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
       ),
@@ -31,17 +32,17 @@ class ResponseListCard extends StatelessWidget {
         leading: Container(
           width: 34,
           height: 34,
-          decoration: const BoxDecoration(
-            color: kPrimarySoft,
+          decoration:  BoxDecoration(
+            color: cs.primaryContainer,
             shape: BoxShape.circle,
           ),
           child: Center(
             child: Text(
               '${index + 1}',
-              style: const TextStyle(
+              style:  TextStyle(
                 fontWeight: FontWeight.bold,
                 fontFamily: kFontBold,
-                color: kAuthPrimary,
+                color: cs.primary,
                 fontSize: 13,
               ),
             ),
@@ -53,18 +54,18 @@ class ResponseListCard extends StatelessWidget {
               : r.respondentName!,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
+          style:  TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
         subtitle: Text(
           r.submittedAt == null
               ? 'Waktu tidak diketahui'
               : _formatTime(r.submittedAt!),
-          style: const TextStyle(fontSize: 11, color: Colors.black54),
+          style:  TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
         ),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         children: [
@@ -72,7 +73,7 @@ class ResponseListCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFFF0F4F4),
+              color: cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
@@ -100,15 +101,15 @@ class ResponseListCard extends StatelessWidget {
                 OutlinedButton(
                   onPressed: onOpenDetail,
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: kAuthPrimary),
+                    side:  BorderSide(color: cs.primary),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                   ),
-                  child: const Text(
+                  child:  Text(
                     'Lihat Jawaban',
-                    style: TextStyle(color: kAuthPrimary, fontSize: 12),
+                    style: TextStyle(color: cs.primary, fontSize: 12),
                   ),
                 ),
               ],

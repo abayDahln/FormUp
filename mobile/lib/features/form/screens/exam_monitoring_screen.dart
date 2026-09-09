@@ -100,16 +100,15 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final data = _data;
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(bottom: BorderSide(color: Color(0xCCBDC9C8))),
+        shape: Border(bottom: BorderSide(color: cs.outlineVariant)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: cs.onSurface),
           onPressed: () => AppRouter.of(context).pop(),
         ),
         title: Row(
@@ -123,7 +122,6 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
-                  color: Colors.black87,
                 ),
               ),
             ),
@@ -171,7 +169,7 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.black87),
+            icon: Icon(Icons.refresh, color: cs.onSurface),
             onPressed: () => _fetch(),
           ),
         ],
@@ -201,8 +199,8 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
                           'Diperbarui '
                               '${_lastUpdated!.toLocal().toString().substring(11, 16)}'
                               ' • diperbarui otomatis tiap 15 detik',
-                          style: const TextStyle(
-                              fontSize: 10.5, color: Colors.black45),
+                          style:  TextStyle(
+                              fontSize: 10.5, color: cs.onSurfaceVariant),
                         ),
                       ),
                     ..._sessionList(data),
@@ -224,21 +222,21 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
       return [
         Container(
           padding: const EdgeInsets.all(24),
-          decoration: _cardDecoration(),
-          child: const Column(
+          decoration: _cardDecoration(Theme.of(context).colorScheme),
+          child: Column(
             children: [
-              Icon(Icons.shield_outlined, size: 34, color: Colors.black26),
-              SizedBox(height: 8),
-              Text(
+              Icon(Icons.shield_outlined, size: 34, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              const SizedBox(height: 8),
+              const Text(
                 'Belum ada peserta ujian ditemukan',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
               ),
-              SizedBox(height: 4),
+              const SizedBox(height: 4),
               Text(
                 'Peserta yang membuka halaman ujian otomatis tercatat dan '
                 'muncul di sini secara real-time.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11.5, color: Colors.black45),
+                style: TextStyle(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -253,11 +251,11 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
     ];
   }
 
-  BoxDecoration _cardDecoration({Color border = const Color(0xFFBDC9C8)}) {
+  BoxDecoration _cardDecoration(ColorScheme cs) {
     return BoxDecoration(
-      color: Colors.white,
+      color: cs.surface,
       borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: border),
+      border: Border.all(color: cs.outlineVariant),
       boxShadow: softShadow(),
     );
   }
@@ -274,6 +272,7 @@ class _SummaryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final examActive = data.isExamMode == true || data.detectTabSwitch == true;
     return Column(
       children: [
@@ -284,8 +283,8 @@ class _SummaryGrid extends StatelessWidget {
                 label: 'Mode Ujian',
                 value: examActive ? 'Aktif' : 'Nonaktif',
                 icon: Icons.shield_outlined,
-                iconColor: examActive ? Colors.green.shade600 : Colors.black26,
-                valueColor: examActive ? Colors.green.shade700 : Colors.black45,
+                iconColor: examActive ? Colors.green.shade600 : cs.onSurfaceVariant,
+                valueColor: examActive ? Colors.green.shade700 : cs.onSurfaceVariant,
                 subtitle: data.autoSubmitOnTabSwitch == true
                     ? 'Auto-submit maks ${data.maxTabSwitch ?? 3}x pindah tab'
                     : (examActive ? 'Pencatatan pelanggaran aktif' : 'Belum aktif'),
@@ -354,12 +353,13 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFBDC9C8)),
+        border: Border.all(color: cs.outlineVariant),
         boxShadow: softShadow(),
       ),
       child: Column(
@@ -372,11 +372,11 @@ class _SummaryCard extends StatelessWidget {
                   label.toUpperCase(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.6,
-                    color: Colors.black45,
+                    color: cs.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -398,7 +398,7 @@ class _SummaryCard extends StatelessWidget {
             subtitle,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 10, color: Colors.black45),
+            style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
           ),
         ],
       ),
@@ -427,6 +427,7 @@ class _FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     const filters = [
       ('all', 'Semua'),
       ('in_progress', 'Mengerjakan'),
@@ -437,9 +438,9 @@ class _FilterBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFBDC9C8)),
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -459,7 +460,7 @@ class _FilterBar extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 11, vertical: 5),
                         decoration: BoxDecoration(
-                          color: filter == id ? kAuthPrimary : kPrimarySoft,
+                          color: filter == id ? cs.primary : cs.primaryContainer,
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
@@ -468,7 +469,7 @@ class _FilterBar extends StatelessWidget {
                             fontSize: 10.5,
                             fontWeight: FontWeight.w700,
                             color:
-                                filter == id ? Colors.white : Colors.black54,
+                                filter == id ? cs.onPrimary : cs.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -485,18 +486,18 @@ class _FilterBar extends StatelessWidget {
               isDense: true,
               hintText: 'Cari nama peserta...',
               prefixIcon:
-                  const Icon(Icons.search, size: 17, color: Colors.black38),
+                  Icon(Icons.search, size: 17, color: cs.onSurfaceVariant),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
               filled: true,
-              fillColor: const Color(0xFFF7FBFB),
+              fillColor: cs.surfaceContainerHighest,
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFFBDC9C8)),
+                borderSide: BorderSide(color: cs.outlineVariant),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: kAuthPrimary),
+                borderSide: BorderSide(color: cs.primary),
               ),
             ),
           ),
@@ -564,16 +565,17 @@ class _SessionCardState extends State<_SessionCard> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final name = (s.respondentName?.isNotEmpty ?? false)
         ? s.respondentName!
         : 'Anonim';
     final hasViolations = s.violationCount > 0;
     return Container(
       decoration: BoxDecoration(
-        color: _high ? const Color(0xFFFDF3F2) : Colors.white,
+        color: _high ? const Color(0xFFFDF3F2) : cs.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: _high ? Colors.red.shade300 : const Color(0xFFBDC9C8),
+          color: _high ? Colors.red.shade300 : cs.outlineVariant,
           width: _high ? 1.3 : 1,
         ),
         boxShadow: softShadow(),
@@ -594,13 +596,13 @@ class _SessionCardState extends State<_SessionCard> {
                     children: [
                       CircleAvatar(
                         radius: 17,
-                        backgroundColor: kPrimarySoft,
+                        backgroundColor: cs.primaryContainer,
                         child: Text(
                           name.characters.first.toUpperCase(),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
-                            color: kAuthPrimary,
+                            color: cs.primary,
                           ),
                         ),
                       ),
@@ -617,7 +619,7 @@ class _SessionCardState extends State<_SessionCard> {
                                     ? Colors.green.shade500
                                     : Colors.grey.shade400),
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
+                            border: Border.all(color: cs.surface, width: 2),
                           ),
                         ),
                       ),
@@ -632,10 +634,10 @@ class _SessionCardState extends State<_SessionCard> {
                           name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
-                            color: Colors.black87,
+                            color: cs.onSurface,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -645,8 +647,8 @@ class _SessionCardState extends State<_SessionCard> {
                               : (s.isOnline
                                   ? 'Aktivitas ${_relativeTime(s.lastSeenAt)}'
                                   : 'Terakhir aktif ${_relativeTime(s.lastSeenAt)}'),
-                          style: const TextStyle(
-                              fontSize: 10.5, color: Colors.black45),
+                          style: TextStyle(
+                              fontSize: 10.5, color: cs.onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -693,16 +695,18 @@ class _SessionCardState extends State<_SessionCard> {
                 children: [
                   Expanded(
                     child: _violationStat(
+                      context,
                       'Total pelanggaran',
                       '${s.violationCount}',
-                      s.violationCount > 0 ? Colors.red : Colors.black38,
+                      s.violationCount > 0 ? Colors.red : cs.onSurfaceVariant,
                     ),
                   ),
                   Expanded(
                     child: _violationStat(
+                      context,
                       'Pindah tab',
                       '${s.tabSwitchCount}',
-                      s.tabSwitchCount > 0 ? Colors.red : Colors.black38,
+                      s.tabSwitchCount > 0 ? Colors.red : cs.onSurfaceVariant,
                     ),
                   ),
                   if (hasViolations)
@@ -710,7 +714,7 @@ class _SessionCardState extends State<_SessionCard> {
                       turns: _expanded ? 0.25 : 0,
                       duration: const Duration(milliseconds: 150),
                       child: Icon(Icons.chevron_right,
-                          size: 18, color: Colors.black38),
+                          size: 18, color: cs.onSurfaceVariant),
                     ),
                 ],
               ),
@@ -739,9 +743,9 @@ class _SessionCardState extends State<_SessionCard> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF7FBFB),
+                    color: cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE3ECEB)),
+                    border: Border.all(color: cs.outlineVariant),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -757,14 +761,15 @@ class _SessionCardState extends State<_SessionCard> {
                               Expanded(
                                 child: Text(
                                   _violationLabel(v.type),
-                                  style: const TextStyle(
-                                      fontSize: 11.5, color: Colors.black87),
+                                  style: TextStyle(
+                                      fontSize: 11.5, color: cs.onSurface),
                                 ),
                               ),
                               Text(
                                 _clockTime(v.occurredAt),
-                                style: const TextStyle(
-                                    fontSize: 10.5, color: Colors.black45),
+                                style: TextStyle(
+                                    fontSize: 10.5,
+                                    color: cs.onSurfaceVariant),
                               ),
                             ],
                           ),
@@ -780,7 +785,7 @@ class _SessionCardState extends State<_SessionCard> {
     );
   }
 
-  Widget _violationStat(String label, String value, Color color) => Row(
+  Widget _violationStat(BuildContext context, String label, String value, Color color) => Row(
         children: [
           Text(
             value,
@@ -797,7 +802,7 @@ class _SessionCardState extends State<_SessionCard> {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 10.5, color: Colors.black45),
+              style: TextStyle(fontSize: 10.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ),
         ],

@@ -56,8 +56,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: AbsorbPointer(
         absorbing: _loading,
         child: AuthBackground(
@@ -109,10 +110,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                     onTap: () {
                                       AppRouter.of(context).push(AppPage.forgotPassword);
                                     },
-                                    child: const Text(
+                                    child:  Text(
                                       "Lupa Kata Sandi?",
                                       style: TextStyle(
-                                        color: kAuthPrimary,
+                                        color: cs.primary,
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
                                         fontFamily: kFontBold,

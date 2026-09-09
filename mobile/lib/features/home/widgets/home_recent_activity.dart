@@ -20,6 +20,7 @@ class HomeRecentActivity extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     if (loading && responses.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 20),
@@ -34,13 +35,13 @@ class HomeRecentActivity extends StatelessWidget {
     }
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
           for (var i = 0; i < responses.take(3).length; i++) ...[
-            if (i > 0) const Divider(height: 1, color: Colors.black12),
+            if (i > 0) Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.45)),
             _ActivityItem(
               item: responses[i],
               onTap: () => onOpenResponse(responses[i]),
@@ -61,6 +62,7 @@ class _ActivityItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -70,8 +72,8 @@ class _ActivityItem extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(
-                color: Color(0xFFF0F4F4),
+              decoration:  BoxDecoration(
+                color: cs.surfaceContainerHighest,
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -93,11 +95,11 @@ class _ActivityItem extends StatelessWidget {
                           text: "Anda mengerjakan '${item.formTitle}'",
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style:  TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
                             fontFamily: kFontBold,
-                            color: Colors.black87,
+                            color: cs.onSurface,
                           ),
                         ),
                       ),
@@ -114,9 +116,9 @@ class _ActivityItem extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       'Kode: ${item.formLink}',
-                      style: const TextStyle(
+                      style:  TextStyle(
                         fontSize: 12,
-                        color: Colors.black54,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                   ],

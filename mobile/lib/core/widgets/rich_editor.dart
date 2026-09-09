@@ -601,6 +601,7 @@ class _ToolbarAlignDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return _MenuToolbarButton(
       controller: controller,
       tooltip: 'Perataan',
@@ -621,10 +622,10 @@ class _ToolbarAlignDropdown extends StatelessWidget {
         );
       },
       menuBuilder: (c) => [
-        _alignMenuItem(Icons.format_align_left, 'Kiri', Attribute.leftAlignment, c),
-        _alignMenuItem(Icons.format_align_center, 'Tengah', Attribute.centerAlignment, c),
-        _alignMenuItem(Icons.format_align_right, 'Kanan', Attribute.rightAlignment, c),
-        _alignMenuItem(Icons.format_align_justify, 'Rata Kiri-Kanan', Attribute.justifyAlignment, c),
+        _alignMenuItem(Icons.format_align_left, 'Kiri', Attribute.leftAlignment, c, cs),
+        _alignMenuItem(Icons.format_align_center, 'Tengah', Attribute.centerAlignment, c, cs),
+        _alignMenuItem(Icons.format_align_right, 'Kanan', Attribute.rightAlignment, c, cs),
+        _alignMenuItem(Icons.format_align_justify, 'Rata Kiri-Kanan', Attribute.justifyAlignment, c, cs),
       ],
     );
   }
@@ -634,6 +635,7 @@ class _ToolbarAlignDropdown extends StatelessWidget {
     String label,
     Attribute<String?> attr,
     QuillController c,
+    ColorScheme cs,
   ) {
     final active = c.getSelectionStyle().attributes[Attribute.align.key]?.value == attr.value;
     return MenuItemButton(
@@ -641,7 +643,7 @@ class _ToolbarAlignDropdown extends StatelessWidget {
         c.formatSelection(attr);
         afterPressed?.call();
       },
-      leadingIcon: Icon(icon, size: 18, color: active ? const Color(0xFF2A9D8F) : null),
+      leadingIcon: Icon(icon, size: 18, color: active ? cs.primary : null),
       child: Text(label),
     );
   }
@@ -656,6 +658,7 @@ class _ToolbarListDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return _MenuToolbarButton(
       controller: controller,
       tooltip: 'Daftar',
@@ -674,9 +677,9 @@ class _ToolbarListDropdown extends StatelessWidget {
       menuBuilder: (c) {
         final list = c.getSelectionStyle().attributes[Attribute.list.key]?.value;
         return [
-          _listMenuItem(Icons.format_list_bulleted, 'Bullet', 'bullet', list, c),
-          _listMenuItem(Icons.format_list_numbered, 'Angka', 'ordered', list, c),
-          _listMenuItem(Icons.format_list_numbered_rtl, 'Alphabet (a, b, c)', 'alpha', list, c),
+          _listMenuItem(Icons.format_list_bulleted, 'Bullet', 'bullet', list, c, cs),
+          _listMenuItem(Icons.format_list_numbered, 'Angka', 'ordered', list, c, cs),
+          _listMenuItem(Icons.format_list_numbered_rtl, 'Alphabet (a, b, c)', 'alpha', list, c, cs),
         ];
       },
     );
@@ -688,13 +691,14 @@ class _ToolbarListDropdown extends StatelessWidget {
     String listValue,
     Object? current,
     QuillController c,
+    ColorScheme cs,
   ) {
     return MenuItemButton(
       onPressed: () {
         _applyList(c, listValue);
         afterPressed?.call();
       },
-      leadingIcon: Icon(icon, size: 18, color: current == listValue ? const Color(0xFF2A9D8F) : null),
+      leadingIcon: Icon(icon, size: 18, color: current == listValue ? cs.primary : null),
       child: Text(label),
     );
   }
@@ -915,6 +919,7 @@ class _RichTextEditorState extends State<RichTextEditor> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     // ponytail: placeholder default flutter_quill 20px terlalu besar;
     // samakan dengan ukuran teks form (14).
     final base =
@@ -928,9 +933,9 @@ class _RichTextEditorState extends State<RichTextEditor> {
             )),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cs.surface,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF6E7979)),
+          border: Border.all(color: cs.outline),
         ),
         child: QuillEditor.basic(
           controller: widget.controller,
@@ -993,6 +998,7 @@ class FloatingRichToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ValueListenableBuilder<ActiveRichEditor?>(
       valueListenable: activeRichEditor,
       builder: (context, active, _) {
@@ -1004,7 +1010,7 @@ class FloatingRichToolbar extends StatelessWidget {
           right: 0,
           bottom: 0,
           child: Material(
-            color: Colors.white,
+            color: cs.surface,
             elevation: 6,
             child: SafeArea(
               top: false,
@@ -1052,7 +1058,7 @@ Future<void> _insertMath(BuildContext context, QuillController controller) async
   final formula = await showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.white,
+    backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
@@ -1069,7 +1075,7 @@ Future<void> _insertCode(BuildContext context, QuillController controller) async
   final snippet = await showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.white,
+    backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
@@ -1116,6 +1122,7 @@ class _MathInsertSheetState extends State<_MathInsertSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final formula = _controller.text.trim();
     return Padding(
       padding: EdgeInsets.only(
@@ -1158,9 +1165,9 @@ class _MathInsertSheetState extends State<_MathInsertSheet> {
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Preview:',
-            style: TextStyle(fontSize: 12, color: Colors.black54),
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 6),
           Center(
@@ -1171,9 +1178,9 @@ class _MathInsertSheetState extends State<_MathInsertSheet> {
                   : Math.tex(
                       formula,
                       mathStyle: MathStyle.display,
-                      textStyle: const TextStyle(
+                      textStyle: TextStyle(
                         fontSize: 16,
-                        color: Colors.black87,
+                        color: cs.onSurface,
                       ),
                     ),
             ),
@@ -1223,6 +1230,7 @@ class _CodeInsertSheetState extends State<_CodeInsertSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final code = _controller.text;
     return Padding(
       padding: EdgeInsets.only(
@@ -1263,9 +1271,9 @@ class _CodeInsertSheetState extends State<_CodeInsertSheet> {
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Preview:',
-            style: TextStyle(fontSize: 12, color: Colors.black54),
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 6),
           ConstrainedBox(

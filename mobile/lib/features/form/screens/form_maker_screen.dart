@@ -184,26 +184,26 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        shape:  Border(
+          bottom: BorderSide(color: cs.outlineVariant),
         ),
         title: Text(
           _isEdit ? "Edit Form" : "Buat Form",
-          style: const TextStyle(
+          style:  TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon:  Icon(Icons.arrow_back, color: cs.onSurface),
           onPressed: () async {
             final allow = await _confirmExit();
             if (!allow) return;

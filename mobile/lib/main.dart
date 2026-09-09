@@ -7,11 +7,13 @@ import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/gemini_service.dart';
 import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/theme.dart';
+import 'package:form_up/core/theme_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env', isOptional: true);
   await GeminiService.init();
+  await ThemeController.instance.load();
   NetworkStatus.configure(apiBaseUrl);
   await NetworkStatus.refresh();
   NetworkStatus.startMonitoring();
@@ -60,13 +62,18 @@ class MyApp extends StatelessWidget {
     // 🔧 FIX: AppRouter wrapper HARUS tetap ada
     return AppRouter(
       delegate: delegate,
-      child: MaterialApp.router(
-        title: 'Form Up',
-        debugShowCheckedModeBanner: false,
-        theme: buildFormUpTheme(),
-        routerDelegate: delegate,
-        routeInformationParser: AppRouteParser(),
-        localizationsDelegates: FlutterQuillLocalizations.localizationsDelegates,
+      child: ValueListenableBuilder<AppThemeChoice>(
+        valueListenable: ThemeController.instance,
+        builder: (context, choice, _) => MaterialApp.router(
+          title: 'Form Up',
+          debugShowCheckedModeBanner: false,
+          theme: buildFormUpTheme(),
+          darkTheme: buildFormUpDarkTheme(),
+          themeMode: choice.mode,
+          routerDelegate: delegate,
+          routeInformationParser: AppRouteParser(),
+          localizationsDelegates: FlutterQuillLocalizations.localizationsDelegates,
+        ),
       ),
     );
   }

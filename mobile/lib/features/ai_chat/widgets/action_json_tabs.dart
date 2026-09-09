@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
@@ -33,6 +32,9 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
 
   int _tab = 0; // 0 = Preview, 1 = JSON
 
+  /// Skema warna tema aktif agar seluruh kartu sadar-tema (terang/gelap).
+  ColorScheme get _cs => Theme.of(context).colorScheme;
+
   String _clean(String? s) => (s ?? '')
       .replaceAll(RegExp(r'<[^>]*>'), '')
       .replaceAll(RegExp(r'\s+'), ' ')
@@ -46,16 +48,16 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cs.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFBDC9C8)),
+        border: Border.all(color: _cs.outlineVariant),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _tabBar(),
-          const Divider(height: 1, thickness: 0.7, color: Color(0xFFE3ECEB)),
+          Divider(height: 1, thickness: 0.7, color: _cs.outlineVariant),
           Padding(
             padding: const EdgeInsets.all(8),
             child: _tab == 0 ? _preview() : _jsonView(),
@@ -85,19 +87,21 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: active ? kPrimarySoft : Colors.transparent,
+            color: active ? _cs.primaryContainer : Colors.transparent,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 13, color: active ? kAuthPrimary : Colors.black38),
+              Icon(icon,
+                  size: 13,
+                  color: active ? _cs.primary : _cs.onSurfaceVariant),
               const SizedBox(width: 5),
               Text(
                 label,
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                  color: active ? kAuthPrimary : Colors.black45,
+                  color: active ? _cs.primary : _cs.onSurfaceVariant,
                 ),
               ),
             ],
@@ -134,7 +138,7 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
         final n = (a['questionIds'] as List<dynamic>?)?.length ?? 0;
         return Text(
           '$n soal akan dihapus dari form. Rincian soalnya ada di kartu perubahan di bawah.',
-          style: const TextStyle(fontSize: 12, color: Colors.black54),
+          style: TextStyle(fontSize: 12, color: _cs.onSurfaceVariant),
         );
       case 'update_settings':
         final settings = a['settings'] as Map<dynamic, dynamic>? ?? {};
@@ -151,18 +155,18 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
                       width: 110,
                       child: Text(
                         '$k',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w700,
-                          color: Colors.black54,
+                          color: _cs.onSurfaceVariant,
                         ),
                       ),
                     ),
                     Expanded(
                       child: RichTextView(
                         text: '${settings[k]}',
-                        style: const TextStyle(
-                            fontSize: 12, color: Colors.black87),
+                        style: TextStyle(
+                            fontSize: 12, color: _cs.onSurface),
                       ),
                     ),
                   ],
@@ -177,17 +181,17 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
 
   Widget _formTitleLine(String title) => Row(
         children: [
-          const Icon(Icons.description_outlined, size: 14, color: kAuthPrimary),
+          Icon(Icons.description_outlined, size: 14, color: _cs.primary),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: Colors.black87,
+                color: _cs.onSurface,
               ),
             ),
           ),
@@ -215,9 +219,9 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF9FCFC),
+        color: _cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE3ECEB)),
+        border: Border.all(color: _cs.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,7 +233,7 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
             children: [
               _chip(
                 'Soal ${order ?? index + 1}',
-                color: kAuthPrimary,
+                color: _cs.primary,
                 filled: true,
               ),
               _chip(_typeLabel(q['typeId'])),
@@ -242,7 +246,7 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
           // rich text + LaTeX ($...$, $$...$$) via flutter_math_fork.
           RichTextView(
             text: _clean(q['question'] as String?),
-            style: const TextStyle(fontSize: 13, color: Colors.black87),
+            style: TextStyle(fontSize: 13, color: _cs.onSurface),
           ),
           if (options.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -293,14 +297,14 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: isCorrect ? Colors.green : Colors.black54,
+                color: isCorrect ? Colors.green : _cs.onSurfaceVariant,
               ),
             ),
           ),
           Expanded(
             child: RichTextView(
               text: _clean(text),
-              style: const TextStyle(fontSize: 12, color: Colors.black87),
+              style: TextStyle(fontSize: 12, color: _cs.onSurface),
             ),
           ),
           if (isCorrect)
@@ -314,14 +318,15 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
   }
 
   Widget _chip(String label, {Color? color, bool filled = false}) {
-    final c = color ?? Colors.black54;
+    final cs = Theme.of(context).colorScheme;
+    final c = color ?? cs.onSurfaceVariant;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: filled ? c.withValues(alpha: 0.14) : Colors.white,
+        color: filled ? c.withValues(alpha: 0.14) : cs.surface,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
-          color: filled ? c.withValues(alpha: 0.4) : const Color(0xFFE3ECEB),
+          color: filled ? c.withValues(alpha: 0.4) : cs.outlineVariant,
         ),
       ),
       child: Text(
@@ -329,7 +334,7 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
         style: TextStyle(
           fontSize: 9.5,
           fontWeight: FontWeight.w700,
-          color: filled ? c : Colors.black54,
+          color: filled ? c : cs.onSurfaceVariant,
         ),
       ),
     );
@@ -341,7 +346,7 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
     final pretty = const JsonEncoder.withIndent('  ').convert(widget.action);
     return GptMarkdown(
       '```json\n$pretty\n```',
-      style: const TextStyle(fontSize: 11.5, color: Colors.black87),
+      style:  TextStyle(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurface),
     );
   }
 }

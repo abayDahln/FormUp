@@ -15,9 +15,10 @@ class FormDetailPublishCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(kRadius),
       ),
       child: Material(
@@ -27,21 +28,21 @@ class FormDetailPublishCard extends StatelessWidget {
             form.status == 'published'
                 ? Icons.publish
                 : Icons.visibility_off_outlined,
-            color: kAuthPrimary,
+            color: cs.primary,
           ),
           title: Text(
             form.status == 'published' ? 'Tarik (kembali ke draf)' : 'Terbitkan form',
-            style: const TextStyle(fontSize: 14, color: Colors.black87),
+            style: TextStyle(fontSize: 14, color: cs.onSurface),
           ),
           subtitle: Text(
             form.status == 'published'
                 ? 'Form sedang terbuka untuk respons.'
                 : 'Form belum terbuka untuk responden.',
-            style: const TextStyle(fontSize: 12, color: Colors.black54),
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
           ),
           trailing: Switch(
             value: form.status == 'published',
-            activeTrackColor: kAuthPrimary,
+            activeTrackColor: cs.primary,
             onChanged: (_) => onToggle(),
           ),
         ),

@@ -50,13 +50,14 @@ class RunnerQuestionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final q = question;
     double zs(double v) => (v * zoom).clamp(10, 48).toDouble();
     return Container(
       key: cardKey,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
         border: Border.all(
@@ -78,7 +79,7 @@ class RunnerQuestionCard extends StatelessWidget {
                     fontSize: zs(15),
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
-                    color: Colors.black87,
+                    color: cs.onSurface,
                     height: 1.4,
                   ),
                 ),
@@ -89,7 +90,7 @@ class RunnerQuestionCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: zs(15),
                       fontFamily: kFontBold,
-                      color: Colors.black87,
+                      color: cs.onSurface,
                       height: 1.4,
                     ),
                   ),

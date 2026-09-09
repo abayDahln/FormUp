@@ -24,13 +24,14 @@ class AdminPanelContent extends StatefulWidget {
 class _AdminPanelContentState extends State<AdminPanelContent> {
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return DefaultTabController(
       length: 2,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Padding(
+             Padding(
               padding: EdgeInsets.fromLTRB(20, 15, 20, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,27 +42,27 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
-                    color: Colors.black87,
+                    color: cs.onSurface,
                   ),
                 ),
                 SizedBox(height: 2),
                 Text(
                   'Kelola user, form, dan feedback',
-                  style: TextStyle(fontSize: 13, color: Colors.black54),
+                  style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
           Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(bottom: BorderSide(color: Color(0xCCBDC9C8))),
+            decoration:  BoxDecoration(
+              color: cs.surface,
+              border: Border(bottom: BorderSide(color: cs.outlineVariant)),
             ),
-            child: const TabBar(
-              labelColor: kPrimary,
+            child:  TabBar(
+              labelColor: cs.primary,
               unselectedLabelColor: Colors.grey,
-              indicatorColor: kPrimary,
+              indicatorColor: cs.primary,
               indicatorWeight: 2.5,
               labelStyle: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 13),
               unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
@@ -124,6 +125,7 @@ class PageNavFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -134,11 +136,11 @@ class PageNavFooter extends StatelessWidget {
         ),
         Text(
           'Halaman $page dari $totalPages',
-          style: const TextStyle(
+          style:  TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
         IconButton.filledTonal(
@@ -242,6 +244,7 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -257,7 +260,7 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
         ),
         Expanded(
           child: AppRefreshIndicator(
-            indicatorColor: kAuthPrimary,
+            indicatorColor: cs.primary,
             onRefresh: () => _load(),
             child: !_loading && _users.isEmpty
                 ? ListView(
@@ -267,12 +270,12 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
                         padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
                         child: Column(
                           children: [
-                            const Icon(Icons.person_off_outlined, color: Colors.black38, size: 36),
+                            Icon(Icons.person_off_outlined, color: cs.onSurfaceVariant, size: 36),
                             const SizedBox(height: 10),
                             Text(
                               _query.isEmpty ? 'Belum ada user' : 'Tidak ada hasil untuk "${_searchController.text}"',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 13, color: Colors.black45),
+                              style:  TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
                             ),
                           ],
                         ),
@@ -417,6 +420,7 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -456,13 +460,13 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: _statusFilter == value
-                              ? kAuthPrimary
-                              : Colors.white,
+                              ? cs.primary
+                              : cs.surface,
                           borderRadius: BorderRadius.circular(19),
                           border: Border.all(
                             color: _statusFilter == value
-                                ? kAuthPrimary
-                                : const Color(0xFFBDC9C8),
+                                ? cs.primary
+                                : cs.outlineVariant,
                           ),
                         ),
                         child: Text(
@@ -476,8 +480,8 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                                 ? kFontBold
                                 : null,
                             color: _statusFilter == value
-                                ? Colors.white
-                                : Colors.black54,
+                                ? cs.onPrimary
+                                : cs.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -489,7 +493,7 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
         ),
         Expanded(
           child: AppRefreshIndicator(
-            indicatorColor: kAuthPrimary,
+            indicatorColor: cs.primary,
             onRefresh: () => _load(),
             child: !_loading && _forms.isEmpty
                 ? ListView(
@@ -499,13 +503,13 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                         padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
                         child: Column(
                           children: [
-                            const Icon(Icons.folder_off_outlined, color: Colors.black38, size: 36),
+                            Icon(Icons.folder_off_outlined, color: cs.onSurfaceVariant, size: 36),
                             const SizedBox(height: 10),
                             Text(
                               _query.isEmpty ? 'Belum ada form'
                                   : 'Tidak ada hasil untuk "${_searchController.text}"',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 13, color: Colors.black45),
+                              style:  TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
                             ),
                           ],
                         ),
@@ -630,7 +634,7 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
   Future<void> _actionMenu(AdminFeedbackItem item) async {
     final choice = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -685,23 +689,24 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         Expanded(
           child: AppRefreshIndicator(
-            indicatorColor: kAuthPrimary,
+            indicatorColor: cs.primary,
             onRefresh: () => _load(),
             child: !_loading && _feedbacks.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    children: const [
+                    children:  [
                       Padding(
                         padding: EdgeInsets.symmetric(vertical: 40, horizontal: 20),
                         child: Column(
                           children: [
-                            Icon(Icons.forum_outlined, color: Colors.black38, size: 36),
+                            Icon(Icons.forum_outlined, color: cs.onSurfaceVariant, size: 36),
                             SizedBox(height: 10),
-                            Text('Belum ada feedback', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Colors.black45)),
+                            Text('Belum ada feedback', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
                           ],
                         ),
                       ),
@@ -745,8 +750,8 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
                               _load();
                             },
                             trailing: IconButton(
-                              icon: const Icon(Icons.more_vert,
-                                  color: Colors.black54, size: 20),
+                              icon:  Icon(Icons.more_vert,
+                                  color: cs.onSurfaceVariant, size: 20),
                               onPressed: () => _actionMenu(f),
                             ),
                           );
@@ -783,8 +788,9 @@ class _AdminCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Material(
-      color: Colors.white,
+      color: cs.surface,
       borderRadius: BorderRadius.circular(kRadius),
       elevation: 0,
       child: InkWell(
@@ -798,10 +804,10 @@ class _AdminCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(11),
                 decoration: BoxDecoration(
-                  color: kPrimarySoft,
+                  color: cs.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: kAuthPrimary, size: 22),
+                child: Icon(icon, color: cs.primary, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -812,11 +818,11 @@ class _AdminCard extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style:  TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
-                        color: Colors.black87,
+                        color: cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -824,7 +830,7 @@ class _AdminCard extends StatelessWidget {
                       subtitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      style:  TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                     ),
                     const SizedBox(height: 8),
                     Wrap(

@@ -75,7 +75,7 @@ extension _AiChatMessaging on _AiChatScreenState {
   /// Kirim ulang pesan user terakhir setelah bubble error (tombol "Coba lagi").
   /// Bubble error dibuang dulu agar tidak menumpuk, lalu pesan dikirim ulang.
   Future<void> retryMessage(ChatMessage failed) async {
-    if (_streaming) return;
+    if (_streaming || _sending) return;
     final idx = _messages.indexOf(failed);
     String? lastUser;
     for (var i = idx - 1; i >= 0; i--) {
@@ -310,6 +310,10 @@ extension _AiChatMessaging on _AiChatScreenState {
   Future<void> acceptPendingAction() async {
     final m = pendingActionMessage;
     if (m == null || _actionWorking) return;
+    if (_streaming || _sending) {
+      showAuthToast(context, 'Tunggu respons AI selesai dulu', isError: true);
+      return;
+    }
     setState(() => _actionWorking = true);
     try {
       final result = await executeAction(m.actionJson!);
@@ -337,6 +341,10 @@ extension _AiChatMessaging on _AiChatScreenState {
   Future<void> rejectPendingAction() async {
     final m = pendingActionMessage;
     if (m == null || _actionWorking) return;
+    if (_streaming || _sending) {
+      showAuthToast(context, 'Tunggu respons AI selesai dulu', isError: true);
+      return;
+    }
     setState(() {
       _actionWorking = false;
       m.actionStatus = 'rejected';
@@ -347,9 +355,11 @@ extension _AiChatMessaging on _AiChatScreenState {
   }
 
   Future<void> sendWithText(String rawText) async {
-    if (rawText.isEmpty || _streaming) return;
+    // Debounce: tolak kirim ganda selama persiapan kirim (_sending) atau
+    // streaming (_streaming) masih berjalan.
+    if (rawText.isEmpty || _streaming || _sending) return;
     if (!GeminiService.hasKey) {
-      showAuthToast(context, 'GEMINI_API_KEY belum diatur', isError: true);
+      showAuthToast(context, 'API Key belum diatur', isError: true);
       showAiApiKeyDialog(
         context,
         onKeyChanged: () {
@@ -358,6 +368,24 @@ extension _AiChatMessaging on _AiChatScreenState {
       );
       return;
     }
+    // Kunci seketika (sinkron, sebelum await pertama) agar tap kedua
+    // yang datang saat bangun konteks tidak lolos jadi request ganda.
+    _sending = true;
+    if (mounted) setState(() {});
+    try {
+      await _prepareAndStream(rawText);
+    } catch (_) {
+      // Gagal sebelum streaming mulai (mis. sesi/history gagal dimuat):
+      // buka kunci agar user bisa coba lagi.
+      _sending = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  /// Persiapan kirim (konteks + bubble) lalu mulai streaming.
+  /// Dipanggil sekali per kirim; flag _sending dilepas saat streaming
+  /// resmi mulai (atau saat method ini melempar).
+  Future<void> _prepareAndStream(String rawText) async {
     // ensure session exists
     if (_currentSessionId == null) await newSession();
     // Agent: deteksi @mention dan bangun konteks form
@@ -427,6 +455,7 @@ extension _AiChatMessaging on _AiChatScreenState {
     setState(() {
       _messages.add(botMsg);
       _streaming = true;
+      _sending = false; // persiapan selesai, giliran flag streaming
       _streamingMsg = botMsg;
       _streamingBuffer = buffer;
     });
@@ -496,11 +525,7 @@ extension _AiChatMessaging on _AiChatScreenState {
               subscribe(isRetry: true);
               return;
             }
-            botMsg.text = 'AI tidak mengirim jawaban — kemungkinan kuota/batas '
-                'token API Key sudah habis (limit pemakaian tercapai). '
-                'Ketuk "Coba lagi" untuk mengulang; jika terus gagal, tunggu '
-                'beberapa saat, ganti API Key di Pengaturan AI, atau mulai '
-                'chat baru.';
+            botMsg.text = 'AI tidak memberi jawaban. Coba lagi.';
             botMsg.isError = true;
           } else {
             botMsg.text = full;
@@ -539,8 +564,7 @@ extension _AiChatMessaging on _AiChatScreenState {
             // Stream putus di tengah tapi sudah ada jawaban parsial:
             // tampilkan parsial + catatan, JANGAN fallback (menghemat
             // waktu tunggu — user sudah menunggu sekali).
-            botMsg.text = '$partial\n\n— Respons terputus di tengah jalan '
-                '(koneksi tidak stabil). Ketuk "Coba lagi" untuk jawaban baru.';
+            botMsg.text = '$partial\n\nRespons terputus. Coba lagi untuk jawaban baru.';
             botMsg.isError = true;
             botMsg.disposeStream();
             if (!mounted) return;
@@ -584,9 +608,7 @@ extension _AiChatMessaging on _AiChatScreenState {
             );
             if (botMsg != _streamingMsg) return; // di-stop saat fallback jalan
             if (full.trim().isEmpty) {
-              botMsg.text =
-                  'AI tidak mengirim jawaban (respons kosong dari server). '
-                  'Ketuk "Coba lagi" untuk mengulang.';
+              botMsg.text = 'AI tidak memberi jawaban. Coba lagi.';
               botMsg.isError = true;
             } else {
               botMsg.text = full;

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/router/app_router.dart';
-import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/features/ai_chat/models/chat_message.dart';
 
 /// Kartu ringkasan perubahan (gaya diff) di bawah bubble AI yang berisi
@@ -17,11 +16,15 @@ class ActionChangeCard extends StatefulWidget {
   /// Terapkan kembali perubahan yang sudah di-undo (null = sembunyikan).
   final VoidCallback? onRedo;
 
+  /// False saat AI sedang mengetik: tombol Undo/Redo dinonaktifkan.
+  final bool disabled;
+
   const ActionChangeCard({
     super.key,
     required this.message,
     this.onUndo,
     this.onRedo,
+    this.disabled = false,
   });
 
   @override
@@ -62,27 +65,29 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
     }
   }
 
-  (String, Color) _status() {
+  (String, Color) _status(ColorScheme cs) {
     if (m.actionStatus == 'rejected') return ('Ditolak', Colors.red);
-    if (m.actionUndone) return ('Di-undo', Colors.black38);
+    if (m.actionUndone) return ('Di-undo', cs.onSurfaceVariant);
     if (m.actionStatus == 'accepted' && m.actionExecuted) {
       return ('Diterima', Colors.green);
     }
     if (m.actionStatus == 'pending') return ('Menunggu', Colors.orange);
-    return ('', Colors.black38);
+    return ('', cs.onSurfaceVariant);
   }
 
   // ---- Detail perubahan (isi dropdown) ----
 
   /// Judul satu item perubahan ("Soal 3", "Form: ...", "isExamMode").
-  Widget _itemTitle(String text, {Color color = Colors.black87}) => Padding(
+  Widget _itemTitle(String text, ColorScheme cs, {Color? color}) => Padding(
         padding: const EdgeInsets.only(bottom: 5),
         child: Text(
           text,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-              fontSize: 12.5, fontWeight: FontWeight.w700, color: color),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: color ?? cs.onSurface),
         ),
       );
 
@@ -92,6 +97,7 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
     required String label,
     required String text,
     required Color color,
+    required ColorScheme cs,
   }) =>
       Padding(
         padding: const EdgeInsets.only(bottom: 4),
@@ -117,10 +123,10 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                 text.isEmpty ? '(kosong)' : text,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   height: 1.35,
-                  color: Colors.black87,
+                  color: cs.onSurface,
                 ),
               ),
             ),
@@ -131,49 +137,59 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
   /// Label soal memakai NOMOR URUT (bukan id database) agar wajar dibaca user.
   String _soalLabel(int? order) => order != null ? 'Soal $order' : 'Soal';
 
-  Widget _editItem(int? order, String? oldQ, String? newQ) => Padding(
+  Widget _editItem(ColorScheme cs, int? order, String? oldQ, String? newQ) =>
+      Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _itemTitle(_soalLabel(order)),
-            _diffLine(label: 'Lama', text: _clean(oldQ), color: Colors.black38),
-            _diffLine(label: 'Baru', text: _clean(newQ), color: kAuthPrimary),
+            _itemTitle(_soalLabel(order), cs),
+            _diffLine(
+                label: 'Lama',
+                text: _clean(oldQ),
+                color: cs.onSurfaceVariant,
+                cs: cs),
+            _diffLine(
+                label: 'Baru',
+                text: _clean(newQ),
+                color: cs.primary,
+                cs: cs),
           ],
         ),
       );
 
-  Widget _addLine(String? question, {int? order}) => Padding(
+  Widget _addLine(ColorScheme cs, String? question, {int? order}) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _itemTitle(_soalLabel(order)),
+            _itemTitle(_soalLabel(order), cs),
             _diffLine(
               label: 'Baru',
               text: _clean(question),
               color: Colors.green,
+              cs: cs,
             ),
           ],
         ),
       );
 
-  Widget _deleteItem(int? order, String? question) => Padding(
+  Widget _deleteItem(ColorScheme cs, int? order, String? question) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _itemTitle(_soalLabel(order), color: Colors.red),
+            _itemTitle(_soalLabel(order), cs, color: Colors.red),
             Text(
               _clean(question).isEmpty ? '(kosong)' : _clean(question),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 height: 1.35,
-                color: Colors.black54,
+                color: cs.onSurfaceVariant,
                 decoration: TextDecoration.lineThrough,
-                decorationColor: Colors.black26,
+                decorationColor: cs.onSurfaceVariant,
               ),
             ),
           ],
@@ -187,16 +203,17 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
     return qo is int ? qo : int.tryParse('$qo');
   }
 
-  List<Widget> _detailItems() {
+  List<Widget> _detailItems(ColorScheme cs) {
     final a = m.actionJson!;
     final undo = m.undoSnapshot;
     switch (a['action']) {
       case 'create_form':
         final title = _clean(a['title'] as String?);
         return [
-          _itemTitle('Form: ${title.isEmpty ? '(tanpa judul)' : title}'),
+          _itemTitle('Form: ${title.isEmpty ? '(tanpa judul)' : title}', cs),
           for (final q in (a['questions'] as List<dynamic>? ?? []))
             _addLine(
+              cs,
               (q as Map)['question'] as String?,
               order: _orderOf(q),
             ),
@@ -205,6 +222,7 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
         return [
           for (final q in (a['questions'] as List<dynamic>? ?? []))
             _addLine(
+              cs,
               (q as Map)['question'] as String?,
               order: _orderOf(q),
             ),
@@ -220,6 +238,7 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
               final map = q as Map;
               final orig = olds[map['id']];
               return _editItem(
+                cs,
                 orig != null ? _orderOf(orig) : _orderOf(map),
                 orig?['question'] as String?,
                 map['question'] as String?,
@@ -232,6 +251,7 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
           return [
             for (final o in deleted)
               _deleteItem(
+                cs,
                 _orderOf(o as Map),
                 o['question'] as String?,
               ),
@@ -239,7 +259,7 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
         }
         return [
           for (final _ in (a['questionIds'] as List<dynamic>? ?? []))
-            _itemTitle('Soal', color: Colors.red),
+            _itemTitle('Soal', cs, color: Colors.red),
         ];
       case 'update_settings':
         final prev = (undo?['previousSettings'] as Map<dynamic, dynamic>?) ?? {};
@@ -254,18 +274,23 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _itemTitle('$k'),
-                  _diffLine(label: 'Lama', text: '$p', color: Colors.black38),
-                  _diffLine(label: 'Baru', text: '$n', color: kAuthPrimary),
+                  _itemTitle('$k', cs),
+                  _diffLine(
+                      label: 'Lama',
+                      text: '$p',
+                      color: cs.onSurfaceVariant,
+                      cs: cs),
+                  _diffLine(
+                      label: 'Baru', text: '$n', color: cs.primary, cs: cs),
                 ],
               ),
             ));
           }
         }
         if (items.isEmpty) {
-          items.add(const Text(
+          items.add(Text(
             'Pengaturan form diperbarui',
-            style: TextStyle(fontSize: 12, color: Colors.black54),
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
           ));
         }
         return items;
@@ -275,16 +300,16 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
   }
 
   /// Detail + divider antar item agar blok per soal terpisah jelas.
-  List<Widget> _detailWidgets() {
-    final items = _detailItems();
+  List<Widget> _detailWidgets(ColorScheme cs) {
+    final items = _detailItems(cs);
     final out = <Widget>[];
     for (var i = 0; i < items.length; i++) {
       out.add(items[i]);
       if (i != items.length - 1) {
-        out.add(const Divider(
+        out.add(Divider(
           height: 10,
           thickness: 0.7,
-          color: Color(0xFFE3ECEB),
+          color: cs.outlineVariant,
         ));
       }
     }
@@ -293,18 +318,20 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
 
   @override
   Widget build(BuildContext context) {
-    final (statusLabel, statusColor) = _status();
-    final detailWidgets = _detailWidgets();
+    final cs = Theme.of(context).colorScheme;
+    final (statusLabel, statusColor) = _status(cs);
+    final detailWidgets = _detailWidgets(cs);
     final canUndo = m.actionStatus == 'accepted' &&
         m.actionExecuted &&
         !m.actionUndone &&
-        widget.onUndo != null;
+        widget.onUndo != null &&
+        !widget.disabled;
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 4, 8, 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7FBFB),
+        color: cs.primaryContainer,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFBDC9C8)),
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -327,7 +354,7 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                       size: 16,
                       color: detailWidgets.isEmpty
                           ? Colors.transparent
-                          : Colors.black45,
+                          : cs.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -336,10 +363,10 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                       _summary(),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: cs.onSurface,
                       ),
                     ),
                   ),
@@ -365,27 +392,30 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                     InkWell(
                       borderRadius: BorderRadius.circular(8),
                       onTap: widget.onUndo,
-                      child: const Padding(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 4),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.undo, size: 13, color: Colors.black54),
-                            SizedBox(width: 3),
+                            Icon(Icons.undo,
+                                size: 13, color: cs.onSurfaceVariant),
+                            const SizedBox(width: 3),
                             Text(
                               'Undo',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.black54,
+                                color: cs.onSurfaceVariant,
                               ),
                             ),
                           ],
                         ),
                       ),
                     )
-                  else if (m.actionUndone && widget.onRedo != null)
+                  else if (m.actionUndone &&
+                      widget.onRedo != null &&
+                      !widget.disabled)
                     InkWell(
                       borderRadius: BorderRadius.circular(8),
                       onTap: widget.onRedo,
@@ -395,15 +425,15 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.redo,
-                                size: 13, color: kAuthPrimary),
+                            Icon(Icons.redo,
+                                size: 13, color: cs.primary),
                             const SizedBox(width: 3),
                             Text(
                               'Redo',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
-                                color: kAuthPrimary,
+                                color: cs.primary,
                               ),
                             ),
                           ],
@@ -440,7 +470,7 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                   const SizedBox(width: 4),
                   const Expanded(
                     child: Text(
-                      'Menunggu persetujuan — gunakan tombol Terima/Tolak di atas',
+                      'Menunggu persetujuan. Gunakan tombol Terima atau Tolak di atas',
                       style: TextStyle(fontSize: 10.5, color: Colors.orange),
                     ),
                   ),
@@ -455,9 +485,9 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: kAuthPrimary,
-                    backgroundColor: kPrimarySoft,
-                    side: const BorderSide(color: kAuthPrimary, width: 1.2),
+                    foregroundColor: cs.primary,
+                    backgroundColor: cs.primaryContainer,
+                    side: BorderSide(color: cs.primary, width: 1.2),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),

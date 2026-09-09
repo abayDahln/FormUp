@@ -115,26 +115,26 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        shape:  Border(
+          bottom: BorderSide(color: cs.outlineVariant),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon:  Icon(Icons.arrow_back, color: cs.onSurface),
           onPressed: () => AppRouter.of(context).pop(),
         ),
-        title: const Text(
+        title:  Text(
           "Pratinjau Form",
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
         actions: const [
@@ -176,7 +176,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
       ),
@@ -190,7 +190,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
               fontSize: zs(18),
               fontWeight: FontWeight.bold,
               fontFamily: kFontBold,
-              color: Colors.black87,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           if (_description.trim().isNotEmpty) ...[
@@ -198,13 +198,13 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
             RichTextView(
               text: _description,
               zoom: zoom,
-              style: TextStyle(fontSize: zs(12), color: Colors.black54),
+              style: TextStyle(fontSize: zs(12), color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ],
           const SizedBox(height: 8),
           Text(
             "${_questions.length} pertanyaan · ${_questions.where((q) => q.isRequired == true).length} wajib dijawab",
-            style: TextStyle(fontSize: zs(12), color: Colors.black54),
+            style: TextStyle(fontSize: zs(12), color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -217,7 +217,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
       ),
@@ -230,17 +230,17 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
               Container(
                 width: 26,
                 height: 26,
-                decoration: const BoxDecoration(
-                  color: kPrimarySoft,
+                decoration:  BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
                   shape: BoxShape.circle,
                 ),
                 child: Center(
                   child: Text(
                     "${index + 1}",
-                    style: const TextStyle(
+                    style:  TextStyle(
                       fontWeight: FontWeight.bold,
                       fontFamily: kFontBold,
-                      color: kAuthPrimary,
+                      color: Theme.of(context).colorScheme.primary,
                       fontSize: 12,
                     ),
                   ),
@@ -255,7 +255,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
                     fontSize: zs(14),
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
-                    color: Colors.black87,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               ),

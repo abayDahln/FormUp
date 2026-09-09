@@ -9,6 +9,10 @@ extension _AiChatHistoryOps on _AiChatScreenState {
   /// Hanya menyentuh entitas yang kena aksi tersebut — soal buatan user
   /// manual tidak pernah terganggu.
   Future<void> undoActionChange(ChatMessage m) async {
+    if (_streaming || _sending) {
+      showAuthToast(context, 'Tunggu respons AI selesai dulu', isError: true);
+      return;
+    }
     if (_actionWorking || m.actionUndone || m.undoSnapshot == null) return;
     final confirmed = await _confirmUndoDialog(
       title: 'Undo perubahan ini?',
@@ -43,6 +47,10 @@ extension _AiChatHistoryOps on _AiChatScreenState {
   /// lagi karena chat-nya dipotong — jadi memang tidak bisa di-redo; jawaban
   /// AI atas prompt yang diedit menghasilkan aksi baru dengan siklusnya sendiri.)
   Future<void> redoActionChange(ChatMessage m) async {
+    if (_streaming || _sending) {
+      showAuthToast(context, 'Tunggu respons AI selesai dulu', isError: true);
+      return;
+    }
     if (_actionWorking || !m.actionUndone || m.actionJson == null) return;
     final confirmed = await _confirmUndoDialog(
       title: 'Redo perubahan ini?',
@@ -261,15 +269,15 @@ extension _AiChatHistoryOps on _AiChatScreenState {
                         ],
                       ),
                     ),
-                ] else
-                  const Text(
+                ]                 else
+                  Text(
                     'Tidak ada perubahan form yang perlu di-undo.',
-                    style: TextStyle(fontSize: 11.5, color: Colors.black54),
+                    style: TextStyle(fontSize: 11.5, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                   ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Catatan: perubahan yang kamu buat manual di form builder tidak ikut di-undo.',
-                  style: TextStyle(fontSize: 10.5, fontStyle: FontStyle.italic, color: Colors.black45),
+                  style: TextStyle(fontSize: 10.5, fontStyle: FontStyle.italic, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -317,7 +325,7 @@ extension _AiChatHistoryOps on _AiChatScreenState {
   /// undo perubahan form-nya (setelah konfirmasi), lalu kirim ulang prompt
   /// yang sama.
   Future<void> retryUserMessage(ChatMessage m) async {
-    if (_streaming) {
+    if (_streaming || _sending) {
       showAuthToast(context, 'Tunggu respons AI selesai dulu', isError: true);
       return;
     }
@@ -348,7 +356,7 @@ extension _AiChatHistoryOps on _AiChatScreenState {
   /// disimpan → chat setelahnya dihapus, perubahan di-undo, lalu prompt
   /// yang sudah diedit dikirim ulang otomatis.
   Future<void> showEditMessageDialog(ChatMessage m) async {
-    if (_streaming) {
+    if (_streaming || _sending) {
       showAuthToast(context, 'Tunggu respons AI selesai dulu', isError: true);
       return;
     }
@@ -401,9 +409,9 @@ extension _AiChatHistoryOps on _AiChatScreenState {
                       ),
                     )
                 else
-                  const Text(
+                  Text(
                     'Tidak ada perubahan form yang perlu di-undo.',
-                    style: TextStyle(fontSize: 11.5, color: Colors.black54),
+                    style: TextStyle(fontSize: 11.5, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                   ),
               ],
             ),
@@ -447,7 +455,7 @@ extension _AiChatHistoryOps on _AiChatScreenState {
   /// Rollback (long-press menu): potong chat mulai pesan ini + undo
   /// perubahan form-nya — dengan dialog konfirmasi rinci terlebih dahulu.
   Future<void> rollbackToMessage(ChatMessage m) async {
-    if (_streaming) {
+    if (_streaming || _sending) {
       showAuthToast(context, 'Tunggu respons AI selesai dulu', isError: true);
       return;
     }

@@ -84,22 +84,22 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        shape:  Border(
+          bottom: BorderSide(color: cs.outlineVariant),
         ),
-        title: const Text(
+        title:  Text(
           "Riwayat Form",
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
       ),
@@ -108,7 +108,7 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
           : AuthBackground(plain: true,
               child: SafeArea(
                 child: AppRefreshIndicator(
-                  indicatorColor: kAuthPrimary,
+                  indicatorColor: cs.primary,
                   onRefresh: _load,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -120,29 +120,29 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
                         children: [
                           Text(
                             "Riwayat Pengerjaan (${_attempts.length})",
-                            style: const TextStyle(
+                            style:  TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               fontFamily: kFontBold,
-                              color: Colors.black87,
+                              color: cs.onSurface,
                             ),
                           ),
                           const Spacer(),
                           MenuAnchor(
                             builder: (context, controller, child) => IconButton(
-                              icon: Icon(Icons.tune, color: _sort == _HistorySort.newest ? Colors.black54 : kAuthPrimary, size: 20),
+                              icon: Icon(Icons.tune, color: _sort == _HistorySort.newest ? cs.onSurfaceVariant : cs.primary, size: 20),
                               tooltip: 'Filter & urutkan',
                               style: IconButton.styleFrom(
-                                backgroundColor: _sort == _HistorySort.newest ? Colors.transparent : const Color(0xFFE2F3F2),
+                                backgroundColor: _sort == _HistorySort.newest ? Colors.transparent : cs.primaryContainer,
                               ),
                               onPressed: () => controller.isOpen ? controller.close() : controller.open(),
                             ),
                             menuChildren: [
                               for (final s in _HistorySort.values)
                                 MenuItemButton(
-                                  leadingIcon: Icon(s.icon, size: 18, color: _sort == s ? kAuthPrimary : Colors.black54),
+                                  leadingIcon: Icon(s.icon, size: 18, color: _sort == s ? cs.primary : cs.onSurfaceVariant),
                                   onPressed: () => setState(() => _sort = s),
-                                  child: Text(s.label, style: TextStyle(fontSize: 14, color: _sort == s ? kAuthPrimary : Colors.black87, fontWeight: _sort == s ? FontWeight.bold : FontWeight.normal)),
+                                  child: Text(s.label, style: TextStyle(fontSize: 14, color: _sort == s ? cs.primary : cs.onSurface, fontWeight: _sort == s ? FontWeight.bold : FontWeight.normal)),
                                 ),
                             ],
                           ),
@@ -154,12 +154,12 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
                           padding: const EdgeInsets.all(24),
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: cs.surface,
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          child: const Text(
+                          child:  Text(
                             "Belum ada riwayat pengerjaan.",
-                            style: TextStyle(fontSize: 14, color: Colors.black54),
+                            style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
                           ),
                         )
                       else
@@ -207,7 +207,7 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
     final title = _info?.title ?? widget.formTitle;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
       ),
@@ -231,11 +231,11 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
               children: [
                 RichTextView(
                   text: title,
-                  style: const TextStyle(
+                  style:  TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
-                    color: Colors.black87,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 if (_info?.description != null &&
@@ -243,24 +243,24 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
                   const SizedBox(height: 8),
                   RichTextView(
                     text: _info!.description!,
-                    style: const TextStyle(fontSize: 13, color: Colors.black54),
+                    style:  TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                 ],
                 const SizedBox(height: 14),
-                _infoRow(Icons.quiz_outlined,
+                _infoRow(context, Icons.quiz_outlined,
                     "${_info?.questionCount ?? '-'} soal"),
-                _infoRow(Icons.category_outlined, _formTypeLabel()),
+                _infoRow(context, Icons.category_outlined, _formTypeLabel()),
                 if (_info?.timerDuration != null)
-                  _infoRow(Icons.timer_outlined,
+                  _infoRow(context, Icons.timer_outlined,
                       formatRunnerDuration(_info!.timerDuration!)),
                 if (_info?.openFormTime != null)
-                  _infoRow(Icons.login_outlined,
+                  _infoRow(context, Icons.login_outlined,
                       _formatDateTime(_info!.openFormTime)!),
                 if (_info?.closeFormTime != null)
-                  _infoRow(Icons.logout_outlined,
+                  _infoRow(context, Icons.logout_outlined,
                       _formatDateTime(_info!.closeFormTime)!),
                 if (_info?.showScore == true)
-                  _infoRow(
+                  _infoRow(context,
                       Icons.leaderboard_outlined, "Menampilkan nilai"),
               ],
             ),
@@ -323,17 +323,17 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
   }
 }
 
-Widget _infoRow(IconData icon, String text) {
+Widget _infoRow(BuildContext context, IconData icon, String text) {
   return Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: Row(
       children: [
-        Icon(icon, size: 16, color: kAuthPrimary),
+        Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(fontSize: 13, color: Colors.black87),
+            style:  TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
           ),
         ),
       ],
@@ -356,6 +356,7 @@ class _AttemptCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final dt = attempt.submittedAt?.toLocal();
     final dateText = dt == null
         ? "Waktu tidak diketahui"
@@ -363,7 +364,7 @@ class _AttemptCard extends StatelessWidget {
             "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
 
     return Material(
-      color: Colors.white,
+      color: cs.surface,
       borderRadius: BorderRadius.circular(14),
       elevation: 0,
       child: InkWell(
@@ -376,16 +377,16 @@ class _AttemptCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: kPrimarySoft,
+                  color: cs.primaryContainer,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   "#${index + 1}",
-                  style: const TextStyle(
+                  style:  TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
-                    color: kAuthPrimary,
+                    color: cs.primary,
                   ),
                 ),
               ),
@@ -396,17 +397,17 @@ class _AttemptCard extends StatelessWidget {
                   children: [
                     Text(
                       "Percobaan ke-${index + 1}",
-                      style: const TextStyle(
+                      style:  TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
-                        color: Colors.black87,
+                        color: cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       dateText,
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      style:  TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                     ),
                   ],
                 ),

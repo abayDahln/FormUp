@@ -6,18 +6,19 @@ class QuestionsEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.quiz_outlined, color: Colors.black38, size: 40),
+            Icon(Icons.quiz_outlined, color: cs.onSurfaceVariant, size: 40),
             const SizedBox(height: 10),
-            const Text(
+             Text(
               'Belum ada pertanyaan.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Colors.black45),
+              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
             ),
           ],
         ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart'
-    show kRadius, kAuthPrimary, kPrimarySoft, kFontBold, formStatusStyle, elevationShadow, ShadowLevel, showAuthToast;
+    show kRadius, kFontBold, formStatusStyle, elevationShadow, ShadowLevel, showAuthToast;
 import 'package:form_up/core/widgets/form_share_sheet.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/router/app_router.dart';
@@ -20,17 +20,18 @@ class FormCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final style = formStatusStyle(form.status);
     // M3 Card dengan shadow jelas agar tidak samar di #F8F9FA (contoh: clipBehavior hardEdge + InkWell splash)
     return Card(
-      color: Colors.white,
+      color: cs.surface,
       elevation: 2,
       shadowColor: Colors.black.withValues(alpha: 0.08),
       surfaceTintColor: Colors.transparent,
       clipBehavior: Clip.hardEdge,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadius)),
       child: InkWell(
-        splashColor: kAuthPrimary.withValues(alpha: 0.08),
+        splashColor: cs.primary.withValues(alpha: 0.08),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -39,12 +40,12 @@ class FormCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(11),
                 decoration: BoxDecoration(
-                  color: kPrimarySoft,
+                  color: cs.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.description_outlined,
-                  color: kAuthPrimary,
+                  color: cs.primary,
                   size: 22,
                 ),
               ),
@@ -57,11 +58,11 @@ class FormCard extends StatelessWidget {
                       text: form.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
-                        color: Colors.black87,
+                        color: cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -69,9 +70,9 @@ class FormCard extends StatelessWidget {
                       'Dibuat: ${_formatDate(form.createdAt ?? form.updatedAt)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Colors.black54,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -105,9 +106,9 @@ class FormCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           '${form.responseCount} respons',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: Colors.black54,
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -150,15 +151,17 @@ Future<void> showFormQuickActions(
   try {
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       elevation: 0,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (sheetContext) => SafeArea(
+      builder: (sheetContext) {
+        final cs = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: cs.surface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             boxShadow: elevationShadow(ShadowLevel.high),
           ),
@@ -173,7 +176,7 @@ Future<void> showFormQuickActions(
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.black12,
+                      color: cs.outlineVariant,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -185,12 +188,12 @@ Future<void> showFormQuickActions(
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: kPrimarySoft,
+                    color: cs.primaryContainer,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.description_outlined,
-                    color: kAuthPrimary,
+                    color: cs.primary,
                     size: 22,
                   ),
                 ),
@@ -203,11 +206,11 @@ Future<void> showFormQuickActions(
                         text: form.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           fontFamily: kFontBold,
-                          color: Colors.black87,
+                          color: cs.onSurface,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -241,9 +244,9 @@ Future<void> showFormQuickActions(
                           const SizedBox(width: 4),
                           Text(
                             '${form.responseCount} respons',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: Colors.black54,
+                              color: cs.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -255,9 +258,10 @@ Future<void> showFormQuickActions(
             ),
           ),
           const SizedBox(height: 8),
-          const Divider(height: 1, color: Colors.black12),
+          Divider(height: 1, color: cs.outlineVariant),
           const SizedBox(height: 4),
           _sheetAction(
+            cs: cs,
             icon: form.responseCount > 0
                 ? Icons.lock_outline
                 : Icons.edit_outlined,
@@ -277,6 +281,7 @@ Future<void> showFormQuickActions(
                   ),
           ),
           _sheetAction(
+            cs: cs,
             icon: Icons.visibility_outlined,
             label: 'Pratinjau',
             onTap: () => _closeAndPush(
@@ -287,6 +292,7 @@ Future<void> showFormQuickActions(
             ),
           ),
           _sheetAction(
+            cs: cs,
             icon: Icons.people_outline,
             label: 'Lihat Respon',
             onTap: () => _closeAndPush(
@@ -297,6 +303,7 @@ Future<void> showFormQuickActions(
             ),
           ),
           _sheetAction(
+            cs: cs,
             icon: Icons.settings_outlined,
             label: 'Setting Form',
             onTap: () => _closeAndPush(
@@ -307,6 +314,7 @@ Future<void> showFormQuickActions(
             ),
           ),
           _sheetAction(
+            cs: cs,
             icon: Icons.share_outlined,
             label: 'Bagikan Form',
             onTap: () {
@@ -315,22 +323,22 @@ Future<void> showFormQuickActions(
               showFormShareSheet(context, form);
             },
           ),
-          const Divider(height: 1, color: Colors.black12),
+          Divider(height: 1, color: cs.outlineVariant),
           // ponytail: publikasi eksplisit via toggle
           ListTile(
             leading: Icon(
               form.status == 'published'
                   ? Icons.publish
                   : Icons.visibility_off_outlined,
-              color: kAuthPrimary,
+              color: cs.primary,
             ),
             title: Text(
               form.status == 'published' ? 'Tarik (kembali ke draf)' : 'Terbitkan form',
-              style: const TextStyle(fontSize: 14, color: Colors.black87),
+              style: TextStyle(fontSize: 14, color: cs.onSurface),
             ),
             trailing: Switch(
               value: form.status == 'published',
-              activeTrackColor: kAuthPrimary,
+              activeTrackColor: cs.primary,
               onChanged: (_) {
                 Navigator.pop(sheetContext);
                 toggleFormPublish(context, form, onChanged: onChanged);
@@ -342,7 +350,8 @@ const SizedBox(height: 8),
           ),
         ),
       ),
-    ),
+      );
+      },
   );
   } finally {
     _quickActionsOpen = false;
@@ -350,18 +359,19 @@ const SizedBox(height: 8),
 }
 
 Widget _sheetAction({
+  required ColorScheme cs,
   required IconData icon,
   required String label,
   required VoidCallback onTap,
   bool muted = false,
 }) {
   return ListTile(
-    leading: Icon(icon, color: kAuthPrimary),
+    leading: Icon(icon, color: cs.primary),
     title: Text(
       label,
       style: TextStyle(
         fontSize: 14,
-        color: muted ? Colors.black38 : Colors.black87,
+        color: muted ? cs.onSurfaceVariant : cs.onSurface,
       ),
     ),
     trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
@@ -388,7 +398,9 @@ Future<void> toggleFormPublish(
   final publish = form.status != 'published';
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (context) {
+      final cs = Theme.of(context).colorScheme;
+      return AlertDialog(
       title: Text(
         publish ? 'Terbitkan Form' : 'Tarik Form',
         style: const TextStyle(fontFamily: kFontBold),
@@ -407,11 +419,12 @@ Future<void> toggleFormPublish(
           onPressed: () => Navigator.pop(context, true),
           child: Text(
             publish ? 'Terbit' : 'Tarik',
-            style: const TextStyle(color: kAuthPrimary),
+            style: TextStyle(color: cs.primary),
           ),
         ),
       ],
-    ),
+    );
+    },
   );
   if (confirmed != true || !context.mounted) return;
   try {

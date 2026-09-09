@@ -202,9 +202,9 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final filtered = _filtered;
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
         title: const Text('Pilih Template'),
         leading: IconButton(icon: const Icon(Icons.arrow_back, size: 18), onPressed: () => AppRouter.of(context).pop()),
@@ -217,15 +217,15 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 sliver: SliverToBoxAdapter(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Buat Form Baru', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
+                    Text('Buat Form Baru', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: cs.onSurface)),
                     const SizedBox(height: 4),
-                    const Text('Mulai dari form kosong atau gunakan template siap pakai (soal & pengaturan otomatis terisi).', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                    Text('Mulai dari form kosong atau gunakan template siap pakai (soal & pengaturan otomatis terisi).', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
                     const SizedBox(height: 14),
                     TextField(
                       controller: _searchCtrl,
                       onChanged: (v) => setState(() => _query = v),
                       decoration: formUpInputDecoration(hintText: 'Cari template...', prefixIcon: const Icon(Icons.search, size: 18)).copyWith(
-                        filled: true, fillColor: Colors.white, contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       ),
                     ),
                   ]),
@@ -252,7 +252,7 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
               if (filtered.isEmpty)
                 SliverPadding(
                   padding: const EdgeInsets.all(20),
-                  sliver: SliverToBoxAdapter(child: Center(child: Text('Tidak ada template untuk "$_query"', style: const TextStyle(color: Colors.black54)))),
+                  sliver: SliverToBoxAdapter(child: Center(child: Text('Tidak ada template untuk "$_query"', style:  TextStyle(color: cs.onSurfaceVariant)))),
                 )
               else
                 SliverPadding(
@@ -280,8 +280,9 @@ class _EmptyFormCard extends StatelessWidget {
   const _EmptyFormCard({this.onTap});
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Material(
-      color: Colors.white,
+      color: cs.surface,
       borderRadius: BorderRadius.circular(kRadiusLg),
       child: InkWell(
         onTap: onTap,
@@ -292,8 +293,8 @@ class _EmptyFormCard extends StatelessWidget {
           child: Row(children: [
             Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: kAuthPrimary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.note_add_outlined, color: kAuthPrimary)),
             const SizedBox(width: 14),
-            const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Form Kosong', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)), SizedBox(height: 2), Text('Buat form baru dari kosong', style: TextStyle(fontSize: 11, color: Colors.black54))])),
-            const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.black38),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Form Kosong', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)), SizedBox(height: 2), Text('Buat form baru dari kosong', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant))])),
+            Icon(Icons.arrow_forward_ios, size: 14, color: cs.onSurfaceVariant),
           ]),
         ),
       ),
@@ -309,8 +310,9 @@ class _TemplateCard extends StatelessWidget {
   const _TemplateCard({required this.template, required this.cloning, required this.busy, required this.onUse});
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(kRadiusLg), border: Border.all(color: const Color(0xFFE0E0E0))),
+      decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(kRadiusLg), border: Border.all(color: const Color(0xFFE0E0E0))),
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         SizedBox(
@@ -346,7 +348,7 @@ class _TemplateCard extends StatelessWidget {
               Expanded(child: Text(template.title, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis)),
             ]),
             const SizedBox(height: 6),
-            Text(template.description, style: const TextStyle(fontSize: 11, color: Colors.black54, height: 1.35), maxLines: 2, overflow: TextOverflow.ellipsis),
+            Text(template.description, style:  TextStyle(fontSize: 11, color: cs.onSurfaceVariant, height: 1.35), maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,

@@ -21,9 +21,10 @@ class FormDetailActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(kRadius),
       ),
       child: Material(
@@ -130,8 +131,11 @@ class FormDetailActions extends StatelessWidget {
   }
 }
 
-Widget _divider() =>
-    const Divider(height: 1, indent: 56, color: Colors.black12);
+Widget _divider() {
+  return Builder(builder: (context) {
+    return Divider(height: 1, indent: 56, color: Theme.of(context).colorScheme.outlineVariant);
+  });
+}
 
 /// Satu baris aksi (ListTile)
 class _ActionTile extends StatelessWidget {
@@ -145,11 +149,12 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = danger ? kDangerColor : kAuthPrimary;
+    final cs = Theme.of(context).colorScheme;
+    final color = danger ? kDangerColor : cs.primary;
     return ListTile(
       leading: Icon(
         locked ? Icons.lock_outline : icon,
-        color: locked ? Colors.black38 : color,
+        color: locked ? cs.onSurfaceVariant : color,
       ),
       title: Text(
         label,
@@ -157,10 +162,10 @@ class _ActionTile extends StatelessWidget {
           fontSize: 14,
           fontWeight: danger ? FontWeight.bold : FontWeight.normal,
           fontFamily: danger ? kFontBold : null,
-          color: danger ? kDangerColor : (locked ? Colors.black38 : Colors.black87),
+          color: danger ? kDangerColor : (locked ? cs.onSurfaceVariant : cs.onSurface),
         ),
       ),
-      trailing: Icon(Icons.chevron_right, size: 18, color: danger ? kDangerColor : Colors.grey),
+      trailing: Icon(Icons.chevron_right, size: 18, color: danger ? kDangerColor : cs.onSurfaceVariant),
       onTap: onTap,
     );
   }

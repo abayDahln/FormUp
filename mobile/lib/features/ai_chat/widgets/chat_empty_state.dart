@@ -17,6 +17,7 @@ class ChatEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(32, topPadding, 32, 180),
@@ -26,14 +27,14 @@ class ChatEmptyState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: softShadow(),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.chat_bubble_outline,
                 size: 40,
-                color: kAuthPrimary,
+                color: cs.primary,
               ),
             ),
             const SizedBox(height: 16),
@@ -42,10 +43,10 @@ class ChatEmptyState extends StatelessWidget {
               style: TextStyle(fontFamily: kFontBold, fontSize: 16),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Contoh: "Buatkan form kuis matematika 10 soal pilihan ganda tentang aljabar" atau "Edit form #12 tambahkan 5 soal essay"',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.black54),
+              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
             Wrap(
@@ -87,13 +88,14 @@ class _QuickChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ActionChip(
       label: Text(label, style: const TextStyle(fontSize: 12)),
       onPressed: onTap,
-      backgroundColor: Colors.white,
+      backgroundColor: cs.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Color(0xFFBDC9C8)),
+        side: BorderSide(color: cs.outlineVariant),
       ),
     );
   }

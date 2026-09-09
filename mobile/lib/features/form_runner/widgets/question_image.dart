@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/services/auth_service.dart';
-import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/widgets/full_screen_image_viewer.dart';
 
@@ -12,6 +11,7 @@ class QuestionImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final fullUrl = profileImageUrl(url);
     return GestureDetector(
       onTap: () => showFullScreenImage(context, fullUrl),
@@ -20,7 +20,7 @@ class QuestionImage extends StatelessWidget {
         child: Container(
           width: double.infinity,
           constraints: const BoxConstraints(maxHeight: 220),
-          color: kPrimarySoft,
+          color: cs.primaryContainer,
           child: Hero(
             tag: fullUrl,
             child: CachedRemoteImage(

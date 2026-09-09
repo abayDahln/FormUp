@@ -51,22 +51,22 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        shape:  Border(
+          bottom: BorderSide(color: cs.outlineVariant),
         ),
-        title: const Text(
+        title:  Text(
           "Detail Riwayat",
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
       ),
@@ -75,10 +75,10 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
           : AuthBackground(plain: true,
               child: SafeArea(
                 child: _result == null
-                    ? const Center(
+                    ?  Center(
                         child: Text(
                           "Hasil tidak tersedia.",
-                          style: TextStyle(color: Colors.black54),
+                          style: TextStyle(color: cs.onSurfaceVariant),
                         ),
                       )
                     : _buildContent(_result!),
@@ -97,11 +97,11 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
           const SizedBox(height: 16),
           Text(
             result.showScore ? "Pembahasan" : "Jawaban Anda",
-            style: const TextStyle(
+            style:  TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
               fontFamily: kFontBold,
-              color: Colors.black87,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 12),
@@ -110,12 +110,12 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
               padding: const EdgeInsets.all(24),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Text(
+              child:  Text(
                 "Belum ada jawaban.",
-                style: TextStyle(fontSize: 14, color: Colors.black54),
+                style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             )
           else

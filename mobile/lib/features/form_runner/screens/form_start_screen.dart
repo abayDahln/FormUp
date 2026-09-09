@@ -173,23 +173,23 @@ class _FormStartScreenState extends State<FormStartScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
+        title:  Text(
           "Mulai Mengerjakan?",
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
-        content: const Text(
+        content:  Text(
           "Apakah Anda yakin ingin memulai pengerjaan form ini?",
-          style: TextStyle(fontSize: 14, color: Colors.black54),
+          style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text("Batal",
-                style: TextStyle(color: Colors.black54)),
+            child:  Text("Batal",
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -218,26 +218,26 @@ class _FormStartScreenState extends State<FormStartScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        shape:  Border(
+          bottom: BorderSide(color: cs.outlineVariant),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon:  Icon(Icons.arrow_back, color: cs.onSurface),
           onPressed: () => AppRouter.of(context).pop(),
         ),
-        title: const Text(
+        title:  Text(
           "Informasi Form",
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
       ),
@@ -264,7 +264,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14, color: Colors.black54),
+                style:  TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 24),
               AuthPrimaryButton(
@@ -308,20 +308,20 @@ class _FormStartScreenState extends State<FormStartScreen> {
           const SizedBox(height: 24),
 
           if (_myAttempts.isNotEmpty) ...[
-            const Text(
+             Text(
               "Anda sudah menyelesaikan form ini.",
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Colors.black54),
+              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
             OutlinedButton(
               onPressed: _openResponseHistory,
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: kAuthPrimary),
+                side:  BorderSide(color: Theme.of(context).colorScheme.primary),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              child: const Text("Lihat Respon", style: TextStyle(color: kAuthPrimary, fontWeight: FontWeight.bold, fontFamily: kFontBold)),
+              child:  Text("Lihat Respon", style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold, fontFamily: kFontBold)),
             ),
             const SizedBox(height: 12),
           ],
@@ -338,14 +338,14 @@ class _FormStartScreenState extends State<FormStartScreen> {
             const SizedBox(height: 24),
             const Divider(height: 1, color: Color(0x1FBDC9C8)),
             const SizedBox(height: 16),
-            const Text(
+             Text(
               "Umpan Balik untuk Form ini",
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Theme.of(context).colorScheme.onSurface),
             ),
             const SizedBox(height: 4),
             Text(
               _myFeedback != null ? "Kamu sudah mengirim umpan balik untuk form ini." : "Hanya terlihat jika kamu sudah mengerjakan form ini. Satu umpan balik per form.",
-              style: const TextStyle(fontSize: 11, color: Colors.black54),
+              style:  TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
             if (_loadingFeedback)
@@ -354,7 +354,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: const Color(0x1FBDC9C8)),
                   boxShadow: softShadow(),
@@ -363,20 +363,20 @@ class _FormStartScreenState extends State<FormStartScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      const Text("Umpan Balik Kamu", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kAuthPrimary)),
+                      Text("Umpan Balik Kamu", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
                       Text(
                         "${_myFeedback!.createdAt.day}/${_myFeedback!.createdAt.month}/${_myFeedback!.createdAt.year}",
                         style: const TextStyle(fontSize: 11, color: Colors.grey),
                       ),
                     ]),
                     const SizedBox(height: 8),
-                    Text("Kategori: ${_myFeedback!.reason}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: kAuthPrimary)),
+                    Text("Kategori: ${_myFeedback!.reason}", style:  TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.primary)),
                     if (_myFeedback!.description != null && _myFeedback!.description!.trim().isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      Text(_myFeedback!.description!, style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                      Text(_myFeedback!.description!, style:  TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
                     ],
                     const SizedBox(height: 8),
-                    const Text("Umpan balik hanya bisa dikirim satu kali per form.", style: TextStyle(fontSize: 11, color: Colors.black38, fontStyle: FontStyle.italic)),
+                    Text("Umpan balik hanya bisa dikirim satu kali per form.", style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant, fontStyle: FontStyle.italic)),
                   ],
                 ),
               )
@@ -384,7 +384,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: const Color(0x1FBDC9C8)),
                   boxShadow: softShadow(),
@@ -392,7 +392,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Alasan Umpan Balik", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
+                    Text("Alasan Umpan Balik", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
                       initialValue: _feedbackReason,
@@ -401,7 +401,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
                       onChanged: _submittingFeedback ? null : (v) { if (v != null) setState(() => _feedbackReason = v); },
                     ),
                     const SizedBox(height: 12),
-                    const Text("Deskripsi Umpan Balik", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
+                    Text("Deskripsi Umpan Balik", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _feedbackController,
@@ -416,7 +416,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
                         onPressed: _submittingFeedback ? null : _submitFeedback,
                         style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), padding: const EdgeInsets.symmetric(vertical: 14)),
                         child: _submittingFeedback
-                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            ?  SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.surface))
                             : const Text("Kirim Umpan Balik", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
                       ),
                     ),

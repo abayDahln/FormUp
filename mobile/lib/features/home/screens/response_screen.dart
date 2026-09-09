@@ -141,7 +141,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
   Future<void> _openHistoryFilterSheet() async {
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -161,7 +161,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
                 ),
               ),
             ),
-            const Padding(
+             Padding(
               padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Text(
                 'Filter Riwayat',
@@ -170,11 +170,11 @@ class _ResponseScreenState extends State<ResponseScreen> {
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
-                  color: Colors.black87,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),
-            const Padding(
+             Padding(
               padding: EdgeInsets.fromLTRB(20, 12, 20, 4),
               child: Text(
                 'Urutkan',
@@ -182,7 +182,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
-                  color: Colors.black54,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -199,10 +199,10 @@ class _ResponseScreenState extends State<ResponseScreen> {
                     RadioListTile<_HistorySort>(
                       value: s,
                       dense: true,
-                      secondary: Icon(s.icon, color: kAuthPrimary, size: 20),
+                      secondary: Icon(s.icon, color: Theme.of(sheetContext).colorScheme.primary, size: 20),
                       title: Text(
                         s.label,
-                        style: const TextStyle(fontSize: 14, color: Colors.black87),
+                        style:  TextStyle(fontSize: 14, color: Theme.of(sheetContext).colorScheme.onSurface),
                       ),
                     ),
                 ],
@@ -217,10 +217,10 @@ class _ResponseScreenState extends State<ResponseScreen> {
                     setState(() => _historySort = _HistorySort.newest);
                   },
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: kAuthPrimary),
+                    side:  BorderSide(color: Theme.of(sheetContext).colorScheme.primary),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: const Text('Reset', style: TextStyle(color: kAuthPrimary, fontSize: 13)),
+                  child:  Text('Reset', style: TextStyle(color: Theme.of(sheetContext).colorScheme.primary, fontSize: 13)),
                 ),
               )
             else
@@ -235,7 +235,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
   Future<void> _openAnalyticsFilterSheet() async {
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -255,7 +255,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
                 ),
               ),
             ),
-            const Padding(
+             Padding(
               padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Text(
                 'Filter Responden',
@@ -264,11 +264,11 @@ class _ResponseScreenState extends State<ResponseScreen> {
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
-                  color: Colors.black87,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),
-            const Padding(
+             Padding(
               padding: EdgeInsets.fromLTRB(20, 12, 20, 4),
               child: Text(
                 'Urutkan',
@@ -276,7 +276,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
-                  color: Colors.black54,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -293,10 +293,10 @@ class _ResponseScreenState extends State<ResponseScreen> {
                     RadioListTile<_AnalyticsSort>(
                       value: s,
                       dense: true,
-                      secondary: Icon(s.icon, color: kAuthPrimary, size: 20),
+                      secondary: Icon(s.icon, color: Theme.of(sheetContext).colorScheme.primary, size: 20),
                       title: Text(
                         s.label,
-                        style: const TextStyle(fontSize: 14, color: Colors.black87),
+                        style:  TextStyle(fontSize: 14, color: Theme.of(sheetContext).colorScheme.onSurface),
                       ),
                     ),
                 ],
@@ -311,10 +311,10 @@ class _ResponseScreenState extends State<ResponseScreen> {
                     setState(() => _analyticsSort = _AnalyticsSort.newest);
                   },
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: kAuthPrimary),
+                    side:  BorderSide(color: Theme.of(sheetContext).colorScheme.primary),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: const Text('Reset', style: TextStyle(color: kAuthPrimary, fontSize: 13)),
+                  child:  Text('Reset', style: TextStyle(color: Theme.of(sheetContext).colorScheme.primary, fontSize: 13)),
                 ),
               )
             else
@@ -327,13 +327,14 @@ class _ResponseScreenState extends State<ResponseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return DefaultTabController(
       length: 2,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Padding(
+             Padding(
               padding: EdgeInsets.fromLTRB(20, 15, 20, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -344,27 +345,27 @@ class _ResponseScreenState extends State<ResponseScreen> {
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       fontFamily: kFontBold,
-                      color: Colors.black87,
+                      color: cs.onSurface,
                     ),
                   ),
                   SizedBox(height: 2),
                   Text(
                     'Riwayat & responden',
-                    style: TextStyle(fontSize: 13, color: Colors.black54),
+                    style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 14),
             Container(
-              decoration: const BoxDecoration(
-                color: kAppBg,
-                border: Border(bottom: BorderSide(color: Color(0xCCBDC9C8))),
+              decoration:  BoxDecoration(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                border: Border(bottom: BorderSide(color: cs.outlineVariant)),
               ),
               child: TabBar(
-                labelColor: kPrimary,
+                labelColor: cs.primary,
                 unselectedLabelColor: Colors.grey,
-                indicatorColor: kPrimary,
+                indicatorColor: cs.primary,
                 indicatorWeight: 2.5,
                 dividerColor: Colors.transparent,
                 labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 13),
@@ -520,7 +521,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
     if (groups.isEmpty) {
       return AppRefreshIndicator(
         onRefresh: _load,
-        indicatorColor: kAuthPrimary,
+        indicatorColor: Theme.of(context).colorScheme.primary,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -532,12 +533,12 @@ class _ResponseScreenState extends State<ResponseScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.history, color: Colors.black38, size: 40),
+                      Icon(Icons.history, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 40),
                       const SizedBox(height: 10),
                       Text(
                         _historyQuery.isEmpty ? 'Belum ada riwayat pengerjaan' : 'Tidak ada hasil untuk "${_historySearchController.text}"',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 14, color: Colors.black45),
+                        style:  TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -550,14 +551,14 @@ class _ResponseScreenState extends State<ResponseScreen> {
     }
     return AppRefreshIndicator(
       onRefresh: _load,
-      indicatorColor: kAuthPrimary,
+      indicatorColor: Theme.of(context).colorScheme.primary,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(kRadius),
               boxShadow: softShadow(),
             ),
@@ -588,7 +589,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
     if (forms.isEmpty) {
       return AppRefreshIndicator(
         onRefresh: _load,
-        indicatorColor: kAuthPrimary,
+        indicatorColor: Theme.of(context).colorScheme.primary,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -600,12 +601,12 @@ class _ResponseScreenState extends State<ResponseScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.bar_chart, color: Colors.black38, size: 40),
+                      Icon(Icons.bar_chart, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 40),
                       const SizedBox(height: 10),
                       Text(
                         _analyticsQuery.isEmpty ? 'Belum ada form untuk dianalisis' : 'Tidak ada hasil untuk "${_analyticsSearchController.text}"',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 14, color: Colors.black45),
+                        style:  TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -618,14 +619,14 @@ class _ResponseScreenState extends State<ResponseScreen> {
     }
     return AppRefreshIndicator(
       onRefresh: _load,
-      indicatorColor: kAuthPrimary,
+      indicatorColor: Theme.of(context).colorScheme.primary,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(kRadius),
               boxShadow: softShadow(),
             ),

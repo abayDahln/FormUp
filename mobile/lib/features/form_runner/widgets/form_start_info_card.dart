@@ -18,10 +18,11 @@ class FormStartInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
       ),
@@ -30,11 +31,11 @@ class FormStartInfoCard extends StatelessWidget {
         children: [
           RichTextView(
             text: info.title,
-            style: const TextStyle(
+            style:  TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
               fontFamily: kFontBold,
-              color: Colors.black87,
+              color: cs.onSurface,
               height: 1.3,
             ),
           ),
@@ -42,9 +43,9 @@ class FormStartInfoCard extends StatelessWidget {
             const SizedBox(height: 12),
             RichTextView(
               text: info.description!,
-              style: const TextStyle(
+              style:  TextStyle(
                 fontSize: 15,
-                color: Colors.black87,
+                color: cs.onSurface,
                 height: 1.5,
               ),
             ),
@@ -92,9 +93,9 @@ class FormStartInfoCard extends StatelessWidget {
           // Input token - digabung ke dalam kartu informasi
           if (info.requiresToken) ...[
             const Divider(height: 32),
-            const Row(
+             Row(
               children: [
-                Icon(Icons.lock_outline, size: 18, color: kAuthPrimary),
+                Icon(Icons.lock_outline, size: 18, color: cs.primary),
                 SizedBox(width: 8),
                 Text(
                   "Form Ini Memerlukan Token",
@@ -102,7 +103,7 @@ class FormStartInfoCard extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
-                    color: kAuthPrimary,
+                    color: cs.primary,
                   ),
                 ),
               ],
@@ -135,9 +136,9 @@ class FormStartInfoCard extends StatelessWidget {
               ),
             ] else ...[
               const SizedBox(height: 8),
-              const Text(
+               Text(
                 "Token diberikan oleh pemilik form. Hubungi pemilik untuk mendapatkan token.",
-                style: TextStyle(fontSize: 12, color: Colors.black45),
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
               ),
             ],
           ],
@@ -161,16 +162,17 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
         Container(
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: kPrimarySoft,
+            color: cs.primaryContainer,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: kAuthPrimary, size: 20),
+          child: Icon(icon, color: cs.primary, size: 20),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -179,19 +181,19 @@ class _DetailRow extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(
+                style:  TextStyle(
                   fontSize: 12,
-                  color: Colors.black45,
+                  color: cs.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
+                style:  TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
-                  color: Colors.black87,
+                  color: cs.onSurface,
                 ),
               ),
             ],

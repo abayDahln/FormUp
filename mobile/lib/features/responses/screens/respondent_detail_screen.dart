@@ -85,31 +85,31 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final name = widget.respondentName.trim().isNotEmpty
         ? widget.respondentName.trim()
         : 'Responden';
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        shape:  Border(
+          bottom: BorderSide(color: cs.outlineVariant),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon:  Icon(Icons.arrow_back, color: cs.onSurface),
           onPressed: () => AppRouter.of(context).pop(),
         ),
         title: Text(
           name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
+          style:  TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
       ),
@@ -130,11 +130,11 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
                       _result?.showScore == true
                           ? "Pembahasan Jawaban"
                           : "Jawaban Responden",
-                      style: const TextStyle(
+                      style:  TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
-                        color: Colors.black87,
+                        color: cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -143,13 +143,13 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
                         padding: const EdgeInsets.all(24),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: cs.surface,
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Text(
+                        child:  Text(
                           "Belum ada jawaban.",
                           style:
-                              TextStyle(fontSize: 14, color: Colors.black54),
+                              TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
                         ),
                       )
                     else
@@ -196,10 +196,10 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: selected ? kAuthPrimary : Colors.white,
+                color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
-                  color: selected ? kAuthPrimary : const Color(0xFFBDC9C8),
+                  color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outlineVariant,
                 ),
               ),
               child: Text(
@@ -209,7 +209,7 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
                   fontWeight:
                       selected ? FontWeight.bold : FontWeight.normal,
                   fontFamily: selected ? kFontBold : null,
-                  color: selected ? Colors.white : Colors.black54,
+                  color: selected ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -224,7 +224,7 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
       ),
@@ -235,17 +235,17 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
             text: widget.title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style:  TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.bold,
               fontFamily: kFontBold,
-              color: Colors.black87,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             _submittedText(),
-            style: const TextStyle(fontSize: 12, color: Colors.black54),
+            style:  TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
           if (result != null) ...[
             const SizedBox(height: 12),
@@ -288,12 +288,13 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
 class _StatCell extends StatelessWidget {
   final String value;
   final String label;
-  final Color color;
+  final Color? color;
 
-  const _StatCell(this.value, this.label, {this.color = Colors.black87});
+  const _StatCell(this.value, this.label, {this.color});
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         Text(
@@ -302,11 +303,11 @@ class _StatCell extends StatelessWidget {
             fontSize: 18,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: color,
+            color: color ?? cs.onSurface,
           ),
         ),
         const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+        Text(label, style:  TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
       ],
     );
   }

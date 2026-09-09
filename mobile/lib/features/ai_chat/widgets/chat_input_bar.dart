@@ -9,6 +9,10 @@ class ChatInputBar extends StatelessWidget {
   final MentionHighlightController textController;
   final bool streaming;
 
+  /// True selama persiapan kirim (belum streaming): tombol kirim
+  /// dinonaktifkan + tampil spinner agar tidak di-tap dua kali.
+  final bool sending;
+
   // State @mention.
   final bool mentionActive;
   final List<FormData> mentionCandidates;
@@ -30,6 +34,7 @@ class ChatInputBar extends StatelessWidget {
     super.key,
     required this.textController,
     required this.streaming,
+    this.sending = false,
     required this.mentionActive,
     required this.mentionCandidates,
     required this.mentionQuery,
@@ -46,15 +51,16 @@ class ChatInputBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      color: kAppBg,
+      color: Theme.of(context).scaffoldBackgroundColor,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // @mention autocomplete — tooltip scrollable berisi semua form.
-          if (mentionActive) _mentionDropdown(),
+          if (mentionActive) _mentionDropdown(context),
           // Hint untuk @mention (ketika tidak aktif).
-          if (!mentionActive && hasAtSign) _mentionHint(),
+          if (!mentionActive && hasAtSign) _mentionHint(context),
           SafeArea(
             top: false,
             child: Container(
@@ -63,9 +69,9 @@ class ChatInputBar extends StatelessWidget {
                 // Spacious Gemini-style pill container.
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: cs.surface,
                   borderRadius: BorderRadius.circular(32),
-                  border: Border.all(color: const Color(0xFFBDC9C8)),
+                  border: Border.all(color: cs.outlineVariant),
                   boxShadow: softShadow(),
                 ),
                 child: Row(
@@ -78,21 +84,26 @@ class ChatInputBar extends StatelessWidget {
                         maxLines: 4,
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => onSend(),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           hintText: 'Tanya ke AI...',
                           filled: false,
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
-                          contentPadding: EdgeInsets.fromLTRB(18, 14, 8, 14),
+                          contentPadding: const EdgeInsets.fromLTRB(
+                            18,
+                            14,
+                            8,
+                            14,
+                          ),
                           hintStyle: TextStyle(
                             fontSize: 15,
-                            color: Colors.black45,
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
-                          color: Colors.black87,
+                          color: cs.onSurface,
                         ),
                       ),
                     ),
@@ -100,17 +111,39 @@ class ChatInputBar extends StatelessWidget {
                       padding: const EdgeInsets.only(right: 2, bottom: 2),
                       // Slot tombol sama persis di kedua state agar UI
                       // tidak "loncat" saat mulai/selesai streaming.
-                      child: IconButton(
-                        onPressed: streaming ? onStop : onSend,
-                        tooltip: streaming ? 'Stop' : 'Send',
-                        icon: Icon(
-                          streaming
-                              ? Icons.stop_rounded
-                              : Icons.send_rounded,
-                          size: 22,
-                          color: kAuthPrimary,
-                        ),
-                      ),
+                      // Saat sending (persiapan kirim): spinner nonaktif agar
+                      // tap ganda tidak jadi request ganda.
+                      child: streaming
+                          ? IconButton(
+                              onPressed: onStop,
+                              tooltip: 'Stop',
+                              icon: Icon(
+                                Icons.stop_rounded,
+                                size: 22,
+                                color: cs.primary,
+                              ),
+                            )
+                          : sending
+                              ? Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: cs.primary,
+                                    ),
+                                  ),
+                                )
+                              : IconButton(
+                                  onPressed: onSend,
+                                  tooltip: 'Send',
+                                  icon: Icon(
+                                    Icons.send_rounded,
+                                    size: 22,
+                                    color: cs.primary,
+                                  ),
+                                ),
                     ),
                   ],
                 ),
@@ -122,16 +155,17 @@ class ChatInputBar extends StatelessWidget {
     );
   }
 
-  Widget _mentionDropdown() {
+  Widget _mentionDropdown(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Material(
-        color: Colors.white,
+        color: cs.surface,
         elevation: 4,
         shadowColor: Colors.black26,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: Color(0xFFBDC9C8)),
+          side: BorderSide(color: cs.outlineVariant),
         ),
         clipBehavior: Clip.antiAlias,
         child: ConstrainedBox(
@@ -153,21 +187,21 @@ class ChatInputBar extends StatelessWidget {
                           size: 16,
                           color: formsLoadFailed
                               ? Colors.red
-                              : Colors.black45,
+                              : cs.onSurfaceVariant,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             formsLoadFailed
-                                ? 'Gagal memuat form: $formsLoadError — ketuk untuk coba lagi'
+                                ? 'Gagal memuat form. Ketuk untuk coba lagi'
                                 : isLoadingForms
                                 ? 'Memuat form...'
                                 : mentionQuery.isEmpty
                                 ? 'Kamu belum punya form'
                                 : 'Tidak ada form dengan judul "@$mentionQuery"',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: Colors.black54,
+                              color: cs.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -194,13 +228,13 @@ class ChatInputBar extends StatelessWidget {
                         leading: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: kPrimarySoft,
+                            color: cs.primaryContainer,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.description_outlined,
                             size: 14,
-                            color: kAuthPrimary,
+                            color: cs.primary,
                           ),
                         ),
                         title: Text(
@@ -214,9 +248,9 @@ class ChatInputBar extends StatelessWidget {
                         ),
                         subtitle: Text(
                           '#${f.id} • ${f.status}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10,
-                            color: Colors.black54,
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
                         onTap: () => onSelectMention(f),
@@ -229,19 +263,20 @@ class ChatInputBar extends StatelessWidget {
     );
   }
 
-  Widget _mentionHint() {
+  Widget _mentionHint(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
-          const Icon(Icons.alternate_email, size: 12, color: Colors.black45),
+          Icon(Icons.alternate_email, size: 12, color: cs.onSurfaceVariant),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               pickedMentionCount == 0
                   ? 'Ketik @ untuk mention form'
                   : 'Mention: $pickedMentionCount form terpilih',
-              style: const TextStyle(fontSize: 10, color: Colors.black54),
+              style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
             ),
           ),
         ],

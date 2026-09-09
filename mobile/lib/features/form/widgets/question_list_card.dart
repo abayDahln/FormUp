@@ -28,6 +28,7 @@ class QuestionListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final q = question;
     final plainText = q.question.document.toPlainText().trim();
     final typeLabel = questionTypes[q.typeId]?.$1 ?? '';
@@ -37,9 +38,9 @@ class QuestionListCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cs.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xCCBDC9C8)),
+          border: Border.all(color: cs.outlineVariant),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -49,17 +50,17 @@ class QuestionListCard extends StatelessWidget {
                 Container(
                   width: 28,
                   height: 28,
-                  decoration: const BoxDecoration(
-                    color: kPrimarySoft,
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
                     shape: BoxShape.circle,
                   ),
                   child: Center(
                     child: Text(
                       "${index + 1}",
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
-                        color: kAuthPrimary,
+                        color: cs.primary,
                         fontSize: 13,
                       ),
                     ),
@@ -78,7 +79,7 @@ class QuestionListCard extends StatelessWidget {
                           fontSize: _zs(13),
                           fontWeight: FontWeight.w700,
                           fontFamily: kFontBold,
-                          color: Colors.black87,
+                          color: cs.onSurface,
                           height: 1.25,
                         ),
                       ),
@@ -87,7 +88,7 @@ class QuestionListCard extends StatelessWidget {
                         typeLabel,
                         style: TextStyle(
                           fontSize: _zs(11),
-                          color: kAuthPrimary,
+                          color: cs.primary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -96,7 +97,7 @@ class QuestionListCard extends StatelessWidget {
                 ),
                 MenuAnchor(
                   builder: (context, controller, child) => IconButton(
-                    icon: const Icon(Icons.more_vert, size: 20, color: Colors.black54),
+                    icon: Icon(Icons.more_vert, size: 20, color: cs.onSurfaceVariant),
                     tooltip: 'Opsi soal',
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 32, minHeight: 32),

@@ -9,6 +9,7 @@ class AddQuestionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ElevatedButton.icon(
       onPressed: onPressed,
       icon: const Icon(Icons.add, color: Colors.white, size: 20),
@@ -23,7 +24,7 @@ class AddQuestionButton extends StatelessWidget {
         ),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: kAuthPrimary,
+        backgroundColor: cs.primary,
         foregroundColor: Colors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(

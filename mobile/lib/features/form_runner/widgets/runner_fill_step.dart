@@ -168,7 +168,7 @@ class _InlineQuizNav extends StatelessWidget {
   void _showJumpPicker(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
         child: Padding(
@@ -176,7 +176,7 @@ class _InlineQuizNav extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(2))),
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Theme.of(ctx).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 12),
               const Text('Daftar soal', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
               const SizedBox(height: 12),
@@ -198,11 +198,11 @@ class _InlineQuizNav extends StatelessWidget {
                         Container(
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: selected ? kAuthPrimary : (answered ? const Color(0xFFE0F2F1) : const Color(0xFFF0F4F4)),
+                            color: selected ? Theme.of(ctx).colorScheme.primary : (answered ? Theme.of(ctx).colorScheme.primaryContainer : Theme.of(ctx).colorScheme.surfaceContainerHighest),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: selected ? kAuthPrimary : (answered ? kAuthPrimary.withValues(alpha: 0.5) : const Color(0xFFBDC9C8))),
+                            border: Border.all(color: selected ? kAuthPrimary : (answered ? kAuthPrimary.withValues(alpha: 0.5) : Theme.of(ctx).colorScheme.outlineVariant)),
                           ),
-                          child: Text('${i + 1}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: selected ? Colors.white : (answered ? kAuthPrimary : Colors.black87))),
+                          child: Text('${i + 1}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: selected ? Colors.white : (answered ? Theme.of(ctx).colorScheme.primary : Theme.of(ctx).colorScheme.onSurface))),
                         ),
                         if (answered)
                           Positioned(
@@ -212,7 +212,7 @@ class _InlineQuizNav extends StatelessWidget {
                               width: 8,
                               height: 8,
                               decoration: BoxDecoration(
-                                color: selected ? Colors.white : kAuthPrimary,
+                                color: selected ? Colors.white : Theme.of(ctx).colorScheme.primary,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -231,6 +231,7 @@ class _InlineQuizNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -238,8 +239,8 @@ class _InlineQuizNav extends StatelessWidget {
           IconButton(
             tooltip: 'Sebelumnya',
             onPressed: onPrevious,
-            icon: const Icon(Icons.arrow_back, size: 20, color: Colors.black87),
-            style: IconButton.styleFrom(backgroundColor: Colors.white, side: const BorderSide(color: Color(0xFFBDC9C8))),
+            icon:  Icon(Icons.arrow_back, size: 20, color: cs.onSurface),
+            style: IconButton.styleFrom(backgroundColor: cs.surface, side:  BorderSide(color: cs.outlineVariant)),
           )
         else
           const SizedBox(width: 48),
@@ -248,17 +249,17 @@ class _InlineQuizNav extends StatelessWidget {
           elevation: 2,
           shadowColor: Colors.black.withValues(alpha: 0.08),
           surfaceTintColor: Colors.transparent,
-          color: Colors.white,
+          color: cs.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(kRadiusMd),
-            side: const BorderSide(color: Color(0xFFE5E8E8)),
+            side:  BorderSide(color: cs.surfaceContainerHighest),
           ),
           child: InkWell(
             onTap: () => _showJumpPicker(context),
             borderRadius: BorderRadius.circular(kRadiusMd),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              child: Text('${current + 1}/$total', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
+              child: Text('${current + 1}/$total', style:  TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: cs.onSurface)),
             ),
           ),
         ),
@@ -272,7 +273,7 @@ class _InlineQuizNav extends StatelessWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             ),
             child: submitting
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                ?    SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: cs.surface))
                 : const Text('Kirim', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
           )
         else

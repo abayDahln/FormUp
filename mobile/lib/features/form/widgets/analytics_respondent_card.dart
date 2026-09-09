@@ -19,9 +19,10 @@ class AnalyticsRespondentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final r = respondent;
     return Material(
-      color: Colors.white,
+      color: cs.surface,
       borderRadius: BorderRadius.circular(16),
       elevation: 0,
       child: InkWell(
@@ -34,11 +35,11 @@ class AnalyticsRespondentCard extends StatelessWidget {
               Container(
                 width: 34,
                 height: 34,
-                decoration: const BoxDecoration(
-                  color: kPrimarySoft,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.person_outline, color: kAuthPrimary, size: 18),
+                child: Icon(Icons.person_outline, color: cs.primary, size: 18),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -51,11 +52,11 @@ class AnalyticsRespondentCard extends StatelessWidget {
                           : r.respondentName!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
-                        color: Colors.black87,
+                        color: cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -66,13 +67,13 @@ class AnalyticsRespondentCard extends StatelessWidget {
                       children: [
                         Text(
                           "${r.answeredCount}/${r.totalQuestions} dijawab · ${_formatTime(r.submittedAt)}",
-                          style: const TextStyle(fontSize: 11, color: Colors.black54),
+                          style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
                         ),
                         if (attemptCount > 1)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: kPrimarySoft, borderRadius: BorderRadius.circular(6)),
-                            child: Text('${attemptCount}x percobaan', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: kAuthPrimary)),
+                            decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(6)),
+                            child: Text('${attemptCount}x percobaan', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: cs.primary)),
                           ),
                       ],
                     ),
@@ -81,7 +82,7 @@ class AnalyticsRespondentCard extends StatelessWidget {
               ),
               _ScoreChip(r.score),
               const SizedBox(width: 4),
-              const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+              Icon(Icons.chevron_right, color: cs.onSurfaceVariant, size: 20),
             ],
           ),
         ),
@@ -98,10 +99,11 @@ class _ScoreChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     if (score == null) {
-      return const Text(
+      return Text(
         '—',
-        style: TextStyle(fontSize: 13, color: Colors.black45),
+        style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
       );
     }
     final color = score! >= 75

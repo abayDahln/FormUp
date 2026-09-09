@@ -66,8 +66,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: AbsorbPointer(
         absorbing: _loading,
         child: AuthBackground(
@@ -109,19 +110,19 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                 obscure: true,
                               ),
                               const SizedBox(height: 14),
-                              const Row(
+                               Row(
                                 children: [
                                   Icon(
                                     Icons.info_outline,
                                     size: 16,
-                                    color: kAuthHint,
+                                    color: cs.onSurfaceVariant,
                                   ),
                                   SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
                                       "Kata sandi minimal 8 karakter, kombinasi huruf dan angka.",
                                       style: TextStyle(
-                                        color: kAuthHint,
+                                        color: cs.onSurfaceVariant,
                                         fontSize: 12,
                                       ),
                                     ),

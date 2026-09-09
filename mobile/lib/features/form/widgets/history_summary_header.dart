@@ -11,28 +11,29 @@ class HistorySummaryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             "Form",
-            style: TextStyle(fontSize: 12, color: Colors.black54),
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 4),
           RichTextView(
             text: result.formTitle,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               fontFamily: kFontBold,
-              color: Colors.black87,
+              color: cs.onSurface,
             ),
           ),
           if (result.showScore) ...[
@@ -53,6 +54,7 @@ class _HistoryScoreRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final score = result.score;
     final color = score == null
         ? Colors.grey
@@ -64,9 +66,9 @@ class _HistoryScoreRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
-        color: kPrimarySoft,
+        color: cs.primaryContainer,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kAuthPrimary),
+        border: Border.all(color: cs.primary),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -102,6 +104,7 @@ class _ScoreStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         Text(
@@ -116,7 +119,7 @@ class _ScoreStat extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           label,
-          style: const TextStyle(fontSize: 11, color: Colors.black54),
+          style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
         ),
       ],
     );

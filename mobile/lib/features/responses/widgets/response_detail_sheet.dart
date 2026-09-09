@@ -11,10 +11,11 @@ class ResponseDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration:  BoxDecoration(
+        color: cs.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -31,26 +32,26 @@ class ResponseDetailSheet extends StatelessWidget {
                         (detail.respondentName ?? '').trim().isEmpty
                             ? 'Detail Respon'
                             : detail.respondentName!,
-                        style: const TextStyle(
+                        style:  TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           fontFamily: kFontBold,
-                          color: Colors.black87,
+                          color: cs.onSurface,
                         ),
                       ),
                       if (detail.submittedAt != null) ...[
                         const SizedBox(height: 2),
                         Text(
                           _formatDetailTime(detail.submittedAt!),
-                          style: const TextStyle(
-                              fontSize: 11, color: Colors.black54),
+                          style:  TextStyle(
+                              fontSize: 11, color: cs.onSurfaceVariant),
                         ),
                       ],
                     ],
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, color: Colors.black54),
+                  icon:  Icon(Icons.close, color: cs.onSurfaceVariant),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -59,10 +60,10 @@ class ResponseDetailSheet extends StatelessWidget {
           const Divider(height: 1),
           Expanded(
             child: detail.answers.isEmpty
-                ? const Center(
+                ?  Center(
                     child: Text(
                       'Tidak ada jawaban.',
-                      style: TextStyle(fontSize: 13, color: Colors.black45),
+                      style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
                     ),
                   )
                 : ListView.separated(
@@ -76,7 +77,7 @@ class ResponseDetailSheet extends StatelessWidget {
                         width: double.infinity,
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF0F4F4),
+                          color: cs.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Column(
@@ -85,11 +86,11 @@ class ResponseDetailSheet extends StatelessWidget {
                             RichTextView(
                               text: a.question,
                               prefix: '${i + 1}. ',
-                              style: const TextStyle(
+                              style:  TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
                                 fontFamily: kFontBold,
-                                color: Colors.black87,
+                                color: cs.onSurface,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -98,8 +99,8 @@ class ResponseDetailSheet extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 12,
                                 color: answered
-                                    ? Colors.black87
-                                    : Colors.black45,
+                                    ? cs.onSurface
+                                    : cs.onSurfaceVariant,
                                 fontStyle: answered
                                     ? FontStyle.normal
                                     : FontStyle.italic,

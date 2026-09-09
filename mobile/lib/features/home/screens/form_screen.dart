@@ -104,7 +104,7 @@ class _FormScreenState extends State<FormScreen> {
     _filterOpen = true;
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -159,6 +159,7 @@ class _FormScreenState extends State<FormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final all = _filtered;
     final hasFilter = _searchQuery.isNotEmpty ||
         _filterDate != null ||
@@ -166,14 +167,14 @@ class _FormScreenState extends State<FormScreen> {
 
     return AppRefreshIndicator(
       onRefresh: _loadMyForms,
-      indicatorColor: kAuthPrimary,
+      indicatorColor: cs.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 15, 20, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Column(
+             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -182,13 +183,13 @@ class _FormScreenState extends State<FormScreen> {
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
-                    color: Colors.black87,
+                    color: cs.onSurface,
                   ),
                 ),
                 SizedBox(height: 2),
                 Text(
                   'Lihat dan Kelola Form Anda',
-                  style: TextStyle(fontSize: 13, color: Colors.black54),
+                  style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
                 ),
               ],
             ),

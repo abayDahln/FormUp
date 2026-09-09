@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:form_up/core/widgets/auth_widgets.dart';
 
 /// Baris info status form: 1x kesempatan & harus login
 class FormStartStatusInfo extends StatelessWidget {
@@ -14,6 +13,7 @@ class FormStartStatusInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
         if (oneResponse && requiresLogin) const SizedBox(width: 8),
@@ -22,15 +22,15 @@ class FormStartStatusInfo extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: kPrimarySoft,
+                color: cs.primaryContainer,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Row(
+              child:  Row(
                 children: [
                   Icon(
                     Icons.person_outline,
                     size: 16,
-                    color: kAuthPrimary,
+                    color: cs.primary,
                   ),
                   SizedBox(width: 8),
                   Expanded(
@@ -38,7 +38,7 @@ class FormStartStatusInfo extends StatelessWidget {
                       "Harus login",
                       style: TextStyle(
                         fontSize: 12,
-                        color: kAuthPrimary,
+                        color: cs.primary,
                       ),
                     ),
                   ),

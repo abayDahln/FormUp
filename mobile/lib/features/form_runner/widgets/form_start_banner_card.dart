@@ -11,10 +11,11 @@ class FormStartBannerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
       ),
@@ -24,11 +25,11 @@ class FormStartBannerCard extends StatelessWidget {
           url: profileImageUrl(bannerImage),
           fit: BoxFit.cover,
           errorWidget: Container(
-            color: kPrimarySoft,
-            child: const Icon(
+            color: cs.primaryContainer,
+            child:  Icon(
               Icons.image_outlined,
               size: 40,
-              color: kAuthPrimary,
+              color: cs.primary,
             ),
           ),
         ),

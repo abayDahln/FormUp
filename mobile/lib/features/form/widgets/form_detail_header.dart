@@ -13,12 +13,13 @@ class FormDetailHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final style = formStatusStyle(form.status);
     return Container(
       clipBehavior: Clip.antiAlias,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(kRadius),
       ),
       child: Column(
@@ -32,11 +33,11 @@ class FormDetailHeader extends StatelessWidget {
                 fit: BoxFit.cover,
                 errorWidget: Container(
                   width: double.infinity,
-                  color: const Color(0xFFF0F4F4),
-                  child: const Icon(
+                  color: cs.surfaceContainerHighest,
+                  child: Icon(
                     Icons.broken_image_outlined,
                     size: 32,
-                    color: Colors.grey,
+                    color: cs.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -48,12 +49,12 @@ class FormDetailHeader extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: kPrimarySoft,
+                  color: cs.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.description_outlined,
-                  color: kAuthPrimary,
+                  color: cs.primary,
                   size: 24,
                 ),
               ),
@@ -63,11 +64,11 @@ class FormDetailHeader extends StatelessWidget {
                   text: form.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
-                    color: Colors.black87,
+                    color: cs.onSurface,
                   ),
                 ),
               ),
@@ -78,28 +79,28 @@ class FormDetailHeader extends StatelessWidget {
             children: [
               _Badge(style),
               const SizedBox(width: 8),
-              const Icon(Icons.people_outline, size: 14, color: Colors.grey),
+              Icon(Icons.people_outline, size: 14, color: cs.onSurfaceVariant),
               const SizedBox(width: 4),
               Text(
                 '${form.responseCount} respons',
-                style: const TextStyle(fontSize: 12, color: Colors.black54),
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
               ),
             ],
           ),
           if (form.description != null && form.description!.trim().isNotEmpty) ...[
             const SizedBox(height: 12),
-            const Divider(height: 1, color: Colors.black12),
+            Divider(height: 1, color: cs.outlineVariant),
             const SizedBox(height: 12),
             RichTextView(
               text: form.description!,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
-                color: Colors.black87,
+                color: cs.onSurface,
                 height: 1.4,
               ),
             ),
             const SizedBox(height: 12),
-            const Divider(height: 1, color: Colors.black12),
+            Divider(height: 1, color: cs.outlineVariant),
           ],
           const SizedBox(height: 10),
           _InfoRow(Icons.calendar_today_outlined,
@@ -121,16 +122,17 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Icon(icon, size: 14, color: Colors.grey),
+        Icon(icon, size: 14, color: cs.onSurfaceVariant),
         const SizedBox(width: 6),
         Flexible(
           child: Text(
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, color: Colors.black54),
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
           ),
         ),
       ],

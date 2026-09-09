@@ -50,7 +50,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: AbsorbPointer(
         absorbing: _loading,
         child: AuthBackground(

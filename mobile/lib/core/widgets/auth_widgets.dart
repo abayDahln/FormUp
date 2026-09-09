@@ -103,23 +103,28 @@ FormStatusStyle formStatusStyle(String status) {
   }
 }
 
-/// Background mint + gradient
+/// Background mint + gradient (terang) / gelap + glow teal (dark mode)
 class AuthBackground extends StatelessWidget {
   final Widget child;
-  /// Jika true, tampil polos #F8F9FA tanpa gradient mint (untuk non-auth screen).
+  /// Jika true, tampil polos mengikuti scaffoldBackgroundColor tema.
   final bool plain;
 
   const AuthBackground({super.key, required this.child, this.plain = false});
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     if (plain) {
-      return Container(color: kAppBg, child: child);
+      return Container(color: Theme.of(context).scaffoldBackgroundColor, child: child);
     }
     final size = MediaQuery.of(context).size;
     return Stack(
       children: [
-        Container(width: size.width, height: size.height, color: kAuthBg),
+        Container(
+            width: size.width,
+            height: size.height,
+            color: dark ? const Color(0xFF101415) : Theme.of(context).scaffoldBackgroundColor),
         Positioned(
           top: -150,
           left: -130,
@@ -131,10 +136,15 @@ class AuthBackground extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomRight,
-                colors: [
-                  kAuthPrimary.withValues(alpha: 0.4),
-                  const Color(0xFFD9D9D9).withValues(alpha: 0.0),
-                ],
+                colors: dark
+                    ? [
+                        cs.primary.withValues(alpha: 0.22),
+                        const Color(0xFF101415).withValues(alpha: 0.0),
+                      ]
+                    : [
+                        kAuthPrimary.withValues(alpha: 0.4),
+                        const Color(0xFFD9D9D9).withValues(alpha: 0.0),
+                      ],
               ),
             ),
           ),
@@ -158,13 +168,14 @@ class AuthCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(kRadius),
-        border: Border.all(color: kBorderColor),
+        border: Border.all(color: cs.outlineVariant),
         boxShadow: softShadow(),
       ),
       child: child,
@@ -181,15 +192,16 @@ class AuthTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style:  TextStyle(
             fontSize: 40,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: cs.onSurface,
             fontFamily: kFontBold,
           ),
         ),
@@ -197,7 +209,7 @@ class AuthTitle extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             subtitle!,
-            style: const TextStyle(color: Colors.black54, fontSize: 14),
+            style:  TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
           ),
         ],
       ],
@@ -246,13 +258,14 @@ class _AuthTextFieldState extends State<AuthTextField> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return TextField(
       controller: widget.controller,
       obscureText: _obscure,
       keyboardType: widget.keyboardType,
       enabled: widget.enabled,
-      style: const TextStyle(color: Colors.black87, fontSize: 14),
-      cursorColor: kAuthPrimary,
+      style:  TextStyle(color: cs.onSurface, fontSize: 14),
+      cursorColor: cs.primary,
       decoration: formUpInputDecoration(
         labelText: widget.label ?? widget.hint,
         hintText: widget.hint,
@@ -357,13 +370,14 @@ class AuthInlineLink extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Wrap(
         alignment: WrapAlignment.center,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           if (question != null)
-            Text(question!, style: const TextStyle(color: Colors.black54, fontSize: 14)),
+            Text(question!, style:  TextStyle(color: cs.onSurfaceVariant, fontSize: 14)),
           TextButton(
             onPressed: onTap,
             style: TextButton.styleFrom(
@@ -394,13 +408,14 @@ class AuthBottomPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Wrap(
         alignment: WrapAlignment.center,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           if (question != null)
-            Text(question!, style: const TextStyle(color: Colors.black54, fontSize: 14)),
+            Text(question!, style:  TextStyle(color: cs.onSurfaceVariant, fontSize: 14)),
           FilledButton.tonal(
             onPressed: onTap,
             style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10)),
@@ -433,6 +448,7 @@ class _OtpFieldState extends State<OtpField> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: () => _focusNode.requestFocus(),
       child: Stack(
@@ -468,14 +484,14 @@ class _OtpFieldState extends State<OtpField> {
                   margin: const EdgeInsets.symmetric(horizontal: 4),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: kAuthFieldFill,
+                    color: cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(7.5),
                     border: Border.all(
                       color:
                           i == widget.controller.text.length &&
                               _focusNode.hasFocus
-                          ? kAuthPrimary
-                          : kAuthText,
+                          ? cs.primary
+                          : cs.onSurfaceVariant,
                       width:
                           i == widget.controller.text.length &&
                               _focusNode.hasFocus
@@ -485,10 +501,10 @@ class _OtpFieldState extends State<OtpField> {
                   ),
                   child: Text(
                     char,
-                    style: const TextStyle(
+                    style:  TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: cs.onSurface,
                       fontFamily: kFontBold,
                     ),
                   ),

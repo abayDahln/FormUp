@@ -48,6 +48,7 @@ class _ZoomBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return SizedBox(
       width: 30,
       height: 30,
@@ -58,10 +59,10 @@ class _ZoomBtn extends StatelessWidget {
         iconSize: 20,
         visualDensity: VisualDensity.compact,
         style: IconButton.styleFrom(
-          backgroundColor: Colors.white,
-          side: const BorderSide(color: Color(0xFFBDC9C8)),
+          backgroundColor: cs.surface,
+          side: BorderSide(color: cs.outlineVariant),
         ),
-        icon: Icon(icon, color: enabled ? Colors.black87 : Colors.black26),
+        icon: Icon(icon, color: enabled ? cs.onSurface : cs.onSurfaceVariant),
       ),
     );
   }

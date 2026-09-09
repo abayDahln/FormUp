@@ -9,7 +9,7 @@ import 'package:form_up/features/ai_chat/widgets/form_context_card.dart';
 import 'package:form_up/features/ai_chat/widgets/streaming_ai_text.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
-const _aiTextStyle = TextStyle(fontSize: 13, color: Colors.black87);
+/// Gaya teks AI dibuat per-build agar sadar-tema (lihat _buildAiBody).
 
 /// Regex code fence ```json yang SUDAH tertutup — blok setengah jadi
 /// (masih streaming) tidak match sehingga tab layout belum tampil.
@@ -43,6 +43,11 @@ class ChatBubble extends StatelessWidget {
   final VoidCallback? onPromptEdit;
   final VoidCallback? onPromptCopy;
 
+  /// False saat AI sedang mengetik/menyiapkan jawaban: tombol aksi
+  /// (coba lagi, undo, redo, edit soal, retry prompt) dinonaktifkan
+  /// agar tidak balapan dengan streaming.
+  final bool actionsEnabled;
+
   const ChatBubble({
     super.key,
     required this.message,
@@ -52,6 +57,7 @@ class ChatBubble extends StatelessWidget {
     this.onUndo,
     this.onRedo,
     this.onUserLongPress,
+    this.actionsEnabled = true,
     this.onPromptRetry,
     this.onPromptEdit,
     this.onPromptCopy,
@@ -59,6 +65,7 @@ class ChatBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final m = message;
     final isUser = m.role == 'user';
     final bubble = GestureDetector(
@@ -69,7 +76,7 @@ class ChatBubble extends StatelessWidget {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isUser ? kAuthPrimary : Colors.white,
+          color: isUser ? cs.primary : cs.surface,
           borderRadius: BorderRadius.circular(16).copyWith(
             bottomRight: isUser ? const Radius.circular(4) : null,
             bottomLeft: !isUser ? const Radius.circular(4) : null,
@@ -78,9 +85,7 @@ class ChatBubble extends StatelessWidget {
           border: isUser
               ? null
               : Border.all(
-                  color: m.isError
-                      ? Colors.red.shade300
-                      : const Color(0xFFBDC9C8),
+                  color: m.isError ? Colors.red.shade300 : cs.outlineVariant,
                 ),
         ),
         child: Column(
@@ -89,40 +94,50 @@ class ChatBubble extends StatelessWidget {
             if (isUser)
               SelectableText(
                 m.text.isEmpty ? '...' : m.text,
-                style: const TextStyle(fontSize: 13, color: Colors.white),
+                style: TextStyle(fontSize: 13, color: cs.onPrimary),
               )
             else if (m.stream != null)
               // Bubble AKTIF: rebuild terisolasi via notifier —
               // sisa ListView tidak ikut rebuild per chunk.
               StreamingAiText(notifier: m.stream!)
             else if (streaming && isLast && m.text.isEmpty)
-              const Row(
+              Row(
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 12,
                     height: 12,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Text(
                     'AI mengetik...',
-                    style: TextStyle(fontSize: 11, color: Colors.black54),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ],
               )
             else if (m.isError)
               // Bubble error: pesan Indonesia + tombol coba lagi.
-              _ErrorBody(message: m, onRetry: onRetry)
+              _ErrorBody(
+                  message: m,
+                  onRetry: onRetry,
+                  enabled: actionsEnabled)
             else
               // Render jawaban AI sebagai markdown (bold, list, tabel, code
               // block, LaTeX). Blok <FORM_CONTEXT> yang ter-echo dipisah dan
               // digambar sebagai kartu form yang bisa diketuk ke detail.
-              ..._buildAiBody(m),
+              ..._buildAiBody(context, m),
             // Kartu ringkasan perubahan (diff) untuk aksi AI: ringkasan +
             // status + Undo + dropdown detail + tombol Buka Form.
             if (!isUser && m.actionJson != null) ...[
               const SizedBox(height: 8),
-              ActionChangeCard(message: m, onUndo: onUndo, onRedo: onRedo),
+              ActionChangeCard(
+                  message: m,
+                  onUndo: onUndo,
+                  onRedo: onRedo,
+                  disabled: !actionsEnabled),
             ],
           ],
         ),
@@ -150,12 +165,14 @@ class ChatBubble extends StatelessWidget {
                   icon: Icons.refresh_rounded,
                   tooltip: 'Coba lagi',
                   onTap: onPromptRetry!,
+                  enabled: actionsEnabled,
                 ),
               if (onPromptEdit != null)
                 _MiniPromptAction(
                   icon: Icons.edit_outlined,
                   tooltip: 'Edit prompt',
                   onTap: onPromptEdit!,
+                  enabled: actionsEnabled,
                 ),
               if (onPromptCopy != null)
                 _MiniPromptAction(
@@ -176,13 +193,17 @@ class ChatBubble extends StatelessWidget {
   ///   (tab Preview soal + tab raw JSON). Fence setengah jadi (streaming)
   ///   tidak match regex, jadi tab hanya muncul setelah JSON lengkap,
   /// - sisanya dirender GptMarkdown biasa.
-  List<Widget> _buildAiBody(ChatMessage m) {
-    final text = m.text.isEmpty ? 'Respons kosong — coba kirim ulang.' : m.text;
+  List<Widget> _buildAiBody(BuildContext context, ChatMessage m) {
+    final text = m.text.isEmpty ? 'Respons kosong. Coba kirim ulang.' : m.text;
     final widgets = <Widget>[];
+    final aiTextStyle = TextStyle(
+      fontSize: 13,
+      color: Theme.of(context).colorScheme.onSurface,
+    );
 
     void addPlain(String raw) {
       final t = raw.trim();
-      if (t.isNotEmpty) widgets.add(GptMarkdown(t, style: _aiTextStyle));
+      if (t.isNotEmpty) widgets.add(GptMarkdown(t, style: aiTextStyle));
     }
 
     void addMarkdown(String raw) {
@@ -212,7 +233,7 @@ class ChatBubble extends StatelessWidget {
     }
     addMarkdown(text.substring(last));
     if (widgets.isEmpty) {
-      widgets.add(GptMarkdown(text, style: _aiTextStyle));
+      widgets.add(GptMarkdown(text, style: aiTextStyle));
     }
     return widgets;
   }
@@ -234,25 +255,29 @@ class _MiniPromptAction extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
+  final bool enabled;
 
   const _MiniPromptAction({
     required this.icon,
     required this.tooltip,
     required this.onTap,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return SizedBox(
       width: 34,
       height: 28,
       child: IconButton(
         tooltip: tooltip,
-        onPressed: onTap,
+        onPressed: enabled ? onTap : null,
         visualDensity: VisualDensity.compact,
         padding: EdgeInsets.zero,
         iconSize: 15,
-        color: Colors.black38,
+        color: cs.onSurfaceVariant,
+        disabledColor: cs.onSurfaceVariant.withValues(alpha: 0.35),
         icon: Icon(icon),
       ),
     );
@@ -263,8 +288,10 @@ class _MiniPromptAction extends StatelessWidget {
 class _ErrorBody extends StatelessWidget {
   final ChatMessage message;
   final VoidCallback onRetry;
+  final bool enabled;
 
-  const _ErrorBody({required this.message, required this.onRetry});
+  const _ErrorBody(
+      {required this.message, required this.onRetry, this.enabled = true});
 
   @override
   Widget build(BuildContext context) {
@@ -291,7 +318,7 @@ class _ErrorBody extends StatelessWidget {
               visualDensity: VisualDensity.compact,
               padding: const EdgeInsets.symmetric(horizontal: 4),
             ),
-            onPressed: onRetry,
+            onPressed: enabled ? onRetry : null,
             icon: const Icon(Icons.refresh, size: 14),
             label: const Text('Coba lagi', style: TextStyle(fontSize: 12)),
           ),

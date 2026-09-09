@@ -9,6 +9,7 @@ class HomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -16,19 +17,19 @@ class HomeHeader extends StatelessWidget {
           "Halo, ${username.isNotEmpty ? username : 'Pengguna'}",
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
+          style:  TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
         const SizedBox(height: 2),
-        const Text(
+         Text(
           "Apa yang ingin Anda lakukan hari ini?",
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 13, color: Colors.black54),
+          style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
         ),
       ],
     );

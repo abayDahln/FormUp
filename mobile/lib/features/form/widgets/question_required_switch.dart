@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:form_up/core/widgets/auth_widgets.dart';
 
 /// Baris switch "Wajib dijawab" pada section Pengaturan
 class QuestionRequiredSwitch extends StatelessWidget {
@@ -14,19 +13,20 @@ class QuestionRequiredSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
-        const Text(
+        Text(
           "Wajib dijawab",
           style: TextStyle(
             fontSize: 13,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
         const Spacer(),
         Switch(
           value: value,
-          activeTrackColor: kAuthPrimary,
+          activeTrackColor: cs.primary,
           onChanged: onChanged,
         ),
       ],

@@ -69,6 +69,7 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: EdgeInsets.only(
         left: 20,
@@ -77,7 +78,7 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
         bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
       ),
       child: Material(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(24),
         clipBehavior: Clip.antiAlias,
         child: Padding(

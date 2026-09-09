@@ -20,10 +20,11 @@ class RunnerFormHeaderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
       ),
@@ -44,11 +45,11 @@ class RunnerFormHeaderCard extends StatelessWidget {
                       url: profileImageUrl(info.bannerImage),
                       fit: BoxFit.cover,
                       errorWidget: Container(
-                        color: kPrimarySoft,
-                        child: const Icon(
+                        color: cs.primaryContainer,
+                        child:  Icon(
                           Icons.image_outlined,
                           size: 36,
-                          color: kAuthPrimary,
+                          color: cs.primary,
                         ),
                       ),
                     ),
@@ -60,11 +61,11 @@ class RunnerFormHeaderCard extends StatelessWidget {
           ],
           RichTextView(
             text: info.title,
-            style: const TextStyle(
+            style:  TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               fontFamily: kFontBold,
-              color: Colors.black87,
+              color: cs.onSurface,
             ),
           ),
           // Deskripsi form (jika diisi)
@@ -73,9 +74,9 @@ class RunnerFormHeaderCard extends StatelessWidget {
             RichTextView(
               text: info.description!,
               ignoreInlineFontSize: true,
-              style: const TextStyle(
+              style:  TextStyle(
                 fontSize: 15,
-                color: Colors.black87,
+                color: cs.onSurface,
                 height: 1.4,
               ),
             ),
@@ -84,13 +85,13 @@ class RunnerFormHeaderCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               "⏱ ${formatRunnerDuration(info.timerDuration!)}",
-              style: const TextStyle(fontSize: 12, color: kAuthPrimary),
+              style:  TextStyle(fontSize: 12, color: cs.primary),
             ),
           ],
           const SizedBox(height: 6),
           Text(
             "$questionCount pertanyaan",
-            style: const TextStyle(fontSize: 12, color: Colors.black54),
+            style:  TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
           ),
         ],
       ),

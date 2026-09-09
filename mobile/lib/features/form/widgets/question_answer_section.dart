@@ -19,6 +19,7 @@ class QuestionAnswerSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final q = draft;
     // Samakan web FormBuilder.jsx: isScorable adalah toggle eksplisit
     // "Hitung ke Skor (Dinilai)", independen dari isRequired.
@@ -33,7 +34,7 @@ class QuestionAnswerSection extends StatelessWidget {
           children: [
             Checkbox(
               value: scorable,
-              activeColor: kAuthPrimary,
+              activeColor: cs.primary,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               onChanged: (_) {
                 q.isScorable = !scorable;
@@ -41,20 +42,20 @@ class QuestionAnswerSection extends StatelessWidget {
                 onChanged();
               },
             ),
-            const Expanded(
+            Expanded(
               child: Text(
                 "Hitung ke Skor (Dinilai)",
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface),
               ),
             ),
           ],
         ),
         if (!scorable)
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 8),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
             child: Text(
               'Soal ini Tidak Dinilai (pengumpulan data). Tidak memerlukan kunci dan tidak memengaruhi skor.',
-              style: TextStyle(fontSize: 10, color: Colors.black45, fontStyle: FontStyle.italic),
+              style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant, fontStyle: FontStyle.italic),
             ),
           ),
         if (scorable) _buildAnswerContent(context),
@@ -62,9 +63,9 @@ class QuestionAnswerSection extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              const Text(
+              Text(
                 "Poin Soal",
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface),
               ),
               const SizedBox(width: 10),
               SizedBox(
@@ -87,14 +88,14 @@ class QuestionAnswerSection extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              const Text(
+              Text(
                 "Otomatis",
-                style: TextStyle(fontSize: 12, color: Colors.black87),
+                style: TextStyle(fontSize: 12, color: cs.onSurface),
               ),
               const SizedBox(width: 4),
               Switch(
                 value: q.points == null,
-                activeTrackColor: kAuthPrimary,
+                activeTrackColor: cs.primary,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 onChanged: (v) {
                   if (v) {
@@ -109,7 +110,7 @@ class QuestionAnswerSection extends StatelessWidget {
           ),
           Text(
             q.points == null ? "Bobot otomatis sama rata" : "Bobot manual",
-            style: const TextStyle(fontSize: 10, color: Colors.black45, fontStyle: FontStyle.italic),
+            style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant, fontStyle: FontStyle.italic),
           ),
         ],
       ],
@@ -117,19 +118,20 @@ class QuestionAnswerSection extends StatelessWidget {
   }
 
   Widget _buildAnswerContent(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final q = draft;
     if (q.typeId == 5) return _buildTrueFalseAnswer(q, onChanged);
     if (q.typeId == 1) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Kunci Jawaban',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.bold,
               fontFamily: kFontBold,
-              color: kAuthPrimary,
+              color: cs.primary,
             ),
           ),
           const SizedBox(height: 8),
@@ -151,14 +153,14 @@ class QuestionAnswerSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            children: const [
+            children: [
               Text(
                 'Opsi Jawaban',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
-                  color: kAuthPrimary,
+                  color: cs.primary,
                 ),
               ),
               SizedBox(width: 2),
@@ -187,23 +189,23 @@ class QuestionAnswerSection extends StatelessWidget {
                 q.options.add(OptionDraft());
                 onChanged();
               },
-              icon: const Icon(
+              icon: Icon(
                 Icons.add_circle_outline,
                 size: 18,
-                color: kAuthPrimary,
+                color: cs.primary,
               ),
-              label: const Text(
+              label: Text(
                 "Tambahkan opsi",
-                style: TextStyle(color: kAuthPrimary),
+                style: TextStyle(color: cs.primary),
               ),
             ),
           ),
         ],
       );
     }
-    return const Text(
+    return Text(
       'Jawaban tanggal & waktu diisi responden langsung.',
-      style: TextStyle(fontSize: 12, color: Colors.black45),
+      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
     );
   }
 }
@@ -257,16 +259,17 @@ class _AnswerChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? kPrimarySoft : const Color(0xFFF0F4F4),
+          color: selected ? cs.primaryContainer : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: selected ? kAuthPrimary : const Color(0xFF6E7979),
+            color: selected ? cs.primary : cs.outline,
             width: selected ? 1.5 : 1,
           ),
         ),
@@ -276,7 +279,7 @@ class _AnswerChip extends StatelessWidget {
             fontSize: 13,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: selected ? kAuthPrimary : Colors.black54,
+            color: selected ? cs.primary : cs.onSurfaceVariant,
           ),
         ),
       ),
@@ -298,6 +301,7 @@ class _OptionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final q = draft;
     final o = q.options[index];
     final singleSelect = q.typeId == 2;
@@ -327,7 +331,7 @@ class _OptionRow extends StatelessWidget {
                   : (o.isCorrect
                         ? Icons.check_box
                         : Icons.check_box_outline_blank),
-              color: o.isCorrect ? kAuthPrimary : const Color(0xFF6E7979),
+              color: o.isCorrect ? cs.primary : cs.outline,
               size: 22,
             ),
           ),
@@ -340,7 +344,7 @@ class _OptionRow extends StatelessWidget {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+            icon: Icon(Icons.close, size: 18, color: cs.onSurfaceVariant),
             onPressed: () {
               o.text.dispose();
               q.options.removeAt(index);

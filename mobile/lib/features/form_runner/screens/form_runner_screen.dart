@@ -286,24 +286,24 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
+        title:  Text(
           'Kirim Jawaban?',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: Theme.of(ctx).colorScheme.onSurface,
           ),
         ),
-        content: const Text(
+        content:  Text(
           'Yakin ingin mengumpulkan jawaban sekarang?',
-          style: TextStyle(fontSize: 14, color: Colors.black54),
+          style: TextStyle(fontSize: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text(
+            child:  Text(
               'Batal',
-              style: TextStyle(color: Colors.black54),
+              style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant),
             ),
           ),
           ElevatedButton(
@@ -417,8 +417,8 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Form Selesai", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
-        content: const Text("Waktu pengerjaan telah habis. Jawaban telah dikirim.", style: TextStyle(fontSize: 14, color: Colors.black54)),
+        title:  Text("Form Selesai", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Theme.of(ctx).colorScheme.onSurface)),
+        content:  Text("Waktu pengerjaan telah habis. Jawaban telah dikirim.", style: TextStyle(fontSize: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
         actions: [
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: kAuthPrimary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
@@ -506,8 +506,8 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
           barrierDismissible: false,
           builder: (ctx) => AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text("Jawaban Terkirim", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
-            content: const Text("Jawaban sudah terkirim.", style: TextStyle(fontSize: 14, color: Colors.black54)),
+            title:  Text("Jawaban Terkirim", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Theme.of(ctx).colorScheme.onSurface)),
+            content:  Text("Jawaban sudah terkirim.", style: TextStyle(fontSize: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
             actions: [
               FilledButton(
                 style: FilledButton.styleFrom(backgroundColor: kAuthPrimary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),

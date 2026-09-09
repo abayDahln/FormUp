@@ -137,7 +137,7 @@ class _FormResponScreenState extends State<FormResponScreen>
 
   Future<String?> _pickExportFormat() => showModalBottomSheet<String>(
         context: context,
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
         builder: (ctx) => SafeArea(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -148,7 +148,7 @@ class _FormResponScreenState extends State<FormResponScreen>
             const SizedBox(height: 8),
             for (final f in ['csv', 'xlsx', 'pdf'])
               ListTile(
-                leading: Icon(f == 'pdf' ? Icons.picture_as_pdf_outlined : f == 'xlsx' ? Icons.table_chart_outlined : Icons.description_outlined, color: kAuthPrimary),
+                leading: Icon(f == 'pdf' ? Icons.picture_as_pdf_outlined : f == 'xlsx' ? Icons.table_chart_outlined : Icons.description_outlined, color: Theme.of(ctx).colorScheme.primary),
                 title: Text(f.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
                 onTap: () => Navigator.pop(ctx, f),
               ),
@@ -180,8 +180,8 @@ class _FormResponScreenState extends State<FormResponScreen>
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(children: [Icon(Icons.check_circle, color: kPrimary), SizedBox(width: 8), Text('Ekspor Selesai', style: TextStyle(fontFamily: kFontBold))]),
-        content: Text('File "$fileName" berhasil dibuat (${(bytes.length / 1024).toStringAsFixed(1)} KB).', style: const TextStyle(fontSize: 13, color: Colors.black87)),
+        title:  Row(children: [Icon(Icons.check_circle, color: Theme.of(ctx).colorScheme.primary), SizedBox(width: 8), Text('Ekspor Selesai', style: TextStyle(fontFamily: kFontBold))]),
+        content: Text('File "$fileName" berhasil dibuat (${(bytes.length / 1024).toStringAsFixed(1)} KB).', style:  TextStyle(fontSize: 13, color: Theme.of(ctx).colorScheme.onSurface)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup')),
           FilledButton.icon(onPressed: () async { Navigator.pop(ctx); await _shareExport(bytes, fileName, mime, format); }, icon: const Icon(Icons.share_outlined, size: 18), label: const Text('Bagikan')),
@@ -212,29 +212,29 @@ class _FormResponScreenState extends State<FormResponScreen>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return PopScope(
       canPop: !_exporting,
       onPopInvokedWithResult: (didPop, _) { if (!didPop && _exporting) showAppToast(context, 'Tunggu ekspor selesai', type: ToastType.warning); },
       child: Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        shape:  Border(
+          bottom: BorderSide(color: cs.outlineVariant),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon:  Icon(Icons.arrow_back, color: cs.onSurface),
           onPressed: _exporting ? null : () => AppRouter.of(context).pop(),
         ),
         title: Text(
           widget.title,
-          style: const TextStyle(
+          style:  TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
         actions: [
@@ -250,7 +250,7 @@ class _FormResponScreenState extends State<FormResponScreen>
                     ),
                   )
                 : IconButton(
-                    icon: const Icon(Icons.download_outlined, color: Colors.black87),
+                    icon:  Icon(Icons.download_outlined, color: cs.onSurface),
                     tooltip: 'Export CSV/XLSX/PDF',
                     onPressed: _responses.isEmpty || _exporting ? null : _export,
                   ),
@@ -289,10 +289,10 @@ class _FormResponScreenState extends State<FormResponScreen>
                             child: Container(
                               padding: const EdgeInsets.all(32),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: cs.surface,
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const Column(
+                              child:  Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(Icons.inbox_outlined,
@@ -301,7 +301,7 @@ class _FormResponScreenState extends State<FormResponScreen>
                                   Text(
                                     'Belum ada respon.',
                                     style: TextStyle(
-                                        fontSize: 13, color: Colors.black54),
+                                        fontSize: 13, color: cs.onSurfaceVariant),
                                   ),
                                 ],
                               ),
@@ -309,7 +309,7 @@ class _FormResponScreenState extends State<FormResponScreen>
                           )
                         : AppRefreshIndicator(
                             onRefresh: _load,
-                            indicatorColor: kAuthPrimary,
+                            indicatorColor: cs.primary,
                             child: Builder(builder: (listCtx) {
                               _listContext = listCtx;
                               return ListView.separated(
@@ -343,7 +343,7 @@ class _FormResponScreenState extends State<FormResponScreen>
                                           onPressed: _page > 1 && !_loading ? () => _loadPage(_page - 1) : null,
                                           icon: const Icon(Icons.chevron_left, size: 22),
                                         ),
-                                        Text('Halaman $_page dari $totalPages', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
+                                        Text('Halaman $_page dari $totalPages', style:  TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: cs.onSurface)),
                                         IconButton.filledTonal(
                                           visualDensity: VisualDensity.compact,
                                           onPressed: _page < totalPages && !_loading ? () => _loadPage(_page + 1) : null,
@@ -387,13 +387,14 @@ class _MintTabBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      color: kAppBg,
+      color: Theme.of(context).scaffoldBackgroundColor,
       child: TabBar(
         controller: controller,
-        labelColor: kPrimary,
+        labelColor: cs.primary,
         unselectedLabelColor: Colors.grey,
-        indicatorColor: kPrimary,
+        indicatorColor: cs.primary,
         indicatorWeight: 2.5,
         dividerColor: Colors.transparent,
         labelStyle: const TextStyle(

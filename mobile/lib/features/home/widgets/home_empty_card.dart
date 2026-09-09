@@ -13,6 +13,7 @@ class HomeEmptyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
@@ -20,12 +21,12 @@ class HomeEmptyCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.black38, size: 32),
+            Icon(icon, color: cs.onSurfaceVariant, size: 32),
             const SizedBox(height: 10),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: Colors.black45),
+              style:  TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
             ),
           ],
         ),

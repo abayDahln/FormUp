@@ -15,6 +15,7 @@ class QuestionTypeDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return DropdownButtonFormField<int>(
       initialValue: typeId,
       decoration: formUpInputDecoration(
@@ -28,7 +29,7 @@ class QuestionTypeDropdown extends StatelessWidget {
             value: e.key,
             child: Text(
               e.value.$1,
-              style: const TextStyle(fontSize: 14, color: Colors.black87),
+              style: TextStyle(fontSize: 14, color: cs.onSurface),
             ),
           ),
       ],

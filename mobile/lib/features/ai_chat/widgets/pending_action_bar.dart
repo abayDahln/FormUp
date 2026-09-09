@@ -7,6 +7,10 @@ import 'package:form_up/core/widgets/auth_widgets.dart';
 class PendingActionBar extends StatelessWidget {
   final Map<String, dynamic> action;
   final bool isWorking;
+
+  /// False saat AI sedang mengetik/menyiapkan jawaban: kedua tombol
+  /// dinonaktifkan agar aksi tidak balapan dengan streaming.
+  final bool enabled;
   final VoidCallback onAccept;
   final VoidCallback onReject;
 
@@ -14,6 +18,7 @@ class PendingActionBar extends StatelessWidget {
     super.key,
     required this.action,
     required this.isWorking,
+    this.enabled = true,
     required this.onAccept,
     required this.onReject,
   });
@@ -55,15 +60,16 @@ class PendingActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cs.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFBDC9C8)),
+          border: Border.all(color: cs.outlineVariant),
           boxShadow: softShadow(),
         ),
         child: Row(
@@ -71,13 +77,13 @@ class PendingActionBar extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
-                color: kPrimarySoft,
+                color: cs.primaryContainer,
                 borderRadius: BorderRadius.circular(9),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.auto_awesome,
                 size: 15,
-                color: kAuthPrimary,
+                color: cs.primary,
               ),
             ),
             const SizedBox(width: 10),
@@ -90,7 +96,6 @@ class PendingActionBar extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -98,9 +103,9 @@ class PendingActionBar extends StatelessWidget {
                     _describe(),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10.5,
-                      color: Colors.black54,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -111,27 +116,27 @@ class PendingActionBar extends StatelessWidget {
             TextButton(
               style: TextButton.styleFrom(
                 visualDensity: VisualDensity.compact,
-                foregroundColor: Colors.black54,
+                foregroundColor: cs.onSurfaceVariant,
               ),
-              onPressed: isWorking ? null : onReject,
+              onPressed: (isWorking || !enabled) ? null : onReject,
               child: const Text('Tolak', style: TextStyle(fontSize: 12)),
             ),
             const SizedBox(width: 2),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: kAuthPrimary,
+                backgroundColor: cs.primary,
                 foregroundColor: Colors.white,
                 visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
               ),
-              onPressed: isWorking ? null : onAccept,
+              onPressed: (isWorking || !enabled) ? null : onAccept,
               child: isWorking
-                  ? const SizedBox(
+                  ?  SizedBox(
                       width: 14,
                       height: 14,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: cs.surface,
                       ),
                     )
                   : const Text('Terima', style: TextStyle(fontSize: 12)),

@@ -6,7 +6,7 @@ void showFullScreenImage(BuildContext context, String url) {
   Navigator.of(context).push(
     PageRouteBuilder(
       opaque: false,
-      barrierColor: Colors.black87,
+      barrierColor: Theme.of(context).colorScheme.onSurface,
       barrierDismissible: true,
       transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (_, __, ___) => FullScreenImageViewer(url: url),
@@ -20,8 +20,9 @@ class FullScreenImageViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Viewer foto selalu hitam di kedua mode agar foto terlihat benar.
     return Scaffold(
-      backgroundColor: Colors.black87,
+      backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

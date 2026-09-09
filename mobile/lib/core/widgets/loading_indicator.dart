@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
-import 'package:form_up/core/widgets/auth_widgets.dart';
 
 /// M3 Loading Indicator – menunggu data muncul (indeterminate, tanpa value)
 /// https://m3.material.io/components/loading-indicator/overview
@@ -94,8 +93,8 @@ class LoadingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = color ?? kPrimary;
-    final scheme = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
+    final effectiveColor = color ?? cs.primary;
 
     // Button loading: CircularProgressIndicator indeterminate growing/shrinking (login, regis, etc)
     if (_isButton) {
@@ -155,7 +154,7 @@ class LoadingIndicator extends StatelessWidget {
     }
 
     if (_isContained) {
-      final containerColor = backgroundColor ?? scheme.surfaceContainerHighest;
+      final containerColor = backgroundColor ?? cs.surfaceContainerHighest;
       final outer = targetSize;
       final inner = (outer * 38 / 48).clamp(18.0, 80.0).toDouble();
       return Container(
@@ -195,6 +194,7 @@ class LoadingOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Transform.translate(
         offset: const Offset(0, 12),
@@ -206,7 +206,7 @@ class LoadingOverlay extends StatelessWidget {
               const SizedBox(height: 16),
               Text(
                 message!,
-                style: const TextStyle(fontSize: 14, color: Colors.black54),
+                style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
               ),
             ],
           ],

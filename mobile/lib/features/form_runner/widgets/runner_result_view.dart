@@ -21,6 +21,7 @@ class RunnerResultView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       child: Column(
@@ -32,11 +33,11 @@ class RunnerResultView extends StatelessWidget {
           ],
           Text(
             result.showScore ? "Pembahasan" : "Jawaban Anda",
-            style: const TextStyle(
+            style:  TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
               fontFamily: kFontBold,
-              color: Colors.black87,
+              color: cs.onSurface,
             ),
           ),
           const SizedBox(height: 12),
@@ -45,12 +46,12 @@ class RunnerResultView extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Text(
+              child:  Text(
                 "Belum ada jawaban.",
-                style: TextStyle(fontSize: 14, color: Colors.black54),
+                style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
               ),
             )
           else
@@ -65,13 +66,13 @@ class RunnerResultView extends StatelessWidget {
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: onReset,
-            icon: const Icon(Icons.refresh, size: 18, color: kAuthPrimary),
-            label: const Text(
+            icon:  Icon(Icons.refresh, size: 18, color: cs.primary),
+            label:  Text(
               "Kerjakan Form Lain",
-              style: TextStyle(color: kAuthPrimary),
+              style: TextStyle(color: cs.primary),
             ),
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: kAuthPrimary),
+              side:  BorderSide(color: cs.primary),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -82,13 +83,13 @@ class RunnerResultView extends StatelessWidget {
             const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: onFeedback,
-              icon: const Icon(Icons.message_outlined, size: 18, color: kAuthPrimary),
-              label: const Text(
+              icon:  Icon(Icons.message_outlined, size: 18, color: cs.primary),
+              label:  Text(
                 "Kirim Feedback",
-                style: TextStyle(color: kAuthPrimary),
+                style: TextStyle(color: cs.primary),
               ),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: kAuthPrimary),
+                side:  BorderSide(color: cs.primary),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -110,6 +111,7 @@ class _ScoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final score = result.score;
     final color = score == null
         ? Colors.grey
@@ -121,7 +123,7 @@ class _ScoreCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
       ),
@@ -129,7 +131,7 @@ class _ScoreCard extends StatelessWidget {
         children: [
           Text(
             "Skor Anda",
-            style: const TextStyle(fontSize: 13, color: Colors.black54),
+            style:  TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 6),
           Text(
@@ -145,20 +147,20 @@ class _ScoreCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _scoreStat(
+              _scoreStat(context, 
                 "${result.correctCount}",
                 "Benar",
                 const Color(0xFF2E7D32),
               ),
-              _scoreStat(
+              _scoreStat(context, 
                 "${result.wrongCount}",
                 "Salah",
                 const Color(0xFFC0392B),
               ),
-              _scoreStat(
+              _scoreStat(context, 
                 "${result.answeredCount}",
                 "Dijawab",
-                kAuthPrimary,
+                cs.primary,
               ),
             ],
           ),
@@ -167,7 +169,7 @@ class _ScoreCard extends StatelessWidget {
     );
   }
 
-  Widget _scoreStat(String value, String label, Color color) {
+  Widget _scoreStat(BuildContext context, String value, String label, Color color) {
     return Column(
       children: [
         Text(
@@ -182,7 +184,7 @@ class _ScoreCard extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           label,
-          style: const TextStyle(fontSize: 11, color: Colors.black54),
+          style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ],
     );
@@ -203,12 +205,13 @@ class _ResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final a = answer;
     final answered = a.answerText != null && a.answerText!.isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
       ),
@@ -220,21 +223,21 @@ class _ResultCard extends StatelessWidget {
             children: [
               Text(
                 '${index + 1}. ',
-                style: const TextStyle(
+                style:  TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
-                  color: Colors.black87,
+                  color: cs.onSurface,
                 ),
               ),
               Expanded(
                 child: RichTextView(
                   text: a.question,
-                  style: const TextStyle(
+                  style:  TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
-                    color: Colors.black87,
+                    color: cs.onSurface,
                   ),
                 ),
               ),
@@ -257,31 +260,31 @@ class _ResultCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFF0F4F4),
+              color: cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                 Text(
                   "Jawaban Anda",
-                  style: TextStyle(fontSize: 11, color: Colors.black45),
+                  style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
                 ),
                 const SizedBox(height: 4),
                 if (answered)
                   RichTextView(
                     text: a.answerText!,
-                    style: const TextStyle(
+                    style:  TextStyle(
                       fontSize: 14,
-                      color: Colors.black87,
+                      color: cs.onSurface,
                     ),
                   )
                 else
-                  const Text(
+                   Text(
                     "Tidak dijawab",
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.black45,
+                      color: cs.onSurfaceVariant,
                       fontStyle: FontStyle.italic,
                     ),
                   ),

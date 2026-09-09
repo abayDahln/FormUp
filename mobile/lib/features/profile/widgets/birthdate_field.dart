@@ -16,6 +16,7 @@ class BirthdateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onPick,
       borderRadius: BorderRadius.circular(kRadiusSm),
@@ -36,7 +37,7 @@ class BirthdateField extends StatelessWidget {
           birthdate == null ? 'Belum diatur' : _displayDate(birthdate!),
           style: TextStyle(
             fontSize: 14,
-            color: birthdate == null ? Colors.black38 : Colors.black87,
+            color: birthdate == null ? cs.onSurfaceVariant : cs.onSurface,
           ),
         ),
       ),

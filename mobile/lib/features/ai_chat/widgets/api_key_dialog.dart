@@ -13,6 +13,7 @@ Future<void> showAiApiKeyDialog(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setSt) {
+        final cs = Theme.of(ctx).colorScheme;
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -26,24 +27,24 @@ Future<void> showAiApiKeyDialog(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
+                Text(
                   'Dapatkan gratis di https://aistudio.google.com/app/apikey',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
                 const SizedBox(height: 8),
                 if (GeminiService.hasKey)
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF0F4F4),
+                      color: cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.key,
                           size: 14,
-                          color: Colors.black54,
+                          color: cs.onSurfaceVariant,
                         ),
                         const SizedBox(width: 6),
                         Expanded(
@@ -90,9 +91,9 @@ Future<void> showAiApiKeyDialog(
                   obscureText: true,
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Key akan dienkripsi dan tersimpan di perangkat. Tidak perlu restart.',
-                  style: TextStyle(fontSize: 10, color: Colors.black45),
+                  style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
                 ),
               ],
             ),

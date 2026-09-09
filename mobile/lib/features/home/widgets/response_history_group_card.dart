@@ -58,6 +58,7 @@ class ResponseHistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         InkWell(
@@ -72,7 +73,7 @@ class ResponseHistoryTile extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(11),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF0F4F4),
+                        color: cs.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
@@ -90,19 +91,19 @@ class ResponseHistoryTile extends StatelessWidget {
                             text: group.formTitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style:  TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
                               fontFamily: kFontBold,
-                              color: Colors.black87,
+                              color: cs.onSurface,
                             ),
                           ),
                           const SizedBox(height: 3),
                           Text(
                             'Kode: ${group.formLink}',
-                            style: const TextStyle(
+                            style:  TextStyle(
                               fontSize: 12,
-                              color: Colors.black54,
+                              color: cs.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -127,16 +128,16 @@ class ResponseHistoryTile extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE2F3F2),
+                        color: cs.primaryContainer,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         '${group.attempts.length}x dikerjakan',
-                        style: const TextStyle(
+                        style:  TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           fontFamily: kFontBold,
-                          color: kAuthPrimary,
+                          color: cs.primary,
                         ),
                       ),
                     ),
@@ -146,7 +147,7 @@ class ResponseHistoryTile extends StatelessWidget {
             ),
           ),
         ),
-        if (showDivider) const Divider(height: 1, thickness: 1, color: Color(0xFFE7E8E9)),
+        if (showDivider) Divider(height: 1, thickness: 1, color: cs.outlineVariant.withValues(alpha: 0.45)),
       ],
     );
   }

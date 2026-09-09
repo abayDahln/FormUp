@@ -116,12 +116,12 @@ class _AppSearchFieldState extends State<AppSearchField> {
     super.dispose();
   }
 
-  List<Widget> _buildTrailing(SearchController controller) {
+  List<Widget> _buildTrailing(SearchController controller, ColorScheme cs) {
     final list = <Widget>[];
     if (controller.text.isNotEmpty) {
       list.add(
         IconButton(
-          icon: const Icon(Icons.close, color: Colors.black54, size: 18),
+          icon: Icon(Icons.close, color: cs.onSurfaceVariant, size: 18),
           tooltip: 'Hapus',
           onPressed: () {
             // FIX: hanya clear field + reset list, jangan closeView/navigate
@@ -140,11 +140,11 @@ class _AppSearchFieldState extends State<AppSearchField> {
         Container(
           margin: const EdgeInsets.only(left: 4),
           decoration: BoxDecoration(
-            color: widget.filterActive ? const Color(0xFFE2F3F2) : Colors.transparent,
+            color: widget.filterActive ? cs.primaryContainer : Colors.transparent,
             borderRadius: BorderRadius.circular(20),
           ),
           child: IconButton(
-            icon: Icon(Icons.tune, color: widget.filterActive ? const Color(0xFF2A9D8F) : Colors.black54, size: 20),
+            icon: Icon(Icons.tune, color: widget.filterActive ? cs.primary : cs.onSurfaceVariant, size: 20),
             tooltip: 'Filter & urutkan',
             onPressed: widget.onOpenFilter,
           ),
@@ -167,6 +167,7 @@ class _AppSearchFieldState extends State<AppSearchField> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return SearchAnchor(
       searchController: _searchController,
       viewOnChanged: (value) {
@@ -175,22 +176,22 @@ class _AppSearchFieldState extends State<AppSearchField> {
       },
       viewOnSubmitted: (value) => _submit(value),
       viewLeading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.black54),
+        icon: Icon(Icons.arrow_back, color: cs.onSurfaceVariant),
         tooltip: 'Kembali',
         onPressed: () => _clearSearch(_searchController),
       ),
-      viewTrailing: _buildTrailing(_searchController),
+      viewTrailing: _buildTrailing(_searchController, cs),
       builder: (BuildContext context, SearchController controller) {
         return SearchBar(
           controller: controller,
           hintText: widget.hint,
-          hintStyle: const WidgetStatePropertyAll<TextStyle>(
-            TextStyle(color: Colors.black38, fontSize: 14),
+          hintStyle: WidgetStatePropertyAll<TextStyle>(
+            TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
           ),
-          textStyle: const WidgetStatePropertyAll<TextStyle>(
-            TextStyle(color: Colors.black87, fontSize: 14),
+          textStyle: WidgetStatePropertyAll<TextStyle>(
+            TextStyle(color: cs.onSurface, fontSize: 14),
           ),
-          backgroundColor: const WidgetStatePropertyAll<Color>(Colors.white),
+          backgroundColor: WidgetStatePropertyAll<Color>(cs.surface),
           elevation: const WidgetStatePropertyAll<double>(1),
           shadowColor: WidgetStatePropertyAll<Color>(Colors.black.withValues(alpha: 0.08)),
           surfaceTintColor: const WidgetStatePropertyAll<Color>(Colors.transparent),
@@ -200,8 +201,8 @@ class _AppSearchFieldState extends State<AppSearchField> {
           padding: const WidgetStatePropertyAll<EdgeInsets>(
             EdgeInsets.symmetric(horizontal: 16),
           ),
-          leading: const Icon(Icons.search, color: Colors.black54, size: 20),
-          trailing: _buildTrailing(controller),
+          leading: Icon(Icons.search, color: cs.onSurfaceVariant, size: 20),
+          trailing: _buildTrailing(controller, cs),
           textInputAction: TextInputAction.search,
           onTap: () {
             controller.openView();
@@ -215,6 +216,7 @@ class _AppSearchFieldState extends State<AppSearchField> {
         );
       },
       suggestionsBuilder: (BuildContext context, SearchController controller) {
+        final cs = Theme.of(context).colorScheme;
         final query = controller.text.trim().toLowerCase();
         final hist = _history;
         final filteredHist = query.isEmpty
@@ -226,8 +228,8 @@ class _AppSearchFieldState extends State<AppSearchField> {
         if (query.isNotEmpty) {
           items.add(
             ListTile(
-              leading: const Icon(Icons.search, color: Colors.black54, size: 20),
-              title: Text('Cari "$query"', style: const TextStyle(fontSize: 14, color: Colors.black87)),
+              leading: Icon(Icons.search, color: cs.onSurfaceVariant, size: 20),
+              title: Text('Cari "$query"', style: TextStyle(fontSize: 14, color: cs.onSurface)),
               onTap: () => _submit(query),
             ),
           );
@@ -241,7 +243,7 @@ class _AppSearchFieldState extends State<AppSearchField> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Riwayat pencarian', style: TextStyle(color: Colors.black45, fontSize: 12, fontWeight: FontWeight.bold)),
+                    Text('Riwayat pencarian', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.bold)),
                     InkWell(
                       onTap: () async {
                         if (widget.historyKey != null) {
@@ -250,7 +252,7 @@ class _AppSearchFieldState extends State<AppSearchField> {
                           if (mounted) setState(() => _history = h);
                         }
                       },
-                      child: const Text('Hapus semua', style: TextStyle(color: Color(0xFF2A9D8F), fontSize: 12)),
+                      child: Text('Hapus semua', style: TextStyle(color: cs.primary, fontSize: 12)),
                     ),
                   ],
                 ),
@@ -260,10 +262,10 @@ class _AppSearchFieldState extends State<AppSearchField> {
           for (final h in filteredHist.take(5)) {
             items.add(
               ListTile(
-                leading: const Icon(Icons.history, color: Colors.black38, size: 20),
-                title: Text(h, style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                leading: Icon(Icons.history, color: cs.onSurfaceVariant, size: 20),
+                title: Text(h, style: TextStyle(fontSize: 14, color: cs.onSurface)),
                 trailing: IconButton(
-                  icon: const Icon(Icons.close, size: 16, color: Colors.black38),
+                  icon: Icon(Icons.close, size: 16, color: cs.onSurfaceVariant),
                   onPressed: () async {
                     if (widget.historyKey != null) {
                       await SearchHistory.remove(widget.historyKey!, h);
@@ -282,9 +284,9 @@ class _AppSearchFieldState extends State<AppSearchField> {
           }
         } else if (query.isEmpty) {
           items.add(
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Text('Ketik untuk mencari', style: TextStyle(color: Colors.black45, fontSize: 13)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Text('Ketik untuk mencari', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
             ),
           );
         }

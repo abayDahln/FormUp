@@ -23,6 +23,7 @@ class FormFilterSheetContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final hasActive =
         filterDate != null || sortIndex != FormSort.newest.index;
     return SafeArea(
@@ -41,7 +42,7 @@ class FormFilterSheetContent extends StatelessWidget {
               ),
             ),
           ),
-          const Padding(
+           Padding(
             padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
             child: Text(
               'Filter & Urutkan',
@@ -50,21 +51,21 @@ class FormFilterSheetContent extends StatelessWidget {
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
                 fontFamily: kFontBold,
-                color: Colors.black87,
+                color: cs.onSurface,
               ),
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.calendar_today_outlined, color: kAuthPrimary),
+            leading:  Icon(Icons.calendar_today_outlined, color: cs.primary),
             title: Text(
               filterDate == null
                   ? 'Semua tanggal'
                   : 'Dibuat: ${_formatDate(filterDate!)}',
-              style: const TextStyle(fontSize: 14, color: Colors.black87),
+              style:  TextStyle(fontSize: 14, color: cs.onSurface),
             ),
-            subtitle: const Text(
+            subtitle:  Text(
               'Filter berdasarkan tanggal pembuatan',
-              style: TextStyle(fontSize: 11, color: Colors.black54),
+              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
             ),
             trailing: filterDate != null
                 ? IconButton(
@@ -76,7 +77,7 @@ class FormFilterSheetContent extends StatelessWidget {
             onTap: () => onPickDate(),
           ),
           const Divider(height: 1, indent: 20, endIndent: 20),
-          const Padding(
+           Padding(
             padding: EdgeInsets.fromLTRB(20, 12, 20, 4),
             child: Text(
               'Urutkan',
@@ -84,7 +85,7 @@ class FormFilterSheetContent extends StatelessWidget {
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
                 fontFamily: kFontBold,
-                color: Colors.black54,
+                color: cs.onSurfaceVariant,
               ),
             ),
           ),
@@ -102,7 +103,7 @@ class FormFilterSheetContent extends StatelessWidget {
                     dense: true,
                     title: Text(
                       s.label,
-                      style: const TextStyle(fontSize: 14, color: Colors.black87),
+                      style:  TextStyle(fontSize: 14, color: cs.onSurface),
                     ),
                   ),
               ],
@@ -114,14 +115,14 @@ class FormFilterSheetContent extends StatelessWidget {
               child: OutlinedButton(
                 onPressed: onReset,
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: kAuthPrimary),
+                  side:  BorderSide(color: cs.primary),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: const Text(
+                child:  Text(
                   'Reset Filter',
-                  style: TextStyle(color: kAuthPrimary, fontSize: 13),
+                  style: TextStyle(color: cs.primary, fontSize: 13),
                 ),
               ),
             )

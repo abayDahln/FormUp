@@ -68,26 +68,26 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        shape:  Border(
+          bottom: BorderSide(color: cs.outlineVariant),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon:  Icon(Icons.arrow_back, color: cs.onSurface),
           onPressed: () => AppRouter.of(context).pop(),
         ),
-        title: const Text(
+        title:  Text(
           "Ubah Kata Sandi",
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
       ),
@@ -106,9 +106,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
+                         Text(
                           "Masukkan kata sandi saat ini dan kata sandi baru Anda.",
-                          style: TextStyle(fontSize: 13, color: Colors.black54),
+                          style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
                         ),
                         const SizedBox(height: 20),
                         AuthTextField(
@@ -135,14 +135,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                           obscure: true,
                         ),
                         const SizedBox(height: 14),
-                        const Row(
+                         Row(
                           children: [
-                            Icon(Icons.info_outline, size: 16, color: kAuthHint),
+                            Icon(Icons.info_outline, size: 16, color: cs.onSurfaceVariant),
                             SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 "Kata sandi baru minimal 8 karakter, kombinasi huruf dan angka.",
-                                style: TextStyle(color: kAuthHint, fontSize: 12),
+                                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
                               ),
                             ),
                           ],

@@ -105,6 +105,7 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final maxMs = (_duration ?? Duration.zero).inMilliseconds;
     final posMs = _position.inMilliseconds.clamp(0, maxMs).toDouble();
     final progress = maxMs == 0 ? 0.0 : (posMs / maxMs).clamp(0.0, 1.0);
@@ -112,18 +113,18 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        border: Border.all(color: kAuthPrimary, width: 1),
+        border: Border.all(color: cs.primary, width: 1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: _loading
           ? Row(
               children: [
-                const SizedBox(
+                 SizedBox(
                   width: 30,
                   height: 30,
                   child: CircularProgressIndicator(
                     strokeWidth: 2.4,
-                    valueColor: AlwaysStoppedAnimation<Color>(kAuthPrimary),
+                    valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -244,7 +245,7 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
                               value: progress,
                               minHeight: 4,
                               backgroundColor: const Color(0xFFBFE9E1),
-                              valueColor: const AlwaysStoppedAnimation<Color>(kAuthPrimary),
+                              valueColor:  AlwaysStoppedAnimation<Color>(cs.primary),
                             ),
                           ),
                         ),

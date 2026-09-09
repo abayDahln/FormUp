@@ -16,8 +16,9 @@ class ResponseHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Material(
-      color: Colors.white,
+      color: cs.surface,
       borderRadius: BorderRadius.circular(kRadius),
       elevation: 0,
       child: InkWell(
@@ -33,7 +34,7 @@ class ResponseHistoryCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(11),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF0F4F4),
+                      color: cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
@@ -51,19 +52,19 @@ class ResponseHistoryCard extends StatelessWidget {
                           text: item.formTitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style:  TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
                             fontFamily: kFontBold,
-                            color: Colors.black87,
+                            color: cs.onSurface,
                           ),
                         ),
                         const SizedBox(height: 3),
                         Text(
                           'Kode: ${item.formLink}',
-                          style: const TextStyle(
+                          style:  TextStyle(
                             fontSize: 12,
-                            color: Colors.black54,
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -88,16 +89,16 @@ class ResponseHistoryCard extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE2F3F2),
+                      color: cs.primaryContainer,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Text(
+                    child:  Text(
                       'Selesai',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
-                        color: kAuthPrimary,
+                        color: cs.primary,
                       ),
                     ),
                   ),

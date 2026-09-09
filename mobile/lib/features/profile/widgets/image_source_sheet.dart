@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:form_up/core/widgets/auth_widgets.dart';
 
 /// Bottom sheet pemilihan sumber gambar (galeri / kamera)
 Future<ImageSource?> showImageSourceSheet(BuildContext context) {
@@ -8,8 +7,8 @@ Future<ImageSource?> showImageSourceSheet(BuildContext context) {
     context: context,
     backgroundColor: Colors.transparent,
     builder: (context) => Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration:  BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -20,7 +19,7 @@ Future<ImageSource?> showImageSourceSheet(BuildContext context) {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: const Color(0xFFBDC9C8),
+              color: Theme.of(context).colorScheme.outlineVariant,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -55,9 +54,10 @@ class _ImageSourceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      leading: Icon(icon, color: kAuthPrimary, size: 22),
+      leading: Icon(icon, color: cs.primary, size: 22),
       title: Text(label, style: const TextStyle(fontSize: 15)),
       onTap: onTap,
     );

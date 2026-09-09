@@ -79,8 +79,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: AbsorbPointer(
         absorbing: _loading,
         child: AuthBackground(
@@ -152,28 +153,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       height: 19,
                                       decoration: BoxDecoration(
                                         color: _accepted
-                                            ? kAuthPrimary
-                                            : Colors.white,
+                                            ? cs.primary
+                                            : cs.surface,
                                         borderRadius: BorderRadius.circular(
                                           5.5,
                                         ),
-                                        border: Border.all(color: kAuthText),
+                                        border: Border.all(color: cs.onSurfaceVariant),
                                       ),
                                       child: _accepted
-                                          ? const Icon(
+                                          ? Icon(
                                               Icons.check,
                                               size: 14,
-                                              color: Colors.white,
+                                              color: cs.onPrimary,
                                             )
                                           : null,
                                     ),
                                   ),
                                   const SizedBox(width: 10),
-                                  const Expanded(
+                                   Expanded(
                                     child: Text(
                                       "Saya menyetujui Syarat & Ketentuan",
                                       style: TextStyle(
-                                        color: Colors.black54,
+                                        color: cs.onSurfaceVariant,
                                         fontSize: 12,
                                       ),
                                     ),

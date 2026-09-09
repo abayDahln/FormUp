@@ -97,7 +97,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
 
   Future<String?> _pickTemplateFormat() => showModalBottomSheet<String>(
     context: context,
-    backgroundColor: Colors.white,
+    backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -125,7 +125,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
           const SizedBox(height: 8),
           for (final fmt in ['csv', 'xlsx', 'docx', 'pdf'])
             ListTile(
-              leading: const Icon(Icons.download_outlined, color: kAuthPrimary),
+              leading:  Icon(Icons.download_outlined, color: Theme.of(ctx).colorScheme.primary),
               title: Text(
                 fmt.toUpperCase(),
                 style: const TextStyle(
@@ -135,7 +135,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
               ),
               subtitle: Text(
                 _templateDesc(fmt),
-                style: const TextStyle(fontSize: 11, color: Colors.black54),
+                style:  TextStyle(fontSize: 11, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
               ),
               onTap: () => Navigator.pop(ctx, fmt),
             ),
@@ -316,7 +316,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -334,11 +334,11 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                   Expanded(
                     child: Text(
                       "Preview Impor (${questions.length} soal dari $totalRows baris)",
-                      style: const TextStyle(
+                      style:  TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
-                        color: Colors.black87,
+                        color: Theme.of(sheetContext).colorScheme.onSurface,
                       ),
                     ),
                   ),
@@ -439,7 +439,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: kAuthFieldFill,
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(kRadiusMd),
                     ),
                     child: Column(
@@ -450,11 +450,11 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                           prefix: "${q['order']}. ",
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style:  TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
                             fontFamily: kFontBold,
-                            color: Colors.black87,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                         // Gambar soal dari server (data URI base64)
@@ -484,9 +484,9 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                                 "• $opt",
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style:  TextStyle(
                                   fontSize: 11,
-                                  color: Colors.black54,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ),
@@ -533,9 +533,9 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                             borderRadius: BorderRadius.circular(kRadius),
                           ),
                         ),
-                        child: const Text(
+                        child:  Text(
                           'Batal',
-                          style: TextStyle(color: Colors.black54),
+                          style: TextStyle(color: Theme.of(sheetContext).colorScheme.onSurfaceVariant),
                         ),
                       ),
                     ),
@@ -574,11 +574,12 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
     );
   }
 
-  Widget _previewChip(String label, [Color color = kAuthPrimary]) {
+  Widget _previewChip(String label, [Color? color]) {
+    final c = color ?? Theme.of(context).colorScheme.primary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: c.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -587,7 +588,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
           fontSize: 10,
           fontWeight: FontWeight.bold,
           fontFamily: kFontBold,
-          color: color,
+          color: c,
         ),
       ),
     );
@@ -772,24 +773,24 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(bottom: BorderSide(color: Color(0xCCBDC9C8))),
-        title: const Text(
+        shape:  Border(bottom: BorderSide(color: cs.outlineVariant)),
+        title:  Text(
           'Kelola Soal',
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon:  Icon(Icons.arrow_back, color: cs.onSurface),
           onPressed: _saving
               ? null
               : () async {
@@ -838,7 +839,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
             padding: const EdgeInsets.only(right: 8),
             child: MenuAnchor(
               builder: (context, controller, child) => IconButton(
-                icon: const Icon(Icons.more_vert, color: Colors.black87),
+                icon:  Icon(Icons.more_vert, color: cs.onSurface),
                 tooltip: 'Opsi',
                 onPressed: (_saving || _importing)
                     ? null
@@ -964,12 +965,12 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                 ? null
                 : () => AppRouter.of(context)
                     .push(AppPage.aiChat, {'formId': widget.formId}),
-            backgroundColor: Colors.white,
-            foregroundColor: kPrimary,
+            backgroundColor: cs.surface,
+            foregroundColor: cs.primary,
             elevation: 3,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             tooltip: 'Tanya AI tentang form ini',
-            child: const AiChatIcon(size: 18, color: kPrimary, filled: true),
+            child:  AiChatIcon(size: 18, color: cs.primary, filled: true),
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -1058,7 +1059,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
 //         ),
 //       ),
 //       style: ElevatedButton.styleFrom(
-//         backgroundColor: Colors.white,
+//         backgroundColor: Theme.of(context).colorScheme.surface,
 //         disabledBackgroundColor: Colors.white.withValues(alpha: 0.6),
 //         side: BorderSide(
 //           color: enabled ? kAuthPrimary : kAuthPrimary.withValues(alpha: 0.4),
@@ -1067,7 +1068,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
 //           borderRadius: BorderRadius.circular(8),
 //         ),
 //         padding: const EdgeInsets.symmetric(vertical: 14),
-//         foregroundColor: kAuthPrimary,
+//         foregroundColor: Theme.of(context).colorScheme.primary,
 //       ),
 //     );
 //   }

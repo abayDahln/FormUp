@@ -122,8 +122,9 @@ class _OtpScreenState extends State<OtpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAuthBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: AbsorbPointer(
         absorbing: _loading,
         child: AuthBackground(
@@ -153,8 +154,8 @@ class _OtpScreenState extends State<OtpScreen> {
                                 textAlign: TextAlign.center,
                                 maxLines: 3,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.black54,
+                                style:  TextStyle(
+                                  color: cs.onSurfaceVariant,
                                   fontSize: 14,
                                 ),
                               ),
@@ -169,13 +170,13 @@ class _OtpScreenState extends State<OtpScreen> {
                                     _cooldown > 0
                                         ? "kirim ulang ($_cooldown s)"
                                         : "kirim ulang",
-                                    style: const TextStyle(
-                                      color: kAuthPrimary,
+                                    style:  TextStyle(
+                                      color: cs.primary,
                                       fontSize: 13,
                                       fontWeight: FontWeight.bold,
                                       fontFamily: kFontBold,
                                       decoration: TextDecoration.underline,
-                                      decorationColor: kAuthPrimary,
+                                      decorationColor: cs.primary,
                                     ),
                                   ),
                                 ),

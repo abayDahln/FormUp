@@ -28,9 +28,9 @@ Future<String?> showExitConfirmDialog(BuildContext context) {
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, 'save'),
-          child: const Text(
+          child: Text(
             'Simpan',
-            style: TextStyle(color: kAuthPrimary),
+            style: TextStyle(color: Theme.of(context).colorScheme.primary),
           ),
         ),
       ],
@@ -57,9 +57,9 @@ Future<bool?> showSaveConfirmDialog(BuildContext context) {
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, true),
-          child: const Text(
+          child: Text(
             'Simpan',
-            style: TextStyle(color: kAuthPrimary),
+            style: TextStyle(color: Theme.of(context).colorScheme.primary),
           ),
         ),
       ],
@@ -84,9 +84,9 @@ Future<bool?> showQuestionEditSaveDialog(BuildContext context) {
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, true),
-          child: const Text(
+          child: Text(
             'Simpan',
-            style: TextStyle(color: kAuthPrimary),
+            style: TextStyle(color: Theme.of(context).colorScheme.primary),
           ),
         ),
       ],

@@ -99,31 +99,22 @@ class GeminiService {
     _userKey = null;
   }
 
-  /// Mengubah error teknis (Inggris) menjadi pesan sederhana
-  /// berbahasa Indonesia yang mudah dimengerti user awam:
-  /// sebutkan penyebab + langkah yang bisa dilakukan user.
+  /// Mengubah error teknis menjadi pesan singkat berbahasa Indonesia
+  /// yang mudah dibaca user awam. Aturan: maksimal 2 kalimat pendek,
+  /// tanpa istilah teknis, tanpa langkah ganti API key.
   static String friendlyMessage(Object e) {
     final t = e.toString().toLowerCase();
     bool hasAny(List<String> keys) => keys.any(t.contains);
 
     // Request dibatalkan user / oleh app (tombol stop, ganti sesi).
     if (hasAny(['gemini_cancelled', 'request cancelled', 'request aborted'])) {
-      return 'Respons dihentikan. Ketuk "Coba lagi" jika ingin AI menjawab lagi.';
+      return 'Respons dihentikan.';
     }
-    // Stream/respons selesai TANPA teks. Penyebab paling umum:
-    // 1) kuota/batas token habis (mis. limit harian paket gratis), atau
-    // 2) model thinking (Gemini 2.5/3.x): seluruh kuota token habis untuk
-    // proses berpikir internal sehingga tidak ada jawaban yang terkirim.
+    // Stream/respons selesai TANPA teks.
     if (hasAny(['gemini_no_text'])) {
-      return 'AI tidak menghasilkan jawaban — kemungkinan besar kuota/batas '
-          'token API Key kamu sudah habis (limit pemakaian tercapai, atau token '
-          'habis dipakai proses berpikir internal model). '
-          'Ketuk "Coba lagi" untuk mengulang; jika terus gagal, tunggu '
-          'beberapa saat, pakai API Key lain di Pengaturan AI, atau mulai chat '
-          'baru agar percakapan lebih ringkas.';
+      return 'AI tidak memberi jawaban. Coba lagi.';
     }
-    // Internet mati / DNS / koneksi ditolak — cek sebelum yang lain
-    // karena pesan transport bisa mengandung kata umum seperti "failed".
+    // Internet mati / DNS / koneksi ditolak.
     if (e is SocketException ||
         e is HttpException ||
         e is http.ClientException ||
@@ -139,13 +130,10 @@ class GeminiService {
           'no address associated',
           'no route to host',
         ])) {
-      return 'Koneksi internet terputus, jadi AI tidak bisa dihubungi. '
-          'Periksa WiFi/kuota internet kamu, lalu ketuk "Coba lagi" di bawah pesan ini.';
+      return 'Internet terputus. Periksa koneksi lalu coba lagi.';
     }
     if (e is TimeoutException || hasAny(['timeoutexception', 'timed out'])) {
-      return 'Server AI terlalu lama tidak merespons (koneksi lambat atau server sedang padat). '
-          'Periksa kestabilan internet kamu, lalu ketuk "Coba lagi". '
-          'Jika tetap gagal, coba beberapa saat lagi.';
+      return 'Server AI lambat. Coba lagi.';
     }
     // API key salah / kedaluwarsa (401/403 dari Google).
     if (hasAny([
@@ -156,17 +144,13 @@ class GeminiService {
       'key expired',
       'permission_denied',
     ])) {
-      return 'API Key tidak valid atau sudah kedaluwarsa, jadi Google menolak permintaan ini. '
-          'Buka Pengaturan AI, perbarui API Key dari Google AI Studio, lalu kirim ulang pesannya.';
+      return 'API Key bermasalah. Periksa key lalu coba lagi.';
     }
     // Model tidak ada / sudah di-retire (404 dari Google).
     if (hasAny(['not_found', 'is not found', 'model not found', 'gemini error 404'])) {
-      return 'Model AI yang dipilih tidak tersedia lagi di server Google. '
-          'Buka Pengaturan AI, pilih model lain, lalu ketuk "Coba lagi".';
+      return 'Model AI tidak tersedia. Coba lagi.';
     }
-    // Kuota / rate limit habis (429 dari Google). Pesan asli Google
-    // bervariasi ("Quota exceeded", "Resource exhausted", "FreeTier limit",
-    // "GenerateRequestsPerDay...", info billing), jadi cocokkan longgar.
+    // Kuota / rate limit habis (429 dari Google).
     if (hasAny([
       'resource_exhausted',
       'resource exhausted',
@@ -187,11 +171,7 @@ class GeminiService {
       'gemini error 429',
       'error 429',
     ])) {
-      return 'Kuota/batas pemakaian AI untuk API Key ini sudah habis '
-          '(limit tercapai — mis. batas harian paket gratis atau terlalu banyak '
-          'permintaan dalam waktu singkat). Tunggu beberapa saat (sekitar 1 menit) '
-          'lalu ketuk "Coba lagi"; jika masih gagal, gunakan API Key lain di '
-          'Pengaturan AI.';
+      return 'Batas pakai AI habis. Tunggu sebentar lalu coba lagi.';
     }
     // Token limit: histori + prompt melebihi kapasitas model (400).
     if (hasAny([
@@ -202,13 +182,11 @@ class GeminiService {
       'context length',
       'prompt too long',
     ])) {
-      return 'Percakapan ini sudah terlalu panjang sehingga melebihi kapasitas AI. '
-          'Mulai chat baru lewat menu drawer (tombol +), lalu ulangi pertanyaanmu di sana.';
+      return 'Chat terlalu panjang. Mulai chat baru.';
     }
     // Respons diblokir filter keamanan Google.
     if (hasAny(['content_blocked', 'blockreason', 'safety', 'harm_category', 'prohibited_content'])) {
-      return 'Pertanyaan ini diblokir oleh filter keamanan Google sehingga AI tidak boleh menjawab. '
-          'Ini bukan bug aplikasi — coba rumuskan ulang pertanyaanmu dengan kata yang berbeda.';
+      return 'Pertanyaan diblokir filter keamanan. Coba kata lain.';
     }
     // Server Google sibuk / error (500/503).
     if (hasAny([
@@ -220,12 +198,9 @@ class GeminiService {
       'gemini error 502',
       'gemini error 503',
     ])) {
-      return 'Server AI sedang bermasalah atau sedang sibuk (bukan karena aplikasi ini). '
-          'Tunggu 1–2 menit, lalu ketuk "Coba lagi".';
+      return 'Server AI sibuk. Tunggu lalu coba lagi.';
     }
-    return 'Maaf, terjadi kesalahan yang tidak diketahui saat AI menjawab. '
-        'Ketuk "Coba lagi" untuk mengulang. Jika selalu gagal, coba mulai chat baru '
-        'atau periksa API Key di Pengaturan AI.';
+    return 'Terjadi kesalahan. Coba lagi.';
   }
 
   /// Untuk menampilkan preview aman (misal AIza...****)

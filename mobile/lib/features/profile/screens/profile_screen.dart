@@ -113,6 +113,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final email = _profile?.email ?? AuthService.email ?? '';
     final stats = _stats ?? const UserStats();
 
@@ -125,13 +126,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                 Text(
                   'Profil',
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
-                    color: Colors.black87,
+                    color: cs.onSurface,
                   ),
                 ),
                 InkWell(
@@ -140,11 +141,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cs.surface,
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xCCBDC9C8)),
+                      border: Border.all(color: cs.outlineVariant),
                     ),
-                    child: const Icon(Icons.settings_outlined, color: kAuthPrimary, size: 20),
+                    child:  Icon(Icons.settings_outlined, color: cs.primary, size: 20),
                   ),
                 ),
               ],
@@ -160,7 +161,7 @@ if (_loading)
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: cs.surface,
                   borderRadius: BorderRadius.circular(kRadius),
                   boxShadow: elevationShadow(ShadowLevel.low),
                 ),
@@ -170,11 +171,11 @@ if (_loading)
                     const SizedBox(height: 16),
                     Text(
                       _displayName,
-                      style: const TextStyle(
+                      style:  TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
-                        color: Colors.black87,
+                        color: cs.onSurface,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -182,13 +183,13 @@ if (_loading)
                       email.isEmpty ? 'Member FormUp' : email,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13, color: Colors.black54),
+                      style:  TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
                     ),
                     if (_profile?.username.isNotEmpty == true) ...[
                       const SizedBox(height: 2),
                       Text(
                         '@${_profile!.username}',
-                        style: const TextStyle(fontSize: 13, color: kAuthPrimary),
+                        style:  TextStyle(fontSize: 13, color: cs.primary),
                       ),
                     ],
                     const SizedBox(height: 24),
@@ -272,11 +273,11 @@ if (_loading)
       return Center(
         child: Text(
           _initial,
-          style: const TextStyle(
+          style:  TextStyle(
             fontSize: 36,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: kAuthPrimary,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
       );
@@ -287,11 +288,11 @@ if (_loading)
       errorBuilder: (_, _, _) => Center(
         child: Text(
           _initial,
-          style: const TextStyle(
+          style:  TextStyle(
             fontSize: 36,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: kAuthPrimary,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
       ),
@@ -307,21 +308,22 @@ class _MiniStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         Text(
           value,
-          style: const TextStyle(
+          style:  TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: kAuthPrimary,
+            color: cs.primary,
           ),
         ),
         const SizedBox(height: 2),
         Text(
           label,
-          style: const TextStyle(fontSize: 12, color: Colors.black54),
+          style:  TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
         ),
       ],
     );
@@ -337,6 +339,7 @@ class _MenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -347,16 +350,16 @@ class _MenuTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: kPrimarySoft,
+                color: cs.primaryContainer,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: kAuthPrimary, size: 20),
+              child: Icon(icon, color: cs.primary, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(fontSize: 15, color: Colors.black87),
+                style:  TextStyle(fontSize: 15, color: cs.onSurface),
               ),
             ),
             const Icon(Icons.chevron_right, color: Colors.grey, size: 20),

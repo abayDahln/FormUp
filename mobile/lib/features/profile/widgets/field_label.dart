@@ -9,17 +9,18 @@ class FieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Align(
       alignment: Alignment.centerLeft,
       child: Padding(
         padding: const EdgeInsets.only(left: 4, bottom: 6),
         child: Text(
           text,
-          style: const TextStyle(
+          style:  TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: kAuthPrimary,
+            color: cs.primary,
           ),
         ),
       ),

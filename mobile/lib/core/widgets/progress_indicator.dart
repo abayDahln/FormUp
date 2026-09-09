@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
-import 'package:form_up/core/widgets/auth_widgets.dart';
 
 /// M3 Progress Indicator – proses simpan/update ke database
 /// https://m3.material.io/components/progress-indicators/overview
@@ -27,8 +26,8 @@ class ProgressIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final effectiveColor = color ?? kPrimary;
+    final cs = Theme.of(context).colorScheme;
+    final effectiveColor = color ?? cs.primary;
 
     if (value != null) {
       return TweenAnimationBuilder<double>(
@@ -41,7 +40,7 @@ class ProgressIndicator extends StatelessWidget {
             child: LinearProgressIndicator(
               value: animatedValue,
               color: effectiveColor,
-              backgroundColor: backgroundColor ?? scheme.surfaceContainerHighest,
+              backgroundColor: backgroundColor ?? cs.surfaceContainerHighest,
               semanticsLabel: semanticsLabel,
             ),
           );
@@ -53,7 +52,7 @@ class ProgressIndicator extends StatelessWidget {
       height: linearHeight,
       child: ExpressiveLinearProgressIndicator(
         color: effectiveColor,
-        backgroundColor: backgroundColor ?? scheme.surfaceContainerHighest,
+        backgroundColor: backgroundColor ?? cs.surfaceContainerHighest,
         semanticsLabel: semanticsLabel ?? 'Saving',
       ),
     );

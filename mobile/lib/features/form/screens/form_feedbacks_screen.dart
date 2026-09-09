@@ -103,20 +103,22 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
     _filterOpen = true;
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (sheetContext) => SafeArea(
+      builder: (sheetContext) {
+        final cs = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(2)))),
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: cs.outlineVariant, borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 16),
-              const Text('Filter Umpan Balik', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
+              Text('Filter Umpan Balik', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: cs.onSurface)),
               const SizedBox(height: 12),
-              const Text('Kategori', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54)),
+              Text('Kategori', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: cs.onSurfaceVariant)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -126,8 +128,8 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
                     ChoiceChip(
                       label: Text(c.label),
                       selected: _category == c,
-                      selectedColor: kAuthPrimary.withValues(alpha: 0.15),
-                      labelStyle: TextStyle(fontSize: 12, fontWeight: _category == c ? FontWeight.bold : FontWeight.normal, fontFamily: _category == c ? kFontBold : null, color: _category == c ? kAuthPrimary : Colors.black87),
+                      selectedColor: cs.primary.withValues(alpha: 0.15),
+                      labelStyle: TextStyle(fontSize: 12, fontWeight: _category == c ? FontWeight.bold : FontWeight.normal, fontFamily: _category == c ? kFontBold : null, color: _category == c ? cs.primary : cs.onSurface),
                       onSelected: (_) {
                         setState(() => _category = c);
                         Navigator.pop(sheetContext);
@@ -136,7 +138,7 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              const Text('Urutkan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54)),
+              Text('Urutkan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: cs.onSurfaceVariant)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -144,7 +146,7 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
                   ChoiceChip(
                     label: const Text('Terbaru'),
                     selected: _sort == _FeedbackSort.newest,
-                    selectedColor: kAuthPrimary.withValues(alpha: 0.15),
+                    selectedColor: cs.primary.withValues(alpha: 0.15),
                     onSelected: (_) {
                       setState(() => _sort = _FeedbackSort.newest);
                       Navigator.pop(sheetContext);
@@ -153,7 +155,7 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
                   ChoiceChip(
                     label: const Text('Terlama'),
                     selected: _sort == _FeedbackSort.oldest,
-                    selectedColor: kAuthPrimary.withValues(alpha: 0.15),
+                    selectedColor: cs.primary.withValues(alpha: 0.15),
                     onSelected: (_) {
                       setState(() => _sort = _FeedbackSort.oldest);
                       Navigator.pop(sheetContext);
@@ -179,7 +181,8 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
             ],
           ),
         ),
-      ),
+      );
+      },
     ).whenComplete(() => _filterOpen = false);
   }
 
@@ -201,24 +204,22 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(bottom: BorderSide(color: Color(0xCCBDC9C8))),
+        shape: Border(bottom: BorderSide(color: cs.outlineVariant)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: cs.onSurface),
           onPressed: () => AppRouter.of(context).pop(),
         ),
-        title: Text(
+        title: const Text(
           'Umpan Balik Form',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
           ),
         ),
       ),
@@ -243,18 +244,18 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
                     ),
                     Expanded(
                       child: _feedbacks.isEmpty
-                          ? const Center(
+                          ?  Center(
                               child: Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 24, vertical: 48),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.feedback_outlined, color: Colors.black38, size: 40),
+                                    Icon(Icons.feedback_outlined, color: cs.onSurfaceVariant, size: 40),
                                     SizedBox(height: 12),
                                     Text(
                                       'Belum ada umpan balik untuk form ini.',
                                       textAlign: TextAlign.center,
-                                      style: TextStyle(fontSize: 14, color: Colors.black45),
+                                      style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
                                     ),
                                   ],
                                 ),
@@ -267,14 +268,14 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(Icons.search_off, color: Colors.black38, size: 36),
+                                        Icon(Icons.search_off, color: cs.onSurfaceVariant, size: 36),
                                         const SizedBox(height: 10),
                                         Text(
                                           _query.isEmpty && _category == _FeedbackCategory.all
                                               ? 'Tidak ada hasil'
                                               : 'Tidak ada hasil untuk "${_searchController.text}"${_category != _FeedbackCategory.all ? ' • ${ _category.label}' : ''}',
                                           textAlign: TextAlign.center,
-                                          style: const TextStyle(fontSize: 13, color: Colors.black45),
+                                          style:  TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
                                         ),
                                       ],
                                     ),
@@ -282,7 +283,7 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
                                 )
                               : AppRefreshIndicator(
                                   onRefresh: _load,
-                                  indicatorColor: kAuthPrimary,
+                                  indicatorColor: cs.primary,
                                   child: ListView.separated(
                                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                                     itemCount: _filtered.length,
@@ -296,9 +297,9 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
                                       return Container(
                                         padding: const EdgeInsets.all(16),
                                         decoration: BoxDecoration(
-                                          color: Colors.white,
+                                          color: cs.surface,
                                           borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: const Color(0xFFBDC9C8).withOpacity(0.5)),
+                                          border: Border.all(color: cs.outlineVariant.withOpacity(0.5)),
                                         ),
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,14 +332,14 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
                                               decoration: BoxDecoration(color: kAuthPrimary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),
                                               child: Text(
                                                 fb.reason,
-                                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: kAuthPrimary),
+                                                style:  TextStyle(fontSize: 11, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: cs.primary),
                                               ),
                                             ),
                                             if (fb.description != null && fb.description!.trim().isNotEmpty) ...[
                                               const SizedBox(height: 8),
                                               Text(
                                                 fb.description!,
-                                                style: const TextStyle(fontSize: 13, color: Colors.black87),
+                                                style:  TextStyle(fontSize: 13, color: cs.onSurface),
                                               ),
                                             ],
                                           ],

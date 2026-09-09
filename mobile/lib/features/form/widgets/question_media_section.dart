@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/services/auth_service.dart';
-import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/features/form_runner/widgets/question_audio_player.dart';
 
@@ -25,6 +24,7 @@ class QuestionMediaSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final q = draft;
     final hasImage = q.questionImage != null || q.pendingImageBytes != null;
     final hasAudio = q.questionAudio != null || q.pendingAudioBytes != null;
@@ -43,13 +43,13 @@ class QuestionMediaSection extends StatelessWidget {
               errorBuilder: (_, _, _) => Container(
                 height: 120,
                 alignment: Alignment.center,
-                color: const Color(0xFFF0F4F4),
-                child: const Icon(Icons.broken_image_outlined, size: 32, color: Colors.grey),
+                color: cs.surfaceContainerHighest,
+                child: Icon(Icons.broken_image_outlined, size: 32, color: cs.onSurfaceVariant),
               ),
             ),
           ),
           const SizedBox(height: 4),
-          const Text('Pratinjau gambar (belum tersimpan)', style: TextStyle(fontSize: 11, color: Colors.black45, fontStyle: FontStyle.italic)),
+          Text('Pratinjau gambar (belum tersimpan)', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant, fontStyle: FontStyle.italic)),
           const SizedBox(height: 8),
         ] else if (q.questionImage != null) ...[
           ClipRRect(
@@ -62,8 +62,8 @@ class QuestionMediaSection extends StatelessWidget {
               errorWidget: Container(
                 height: 120,
                 alignment: Alignment.center,
-                color: const Color(0xFFF0F4F4),
-                child: const Icon(Icons.broken_image_outlined, size: 32, color: Colors.grey),
+                color: cs.surfaceContainerHighest,
+                child: Icon(Icons.broken_image_outlined, size: 32, color: cs.onSurfaceVariant),
               ),
             ),
           ),
@@ -80,13 +80,13 @@ class QuestionMediaSection extends StatelessWidget {
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: uploading ? null : onPickImage,
-                icon: Icon(hasImage ? Icons.image_outlined : Icons.add_photo_alternate_outlined, size: 16, color: kAuthPrimary),
+                icon: Icon(hasImage ? Icons.image_outlined : Icons.add_photo_alternate_outlined, size: 16, color: cs.primary),
                 label: Text(
                   hasImage ? 'Ganti Gambar' : 'Tambah Gambar',
-                  style: const TextStyle(fontSize: 12, color: kAuthPrimary, fontWeight: FontWeight.w600),
+                  style: TextStyle(fontSize: 12, color: cs.primary, fontWeight: FontWeight.w600),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: kAuthPrimary),
+                  side: BorderSide(color: cs.primary),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
@@ -148,13 +148,13 @@ class QuestionMediaSection extends StatelessWidget {
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: uploading ? null : onPickAudio,
-                icon: Icon(hasAudio ? Icons.audio_file_outlined : Icons.add_circle_outline, size: 16, color: kAuthPrimary),
+                icon: Icon(hasAudio ? Icons.audio_file_outlined : Icons.add_circle_outline, size: 16, color: cs.primary),
                 label: Text(
                   hasAudio ? 'Ganti Audio' : 'Tambah Audio',
-                  style: const TextStyle(fontSize: 12, color: kAuthPrimary, fontWeight: FontWeight.w600),
+                  style: TextStyle(fontSize: 12, color: cs.primary, fontWeight: FontWeight.w600),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: kAuthPrimary),
+                  side: BorderSide(color: cs.primary),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),

@@ -26,6 +26,7 @@ class QuestionTextSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final q = draft;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -36,14 +37,14 @@ class QuestionTextSection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Row(
-          children: const [
+          children: [
             Text(
               "Pertanyaan",
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
                 fontFamily: kFontBold,
-                color: kAuthPrimary,
+                color: cs.primary,
               ),
             ),
             SizedBox(width: 2),
@@ -67,17 +68,17 @@ class QuestionTextSection extends StatelessWidget {
         const SizedBox(height: 8),
         Row(
           children: [
-            const Text(
+            Text(
               "Pratinjau",
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.black87,
+                color: cs.onSurface,
               ),
             ),
             const Spacer(),
             Switch(
               value: preview,
-              activeTrackColor: kAuthPrimary,
+              activeTrackColor: cs.primary,
               onChanged: onPreviewChanged,
             ),
           ],

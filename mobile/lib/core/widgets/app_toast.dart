@@ -157,6 +157,7 @@ class _TopToastEntryState extends State<_TopToastEntry>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final v = widget.variant;
     final topPadding = MediaQuery.of(context).viewPadding.top + 12;
     return Positioned(
@@ -172,7 +173,7 @@ class _TopToastEntryState extends State<_TopToastEntry>
             child: Container(
               padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
               decoration: BoxDecoration(
-                color: Color.alphaBlend(v.color.withValues(alpha: 0.14), Colors.white),
+                color: Color.alphaBlend(v.color.withValues(alpha: 0.14), cs.surface),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: v.color.withValues(alpha: 0.55)),
                 boxShadow: [
@@ -195,10 +196,10 @@ class _TopToastEntryState extends State<_TopToastEntry>
                       children: [
                         Text(
                           widget.title ?? v.defaultTitle,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                            color: cs.onSurface,
                             height: 1.3,
                             decoration: TextDecoration.none,
                           ),

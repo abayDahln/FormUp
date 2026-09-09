@@ -116,6 +116,7 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -152,7 +153,7 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
               width: 240,
               height: 240,
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.white, width: 3),
+                border: Border.all(color: cs.surface, width: 3),
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
@@ -164,7 +165,7 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.black54,
+                color: cs.onSurfaceVariant,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
@@ -176,9 +177,9 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
           ),
           if (_isProcessing)
             Container(
-              color: Colors.black45,
-              child: const Center(
-                child: AppLoadingIndicator(color: kAuthPrimary),
+              color: cs.onSurfaceVariant,
+              child:  Center(
+                child: AppLoadingIndicator(color: cs.primary),
               ),
             ),
         ],

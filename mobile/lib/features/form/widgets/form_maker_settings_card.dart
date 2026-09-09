@@ -24,22 +24,23 @@ class FormMakerSettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final c = controller;
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (!embedded) ...[
           Row(
-            children: const [
-              Icon(Icons.tune, size: 18, color: kAuthPrimary),
-              SizedBox(width: 8),
+            children: [
+              Icon(Icons.tune, size: 18, color: cs.primary),
+              const SizedBox(width: 8),
               Text(
                 "Pengaturan",
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
-                  color: Colors.black87,
+                  color: cs.onSurface,
                 ),
               ),
             ],
@@ -269,9 +270,9 @@ class FormMakerSettingsCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xCCBDC9C8)),
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: content,
     );
@@ -279,18 +280,20 @@ class FormMakerSettingsCard extends StatelessWidget {
 }
 
 Widget _settingsLabel(String text) {
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 6),
-    child: Text(
-      text,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.bold,
-        fontFamily: kFontBold,
-        color: kAuthPrimary,
+  return Builder(builder: (context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          fontFamily: kFontBold,
+          color: Theme.of(context).colorScheme.primary,
+        ),
       ),
-    ),
-  );
+    );
+  });
 }
 
 /// Switch setting dengan judul + subtitle
@@ -304,6 +307,7 @@ class _SettingSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     // Material transparan agar ink splash ListTile tidak tertutup DecoratedBox.
     return Material(
       type: MaterialType.transparency,
@@ -311,14 +315,14 @@ class _SettingSwitch extends StatelessWidget {
         contentPadding: EdgeInsets.zero,
         title: Text(
           title,
-          style: const TextStyle(fontSize: 13, color: Colors.black87),
+          style: TextStyle(fontSize: 13, color: cs.onSurface),
         ),
         subtitle: Text(
           subtitle,
-          style: const TextStyle(fontSize: 11, color: Colors.black54),
+          style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
         ),
         value: value,
-        activeTrackColor: kAuthPrimary,
+        activeTrackColor: cs.primary,
         onChanged: onChanged,
       ),
     );
@@ -339,6 +343,7 @@ class _DateTimeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -346,9 +351,9 @@ class _DateTimeTile extends StatelessWidget {
         height: 56,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cs.surface,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF6E7979)),
+          border: Border.all(color: cs.outline),
         ),
         child: Row(
           children: [
@@ -357,11 +362,11 @@ class _DateTimeTile extends StatelessWidget {
                 value == null ? hint : _formatDateTime(value!),
                 style: TextStyle(
                   fontSize: 13,
-                  color: value != null ? kAuthPrimary : Colors.black54,
+                  color: value != null ? cs.primary : cs.onSurfaceVariant,
                 ),
               ),
             ),
-            const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+            Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
           ],
         ),
       ),
@@ -392,15 +397,17 @@ String _formatDateTime(DateTime dt) {
 
 /// Bungkus dropdown agar tampil seperti field text lainnya di screen ini.
 Widget _dropdownCard(Widget child) {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: const Color(0xFF6E7979)),
-    ),
-    child: child,
-  );
+  return Builder(builder: (context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
+      ),
+      child: child,
+    );
+  });
 }
 
 InputDecoration _fieldDecoration(String hint) =>

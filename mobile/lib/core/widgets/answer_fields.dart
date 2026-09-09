@@ -51,6 +51,7 @@ class AnswerFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     switch (typeId) {
       case 1: // Essay
         return TextField(
@@ -75,12 +76,12 @@ class AnswerFields extends StatelessWidget {
               children: [
                 for (var i = 0; i < options.length; i++) ...[
                   if (i > 0)
-                    const Divider(
+                     Divider(
                       height: 1,
                       thickness: 1,
-                      color: Color(0xFFE5E8E8),
+                      color: cs.surfaceContainerHighest,
                     ),
-                  _buildChoiceOption(
+                  _buildChoiceOption(context, 
                     index: i,
                     text: options[i].text,
                     onTap: onSingleChanged == null
@@ -105,12 +106,12 @@ class AnswerFields extends StatelessWidget {
             children: [
               for (var i = 0; i < options.length; i++) ...[
                 if (i > 0)
-                  const Divider(
+                   Divider(
                     height: 1,
                     thickness: 1,
-                    color: Color(0xFFE5E8E8),
+                    color: cs.surfaceContainerHighest,
                   ),
-                _buildChoiceOption(
+                _buildChoiceOption(context, 
                   index: i,
                   text: options[i].text,
                   onTap: onMultiChanged == null
@@ -137,16 +138,16 @@ class AnswerFields extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
-              color: const Color(0xFFF0F4F4),
+              color: cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFF6E7979)),
+              border: Border.all(color: cs.outlineVariant),
             ),
             child: Row(
               children: [
-                const Icon(
+                 Icon(
                   Icons.calendar_today_outlined,
                   size: 18,
-                  color: kAuthPrimary,
+                  color: cs.primary,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -154,7 +155,7 @@ class AnswerFields extends StatelessWidget {
                     dateLabel ?? "Pilih tanggal & waktu",
                     style: TextStyle(
                       fontSize: _zs(14),
-                      color: dateLabel == null ? Colors.black45 : Colors.black87,
+                      color: dateLabel == null ? cs.onSurfaceVariant : cs.onSurface,
                     ),
                   ),
                 ),
@@ -166,7 +167,7 @@ class AnswerFields extends StatelessWidget {
         return Row(
           children: [
             Expanded(
-              child: _chip(
+              child: _chip(context, 
                 "Benar",
                 tfValue == 'Benar',
                 onTfChanged == null ? null : () => onTfChanged!('Benar'),
@@ -174,7 +175,7 @@ class AnswerFields extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _chip(
+              child: _chip(context, 
                 "Salah",
                 tfValue == 'Salah',
                 onTfChanged == null ? null : () => onTfChanged!('Salah'),
@@ -187,17 +188,18 @@ class AnswerFields extends StatelessWidget {
     }
   }
 
-  Widget _chip(String label, bool selected, VoidCallback? onTap) {
+  Widget _chip(BuildContext context, String label, bool selected, VoidCallback? onTap) {
+    final cs = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? kPrimarySoft : const Color(0xFFF0F4F4),
+          color: selected ? cs.primaryContainer : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: selected ? kAuthPrimary : const Color(0xFF6E7979),
+            color: selected ? cs.primary : cs.outlineVariant,
             width: selected ? 1.5 : 1,
           ),
         ),
@@ -207,7 +209,7 @@ class AnswerFields extends StatelessWidget {
             fontSize: _zs(14),
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: selected ? kAuthPrimary : Colors.black54,
+            color: selected ? cs.primary : cs.onSurfaceVariant,
           ),
         ),
       ),
@@ -228,12 +230,13 @@ class AnswerFields extends StatelessWidget {
 
   /// Baris opsi pilihan ganda/checkbox:
   /// kontrol (radio/checkbox) + teks opsi format "A. {text}".
-  Widget _buildChoiceOption({
+  Widget _buildChoiceOption(BuildContext context, {
     required int index,
     required String text,
     required Widget control,
     VoidCallback? onTap,
   }) {
+    final cs = Theme.of(context).colorScheme;
     final letter = String.fromCharCode(65 + index);
     return InkWell(
       onTap: onTap,
@@ -253,7 +256,7 @@ class AnswerFields extends StatelessWidget {
                   fontSize: _zs(14),
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
-                  color: Colors.black87,
+                  color: cs.onSurface,
                   height: 1.3,
                 ),
               ),
@@ -266,7 +269,7 @@ class AnswerFields extends StatelessWidget {
                   zoom: zoom,
                   style: TextStyle(
                     fontSize: _zs(14),
-                    color: Colors.black87,
+                    color: cs.onSurface,
                     height: 1.3,
                   ),
                 ),
@@ -359,6 +362,7 @@ class _OptionResultRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     const greenBg = Color(0xFFE3F4E8);
     const greenFg = Color(0xFF2E7D32);
     const redBg = Color(0xFFFDECEA);
@@ -382,12 +386,12 @@ class _OptionResultRow extends StatelessWidget {
         ),
       _OptionStatus.selectedNeutral => (
           const Color(0xFFE0F2F1),
-          kAuthPrimary,
-          Icon(Icons.radio_button_checked, size: 16, color: kAuthPrimary),
+          cs.primary,
+          Icon(Icons.radio_button_checked, size: 16, color: cs.primary),
         ),
       _OptionStatus.neutral => (
-          const Color(0xFFF0F4F4),
-          Colors.black87,
+          cs.surfaceContainerHighest,
+          cs.onSurface,
           null,
         ),
     };

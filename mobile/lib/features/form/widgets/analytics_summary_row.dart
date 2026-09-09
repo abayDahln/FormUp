@@ -57,31 +57,32 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(kRadius),
         boxShadow: softShadow(),
       ),
       child: Column(
         children: [
-          Icon(icon, color: kAuthPrimary, size: 18),
+          Icon(icon, color: cs.primary, size: 18),
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               fontFamily: kFontBold,
-              color: Colors.black87,
+              color: cs.onSurface,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 10, color: Colors.black54),
+            style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
           ),
         ],
       ),

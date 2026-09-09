@@ -11,22 +11,22 @@ Future<RunnerExitAction> showRunnerExitDialog(BuildContext context) async {
     barrierDismissible: false,
     builder: (ctx) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text(
+      title: Text(
         "Keluar dari Form?",
         style: TextStyle(
           fontWeight: FontWeight.bold,
           fontFamily: kFontBold,
-          color: Colors.black87,
+          color: Theme.of(ctx).colorScheme.onSurface,
         ),
       ),
-      content: const Text(
+      content: Text(
         "Jawaban yang belum dikirim tidak akan tersimpan dan tidak tercatat sebagai pengerjaan.",
-        style: TextStyle(fontSize: 14, color: Colors.black54),
+        style: TextStyle(fontSize: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx, RunnerExitAction.stay),
-          child: const Text("Batal", style: TextStyle(color: Colors.black54)),
+          child: Text("Batal", style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(

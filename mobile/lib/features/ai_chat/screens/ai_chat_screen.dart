@@ -63,6 +63,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
   bool _streaming = false;
   StreamSubscription<String>? _sub;
 
+  /// True selama persiapan kirim (bangun konteks form via network) SEBELUM
+  /// streaming dimulai. Menutup celah double-tap tombol kirim yang
+  /// menimbulkan 2 request paralel dan menghabiskan kuota.
+  bool _sending = false;
+
   // Pesan bot + buffer yang sedang streaming (dipakai tombol stop).
   ChatMessage? _streamingMsg;
   StringBuffer? _streamingBuffer;
@@ -277,6 +282,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     // Gaya Gemini: ListView full-bleed di belakang header & input,
     // dengan gradient fade di atas dan bawah agar scroll memudar mulus.
     final topInset = MediaQuery.of(context).padding.top;
@@ -292,7 +298,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: kAppBg,
       drawer: AiChatDrawer(
         sessions: _sessions,
         currentSessionId: _currentSessionId,
@@ -348,6 +353,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         message: m,
                         streaming: _streaming,
                         isLast: i == _messages.length - 1,
+                        actionsEnabled: !_streaming && !_sending,
                         onRetry: () => retryMessage(m),
                         onUndo: () => undoActionChange(m),
                         onRedo: () => redoActionChange(m),
@@ -364,7 +370,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 ),
           ),
           // --- 2. Bottom gradient TINGGI + Gemini pill input ---
-          // Zona fade 110px (transparan -> solid) + bodi solid kAppBg
+          // Zona fade 110px (transparan -> solid) + bodi solid Theme.of(context).scaffoldBackgroundColor
           // di belakang pill, agar chat memudar mulus jauh sebelum input.
           Align(
             alignment: Alignment.bottomCenter,
@@ -378,9 +384,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        kAppBg.withValues(alpha: 0),
-                        kAppBg.withValues(alpha: 0.50),
-                        kAppBg,
+                        Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0),
+                        Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.50),
+                        Theme.of(context).scaffoldBackgroundColor,
                       ],
                       stops: const [0.0, 0.55, 1.0],
                     ),
@@ -397,12 +403,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       PendingActionBar(
                         action: pendingActionMessage!.actionJson!,
                         isWorking: _actionWorking,
+                        enabled: !_streaming && !_sending,
                         onAccept: acceptPendingAction,
                         onReject: rejectPendingAction,
                       ),
                     ChatInputBar(
                       textController: _controller,
                       streaming: _streaming,
+                      sending: _sending,
                       mentionActive: _isMentionActive,
                       mentionCandidates: _mentionCandidates,
                       mentionQuery: _mentionQuery,
@@ -434,8 +442,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 duration: const Duration(milliseconds: 150),
                 child: FloatingActionButton.small(
                   heroTag: 'aiChatScrollToBottom',
-                  backgroundColor: Colors.white,
-                  foregroundColor: kAuthPrimary,
+                  backgroundColor: cs.surface,
+                  foregroundColor: cs.primary,
                   elevation: 3,
                   onPressed: _jumpToBottom,
                   child: const Icon(Icons.arrow_downward, size: 20),
@@ -454,10 +462,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    kAppBg,
-                    kAppBg,
-                    kAppBg.withValues(alpha: 0.85),
-                    kAppBg.withValues(alpha: 0),
+                    Theme.of(context).scaffoldBackgroundColor,
+                    Theme.of(context).scaffoldBackgroundColor,
+                    Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.85),
+                    Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0),
                   ],
                   stops: const [0.0, 0.55, 0.8, 1.0],
                 ),
@@ -467,20 +475,20 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 children: [
                   if (widget.embedded)
                     IconButton(
-                      icon: const Icon(Icons.menu, color: Colors.black87),
+                      icon:  Icon(Icons.menu, color: cs.onSurface),
                       onPressed: () =>
                           _scaffoldKey.currentState?.openDrawer(),
                     )
                   else
                     IconButton(
-                      icon: const Icon(
+                      icon:  Icon(
                         Icons.arrow_back,
-                        color: Colors.black87,
+                        color: cs.onSurface,
                       ),
                       onPressed: () => AppRouter.of(context).pop(),
                     ),
-                  const AiChatIcon(
-                    color: kAuthPrimary,
+                   AiChatIcon(
+                    color: cs.primary,
                     size: 20,
                     filled: true,
                   ),

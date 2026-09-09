@@ -56,12 +56,13 @@ class _CountdownBadgeState extends State<CountdownBadge> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final danger = _secondsLeft <= 60;
-    final color = danger ? const Color(0xFFC0392B) : Colors.black87;
+    final color = danger ? const Color(0xFFC0392B) : cs.onSurface;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: danger ? const Color(0xFFFDE8E6) : const Color(0xFFE2F3F2),
+        color: danger ? const Color(0xFFFDE8E6) : cs.primaryContainer,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(

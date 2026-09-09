@@ -72,6 +72,7 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     super.build(context);
     final data = _analytics;
     if (_loading && data == null) {
@@ -127,7 +128,7 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
 
     return RefreshIndicator(
       onRefresh: _load,
-      color: kAuthPrimary,
+      color: cs.primary,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -362,7 +363,7 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
     final text = Theme.of(context).textTheme;
     final meta = {
       'A': (kSuccessColor, '≥ 90'),
-      'B': (kPrimary, '≥ 75'),
+      'B': (Theme.of(context).colorScheme.primary, '≥ 75'),
       'C': (kWarningColor, '≥ 60'),
       'D': (kDangerColor.withValues(alpha: 0.7), '≥ 40'),
       'E': (kDangerColor, '< 40'),

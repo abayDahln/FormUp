@@ -43,8 +43,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAppBg,
       body: SafeArea(
         child: IndexedStack(
           index: _currentIndex,
@@ -69,7 +69,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cs.surface,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
@@ -88,8 +88,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             });
           },
           type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: kPrimary,
+          backgroundColor: cs.surface,
+          selectedItemColor: cs.primary,
           unselectedItemColor: Colors.grey,
           selectedFontSize: 12,
           unselectedFontSize: 12,
@@ -169,9 +169,10 @@ class _AdminBerandaTabState extends State<_AdminBerandaTab> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return AppRefreshIndicator(
       onRefresh: _load,
-      indicatorColor: kAuthPrimary,
+      indicatorColor: cs.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -183,11 +184,11 @@ class _AdminBerandaTabState extends State<_AdminBerandaTab> {
               "Halo, ${widget.name.isNotEmpty ? widget.name : 'Admin'}",
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style:  TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
                 fontFamily: kFontBold,
-                color: Colors.black87,
+                color: cs.onSurface,
               ),
             ),
             const SizedBox(height: 2),
@@ -195,7 +196,7 @@ class _AdminBerandaTabState extends State<_AdminBerandaTab> {
               AuthService.role == 'ADMIN'
                   ? "Panel administrasi FormUp"
                   : "Panel administrasi",
-              style: const TextStyle(fontSize: 13, color: Colors.black54),
+              style:  TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 20),
             Row(
@@ -226,13 +227,13 @@ class _AdminBerandaTabState extends State<_AdminBerandaTab> {
               ],
             ),
             const SizedBox(height: 25),
-            const Text(
+             Text(
               "Aksi Cepat",
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 fontFamily: kFontBold,
-                color: Colors.black87,
+                color: cs.onSurface,
               ),
             ),
             const SizedBox(height: 12),
@@ -278,10 +279,11 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: elevationShadow(ShadowLevel.low),
       ),
@@ -290,24 +292,24 @@ class _StatCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
-              color: kPrimarySoft,
+              color: cs.primaryContainer,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: kAuthPrimary, size: 19),
+            child: Icon(icon, color: cs.primary, size: 19),
           ),
           const SizedBox(height: 10),
           Text(
             value == null ? '—' : '$value',
-            style: const TextStyle(
+            style:  TextStyle(
               fontSize: 19,
               fontWeight: FontWeight.bold,
               fontFamily: kFontBold,
-              color: Colors.black87,
+              color: cs.onSurface,
             ),
           ),
           const SizedBox(height: 2),
           Text(label,
-              style: const TextStyle(fontSize: 11, color: Colors.black54)),
+              style:  TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
         ],
       ),
     );
@@ -330,9 +332,10 @@ class _QuickActionTile extends StatelessWidget {
 
 @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(kRadius),
         boxShadow: elevationShadow(ShadowLevel.subtle),
       ),
@@ -349,10 +352,10 @@ class _QuickActionTile extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(11),
                   decoration: BoxDecoration(
-                    color: kPrimarySoft,
+                    color: cs.primaryContainer,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, color: kAuthPrimary, size: 21),
+                  child: Icon(icon, color: cs.primary, size: 21),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -361,18 +364,18 @@ class _QuickActionTile extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: const TextStyle(
+                        style:  TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
-                        color: Colors.black87,
+                        color: cs.onSurface,
                       ),
                       ),
                       const SizedBox(height: 3),
                       Text(
                         subtitle,
-                        style: const TextStyle(
-                            fontSize: 12, color: Colors.black54),
+                        style:  TextStyle(
+                            fontSize: 12, color: cs.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -440,6 +443,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final email = _profile?.email ?? AuthService.email ?? '';
     final stats = _stats ?? const UserStats();
 
@@ -451,13 +455,13 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+               Text(
                 'Profil',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
-                  color: Colors.black87,
+                  color: cs.onSurface,
                 ),
               ),
               InkWell(
@@ -466,12 +470,12 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cs.surface,
                     shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xCCBDC9C8)),
+                    border: Border.all(color: cs.outlineVariant),
                   ),
-                  child: const Icon(Icons.settings_outlined,
-                      color: kAuthPrimary, size: 20),
+                  child:  Icon(Icons.settings_outlined,
+                      color: cs.primary, size: 20),
                 ),
               ),
             ],
@@ -487,7 +491,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(kRadius),
                 boxShadow: elevationShadow(ShadowLevel.low),
               ),
@@ -495,7 +499,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
                 children: [
                   CircleAvatar(
                     radius: 34,
-                    backgroundColor: kPrimarySoft,
+                    backgroundColor: cs.primaryContainer,
                     backgroundImage:
                         (_profile?.profileImage ?? '').isNotEmpty
                             ? CachedNetworkImageProvider(_profile!.profileImage!)
@@ -503,11 +507,11 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
                     child: (_profile?.profileImage ?? '').isEmpty
                         ? Text(
                             _initial,
-                            style: const TextStyle(
+                            style:  TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                               fontFamily: kFontBold,
-                              color: kAuthPrimary,
+                              color: cs.primary,
                             ),
                           )
                         : null,
@@ -515,18 +519,18 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
                   const SizedBox(height: 14),
                   Text(
                     _displayName,
-                    style: const TextStyle(
+                    style:  TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
                       fontFamily: kFontBold,
-                      color: Colors.black87,
+                      color: cs.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     email,
-                    style: const TextStyle(
-                        fontSize: 13, color: Colors.black54),
+                    style:  TextStyle(
+                        fontSize: 13, color: cs.onSurfaceVariant),
                   ),
                   const SizedBox(height: 10),
                   Container(
@@ -553,7 +557,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(kRadius),
                 boxShadow: elevationShadow(ShadowLevel.low),
               ),
@@ -571,7 +575,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
             const SizedBox(height: 16),
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(18),
                 boxShadow: elevationShadow(ShadowLevel.low),
               ),
@@ -581,7 +585,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
                   children: [
                     ListTile(
                       leading:
-                          const Icon(Icons.edit_outlined, color: kAuthPrimary),
+                          Icon(Icons.edit_outlined, color: cs.primary),
                       title: const Text('Edit Profil',
                           style: TextStyle(fontSize: 14)),
                       trailing: const Icon(Icons.chevron_right,
@@ -607,15 +611,15 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
       children: [
         Text(
           value,
-          style: const TextStyle(
+          style:  TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: kAuthPrimary,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
         const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+        Text(label, style:  TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
       ],
     );
   }

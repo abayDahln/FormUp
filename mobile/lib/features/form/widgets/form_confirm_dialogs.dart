@@ -28,9 +28,9 @@ Future<String?> showFormExitConfirmDialog(BuildContext context) {
         ),
         TextButton(
           onPressed: () => Navigator.pop(context, 'save'),
-          child: const Text(
+          child: Text(
             'Simpan',
-            style: TextStyle(color: kAuthPrimary),
+            style: TextStyle(color: Theme.of(context).colorScheme.primary),
           ),
         ),
       ],

@@ -48,37 +48,38 @@ class FormMakerHeaderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final inner = _buildInner();
+    final cs = Theme.of(context).colorScheme;
+    final inner = _buildInner(context);
     if (embedded) return inner;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xCCBDC9C8)),
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: inner,
     );
   }
 
-  Widget _buildInner() {
+  Widget _buildInner(BuildContext context) {
     final hasSettings = settingsController != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
-          children: const [
+          children: [
             Text(
               "Judul Form",
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
                 fontFamily: kFontBold,
-                color: kAuthPrimary,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
-            SizedBox(width: 2),
-            Text(
+            const SizedBox(width: 2),
+            const Text(
               "*",
               style: TextStyle(
                 fontSize: 13,
@@ -93,20 +94,20 @@ class FormMakerHeaderCard extends StatelessWidget {
           controller: titleController,
           focusNode: titleFocusNode,
           key: titleFieldKey,
-          style: const TextStyle(fontSize: 15, color: Colors.black87),
-          cursorColor: kAuthPrimary,
+          style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurface),
+          cursorColor: Theme.of(context).colorScheme.primary,
           decoration: formUpInputDecoration(
             hintText: "Judul form Anda",
           ),
         ),
         const SizedBox(height: 16),
-        const Text(
+        Text(
           "Deskripsi",
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: kAuthPrimary,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
         const SizedBox(height: 8),
@@ -116,22 +117,22 @@ class FormMakerHeaderCard extends StatelessWidget {
           minHeight: 60,
         ),
         const SizedBox(height: 16),
-        _buildBannerField(),
+        _buildBannerField(context),
         if (hasSettings) ...[
           const SizedBox(height: 20),
-          const Divider(color: Color(0xCCBDC9C8), thickness: 1),
+          Divider(color: Theme.of(context).colorScheme.outlineVariant, thickness: 1),
           const SizedBox(height: 16),
           Row(
-            children: const [
-              Icon(Icons.tune, size: 18, color: kAuthPrimary),
-              SizedBox(width: 8),
+            children: [
+              Icon(Icons.tune, size: 18, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 8),
               Text(
                 "Pengaturan",
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
-                  color: Colors.black87,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ],
@@ -149,18 +150,18 @@ class FormMakerHeaderCard extends StatelessWidget {
     );
   }
 
-  Widget _buildBannerField() {
+  Widget _buildBannerField(BuildContext context) {
     final hasImage = newBanner != null || (bannerImage?.isNotEmpty ?? false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           "Banner Form",
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: kAuthPrimary,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
         const SizedBox(height: 8),
@@ -202,7 +203,7 @@ class _BannerTapAreaState extends State<_BannerTapArea> {
     if (widget.newBanner != null) {
       showDialog(
         context: context,
-        barrierColor: Colors.black87,
+        barrierColor: Theme.of(context).colorScheme.onSurface,
         builder: (_) => Dialog(
           backgroundColor: Colors.transparent,
           insetPadding: const EdgeInsets.all(16),
@@ -224,7 +225,7 @@ class _BannerTapAreaState extends State<_BannerTapArea> {
                 child: IconButton(
                   icon: const Icon(Icons.close, color: Colors.white),
                   onPressed: () => Navigator.pop(context),
-                  style: IconButton.styleFrom(backgroundColor: Colors.black54),
+                  style: IconButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               ),
             ],
@@ -244,6 +245,7 @@ class _BannerTapAreaState extends State<_BannerTapArea> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return GestureDetector(
       onTapDown: (_) {
         _isLong = false;
@@ -267,28 +269,28 @@ class _BannerTapAreaState extends State<_BannerTapArea> {
         width: double.infinity,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: const Color(0xFFF0F4F4),
+          color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF6E7979)),
+          border: Border.all(color: cs.outline),
         ),
         child: widget.hasImage
             ? (widget.newBanner != null
                 ? Image.memory(
                     widget.newBanner!,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const Center(
-                      child: Icon(Icons.broken_image_outlined, size: 32, color: Colors.grey),
+                    errorBuilder: (_, _, _) => Center(
+                      child: Icon(Icons.broken_image_outlined, size: 32, color: cs.onSurfaceVariant),
                     ),
                   )
                 : CachedRemoteImage(
                     url: profileImageUrl(widget.bannerImage),
                     fit: BoxFit.cover,
-                    errorWidget: const Center(
-                      child: Icon(Icons.broken_image_outlined, size: 32, color: Colors.grey),
+                    errorWidget: Center(
+                      child: Icon(Icons.broken_image_outlined, size: 32, color: cs.onSurfaceVariant),
                     ),
                   ))
-            : const Center(
-                child: Icon(Icons.image_outlined, size: 32, color: Colors.grey),
+            : Center(
+                child: Icon(Icons.image_outlined, size: 32, color: cs.onSurfaceVariant),
               ),
       ),
     );

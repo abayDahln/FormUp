@@ -58,7 +58,7 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
             onPressed: () => Navigator.pop(context, true),
             child: Text(action,
                 style: TextStyle(
-                    color: danger ? kDangerColor : kAuthPrimary)),
+                    color: danger ? kDangerColor : Theme.of(context).colorScheme.primary)),
           ),
         ],
       ),
@@ -143,24 +143,24 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final fb = widget.feedback;
     final takenDown = _form?.takenDownAt != null;
 
     if (_dismissed) return const SizedBox.shrink();
 
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        title: const Text(
+        title:  Text(
           "Detail Feedback",
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
       ),
@@ -173,7 +173,7 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(kRadiusLg),
                 boxShadow: softShadow(),
               ),
@@ -182,10 +182,10 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
                 children: [
                   Row(
                     children: [
-                      const CircleAvatar(
+                       CircleAvatar(
                         radius: 20,
-                        backgroundColor: kPrimarySoft,
-                        child: Text('F', style: TextStyle(color: kAuthPrimary)),
+                        backgroundColor: cs.primaryContainer,
+                        child: Text('F', style: TextStyle(color: cs.primary)),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -194,45 +194,45 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
                           children: [
                             Text(
                               fb.userName.isEmpty ? 'Anonim' : fb.userName,
-                              style: const TextStyle(
+                              style:  TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 fontFamily: kFontBold,
-                                color: Colors.black87,
+                                color: cs.onSurface,
                               ),
                             ),
                             Text(fb.userEmail,
-                                style: const TextStyle(
-                                    fontSize: 11, color: Colors.black54)),
+                                style:  TextStyle(
+                                    fontSize: 11, color: cs.onSurfaceVariant)),
                           ],
                         ),
                       ),
                     ],
                   ),
                   const Divider(height: 24),
-                  const Text(
+                   Text(
                     'Alasan',
-                    style: TextStyle(fontSize: 11, color: Colors.black45),
+                    style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
                   ),
                   const SizedBox(height: 4),
                   SelectableText(
                     fb.reason.isEmpty ? '—' : fb.reason,
-                    style: const TextStyle(
+                    style:  TextStyle(
                         fontSize: 15,
                         height: 1.4,
-                        color: Colors.black87),
+                        color: cs.onSurface),
                   ),
                   if (fb.description != null && fb.description!.isNotEmpty) ...[
                     const SizedBox(height: 14),
-                    const Text(
+                     Text(
                       'Penjelasan',
-                      style: TextStyle(fontSize: 11, color: Colors.black45),
+                      style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
                     ),
                     const SizedBox(height: 4),
                     SelectableText(
                       fb.description!,
-                      style: const TextStyle(
-                          fontSize: 14, height: 1.5, color: Colors.black87),
+                      style:  TextStyle(
+                          fontSize: 14, height: 1.5, color: cs.onSurface),
                     ),
                   ],
                 ],
@@ -245,7 +245,7 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(kRadiusLg),
                 boxShadow: softShadow(),
               ),
@@ -261,24 +261,24 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                         Text(
                           'FORM TERKAIT',
                           style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
                               fontFamily: kFontBold,
-                              color: Colors.black45),
+                              color: cs.onSurfaceVariant),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           fb.formTitle.isEmpty
                               ? 'Form #${fb.formId}'
                               : fb.formTitle,
-                          style: const TextStyle(
+                          style:  TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
                             fontFamily: kFontBold,
-                            color: Colors.black87,
+                            color: cs.onSurface,
                           ),
                         ),
                         if (_form != null) ...[
@@ -296,24 +296,24 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
                           ),
                           const SizedBox(height: 10),
                           Text('Kode Form: ${_form!.formLink}',
-                              style: const TextStyle(
-                                  fontSize: 12, color: Colors.black54)),
+                              style:  TextStyle(
+                                  fontSize: 12, color: cs.onSurfaceVariant)),
                           Text(
                               'Pemilik: ${_form!.owner.fullname ?? '-'} (${_form!.owner.email ?? '-'})',
-                              style: const TextStyle(
-                                  fontSize: 12, color: Colors.black54)),
+                              style:  TextStyle(
+                                  fontSize: 12, color: cs.onSurfaceVariant)),
                         ],
                         const SizedBox(height: 14),
                         OutlinedButton.icon(
                           onPressed: () =>
                               AppRouter.of(context).push(AppPage.adminFormDetail,
                                   {'formId': fb.formId}),
-                          icon: const Icon(Icons.visibility_outlined,
-                              size: 18, color: kAuthPrimary),
-                          label: const Text('Lihat Detail Form',
-                              style: TextStyle(color: kAuthPrimary)),
+                          icon:  Icon(Icons.visibility_outlined,
+                              size: 18, color: cs.primary),
+                          label:  Text('Lihat Detail Form',
+                              style: TextStyle(color: cs.primary)),
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: kAuthPrimary),
+                            side:  BorderSide(color: cs.primary),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10)),
                           ),
@@ -328,7 +328,7 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(kRadiusLg),
                 boxShadow: softShadow(),
               ),

@@ -20,26 +20,27 @@ class RunnerMultiPageNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return SafeArea(
       top: false,
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-        color: Colors.white,
+        color: cs.surface,
         child: Row(
           children: [
             Expanded(
               child: OutlinedButton(
                 onPressed: canGoBack ? onBack : null,
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: kAuthPrimary),
+                  side:  BorderSide(color: cs.primary),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 15),
                 ),
-                child: const Text(
+                child:  Text(
                   "Sebelumnya",
-                  style: TextStyle(color: kAuthPrimary),
+                  style: TextStyle(color: cs.primary),
                 ),
               ),
             ),

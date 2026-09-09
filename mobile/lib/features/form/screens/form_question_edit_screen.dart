@@ -212,26 +212,26 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        shape:  Border(
+          bottom: BorderSide(color: cs.outlineVariant),
         ),
-        title: const Text(
+        title:  Text(
           'Edit Soal',
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon:  Icon(Icons.arrow_back, color: cs.onSurface),
           onPressed: () async {
             final allow = await _confirmExit();
             if (!allow) return;
@@ -271,9 +271,9 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: cs.surface,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xCCBDC9C8)),
+                            border: Border.all(color: cs.outlineVariant),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -287,8 +287,8 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                               ),
                               const Divider(height: 32),
                               Row(
-                                children: const [
-                                  Icon(Icons.tune, size: 18, color: kAuthPrimary),
+                                children:  [
+                                  Icon(Icons.tune, size: 18, color: cs.primary),
                                   SizedBox(width: 8),
                                   Text(
                                     'Pengaturan',
@@ -296,7 +296,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
                                       fontFamily: kFontBold,
-                                      color: Colors.black87,
+                                      color: cs.onSurface,
                                     ),
                                   ),
                                 ],
@@ -312,8 +312,8 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                               ),
                               const SizedBox(height: 18),
                               Row(
-                                children: const [
-                                  Icon(Icons.rule, size: 18, color: kAuthPrimary),
+                                children:  [
+                                  Icon(Icons.rule, size: 18, color: cs.primary),
                                   SizedBox(width: 8),
                                   Text(
                                     'Jawaban',
@@ -321,7 +321,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
                                       fontFamily: kFontBold,
-                                      color: Colors.black87,
+                                      color: cs.onSurface,
                                     ),
                                   ),
                                 ],
@@ -334,12 +334,12 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                               ),
                               const Divider(height: 32),
                               Row(
-                                children: const [
-                                  Icon(Icons.attach_file, size: 18, color: kAuthPrimary),
+                                children:  [
+                                  Icon(Icons.attach_file, size: 18, color: cs.primary),
                                   SizedBox(width: 8),
                                   Text('Media',
                                       style: TextStyle(
-                                          fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
+                                          fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: cs.onSurface)),
                                 ],
                               ),
                               const SizedBox(height: 14),

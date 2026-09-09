@@ -296,6 +296,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   Future<void> _openSortMenu() async {
     if (_exporting) return;
+    final cs = Theme.of(context).colorScheme;
     final box = context.findRenderObject() as RenderBox?;
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
     final offset = box != null && overlay != null ? box.localToGlobal(Offset.zero, ancestor: overlay) : Offset.zero;
@@ -309,9 +310,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             value: s,
             child: Row(
               children: [
-                Icon(s.icon, size: 18, color: _sort == s ? kAuthPrimary : Colors.black54),
+                Icon(s.icon, size: 18, color: _sort == s ? cs.primary : cs.onSurfaceVariant),
                 const SizedBox(width: 10),
-                Text(s.label, style: TextStyle(fontSize: 14, color: _sort == s ? kAuthPrimary : Colors.black87, fontWeight: _sort == s ? FontWeight.bold : FontWeight.normal)),
+                Text(s.label, style: TextStyle(fontSize: 14, color: _sort == s ? cs.primary : cs.onSurface, fontWeight: _sort == s ? FontWeight.bold : FontWeight.normal)),
               ],
             ),
           ),
@@ -322,24 +323,27 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   Future<String?> _pickExportFormat() => showModalBottomSheet<String>(
         context: context,
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        builder: (ctx) => SafeArea(
+        builder: (ctx) {
+          final cs = Theme.of(ctx).colorScheme;
+          return SafeArea(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const SizedBox(height: 12),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(2))),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: cs.outlineVariant, borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 12),
-            const Text('Pilih format ekspor', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
+            Text('Pilih format ekspor', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, color: cs.onSurface)),
             const SizedBox(height: 8),
             for (final f in ['csv', 'xlsx', 'pdf'])
               ListTile(
-                leading: Icon(f == 'pdf' ? Icons.picture_as_pdf_outlined : f == 'xlsx' ? Icons.table_chart_outlined : Icons.description_outlined, color: kAuthPrimary),
+                leading: Icon(f == 'pdf' ? Icons.picture_as_pdf_outlined : f == 'xlsx' ? Icons.table_chart_outlined : Icons.description_outlined, color: cs.primary),
                 title: Text(f.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
                 onTap: () => Navigator.pop(ctx, f),
               ),
             const SizedBox(height: 8),
           ]),
-        ),
+        );
+        },
       );
 
   String _sanitizeFileName(String name) {
@@ -363,15 +367,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(children: [Icon(Icons.check_circle, color: kPrimary), SizedBox(width: 8), Text('Ekspor Selesai', style: TextStyle(fontFamily: kFontBold))]),
-        content: Text('File "$fileName" berhasil dibuat (${(bytes.length / 1024).toStringAsFixed(1)} KB).', style: const TextStyle(fontSize: 13, color: Colors.black87)),
+        title: Row(children: [Icon(Icons.check_circle, color: cs.primary), const SizedBox(width: 8), const Text('Ekspor Selesai', style: TextStyle(fontFamily: kFontBold))]),
+        content: Text('File "$fileName" berhasil dibuat (${(bytes.length / 1024).toStringAsFixed(1)} KB).', style: TextStyle(fontSize: 13, color: cs.onSurface)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup')),
           FilledButton.icon(onPressed: () async { Navigator.pop(ctx); await _shareExport(bytes, fileName, mime, format); }, icon: const Icon(Icons.share_outlined, size: 18), label: const Text('Bagikan')),
         ],
-      ),
+      );
+      },
     );
   }
 
@@ -429,11 +436,11 @@ Berikan analisis yang mencakup:
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return PopScope(
       canPop: !_exporting,
       onPopInvokedWithResult: (didPop, _) { if (!didPop && _exporting) showAppToast(context, 'Tunggu ekspor selesai', type: ToastType.warning); },
       child: Scaffold(
-        backgroundColor: kAppBg,
         floatingActionButton: FloatingActionButton.small(
           heroTag: 'aiAnalysisForForm',
           onPressed: _exporting ? null : _openAiAnalysis,
@@ -445,14 +452,13 @@ Berikan analisis yang mencakup:
           ),
         ),
       appBar: AppBar(
-        backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        shape: Border(
+          bottom: BorderSide(color: cs.outlineVariant),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: cs.onSurface),
           onPressed: _exporting ? null : () => AppRouter.of(context).pop(),
         ),
         title: const Text(
@@ -461,7 +467,6 @@ Berikan analisis yang mencakup:
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
           ),
         ),
         actions: [
@@ -473,7 +478,7 @@ Berikan analisis yang mencakup:
                     child: SizedBox(width: 20, height: 20, child: LoadingIndicator.inline()),
                   )
                 : IconButton(
-                    icon: const Icon(Icons.download_outlined, color: Colors.black87),
+                    icon: Icon(Icons.download_outlined, color: cs.onSurface),
                     tooltip: 'Export CSV/XLSX/PDF',
                     onPressed: _export,
                   ),
@@ -501,6 +506,7 @@ Berikan analisis yang mencakup:
   /// Isi tab Respon: satu ListView langsung (tanpa Column+Expanded)
   /// agar cocok sebagai child TabBarView di dalam NestedScrollView.
   Widget _buildResponTab() {
+    final cs = Theme.of(context).colorScheme;
     if (_loading && _analytics == null) {
       return const LoadingOverlay(contained: true);
     }
@@ -527,7 +533,7 @@ Berikan analisis yang mencakup:
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: cs.surface,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: softShadow(),
                       ),
@@ -535,11 +541,11 @@ Berikan analisis yang mencakup:
                         text: widget.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           fontFamily: kFontBold,
-                          color: Colors.black87,
+                          color: cs.onSurface,
                         ),
                       ),
                     ),
@@ -563,7 +569,6 @@ Berikan analisis yang mencakup:
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
-                        color: Colors.black87,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -573,14 +578,14 @@ Berikan analisis yang mencakup:
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.people_outline, color: Colors.black38, size: 40),
+                            Icon(Icons.people_outline, color: cs.onSurfaceVariant, size: 40),
                             const SizedBox(height: 12),
                             Text(
                               _query.isEmpty
                                   ? 'Belum ada responden'
                                   : 'Tidak ada hasil untuk "${_searchController.text}"',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 14, color: Colors.black45),
+                              style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
                             ),
                           ],
                         ),
@@ -612,7 +617,7 @@ Berikan analisis yang mencakup:
                                 onPressed: _page > 1 && !_loading && !_loadingMore ? () => _goToPage(_page - 1) : null,
                                 icon: const Icon(Icons.chevron_left, size: 22),
                               ),
-                              Text('Halaman $_page dari $_totalPages', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Colors.black87)),
+                              Text('Halaman $_page dari $_totalPages', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: cs.onSurface)),
                               IconButton.filledTonal(
                                 visualDensity: VisualDensity.compact,
                                 onPressed: _page < _totalPages && !_loading && !_loadingMore ? () => _goToPage(_page + 1) : null,
@@ -642,18 +647,19 @@ class _MintTabBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      decoration: const BoxDecoration(
-        color: kAppBg,
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
         border: Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+          bottom: BorderSide(color: cs.outlineVariant),
         ),
       ),
       child: TabBar(
         controller: controller,
-        labelColor: kPrimary,
+        labelColor: cs.primary,
         unselectedLabelColor: Colors.grey,
-        indicatorColor: kPrimary,
+        indicatorColor: cs.primary,
         indicatorWeight: 2.5,
         dividerColor: Colors.transparent,
         labelStyle: const TextStyle(

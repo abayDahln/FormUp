@@ -32,6 +32,7 @@ class RunnerCodeStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
       child: Column(
@@ -65,9 +66,9 @@ class RunnerCodeStep extends StatelessWidget {
                     icon: Icons.lock_outline,
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                   Text(
                     "Form ini dilindungi token. Masukkan token yang diberikan pemilik form.",
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                   ),
                 ],
                 if (!isLoggedIn && info != null && !info!.requiresLogin) ...[
@@ -88,9 +89,9 @@ class RunnerCodeStep extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
+           Text(
             "Butuh bantuan? Hubungi pemilik form untuk mendapatkan kode.",
-            style: TextStyle(fontSize: 12, color: Colors.black45),
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
             textAlign: TextAlign.center,
           ),
         ],
@@ -107,17 +108,18 @@ class _FormInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: kPrimarySoft,
+        color: cs.primaryContainer,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kAuthPrimary),
+        border: Border.all(color: cs.primary),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.description_outlined, size: 20, color: kAuthPrimary),
+          Icon(Icons.description_outlined, size: 20, color: cs.primary),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -125,18 +127,18 @@ class _FormInfoCard extends StatelessWidget {
               children: [
                 RichTextView(
                   text: info.title,
-                  style: const TextStyle(
+                  style:  TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
-                    color: Colors.black87,
+                    color: cs.onSurface,
                   ),
                 ),
                 if (info.description != null && info.description!.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   RichTextView(
                     text: info.description!,
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    style:  TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),

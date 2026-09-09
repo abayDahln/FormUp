@@ -4,6 +4,7 @@ import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/widgets/search_field.dart';
 import 'package:form_up/core/theme.dart';
+import 'package:form_up/core/theme_controller.dart';
 import 'package:form_up/core/services/admin_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
@@ -223,7 +224,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
             onPressed: () => Navigator.pop(context, true),
             child: Text(action,
                 style: TextStyle(
-                    color: danger ? kDangerColor : kAuthPrimary)),
+                    color: danger ? kDangerColor : Theme.of(context).colorScheme.primary)),
           ),
         ],
       ),
@@ -270,31 +271,31 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final f = _form;
     final takenDown = f?.takenDownAt != null;
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        shape:  Border(
+          bottom: BorderSide(color: cs.outlineVariant),
         ),
-        title: const Text(
+        title:  Text(
           "Detail Form",
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: kPrimary,
+          labelColor: cs.primary,
           unselectedLabelColor: Colors.grey,
-          indicatorColor: kPrimary,
+          indicatorColor: cs.primary,
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 12),
           tabs: const [
             Tab(text: 'Info'),
@@ -307,9 +308,9 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
       body: _loading
           ? const AppLoadingOverlay()
           : f == null
-              ? const Center(
+              ?  Center(
                   child: Text('Data tidak tersedia.',
-                      style: TextStyle(color: Colors.black54)))
+                      style: TextStyle(color: cs.onSurfaceVariant)))
               : AbsorbPointer(
                   absorbing: _busy,
                   child: TabBarView(
@@ -331,7 +332,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
       children: [
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: softShadow(),
           ),
@@ -355,11 +356,11 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
                   children: [
                     RichTextView(
                       text: f.title,
-                      style: const TextStyle(
+                      style:  TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
-                        color: Colors.black87,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                     if (f.description != null &&
@@ -367,9 +368,9 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
                       const SizedBox(height: 8),
                       RichTextView(
                         text: f.description!,
-                        style: const TextStyle(
+                        style:  TextStyle(
                             fontSize: 13,
-                            color: Colors.black54),
+                            color: Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ],
                     const SizedBox(height: 12),
@@ -455,7 +456,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
                           _qQuery.isEmpty
                               ? 'Form ini belum memiliki soal.'
                               : 'Tidak ada soal untuk "$_qQuery"',
-                          style: const TextStyle(fontSize: 13, color: Colors.black54),
+                          style:  TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -504,7 +505,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
                           _rQuery.isEmpty
                               ? 'Belum ada respon untuk form ini.'
                               : 'Tidak ada respon untuk "$_rQuery"',
-                          style: const TextStyle(fontSize: 13, color: Colors.black54),
+                          style:  TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -526,13 +527,13 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
                         return Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.surface,
                             borderRadius: BorderRadius.circular(kRadius),
                             boxShadow: softShadow(),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.person_outline, color: kAuthPrimary, size: 20),
+                              Icon(Icons.person_outline, color: Theme.of(context).colorScheme.primary, size: 20),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
@@ -543,7 +544,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
                                     const SizedBox(height: 2),
                                     Text(
                                       '${_formatDate(r.submittedAt)} • ${r.status}',
-                                      style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                      style:  TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
                                     ),
                                   ],
                                 ),
@@ -582,7 +583,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
                           _fQuery.isEmpty
                               ? 'Belum ada feedback untuk form ini.'
                               : 'Tidak ada feedback untuk "$_fQuery"',
-                          style: const TextStyle(fontSize: 13, color: Colors.black54),
+                          style:  TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -604,7 +605,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
                         return Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.surface,
                             borderRadius: BorderRadius.circular(kRadius),
                             boxShadow: softShadow(),
                           ),
@@ -620,20 +621,20 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: kPrimarySoft,
+                                      color: Theme.of(context).colorScheme.primaryContainer,
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(fb.reason,
-                                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: kAuthPrimary)),
+                                        style:  TextStyle(fontSize: 10, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Theme.of(context).colorScheme.primary)),
                                   ),
                                 ],
                               ),
                               if (fb.description != null && fb.description!.isNotEmpty) ...[
                                 const SizedBox(height: 6),
-                                Text(fb.description!, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                                Text(fb.description!, style:  TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface)),
                               ],
                               const SizedBox(height: 6),
-                              Text(_formatDate(fb.createdAt), style: const TextStyle(fontSize: 11, color: Colors.black45)),
+                              Text(_formatDate(fb.createdAt), style:  TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                             ],
                           ),
                         );
@@ -707,11 +708,12 @@ class _PageNav extends StatelessWidget {
   const _PageNav({required this.page, required this.totalPages, required this.total, required this.onChanged});
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 4),
       child: Column(
         children: [
-          Text('$total data • Halaman $page dari $totalPages', style: const TextStyle(fontSize: 11, color: Colors.black45)),
+          Text('$total data • Halaman $page dari $totalPages', style:  TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
           const SizedBox(height: 6),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -757,13 +759,14 @@ class _QuestionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final q = question;
     final options = q.options;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(kRadiusLg),
         boxShadow: softShadow(),
       ),
@@ -776,18 +779,18 @@ class _QuestionCard extends StatelessWidget {
               Container(
                 width: 26,
                 height: 26,
-                decoration: const BoxDecoration(
-                  color: kPrimarySoft,
+                decoration:  BoxDecoration(
+                  color: cs.primaryContainer,
                   shape: BoxShape.circle,
                 ),
                 child: Center(
                   child: Text(
                     '${index + 1}',
-                    style: const TextStyle(
+                    style:  TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       fontFamily: kFontBold,
-                      color: kAuthPrimary,
+                      color: cs.primary,
                     ),
                   ),
                 ),
@@ -796,11 +799,11 @@ class _QuestionCard extends StatelessWidget {
               Expanded(
                 child: RichTextView(
                   text: q.question,
-                  style: const TextStyle(
+                  style:  TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
-                    color: Colors.black87,
+                    color: cs.onSurface,
                   ),
                 ),
               ),
@@ -823,7 +826,7 @@ class _QuestionCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
                   '${String.fromCharCode(65 + i)}. ${options[i].optionText}',
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  style:  TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
               ),
           ],
@@ -833,25 +836,28 @@ class _QuestionCard extends StatelessWidget {
   }
 
   Widget _chip(String label) {
+    // Fungsi top-level tanpa context: ikut tema via ThemeController.
+    final dark = ThemeController.instance.isDarkNow;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: kPrimarySoft,
+        color: dark ? const Color(0xFF173E3B) : kPrimarySoft,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
-        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: kAuthPrimary),
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: dark ? kPrimaryDark : kAuthPrimary),
       ),
     );
   }
 }
 
 Widget _infoCard(List<Widget> rows) {
+  final dark = ThemeController.instance.isDarkNow;
   return Container(
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: dark ? const Color(0xFF1A2224) : Colors.white,
       borderRadius: BorderRadius.circular(16),
       boxShadow: softShadow(),
     ),
@@ -860,24 +866,25 @@ Widget _infoCard(List<Widget> rows) {
 }
 
 Widget _infoRow(IconData icon, String label, String value) {
+  final dark = ThemeController.instance.isDarkNow;
   return Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: kAuthPrimary),
+        Icon(icon, size: 18, color: dark ? kPrimaryDark : kAuthPrimary),
         const SizedBox(width: 10),
         SizedBox(
           width: 110,
           child: Text(label,
-              style: const TextStyle(fontSize: 13, color: Colors.black54)),
+              style: TextStyle(fontSize: 13, color: dark ? const Color(0xFFB9CACA) : Colors.black54)),
         ),
         Expanded(
           child: Text(value,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: Colors.black87)),
+                  color: dark ? Colors.white : Colors.black87)),
         ),
       ],
     ),

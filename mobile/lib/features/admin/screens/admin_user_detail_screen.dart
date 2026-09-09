@@ -54,7 +54,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(action, style: const TextStyle(color: kAuthPrimary)),
+            child: Text(action, style:  TextStyle(color: Theme.of(context).colorScheme.primary)),
           ),
         ],
       ),
@@ -99,33 +99,33 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final u = _user;
     final isAdmin = u?.role == 'ADMIN';
     return Scaffold(
-      backgroundColor: kAppBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xCCBDC9C8)),
+        shape:  Border(
+          bottom: BorderSide(color: cs.outlineVariant),
         ),
-        title: const Text(
+        title:  Text(
           "Detail User",
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
-            color: Colors.black87,
+            color: cs.onSurface,
           ),
         ),
       ),
       body: _loading
           ? const AppLoadingOverlay()
           : u == null
-              ? const Center(
+              ?  Center(
                   child: Text('Data tidak tersedia.',
-                      style: TextStyle(color: Colors.black54)))
+                      style: TextStyle(color: cs.onSurfaceVariant)))
               : AbsorbPointer(
                   absorbing: _busy,
                   child: ListView(
@@ -134,7 +134,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: cs.surface,
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: softShadow(),
                         ),
@@ -142,7 +142,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                           children: [
                             CircleAvatar(
                               radius: 34,
-                              backgroundColor: kPrimarySoft,
+                              backgroundColor: cs.primaryContainer,
                               backgroundImage: (u.profileImage ?? '').isNotEmpty
                                   ? CachedNetworkImageProvider(u.profileImage!)
                                   : null,
@@ -151,11 +151,11 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                                       u.fullname.isNotEmpty
                                           ? u.fullname[0].toUpperCase()
                                           : '?',
-                                      style: const TextStyle(
+                                      style:  TextStyle(
                                         fontSize: 24,
                                         fontWeight: FontWeight.bold,
                                         fontFamily: kFontBold,
-                                        color: kAuthPrimary,
+                                        color: cs.primary,
                                       ),
                                     )
                                   : null,
@@ -164,18 +164,18 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                             Text(
                               u.fullname,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
+                              style:  TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                                 fontFamily: kFontBold,
-                                color: Colors.black87,
+                                color: cs.onSurface,
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               '@${u.username ?? '-'}',
-                              style: const TextStyle(
-                                  fontSize: 13, color: Colors.black54),
+                              style:  TextStyle(
+                                  fontSize: 13, color: cs.onSurfaceVariant),
                             ),
                             const SizedBox(height: 10),
                             Wrap(
@@ -246,7 +246,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
       ),
@@ -260,19 +260,19 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: kAuthPrimary),
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
           const SizedBox(width: 10),
           SizedBox(
             width: 110,
             child: Text(label,
-                style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                style:  TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ),
           Expanded(
             child: Text(value,
-                style: const TextStyle(
+                style:  TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
-                    color: Colors.black87)),
+                    color: Theme.of(context).colorScheme.onSurface)),
           ),
         ],
       ),

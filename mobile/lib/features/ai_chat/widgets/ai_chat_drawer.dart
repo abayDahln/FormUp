@@ -30,8 +30,9 @@ class AiChatDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Drawer(
-      backgroundColor: Colors.white,
+      backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.horizontal(right: Radius.circular(16)),
       ),
@@ -43,34 +44,34 @@ class AiChatDrawer extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Row(
                 children: [
-                  const AiChatIcon(color: kAuthPrimary, size: 26, filled: true),
+                  AiChatIcon(color: cs.primary, size: 26, filled: true),
                   const SizedBox(width: 10),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'FormUp AI',
                         style: TextStyle(
                           fontFamily: kFontBold,
                           fontSize: 16,
-                          color: Colors.black87,
+                          color: cs.onSurface,
                         ),
                       ),
                       Text(
                         modelDisplay,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: Colors.black54,
+                          color: cs.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.close,
                       size: 22,
-                      color: Colors.black87,
+                      color: cs.onSurface,
                     ),
                     tooltip: 'Tutup',
                     onPressed: () => Navigator.pop(context),
@@ -106,7 +107,7 @@ class AiChatDrawer extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade700,
+                    color: cs.onSurfaceVariant,
                     letterSpacing: 0.8,
                   ),
                 ),
@@ -114,10 +115,13 @@ class AiChatDrawer extends StatelessWidget {
             ),
             Expanded(
               child: sessions.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text(
                         'Belum ada riwayat',
-                        style: TextStyle(fontSize: 12, color: Colors.black45),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                        ),
                       ),
                     )
                   : ListView.separated(
@@ -154,8 +158,8 @@ class AiChatDrawer extends StatelessWidget {
                                         : Icons.chat_bubble_outline,
                                     size: 16,
                                     color: isSelected
-                                        ? kAuthPrimary
-                                        : Colors.black54,
+                                        ? cs.primary
+                                        : cs.onSurfaceVariant,
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
@@ -166,8 +170,8 @@ class AiChatDrawer extends StatelessWidget {
                                       style: TextStyle(
                                         fontSize: 13,
                                         color: isSelected
-                                            ? kAuthPrimary
-                                            : Colors.black87,
+                                            ? cs.primary
+                                            : cs.onSurface,
                                         fontWeight: isSelected
                                             ? FontWeight.bold
                                             : FontWeight.normal,
@@ -177,12 +181,12 @@ class AiChatDrawer extends StatelessWidget {
                                   InkWell(
                                     onTap: () =>
                                         _confirmDelete(context, s.id, s.title),
-                                    child: const Padding(
-                                      padding: EdgeInsets.all(4),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(4),
                                       child: Icon(
                                         Icons.close,
                                         size: 14,
-                                        color: Colors.black38,
+                                        color: cs.onSurfaceVariant,
                                       ),
                                     ),
                                   ),
@@ -201,10 +205,10 @@ class AiChatDrawer extends StatelessWidget {
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.settings_outlined,
                       size: 24,
-                      color: Colors.black87,
+                      color: cs.onSurface,
                     ),
                     title: const Text(
                       'Pengaturan',
