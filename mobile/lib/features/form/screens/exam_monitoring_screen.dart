@@ -5,6 +5,7 @@ import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 
 /// Pantauan LIVE mode ujian untuk owner — setara tab monitoring di web:
@@ -176,9 +177,11 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
       ),
       body: _loading && data == null
           ? const AppLoadingOverlay()
-          : RefreshIndicator(
+          : AppRefreshIndicator(
               onRefresh: () => _fetch(silent: true),
+              indicatorColor: cs.primary,
               child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                 children: [
                   if (data != null) ...[

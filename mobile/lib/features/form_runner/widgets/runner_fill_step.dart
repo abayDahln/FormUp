@@ -23,6 +23,7 @@ class RunnerFillStep extends StatelessWidget {
   final ValueChanged<int> onAnswerChanged;
   final ValueChanged<int> onPickDateTime;
   final bool disablePaste;
+  final ScrollPhysics? physics;
   // Tandai ragu-ragu ala web (khusus mode ujian).
   final Set<int> markedIds;
   final bool showMarkButton;
@@ -44,6 +45,7 @@ class RunnerFillStep extends StatelessWidget {
     required this.onAnswerChanged,
     required this.onPickDateTime,
     this.disablePaste = false,
+    this.physics,
     this.markedIds = const {},
     this.showMarkButton = false,
     this.onToggleMark,
@@ -60,6 +62,7 @@ class RunnerFillStep extends StatelessWidget {
   /// Mode Single Page
   Widget _buildSinglePage() {
     return SingleChildScrollView(
+      physics: physics ?? const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -87,6 +90,7 @@ class RunnerFillStep extends StatelessWidget {
     final isLast = currentQuestion == questions.length - 1;
     final canGoBack = currentQuestion > 0;
     return ListView(
+      physics: physics ?? const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       children: [
         _buildQuestionCard(currentQuestion),

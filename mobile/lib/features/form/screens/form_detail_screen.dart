@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/form_share_sheet.dart';
 import 'package:form_up/core/router/app_router.dart';
@@ -24,8 +25,9 @@ class FormDetailScreen extends StatefulWidget {
 class _FormDetailScreenState extends State<FormDetailScreen> {
   FormData? _form;
   // Settings detail (isExamMode/detectTabSwitch) — hanya ada di
-  // endpoint detail, tidak di list. Selama belum dimuat, pantau ujian
-  // tetap ditampilkan (perilaku lama) agar tidak hilang sesaat.
+  // endpoint detail, tidak di list. Selama belum dimuat, Pantau Ujian
+  // DISEMBUNYIKAN (default false) agar tidak bisa diklik Kilat sebelum
+  // tombolnya hilang pada form non-ujian.
   Map<String, dynamic>? _settings;
 
   @override
@@ -36,15 +38,17 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
   }
 
   /// Pantau Ujian hanya untuk form tipe/mode ujian.
+  /// Belum tahu (settings null / gagal load) = sembunyikan, tanpa celah.
   bool get _showExamMonitoring {
     final s = _settings;
-    if (s == null) return true;
+    if (s == null) return false;
     return s['isExamMode'] == true || s['detectTabSwitch'] == true;
   }
 
   Future<void> _fetch() async {
     try {
-      final data = await FormService.getForm(widget.formId);
+      // Bypass cache form detail agar swipe-refresh selalu segar.
+      final data = await FormService.getForm(widget.formId, refresh: true);
       if (!mounted) return;
       setState(() {
         _form = FormData.fromJson(data);
@@ -135,19 +139,24 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
       ),
       body: form == null
           ? const AppLoadingOverlay()
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-              children: [
-                FormDetailHeader(form: form),
-                const SizedBox(height: 16),
-                FormDetailActions(
-                    form: form,
-                    onPush: _push,
-                    onShare: _openShare,
-                    showExamMonitoring: _showExamMonitoring),
-                const SizedBox(height: 16),
-                FormDetailPublishCard(form: form, onToggle: _togglePublish),
-              ],
+          : AppRefreshIndicator(
+              onRefresh: () async => _fetch(),
+              indicatorColor: cs.primary,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                children: [
+                  FormDetailHeader(form: form),
+                  const SizedBox(height: 16),
+                  FormDetailActions(
+                      form: form,
+                      onPush: _push,
+                      onShare: _openShare,
+                      showExamMonitoring: _showExamMonitoring),
+                  const SizedBox(height: 16),
+                  FormDetailPublishCard(form: form, onToggle: _togglePublish),
+                ],
+              ),
             ),
     );
   }

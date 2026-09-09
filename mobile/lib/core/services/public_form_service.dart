@@ -316,11 +316,14 @@ class PublicFormService {
   }
 
   /// POST /public/forms/{formLink}/questions
+  /// [refresh]=true melewati cache (dipakai swipe-refresh saat mengerjakan).
   static Future<List<PublicQuestion>> getQuestions(
     String formLink, {
     String? token,
+    bool refresh = false,
   }) async {
     final cacheKey = 'publicForms:questions:$_scope:$formLink:${token ?? ''}';
+    if (refresh) ApiCache.invalidate(cacheKey);
     return ApiCache.get(cacheKey, const Duration(seconds: 120), () async {
       final json = await AuthService.post('/public/forms/$formLink/questions', {
         if (token != null && token.isNotEmpty) 'token': token,

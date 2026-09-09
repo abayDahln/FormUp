@@ -560,8 +560,12 @@ class FormService {
     return data['id'] as int;
   }
 
-  /// GET /forms/{id} — v2 bust cache agar formToken yang sebelumnya hilang ikut terambil
-  static Future<Map<String, dynamic>> getForm(int id) async {
+  /// GET /forms/{id} — v2 bust cache agar formToken yang sebelumnya hilang ikut terambil.
+  /// [refresh]=true melewati cache (dipakai swipe-refresh).
+  static Future<Map<String, dynamic>> getForm(int id, {bool refresh = false}) async {
+    if (refresh) {
+      ApiCache.invalidate('forms:detail:v2:$_scope:$id');
+    }
     return ApiCache.get(
       'forms:detail:v2:$_scope:$id',
       const Duration(seconds: 30),

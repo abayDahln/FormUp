@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -540,10 +541,32 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     }
   }
 
-  /// Submit jawaban. Mengembalikan true bila berhasil, false bila gagal/validasi.
-  // Future<bool> _submit() async {
-  //   return _submitInternal(returnToStartScreen: false);
-  // }
+  /// Swipe-refresh saat mengerjakan: ambil soal terbaru, HANYA jawaban
+  /// soal yang berubah isinya yang di-reset — sisanya dipertahankan.
+  Future<void> _refreshQuestions() async {
+    if (_loading || _submitting || _step != _RunnerStep.fill) return;
+    try {
+      final diff = await _c.refreshQuestions(_c.tokenController.text);
+      if (!mounted) return;
+      final alive = {for (final q in _c.questions) q.id};
+      setState(() {
+        _errorQuestionIds.removeWhere((id) => !alive.contains(id));
+        _markedForReview.removeWhere((id) => !alive.contains(id));
+      });
+      if (!mounted) return;
+      final parts = <String>[];
+      if ((diff['changed'] ?? 0) > 0) parts.add('${diff['changed']} soal berubah');
+      if ((diff['added'] ?? 0) > 0) parts.add('${diff['added']} soal baru');
+      if ((diff['removed'] ?? 0) > 0) parts.add('${diff['removed']} soal dihapus');
+      showAuthToast(
+        context,
+        parts.isEmpty ? 'Soal sudah terbaru' : 'Diperbarui: ${parts.join(', ')}',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    }
+  }
 
   Future<bool> _submitInternal({
     required bool returnToStartScreen,
@@ -674,6 +697,13 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     }
     if (themeBg != null && _step == _RunnerStep.fill) {
       fillWidget = Container(color: themeBg, child: fillWidget);
+    }
+    if (_step == _RunnerStep.fill && !_submitting) {
+      // Swipe-refresh soal: hanya soal berubah yang jawabannya di-reset.
+      fillWidget = AppRefreshIndicator(
+        onRefresh: _refreshQuestions,
+        child: fillWidget,
+      );
     }
     return switch (_step) {
       _RunnerStep.code => RunnerCodeStep(

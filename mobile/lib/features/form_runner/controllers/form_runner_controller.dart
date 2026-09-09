@@ -54,6 +54,27 @@ class FormRunnerController {
     return questions;
   }
 
+  /// Refresh daftar soal TANPA menghanguskan jawaban: hanya soal yang
+  /// berubah isinya yang jawabannya di-reset. Mengembalikan ringkasan
+  /// {added, removed, changed} untuk toast info.
+  Future<Map<String, int>> refreshQuestions(String token) async {
+    final prevSig = {
+      for (final q in questions) q.id: RunnerAnswerStore.signatureOf(q),
+    };
+    final next = await PublicFormService.getQuestions(
+      formLink!,
+      token: token.trim().isEmpty ? null : token.trim(),
+      refresh: true,
+    );
+    final diff = store.syncQuestions(next, prevSig);
+    questions = next;
+    formTypeId = info?.formTypeId ?? 1;
+    if (currentQuestion >= questions.length) {
+      currentQuestion = questions.isEmpty ? 0 : questions.length - 1;
+    }
+    return diff;
+  }
+
   /// Kirim jawaban; mengembalikan id respons.
   Future<int> submitAnswers(
     List<Map<String, dynamic>> answers, {

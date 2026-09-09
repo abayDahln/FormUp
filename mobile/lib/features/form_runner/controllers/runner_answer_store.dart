@@ -51,6 +51,90 @@ class RunnerAnswerStore {
     init(questions);
   }
 
+  /// Sidik soal untuk deteksi perubahan (tipe + teks + opsi).
+  /// Perubahan judul/required/order tidak mereset jawaban.
+  static String signatureOf(PublicQuestion q) {
+    final opts = q.options.map((o) => '${o.id}:${o.optionText}').join(';');
+    return '${q.typeId}|${q.question}|$opts';
+  }
+
+  void _clearAnswer(int id) {
+    textAnswers[id]?.dispose();
+    essayFocusNodes[id]?.dispose();
+    textAnswers.remove(id);
+    essayFocusNodes.remove(id);
+    singleAnswers.remove(id);
+    multiAnswers.remove(id);
+    tfAnswers.remove(id);
+    datetimeAnswers.remove(id);
+  }
+
+  void _initEmpty(PublicQuestion q) {
+    switch (q.typeId) {
+      case 1:
+        textAnswers[q.id] = TextEditingController();
+        essayFocusNodes[q.id] = FocusNode();
+        break;
+      case 4:
+        datetimeAnswers[q.id] = null;
+        break;
+      case 5:
+        tfAnswers[q.id] = null;
+        break;
+      case 2:
+        singleAnswers[q.id] = null;
+        break;
+      case 3:
+        multiAnswers[q.id] = {};
+        break;
+    }
+  }
+
+  /// Sinkronkan daftar soal baru hasil refresh TANPA menghanguskan semua:
+  /// - Soal yang tidak berubah (sidik sama) → jawaban dipertahankan.
+  /// - Soal yang berubah isinya → jawabannya saja yang di-reset.
+  /// - Soal baru → diinisialisasi kosong. Soal terhapus → dibuang.
+  /// Mengembalikan {added, removed, changed}.
+  Map<String, int> syncQuestions(
+    List<PublicQuestion> next,
+    Map<int, String> prevSignatures,
+  ) {
+    final nextIds = {for (final q in next) q.id};
+    var added = 0, removed = 0, changed = 0;
+
+    final knownIds = <int>{
+      ...textAnswers.keys,
+      ...singleAnswers.keys,
+      ...multiAnswers.keys,
+      ...tfAnswers.keys,
+      ...datetimeAnswers.keys,
+    };
+    for (final id in knownIds) {
+      if (!nextIds.contains(id)) {
+        _clearAnswer(id);
+        removed++;
+      }
+    }
+
+    for (final q in next) {
+      final prev = prevSignatures[q.id];
+      if (prev == null) {
+        _clearAnswer(q.id);
+        _initEmpty(q);
+        added++;
+      } else if (prev != signatureOf(q)) {
+        _clearAnswer(q.id);
+        _initEmpty(q);
+        changed++;
+      }
+    }
+
+    questionKeys
+      ..clear()
+      ..addAll([for (var i = 0; i < next.length; i++) GlobalKey()]);
+    return {'added': added, 'removed': removed, 'changed': changed};
+  }
+
   void dispose() {
     for (final c in textAnswers.values) {
       c.dispose();

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -122,8 +123,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final stats = _stats ?? const UserStats();
 
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 15, 20, 24),
+      child: AppRefreshIndicator(
+        onRefresh: _load,
+        indicatorColor: cs.primary,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 15, 20, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -236,6 +241,7 @@ if (_loading)
               ),
             ],
           ],
+        ),
         ),
       ),
     );
