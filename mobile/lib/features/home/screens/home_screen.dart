@@ -18,9 +18,6 @@ import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/widgets/onboarding_tour.dart';
 import 'package:form_up/features/home/widgets/user_guide_sheet.dart';
-import 'package:form_up/features/ai_chat/screens/ai_chat_screen.dart';
-import 'package:form_up/features/home/screens/response_screen.dart';
-import 'package:form_up/features/profile/screens/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String username;
@@ -108,6 +105,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 'Ketuk + untuk membuat form baru, lalu kelola soal, kunci jawaban, dan pengaturannya.',
             icon: Icons.add_circle_outline,
             onEnter: () => _goTab(1),
+            // FAB muncul dengan animasi + setelah pindah tab: kunci posisi
+            // setelah layout final agar lubang tidak offsite.
+            settleMs: 500,
+            spotlightPadding: 10,
           ),
           OnboardingStep(
             anchorKey: AiChatScreen.inputTourKey,

@@ -13,6 +13,13 @@ class OnboardingStep {
   final IconData icon;
   final VoidCallback? onEnter;
 
+  /// Jeda (ms) setelah langkah aktif sebelum posisi dikunci — untuk anchor
+  /// yang baru muncul (pindah tab / animasi FAB) agar tidak terkunci prematur.
+  final int settleMs;
+
+  /// Padding lubang spotlight khusus langkah ini.
+  final double spotlightPadding;
+
   const OnboardingStep({
     this.anchorKey,
     this.extraAnchorKeys = const [],
@@ -20,6 +27,8 @@ class OnboardingStep {
     required this.description,
     this.icon = Icons.lightbulb_outline,
     this.onEnter,
+    this.settleMs = 150,
+    this.spotlightPadding = 6,
   });
 }
 
@@ -61,7 +70,7 @@ class _OnboardingTourState extends State<OnboardingTour> {
     widget.onComplete();
   }
 
-  Rect? _boxRect(GlobalKey key, Size screen) {
+  Rect? _boxRect(GlobalKey key, Size screen, double padding) {
     final ctx = key.currentContext;
     if (ctx == null) return null;
     final box = ctx.findRenderObject() as RenderBox?;
@@ -70,10 +79,10 @@ class _OnboardingTourState extends State<OnboardingTour> {
     }
     final pos = box.localToGlobal(Offset.zero);
     var rect = Rect.fromLTWH(
-      pos.dx - 6,
-      pos.dy - 6,
-      box.size.width + 12,
-      box.size.height + 12,
+      pos.dx - padding,
+      pos.dy - padding,
+      box.size.width + padding * 2,
+      box.size.height + padding * 2,
     );
     // Jepit ke layar agar lubang di tepi (mis. FAB) tidak kepotong.
     rect = Rect.fromLTRB(
@@ -86,7 +95,7 @@ class _OnboardingTourState extends State<OnboardingTour> {
     return rect;
   }
 
-  void _locate() {
+  void _locate({bool resettle = true}) {
     if (!mounted || _done) return;
     final step = widget.steps[_index];
     final screen = MediaQuery.of(context).size;
@@ -96,7 +105,7 @@ class _OnboardingTourState extends State<OnboardingTour> {
       ...step.extraAnchorKeys,
     ];
     for (final key in keys) {
-      final rect = _boxRect(key, screen);
+      final rect = _boxRect(key, screen, step.spotlightPadding);
       if (rect != null) rects.add(rect);
     }
     if (rects.isEmpty && keys.isNotEmpty && _locateTries < 8) {
@@ -118,6 +127,14 @@ class _OnboardingTourState extends State<OnboardingTour> {
           screen.height - union.bottom < 300 &&
           union.top > 320;
     });
+    if (resettle && rects.isNotEmpty && step.settleMs > 0) {
+      // Kunci ulang posisi setelah jeda: mengejar layout yang masih
+      // bergeser (animasi tab/FAB) agar lubang tidak offsite.
+      final index = _index;
+      Future.delayed(Duration(milliseconds: step.settleMs), () {
+        if (mounted && !_done && _index == index) _locate(resettle: false);
+      });
+    }
   }
 
   void _go(int next) {
