@@ -4,6 +4,7 @@ import 'package:form_up/core/theme_controller.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/widgets/onboarding_tour.dart';
 
 /// Pengaturan aplikasi
 class SettingsScreen extends StatefulWidget {
@@ -36,6 +37,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await AuthService.logout();
     if (!context.mounted) return;
     AppRouter.of(context).resetToLogin();
+  }
+
+  /// Menu Panduan Aplikasi: LANGSUNG aksi — kembali + mulai tur Beranda
+  /// dari awal (seperti user baru). Bukan sekadar teks panduan.
+  void _openGuide() async {
+    await OnboardingFlags.reset('home', AuthService.email);
+    await OnboardingFlags.reset('questions', AuthService.email);
+    if (!context.mounted) return;
+    AppRouter.of(context).pop();
+    // HomeScreen yang mendengar akan pindah ke tab Beranda + tampilkan tur.
+    homeTourRequest.value++;
   }
 
   @override
@@ -139,7 +151,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ]),
 
-                const SizedBox(height: 32),
+                _sectionLabel('Bantuan'),
+                const SizedBox(height: 10),
+                _settingsCard(children: [
+                  _guideTile(
+                    context,
+                    icon: Icons.book_outlined,
+                    title: 'Panduan Aplikasi',
+                    subtitle: 'Baca panduan & ulangi tur interaktif',
+                    onTap: _openGuide,
+                  ),
+                ]),
+                const SizedBox(height: 24),
+
+                const SizedBox(height: 8),
                 AuthPrimaryButton(
                   label: "Keluar dari Akun",
                   pill: true,
@@ -176,6 +201,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Material(
         type: MaterialType.transparency,
         child: Column(children: children),
+      ),
+    );
+  }
+
+  Widget _guideTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: cs.primaryContainer,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: cs.primary, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+          ],
+        ),
       ),
     );
   }

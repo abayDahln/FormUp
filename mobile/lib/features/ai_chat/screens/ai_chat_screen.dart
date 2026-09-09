@@ -34,6 +34,9 @@ part 'parts/chat_history_ops.dart';
 class AiChatScreen extends StatefulWidget {
   final bool embedded;
 
+  /// Anchor tur panduan untuk field prompt chat.
+  static final inputTourKey = GlobalKey();
+
   /// Form yang otomatis di-mention saat screen dibuka (shortcut dari
   /// kelola soal) — field prompt langsung berisi @JudulForm.
   final int? initialFormId;
@@ -407,22 +410,25 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         onAccept: acceptPendingAction,
                         onReject: rejectPendingAction,
                       ),
-                    ChatInputBar(
-                      textController: _controller,
-                      streaming: _streaming,
-                      sending: _sending,
-                      mentionActive: _isMentionActive,
-                      mentionCandidates: _mentionCandidates,
-                      mentionQuery: _mentionQuery,
-                      isLoadingForms: _isLoadingForms,
-                      formsLoadFailed: _formsLoadFailed,
-                      formsLoadError: _formsLoadError,
-                      pickedMentionCount: _pickedMentions.length,
-                      hasAtSign: _controller.text.contains('@'),
-                      onSend: send,
-                      onStop: stopGeneration,
-                      onSelectMention: selectMention,
-                      onRetryLoadForms: () => loadAllForms(force: true),
+                    Container(
+                      key: AiChatScreen.inputTourKey,
+                      child: ChatInputBar(
+                        textController: _controller,
+                        streaming: _streaming,
+                        sending: _sending,
+                        mentionActive: _isMentionActive,
+                        mentionCandidates: _mentionCandidates,
+                        mentionQuery: _mentionQuery,
+                        isLoadingForms: _isLoadingForms,
+                        formsLoadFailed: _formsLoadFailed,
+                        formsLoadError: _formsLoadError,
+                        pickedMentionCount: _pickedMentions.length,
+                        hasAtSign: _controller.text.contains('@'),
+                        onSend: send,
+                        onStop: stopGeneration,
+                        onSelectMention: selectMention,
+                        onRetryLoadForms: () => loadAllForms(force: true),
+                      ),
                     ),
                   ],
                 ),

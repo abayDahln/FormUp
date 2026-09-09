@@ -16,6 +16,11 @@ import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/services/public_form_service.dart';
+import 'package:form_up/core/widgets/onboarding_tour.dart';
+import 'package:form_up/features/home/widgets/user_guide_sheet.dart';
+import 'package:form_up/features/ai_chat/screens/ai_chat_screen.dart';
+import 'package:form_up/features/home/screens/response_screen.dart';
+import 'package:form_up/features/profile/screens/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String username;
@@ -38,11 +43,18 @@ class _HomeScreenState extends State<HomeScreen> {
   final _codeController = TextEditingController();
   bool _validatingCode = false;
 
+  // Anchor tur panduan (Beranda).
+  final _kerjakanKey = GlobalKey();
+  final _fabKey = GlobalKey();
+  OverlayEntry? _tourOverlay;
+  bool _tourAutoChecked = false;
+
   @override
   void initState() {
     super.initState();
     formsVersion.addListener(_onFormsChanged);
     NetworkStatus.onlineTick.addListener(_onOnline);
+    homeTourRequest.addListener(_onHomeTourRequested);
     _load();
   }
 
@@ -52,13 +64,115 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _tourOverlay?.remove();
+    _tourOverlay = null;
     formsVersion.removeListener(_onFormsChanged);
     NetworkStatus.onlineTick.removeListener(_onOnline);
+    homeTourRequest.removeListener(_onHomeTourRequested);
     _codeController.dispose();
     super.dispose();
   }
 
   void _onFormsChanged() => _load();
+
+  // ── Onboarding tur Beranda ──────────────────────────────────────────
+  // Otomatis sekali per akun (login pertama); Lewati tersedia kapan saja
+  // selama tur berjalan; ulangi via tombol bantuan / Settings > Panduan.
+
+  Future<void> _maybeAutoTour() async {
+    if (_tourAutoChecked || _tourOverlay != null || !mounted) return;
+    _tourAutoChecked = true;
+    if (await OnboardingFlags.isSeen('home', AuthService.email)) return;
+    if (!mounted) return;
+    // Tunggu frame selesai agar anchor sudah ter-layout.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showHomeTour());
+  }
+
+  void _showHomeTour() {
+    if (_tourOverlay != null || !mounted) return;
+    _tourOverlay = OverlayEntry(
+      builder: (_) => OnboardingTour(
+        // Alur singkat: Beranda → Form → AI Chat → Respons → Profil.
+        steps: [
+          OnboardingStep(
+            anchorKey: _kerjakanKey,
+            title: '1. Masuk / Kerjakan Form',
+            description:
+                'Punya kode atau QR form? Masukkan di sini untuk langsung mengerjakan. Mau buat sendiri? Lanjut tur.',
+            icon: Icons.qr_code_scanner_outlined,
+          ),
+          OnboardingStep(
+            anchorKey: _fabKey,
+            title: '2. Buat Form',
+            description:
+                'Ketuk + untuk membuat form baru, lalu kelola soal, kunci jawaban, dan pengaturannya.',
+            icon: Icons.add_circle_outline,
+            onEnter: () => _goTab(1),
+          ),
+          OnboardingStep(
+            anchorKey: AiChatScreen.inputTourKey,
+            title: '3. Chat AI',
+            description:
+                'Ketik di kolom ini — mis. "Buatkan 5 soal tentang fotosintesis". Periksa lalu Terima.',
+            icon: Icons.auto_awesome_outlined,
+            onEnter: () => _goTab(2),
+          ),
+          OnboardingStep(
+            anchorKey: ResponseScreen.topTourKey,
+            title: '4. Respons',
+            description:
+                'Tab Riwayat untuk form yang kamu isi, tab Responden untuk form milikmu. Pantau nilai di sini.',
+            icon: Icons.bar_chart_outlined,
+            onEnter: () => _goTab(3),
+          ),
+          OnboardingStep(
+            anchorKey: ProfileScreen.editTourKey,
+            extraAnchorKeys: [ProfileScreen.passwordTourKey],
+            title: '5. Profil',
+            description:
+                'Ubah data lewat Edit Profil dan ganti kata sandi lewat Ubah Kata Sandi.',
+            icon: Icons.person_outline,
+            onEnter: () => _goTab(4),
+          ),
+        ],
+        onComplete: () async {
+          _tourOverlay?.remove();
+          _tourOverlay = null;
+          if (mounted) _goTab(0);
+          await OnboardingFlags.markSeen('home', AuthService.email);
+        },
+      ),
+    );
+    Overlay.of(context).insert(_tourOverlay!);
+  }
+
+  void _goTab(int index) {
+    if (!mounted || _currentIndex == index) return;
+    setState(() {
+      _visitedTabs.add(index);
+      _currentIndex = index;
+    });
+  }
+
+  /// Dipicu menu Panduan di Settings: langsung ke Beranda + mulai tur.
+  void _onHomeTourRequested() {
+    if (!mounted) return;
+    _tourAutoChecked = true;
+    _goTab(0);
+    // Tunggu pindah tab selesai layout sebelum spotlight dihitung.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showHomeTour());
+  }
+
+  void _openGuide() {
+    UserGuideSheet.show(
+      context,
+      onStartTour: () async {
+        await OnboardingFlags.reset('home', AuthService.email);
+        _tourAutoChecked = true;
+        _showHomeTour();
+      },
+    );
+  }
 
   Future<void> _load() async {
     setState(() => _loading = true);
@@ -72,6 +186,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _myForms = results[0] as List<FormData>;
         _myResponses = results[1] as List<MyResponseItem>;
       });
+      _maybeAutoTour();
     } catch (e) {
       if (!mounted) return;
       // Konsisten: selalu toast float, tidak ada banner inline di dalam view
@@ -158,6 +273,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 20),
 
             HomeKerjakanCard(
+              key: _kerjakanKey,
               codeController: _codeController,
               onStart: _start,
               onOpenScanner: _openScanner,
@@ -276,6 +392,7 @@ class _HomeScreenState extends State<HomeScreen> {
               width: 68,
               height: 68,
               child: FloatingActionButton(
+                key: _fabKey,
                 onPressed: () {
                   AppRouter.of(context).push(AppPage.formTemplateChooser);
                 },
@@ -302,6 +419,16 @@ class _HomeScreenState extends State<HomeScreen> {
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
             color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        IconButton(
+          tooltip: 'Panduan aplikasi',
+          visualDensity: VisualDensity.compact,
+          onPressed: _openGuide,
+          icon: Icon(
+            Icons.help_outline,
+            size: 20,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
       ],

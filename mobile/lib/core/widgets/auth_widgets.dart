@@ -369,7 +369,12 @@ class AuthPrimaryButton extends StatelessWidget {
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, letterSpacing: 0.1)),
+                  Flexible(
+                    child: Text(label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, letterSpacing: 0.1)),
+                  ),
                   if (showArrow) ...[
                     const SizedBox(width: 8),
                     const Icon(Icons.arrow_forward_rounded, size: 18),

@@ -16,6 +16,7 @@ import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/widgets/ai_chat_icon.dart';
+import 'package:form_up/core/widgets/onboarding_tour.dart';
 import 'package:form_up/features/form/controllers/question_payload_builder.dart';
 import 'package:form_up/features/form/controllers/question_validation.dart';
 import 'package:form_up/features/form/widgets/question_confirm_dialogs.dart';
@@ -47,6 +48,13 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
   bool _saving = false;
   bool _importing = false;
   double? _progress;
+
+  // Anchor tur panduan kelola soal.
+  final _addKey = GlobalKey();
+  final _aiKey = GlobalKey();
+  final _saveKey = GlobalKey();
+  OverlayEntry? _tourOverlay;
+  bool _tourAutoChecked = false;
 
   bool get _hasChanges {
     if (_questions.length != _baseline.length) return true;
@@ -156,7 +164,12 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.formId != null) _loadQuestions();
+    if (widget.formId != null) {
+      _loadQuestions();
+    } else {
+      // Form baru tanpa soal: tawarkan tur mini sekali per akun.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoTour());
+    }
   }
 
   @override
@@ -168,6 +181,8 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
 
   @override
   void dispose() {
+    _tourOverlay?.remove();
+    _tourOverlay = null;
     _router?.popBackGuard();
     for (final q in _questions) {
       q.dispose();
@@ -200,12 +215,59 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
           ..addAll(draftsFromQuestions(questions));
         _baseline = [for (final q in _questions) q.copy()];
       });
+      _maybeAutoTour();
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  /// Tur mini kelola soal: sekali per akun; Lewati tersedia selama tur.
+  Future<void> _maybeAutoTour() async {
+    if (_tourAutoChecked || _tourOverlay != null || !mounted) return;
+    _tourAutoChecked = true;
+    if (await OnboardingFlags.isSeen('questions', AuthService.email)) return;
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showTour());
+  }
+
+  void _showTour() {
+    if (_tourOverlay != null || !mounted) return;
+    _tourOverlay = OverlayEntry(
+      builder: (_) => OnboardingTour(
+        steps: [
+          OnboardingStep(
+            anchorKey: _addKey,
+            title: 'Tambah Soal',
+            description:
+                'Ketuk tombol + untuk menambah soal baru: pilihan ganda, checkbox, essay, benar/salah, atau tanggal.',
+            icon: Icons.add_circle_outline,
+          ),
+          OnboardingStep(
+            anchorKey: _aiKey,
+            title: 'Buat Soal dengan AI',
+            description:
+                'Minta AI buatkan soal untuk form ini — sebutkan topik dan jumlah soal yang kamu mau.',
+            icon: Icons.auto_awesome_outlined,
+          ),
+          OnboardingStep(
+            anchorKey: _saveKey,
+            title: 'Simpan Perubahan',
+            description:
+                'Jangan lupa Simpan agar susunan dan isi soal tersimpan. Geser kartu soal untuk mengubah urutan.',
+            icon: Icons.save_outlined,
+          ),
+        ],
+        onComplete: () async {
+          _tourOverlay?.remove();
+          _tourOverlay = null;
+          await OnboardingFlags.markSeen('questions', AuthService.email);
+        },
+      ),
+    );
+    Overlay.of(context).insert(_tourOverlay!);
   }
 
   Future<void> _addQuestion() async {
@@ -809,6 +871,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                     child: LoadingIndicator.button(),
                   )
                 : FilledButton(
+                    key: _saveKey,
                     onPressed: () async {
                       if (!_hasChanges) {
                         await _save();
@@ -960,6 +1023,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
         children: [
           // Shortcut AI chat: buka chat dengan form ini otomatis di-mention.
           FloatingActionButton.small(
+            key: _aiKey,
             heroTag: 'aiChatForForm',
             onPressed: widget.formId == null
                 ? null
@@ -977,6 +1041,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
             width: 68,
             height: 68,
             child: FloatingActionButton(
+              key: _addKey,
               onPressed: (_saving || _importing) ? null : _addQuestion,
               backgroundColor: kPrimary,
               foregroundColor: Colors.white,

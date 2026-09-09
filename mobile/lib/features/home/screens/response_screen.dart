@@ -46,6 +46,9 @@ extension _AnalyticsSortLabel on _AnalyticsSort {
 class ResponseScreen extends StatefulWidget {
   const ResponseScreen({super.key});
 
+  /// Anchor tur panduan: section atas + tabbar Riwayat/Responden.
+  static final topTourKey = GlobalKey();
+
   @override
   State<ResponseScreen> createState() => _ResponseScreenState();
 }
@@ -334,45 +337,53 @@ class _ResponseScreenState extends State<ResponseScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-             Padding(
-              padding: EdgeInsets.fromLTRB(20, 15, 20, 0),
+            Container(
+              key: ResponseScreen.topTourKey,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Respon',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: kFontBold,
-                      color: cs.onSurface,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 15, 20, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Respon',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: kFontBold,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Riwayat & responden',
+                          style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+                        ),
+                      ],
                     ),
                   ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Riwayat & responden',
-                    style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+                  const SizedBox(height: 14),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      border: Border(bottom: BorderSide(color: cs.outlineVariant)),
+                    ),
+                    child: TabBar(
+                      labelColor: cs.primary,
+                      unselectedLabelColor: Colors.grey,
+                      indicatorColor: cs.primary,
+                      indicatorWeight: 2.5,
+                      dividerColor: Colors.transparent,
+                      labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 13),
+                      unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                      tabs: const [
+                        Tab(text: 'Riwayat'),
+                        Tab(text: 'Responden'),
+                      ],
+                    ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              decoration:  BoxDecoration(
-                color: Theme.of(context).scaffoldBackgroundColor,
-                border: Border(bottom: BorderSide(color: cs.outlineVariant)),
-              ),
-              child: TabBar(
-                labelColor: cs.primary,
-                unselectedLabelColor: Colors.grey,
-                indicatorColor: cs.primary,
-                indicatorWeight: 2.5,
-                dividerColor: Colors.transparent,
-                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 13),
-                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-                tabs: const [
-                  Tab(text: 'Riwayat'),
-                  Tab(text: 'Responden'),
                 ],
               ),
             ),

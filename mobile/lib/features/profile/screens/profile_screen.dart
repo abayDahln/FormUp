@@ -15,6 +15,10 @@ class ProfileScreen extends StatefulWidget {
 
   const ProfileScreen({super.key, required this.username});
 
+  /// Anchor tur panduan: baris Edit Profil & Ubah Kata Sandi.
+  static final editTourKey = GlobalKey();
+  static final passwordTourKey = GlobalKey();
+
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
@@ -212,6 +216,7 @@ if (_loading)
                     const Divider(height: 1, color: Colors.black12),
                     const SizedBox(height: 8),
                     _MenuTile(
+                      key: ProfileScreen.editTourKey,
                       icon: Icons.person_outline,
                       label: 'Edit Profil',
                       onTap: _openEditProfile,
@@ -220,6 +225,7 @@ if (_loading)
                     const Divider(height: 1, indent: 52, color: Colors.black12),
                     const SizedBox(height: 8),
                     _MenuTile(
+                      key: ProfileScreen.passwordTourKey,
                       icon: Icons.lock_outline,
                       label: 'Ubah Kata Sandi',
                       onTap: () =>
@@ -335,7 +341,7 @@ class _MenuTile extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _MenuTile({required this.icon, required this.label, required this.onTap});
+  const _MenuTile({super.key, required this.icon, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
