@@ -739,7 +739,7 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
                                 ? 'Form #${f.formId}'
                                 : f.formTitle,
                             subtitle:
-                                '${f.userName} (${f.userEmail})\n"${f.reason}"${f.description != null && f.description!.isNotEmpty ? ' — ${f.description}' : ''}',
+                                '${f.displayName} (${f.userEmail})\n"${f.reason}"${f.description != null && f.description!.isNotEmpty ? ' — ${f.description}' : ''}',
                             badges: [_formatDate(f.createdAt)],
                             badgeStyle: false,
                             onTap: () async {

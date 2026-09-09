@@ -384,7 +384,27 @@ class PublicFormService {
     return ExamEventResult.fromJson(json['data'] as Map<String, dynamic>);
   }
 
-  /// GET .../responses/{id}
+  /// POST /public/forms/{formLink}/exam-sessions/{sessionId}/sync-answers (Spec B12).
+  /// Simpan draft jawaban sementara agar tidak hilang (mati lampu / force-submit).
+  /// Mengembalikan jumlah jawaban tersimpan; lempar ApiException bila gagal.
+  static Future<int> syncExamAnswers(
+    String formLink,
+    String sessionId, {
+    String? respondentName,
+    required List<Map<String, dynamic>> answers,
+  }) async {
+    final json = await AuthService.post(
+      '/public/forms/$formLink/exam-sessions/$sessionId/sync-answers',
+      {
+        'sessionId': sessionId,
+        if (respondentName != null && respondentName.trim().isNotEmpty)
+          'respondentName': respondentName.trim(),
+        'answers': answers,
+      },
+    );
+    final data = json['data'] as Map<String, dynamic>?;
+    return (data?['saved'] as int?) ?? 0;
+  }
   static Future<PublicFormResult> getResult(
     String formLink,
     int responseId,

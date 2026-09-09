@@ -245,7 +245,7 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
     }
     return [
       for (final s in sessions) ...[
-        _SessionCard(session: s, maxTabSwitch: data.maxTabSwitch ?? 3),
+        _SessionCard(session: s, maxTabSwitch: data.maxTabSwitch ?? 3, formId: widget.formId, onChanged: () => _fetch(silent: true)),
         const SizedBox(height: 10),
       ],
     ];
@@ -547,8 +547,10 @@ String _clockTime(DateTime? time) {
 class _SessionCard extends StatefulWidget {
   final ExamMonitoringSession session;
   final int maxTabSwitch;
+  final int formId;
+  final VoidCallback? onChanged;
 
-  const _SessionCard({required this.session, required this.maxTabSwitch});
+  const _SessionCard({required this.session, required this.maxTabSwitch, required this.formId, this.onChanged});
 
   @override
   State<_SessionCard> createState() => _SessionCardState();
@@ -556,12 +558,67 @@ class _SessionCard extends StatefulWidget {
 
 class _SessionCardState extends State<_SessionCard> {
   bool _expanded = false;
+  bool _acting = false;
 
   ExamMonitoringSession get s => widget.session;
   bool get _high =>
       s.violationCount >= widget.maxTabSwitch ||
       s.tabSwitchCount >= widget.maxTabSwitch;
   bool get _submitted => s.status == 'submitted';
+
+  Future<void> _forceSubmit() async {
+    final id = s.sessionId;
+    if (id == null || id.isEmpty || _acting) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Paksa submit?'),
+        content: Text('Paksa kumpulkan jawaban ${s.respondentName ?? 'peserta'} apa adanya?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Ya, submit')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _acting = true);
+    try {
+      await FormService.forceSubmitExamSession(widget.formId, id);
+      widget.onChanged?.call();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Peserta di-submit paksa')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+    } finally {
+      if (mounted) setState(() => _acting = false);
+    }
+  }
+
+  Future<void> _reset() async {
+    final id = s.sessionId;
+    if (id == null || id.isEmpty || _acting) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset sesi?'),
+        content: const Text('Keluarkan peserta dan reset progres ke 0? Peserta harus mengulang dari awal.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Ya, reset')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _acting = true);
+    try {
+      await FormService.resetExamSession(widget.formId, id);
+      widget.onChanged?.call();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sesi peserta di-reset')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+    } finally {
+      if (mounted) setState(() => _acting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -697,7 +754,7 @@ class _SessionCardState extends State<_SessionCard> {
                 ],
               ),
               const SizedBox(height: 10),
-              // Ringkasan pelanggaran + tanda merah bila tinggi.
+              // Ringkasan pelanggaran + progres jawaban + tanda merah bila tinggi.
               Row(
                 children: [
                   Expanded(
@@ -714,6 +771,14 @@ class _SessionCardState extends State<_SessionCard> {
                       'Pindah tab',
                       '${s.tabSwitchCount}',
                       s.tabSwitchCount > 0 ? Colors.red : cs.onSurfaceVariant,
+                    ),
+                  ),
+                  Expanded(
+                    child: _violationStat(
+                      context,
+                      'Progres',
+                      s.totalQuestions > 0 ? '${s.answeredCount}/${s.totalQuestions}' : '${s.answeredCount}',
+                      cs.onSurfaceVariant,
                     ),
                   ),
                   if (hasViolations)
@@ -788,6 +853,29 @@ class _SessionCardState extends State<_SessionCard> {
                         ),
                     ],
                   ),
+                ),
+              ],
+              // Kontrol owner: paksa submit / reset sesi (hanya sesi aktif).
+              if (!_submitted && s.sessionId != null && s.sessionId!.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _acting ? null : _forceSubmit,
+                        icon: const Icon(Icons.upload_rounded, size: 15),
+                        label: const Text('Paksa submit', style: TextStyle(fontSize: 12)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _acting ? null : _reset,
+                        icon: const Icon(Icons.restart_alt_rounded, size: 15),
+                        label: const Text('Reset sesi', style: TextStyle(fontSize: 12)),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ],

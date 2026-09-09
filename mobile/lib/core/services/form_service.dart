@@ -373,6 +373,8 @@ class FormFeedbackItem {
   final String formTitle;
   final int? userId;
   final String userName;
+  final int? responseId;
+  final String? respondentName;
   final String reason;
   final String? description;
   final DateTime createdAt;
@@ -385,8 +387,18 @@ class FormFeedbackItem {
     required this.reason,
     required this.createdAt,
     this.userId,
+    this.responseId,
+    this.respondentName,
     this.description,
   });
+
+  /// Nama tampilan: akun login > nama guest (responden) > Anonim.
+  String get displayName {
+    if (userName.trim().isNotEmpty && userName.trim() != 'Anonim') return userName;
+    if (respondentName != null && respondentName!.trim().isNotEmpty) return respondentName!;
+    if (userName.trim().isNotEmpty) return userName;
+    return 'Anonim';
+  }
 
   factory FormFeedbackItem.fromJson(Map<String, dynamic> json) => FormFeedbackItem(
         id: json['id'] as int,
@@ -394,6 +406,8 @@ class FormFeedbackItem {
         formTitle: json['formTitle'] as String? ?? '',
         userId: json['userId'] as int?,
         userName: json['userName'] as String? ?? 'Anonim',
+        responseId: json['responseId'] as int?,
+        respondentName: json['respondentName'] as String?,
         reason: json['reason'] as String? ?? '',
         description: json['description'] as String?,
         createdAt: json['createdAt'] != null
@@ -415,6 +429,8 @@ class ExamMonitoringSession {
   final DateTime? submittedAt;
   final int violationCount;
   final int tabSwitchCount;
+  final int answeredCount;
+  final int totalQuestions;
   final List<ExamMonitoringViolation> violations;
 
   const ExamMonitoringSession({
@@ -429,6 +445,8 @@ class ExamMonitoringSession {
     this.submittedAt,
     this.violationCount = 0,
     this.tabSwitchCount = 0,
+    this.answeredCount = 0,
+    this.totalQuestions = 0,
     this.violations = const [],
   });
 
@@ -450,6 +468,8 @@ class ExamMonitoringSession {
         submittedAt: _dt(json['submittedAt']),
         violationCount: json['violationCount'] as int? ?? 0,
         tabSwitchCount: json['tabSwitchCount'] as int? ?? 0,
+        answeredCount: json['answeredCount'] as int? ?? 0,
+        totalQuestions: json['totalQuestions'] as int? ?? 0,
         violations: [
           for (final v in json['violations'] as List<dynamic>? ?? [])
             ExamMonitoringViolation.fromJson(v as Map<String, dynamic>),
@@ -1104,6 +1124,20 @@ class FormService {
     return ExamMonitoringData.fromJson(json['data'] as Map<String, dynamic>);
   }
 
+  /// POST /forms/{formId}/exam-monitoring/sessions/{sessionId}/force-submit
+  /// Paksa submit peserta ujian (owner only). Spec B12.
+  static Future<void> forceSubmitExamSession(int formId, String sessionId) async {
+    await AuthService.post('/forms/$formId/exam-monitoring/sessions/$sessionId/force-submit', {});
+    ApiCache.invalidatePrefix('forms:');
+  }
+
+  /// POST /forms/{formId}/exam-monitoring/sessions/{sessionId}/reset
+  /// Keluarkan/reset peserta ujian — progres kembali ke 0 (owner only). Spec B12.
+  static Future<void> resetExamSession(int formId, String sessionId) async {
+    await AuthService.post('/forms/$formId/exam-monitoring/sessions/$sessionId/reset', {});
+    ApiCache.invalidatePrefix('forms:');
+  }
+
   /// GET /forms/{id}/share
   static Future<Map<String, dynamic>> getShareInfo(int formId) async {
     final json = await AuthService.get('/forms/$formId/share');
@@ -1111,10 +1145,15 @@ class FormService {
   }
 
   /// GET /forms/{formId}/responses/export — csv/xlsx/pdf (owner only)
-  /// Endpoint API: ResponsesController.cs:259 `GET /api/forms/{formId}/responses/export?format=csv|xlsx|pdf`
-  static Future<Uint8List> exportResponses(int formId, {String format = 'csv'}) async {
+  /// Endpoint API: ResponsesController.cs `GET /api/forms/{formId}/responses/export?format=csv|xlsx|pdf&includeAnswerKey=true`
+  static Future<Uint8List> exportResponses(int formId, {String format = 'csv', bool includeAnswerKey = true}) async {
     final fmt = format.toLowerCase();
-    final path = fmt == 'csv' ? '/forms/$formId/responses/export' : '/forms/$formId/responses/export?format=$fmt';
+    final params = <String>[
+      if (fmt != 'csv') 'format=$fmt',
+      if (!includeAnswerKey) 'includeAnswerKey=false',
+    ];
+    final query = params.isEmpty ? '' : '?${params.join('&')}';
+    final path = '/forms/$formId/responses/export$query';
     final bytes = await _authGetBytes(path);
     if (bytes.isEmpty) throw const ApiException('Gagal mengekspor data respons.');
     // Validasi sederhana: endpoint sukses mengembalikan text/csv, error JSON diawali {

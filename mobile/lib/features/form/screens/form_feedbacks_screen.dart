@@ -87,7 +87,7 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
       }
       if (_query.isEmpty) return true;
       final q = _query;
-      final name = fb.userName.toLowerCase();
+      final name = fb.displayName.toLowerCase();
       final reason = fb.reason.toLowerCase();
       final desc = (fb.description ?? '').toLowerCase();
       return name.contains(q) || reason.contains(q) || desc.contains(q);
@@ -309,7 +309,7 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
                                               children: [
                                                 Expanded(
                                                   child: Text(
-                                                    fb.userName,
+                                                    fb.displayName,
                                                     maxLines: 1,
                                                     overflow: TextOverflow.ellipsis,
                                                     style: const TextStyle(

@@ -615,7 +615,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
                               Row(
                                 children: [
                                   Expanded(
-                                    child: Text(fb.userName,
+                                    child: Text(fb.displayName,
                                         style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 13)),
                                   ),
                                   Container(

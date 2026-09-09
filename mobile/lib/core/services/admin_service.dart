@@ -209,9 +209,11 @@ class AdminFeedbackItem {
   final int formId;
   final String formTitle;
   final String formLink;
-  final int userId;
+  final int? userId;
   final String userName;
   final String userEmail;
+  final int? responseId;
+  final String? respondentName;
   final String reason;
   final String? description;
   final DateTime createdAt;
@@ -221,13 +223,23 @@ class AdminFeedbackItem {
     required this.formId,
     required this.formTitle,
     required this.formLink,
-    required this.userId,
+    this.userId,
     required this.userName,
     required this.userEmail,
+    this.responseId,
+    this.respondentName,
     required this.reason,
     required this.createdAt,
     this.description,
   });
+
+  /// Nama tampilan: akun login > nama guest (responden) > Anonim.
+  String get displayName {
+    if (userName.trim().isNotEmpty && userName.trim() != 'Anonim') return userName;
+    if (respondentName != null && respondentName!.trim().isNotEmpty) return respondentName!;
+    if (userName.trim().isNotEmpty) return userName;
+    return 'Anonim';
+  }
 
   factory AdminFeedbackItem.fromJson(Map<String, dynamic> json) =>
       AdminFeedbackItem(
@@ -235,9 +247,11 @@ class AdminFeedbackItem {
         formId: json['formId'] as int,
         formTitle: json['formTitle'] as String? ?? '',
         formLink: json['formLink'] as String? ?? '',
-        userId: json['userId'] as int,
+        userId: json['userId'] as int?,
         userName: json['userName'] as String? ?? '',
         userEmail: json['userEmail'] as String? ?? '',
+        responseId: json['responseId'] as int?,
+        respondentName: json['respondentName'] as String?,
         reason: json['reason'] as String? ?? '',
         description: json['description'] as String?,
         createdAt: _date(json['createdAt']) ?? DateTime.now(),

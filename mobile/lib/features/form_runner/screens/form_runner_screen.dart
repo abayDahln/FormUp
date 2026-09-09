@@ -412,6 +412,8 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
         final exam = ExamSessionClient(
           formLink: _c.formLink!,
           respondentName: _c.isLoggedIn ? null : _c.nameController.text,
+          // Draft sync (Spec B12): kirim jawaban terkini tiap heartbeat.
+          answerProvider: () => _c.store.collectAutoAnswers(_c.questions),
         );
         _exam = exam;
         // Sesi baru: matikan sisa bunyi sesi lama, reset flag.

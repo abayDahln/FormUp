@@ -193,7 +193,7 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              fb.userName.isEmpty ? 'Anonim' : fb.userName,
+                              fb.displayName,
                               style:  TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,

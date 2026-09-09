@@ -17,6 +17,10 @@ class ExamSessionClient {
   final String formLink;
   final String? respondentName;
 
+  /// Penyedia jawaban terkini (format submit) untuk sync draft berkala.
+  /// Diisi runner screen dari answer store; null = sync draft nonaktif.
+  List<Map<String, dynamic>> Function()? answerProvider;
+
   String? sessionId;
   int tabSwitchCount = 0;
   int violationCount = 0;
@@ -27,7 +31,7 @@ class ExamSessionClient {
   // Cegah tick heartbeat tumpang-tindih bila request lambat.
   bool _beatInflight = false;
 
-  ExamSessionClient({required this.formLink, this.respondentName});
+  ExamSessionClient({required this.formLink, this.respondentName, this.answerProvider});
 
   bool get isActive => _started && !_stopped;
 
@@ -87,6 +91,26 @@ class ExamSessionClient {
     } finally {
       _beatInflight = false;
     }
+    // Sync draft jawaban (Spec B12) — best-effort tiap heartbeat (30 dtk).
+    await syncDraft();
+  }
+
+  /// Kirim draft jawaban terkini ke server (best-effort, abaikan gagal).
+  /// Dipanggil tiap heartbeat + bisa dipanggil manual (mis. tiap ganti soal).
+  Future<void> syncDraft() async {
+    final provider = answerProvider;
+    final id = sessionId;
+    if (_stopped || provider == null || id == null || id.isEmpty) return;
+    try {
+      final answers = provider();
+      if (answers.isEmpty) return;
+      await PublicFormService.syncExamAnswers(
+        formLink,
+        id,
+        respondentName: respondentName,
+        answers: answers,
+      );
+    } catch (_) {}
   }
 
   /// Laporkan 1x keluar aplikasi. Mengembalikan true bila server
