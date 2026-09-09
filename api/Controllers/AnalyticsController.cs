@@ -116,7 +116,9 @@ public class AnalyticsController : ControllerBase
                 var correctAnswer = ResponseScorer.GetCorrectAnswerText(q);
                 var isCorrect = ResponseScorer.IsAnswerCorrect(questionAnswerRows, q);
 
-                if (isCorrect == true)
+                // Konsisten dengan ResponseScorer.BuildResult: soal
+                // non-scorable (selalu true vakum) tidak menambah correctCount.
+                if (isCorrect == true && ResponseScorer.IsScorable(q))
                     correctCount++;
 
                 answers.Add(new AnswerAnalytics
@@ -138,7 +140,7 @@ public class AnalyticsController : ControllerBase
                 foreach (var q in questions)
                 {
                     var questionAnswerRows = response.RespondentAnswers.Where(a => a.QuestionId == q.Id).ToList();
-                    if (ResponseScorer.IsAnswerCorrect(questionAnswerRows, q) == true)
+                    if (ResponseScorer.IsScorable(q) && ResponseScorer.IsAnswerCorrect(questionAnswerRows, q) == true)
                     {
                         earned += (q.Points ?? 1);
                     }
@@ -221,7 +223,7 @@ public class AnalyticsController : ControllerBase
             foreach (var q in questions)
             {
                 var rows = group.Where(r => r.QuestionId == q.Id).ToList();
-                var isCorr = ResponseScorer.IsAnswerCorrect(rows, q) == true;
+                var isCorr = ResponseScorer.IsScorable(q) && ResponseScorer.IsAnswerCorrect(rows, q) == true;
                 if (isCorr)
                 {
                     correctCount++;

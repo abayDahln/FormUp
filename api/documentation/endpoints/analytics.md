@@ -57,6 +57,7 @@ Menampilkan statistik lengkap form: total responden, skor tiap responden, rata-r
 **Penjelasan:**
 - `scorableQuestions` = jumlah soal yang memiliki kunci jawaban (CorrectAnswer atau opsi dengan IsCorrect)
 - `score` = `correctCount / scorableQuestions * 100`, null jika tidak ada soal yang bisa diskor
+- `correctCount` hanya menghitung soal scorable yang benar — soal non-scorable (mis. isian nama) tidak menambah pembilang meskipun dinilai `true` vakum, supaya satu soal gratis tidak menutupi satu soal scorable yang salah
 - `averageScore` = rata-rata skor **semua** responden (tidak terpengaruh filter search/pagination)
 - `isCorrect` = `true`/`false` untuk soal yang bisa diskor, `null` untuk soal survey
 - Pagination & pencarian dieksekusi di database; hanya halaman aktif yang dimuat lengkap dengan jawabannya

@@ -4,11 +4,22 @@ namespace FormUpAPI.Services;
 
 public static class ResponseScorer
 {
+    /// <summary>
+    /// Satu soal dianggap bisa dinilai bila punya bobot, kunci jawaban,
+    /// atau minimal satu opsi yang ditandai benar. Soal tanpa ketiganya
+    /// (mis. isian nama) SELALU dinilai benar secara vakum — jadi TIDAK
+    /// BOLEH masuk hitungan correctCount/earnedPoints, kalau tidak satu
+    /// soal "gratis" akan menutupi satu soal scorable yang salah dan skor
+    /// bisa 100% padahal ada jawaban salah (wrongCount &gt; 0).
+    /// </summary>
+    public static bool IsScorable(Question question) =>
+        question.Points.HasValue || !string.IsNullOrEmpty(question.CorrectAnswer) || question.OptionQuestions.Any(o => o.IsCorrect == true);
+
     public static int CountScorable(List<Question> questions) =>
-        questions.Count(q => q.Points.HasValue || !string.IsNullOrEmpty(q.CorrectAnswer) || q.OptionQuestions.Any(o => o.IsCorrect == true));
+        questions.Count(IsScorable);
 
     public static int CountRequiredScorable(List<Question> questions) =>
-        questions.Count(q => q.IsRequired == true && (q.Points.HasValue || !string.IsNullOrEmpty(q.CorrectAnswer) || q.OptionQuestions.Any(o => o.IsCorrect == true)));
+        questions.Count(q => q.IsRequired == true && IsScorable(q));
 
     public static int GetScoringDivisor(List<Question> questions)
     {
@@ -119,7 +130,7 @@ public static class ResponseScorer
                 .ToList();
 
             if (!HasDefinedCorrectAnswer(question))
-                return true;
+                return IsScorable(question) ? true : null;
 
             return selectedOptionIds.SequenceEqual(correctOptions);
         }
@@ -150,8 +161,15 @@ public static class ResponseScorer
 
     private static bool? IsAnswerCorrectInternal(IEnumerable<RespondentAnswer> answerRows, Question question)
     {
+        // Soal non-scorable (tanpa bobot/kunci/opsi-benar, mis. isian nama)
+        // hasilnya NETRAL (null): tidak benar, tidak salah, tidak masuk
+        // hitungan skor. Sebelumnya mengembalikan true vakum sehingga satu
+        // soal gratis menutupi satu soal scorable yang salah (skor 100%
+        // padahal wrongCount > 0) dan soal itu "hilang" dari total
+        // benar+salah. Soal scorable yang tidak punya pembanding
+        // (cuma bobot) tetap true agar bobotnya tidak hangus.
         if (!HasDefinedCorrectAnswer(question))
-            return true;
+            return IsScorable(question) ? true : null;
 
         if (question.TypeId == 3)
         {
@@ -209,13 +227,15 @@ public static class ResponseScorer
                 answeredCount++;
 
             var isCorrect = showScore ? IsAnswerCorrectWithOverride(answerRows, q) : null;
-            if (isCorrect == true)
+            // Hanya soal scorable yang boleh menambah correctCount —
+            // soal non-scorable selalu true secara vakum (lihat IsScorable).
+            if (isCorrect == true && IsScorable(q))
                 correctCount++;
 
             var primary = answer ?? answerRows.FirstOrDefault();
             double? earned = null;
             if (primary?.ManualScore.HasValue == true) earned = primary.ManualScore;
-            else if (isCorrect == true) earned = (double?)(q.Points ?? 1);
+            else if (isCorrect == true && IsScorable(q)) earned = (double?)(q.Points ?? 1);
 
             answers.Add(new ResultAnswer
             {
@@ -258,7 +278,7 @@ public static class ResponseScorer
                     var primary = ansRows.FirstOrDefault();
                     if (primary?.ManualScore.HasValue == true)
                         earnedPoints += primary.ManualScore.Value;
-                    else if (IsAnswerCorrectWithOverride(ansRows, q) == true)
+                    else if (IsScorable(q) && IsAnswerCorrectWithOverride(ansRows, q) == true)
                         earnedPoints += (q.Points ?? 1);
                 }
                 score = Math.Round(earnedPoints, 1);
@@ -276,7 +296,7 @@ public static class ResponseScorer
                         var primary = ansRows.FirstOrDefault();
                         if (primary?.ManualScore.HasValue == true)
                             earnedPoints += primary.ManualScore.Value;
-                        else if (IsAnswerCorrectWithOverride(ansRows, q) == true)
+                        else if (IsScorable(q) && IsAnswerCorrectWithOverride(ansRows, q) == true)
                             earnedPoints += 1;
                     }
                     score = Math.Round(earnedPoints, 1);
