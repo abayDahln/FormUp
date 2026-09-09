@@ -1,29 +1,34 @@
 <!doctype html>
 <html lang="id">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FormUp - Platform Formulir & Kuis Online</title>
-    <script>
-      (function() {
-        try {
-          const theme = localStorage.getItem('theme');
-          if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-            document.documentElement.setAttribute('data-theme', 'dark');
-          } else {
-            document.documentElement.classList.remove('dark');
-            document.documentElement.setAttribute('data-theme', 'light');
-          }
-        } catch (e) {}
-      })();
-    </script>
 
-    <meta name="google-site-verification" content="S_fUnMZD0zopp6NzpE0f60wL2iX0V4_kV7mcSy2we0A" />
-  </head>
-  <body class="bg-[#F4F8F7] dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-200">
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FormUp - Buat Tugas & Kuis Online SMKN 10</title>
+  <script>
+    (function () {
+      try {
+        const theme = localStorage.getItem('theme');
+        if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      } catch (e) { }
+    })();
+  </script>
+  <meta name="description"
+    content="Platform resmi FormUp untuk pembuatan formulir dan kuis online bagi warga SMKN 10." />
+
+  <meta name="google-site-verification" content="S_fUnMZD0zopp6NzpE0f60wL2iX0V4_kV7mcSy2we0A" />
+</head>
+
+<body class="bg-[#F4F8F7] dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-200">
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>
