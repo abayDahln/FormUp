@@ -23,6 +23,8 @@ export default function AdminDashboardPage() {
     const [feedbacks, setFeedbacks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('users');
+    // A3: Sub-tab within feedback tab: 'all' | 'report' | 'masukan'
+    const [feedbackSubTab, setFeedbackSubTab] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const debouncedSearch = useDebounce(searchQuery, 300);
     const [toast, setToast] = useState(null);
@@ -275,6 +277,14 @@ export default function AdminDashboardPage() {
             (fb.userEmail && fb.userEmail.toLowerCase().includes(q))
         );
     });
+
+    // A3: Sub-tab filtering for Report vs Masukan
+    const REPORT_REASONS = ['KONTEN', 'SPAM', 'LAPORAN', 'TIDAK_PANTAS', 'PELECEHAN', 'ILLEGAL'];
+    const subTabFeedbacks = feedbackSubTab === 'all'
+        ? filteredFeedbacks
+        : feedbackSubTab === 'report'
+        ? filteredFeedbacks.filter(fb => REPORT_REASONS.some(r => (fb.reason || '').toUpperCase().includes(r)))
+        : filteredFeedbacks.filter(fb => !REPORT_REASONS.some(r => (fb.reason || '').toUpperCase().includes(r)));
 
     if (loading) return (
         <div className="flex items-center justify-center min-h-screen bg-[#F4F8F7] dark:bg-slate-950">
@@ -661,6 +671,27 @@ export default function AdminDashboardPage() {
                                     ))}
                                 </div>
                             <div className="overflow-x-auto w-full">
+                                {/* A3: Sub-tab navigation */}
+                                <div className="flex items-center gap-1 mb-4 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
+                                    {[
+                                        { key: 'all', label: 'Semua', count: filteredFeedbacks.length },
+                                        { key: 'report', label: '🚨 Laporan', count: filteredFeedbacks.filter(fb => REPORT_REASONS.some(r => (fb.reason || '').toUpperCase().includes(r))).length },
+                                        { key: 'masukan', label: '💬 Masukan', count: filteredFeedbacks.filter(fb => !REPORT_REASONS.some(r => (fb.reason || '').toUpperCase().includes(r))).length },
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.key}
+                                            type="button"
+                                            onClick={() => setFeedbackSubTab(tab.key)}
+                                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                                                feedbackSubTab === tab.key
+                                                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            {tab.label} <span className="ml-1 text-[10px] text-slate-400">({tab.count})</span>
+                                        </button>
+                                    ))}
+                                </div>
                                 <table className="w-full text-sm text-left">
 
                                     <thead>
@@ -674,12 +705,14 @@ export default function AdminDashboardPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {filteredFeedbacks.length === 0 ? (
+                                        {subTabFeedbacks.length === 0 ? (
                                             <tr>
-                                                <td colSpan={6} className="text-center py-8 text-xs text-slate-400">Tidak ada umpan balik / laporan masuk.</td>
+                                                <td colSpan={6} className="text-center py-8 text-xs text-slate-400">
+                                                    {feedbackSubTab === 'report' ? 'Tidak ada laporan masuk.' : feedbackSubTab === 'masukan' ? 'Tidak ada masukan masuk.' : 'Tidak ada umpan balik / laporan masuk.'}
+                                                </td>
                                             </tr>
                                         ) : (
-                                            filteredFeedbacks.map(fb => (
+                                            subTabFeedbacks.map(fb => (
                                                 <tr key={fb.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                                                     <td className="py-3.5 px-4">
                                                         <div className="font-bold text-slate-900 dark:text-white text-xs">{fb.userName || fb.user?.fullname || 'Anonim'}</div>

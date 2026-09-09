@@ -5,7 +5,7 @@ import {
     Globe, Lock, ArrowLeft, Upload, FileUp, Image, Music, Download,
     Code, Calculator, Eye, EyeOff, X, Sparkles,
     Copy, Undo2, Redo2, FileDown, Wand2, ToggleLeft, ToggleRight,
-    ShieldAlert, Palette, CheckSquare, MoreHorizontal, ChevronDown as ChevDown,
+    ShieldAlert, Palette, CheckSquare, MoreHorizontal, MoreVertical, ChevronDown as ChevDown,
     Sliders, Share2, HelpCircle, Compass
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
@@ -145,6 +145,12 @@ export default function FormBuilder() {
 
     // Guided Onboarding Tour for Form Builder
     const [builderTourOpen, setBuilderTourOpen] = useState(false);
+
+    // B1: Upload progress per question index { [idx]: 0-100 | null }
+    const [uploadProgress, setUploadProgress] = useState({});
+
+    // B9: Ref to store last AI generation params for FAB quick-generate
+    const lastAIPromptRef = useRef(null);
 
     useEffect(() => {
         // Cek apakah ada query param ?tour=builder atau pemicu onboarding
@@ -915,12 +921,19 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
     };
 
         const handleUploadQuestionImage = async (idx, file) => {
+        // A1 FIX: Snapshot taken BEFORE await so it reflects pre-upload state
+        const snapshotBeforeUpload = JSON.parse(JSON.stringify(questionsRef.current));
         const qId = await autoSaveBeforeUpload(idx);
         if (!qId) { showToast('Gagal memproses soal sebelum mengunggah gambar', 'error'); return; }
 
-        const res = await uploadQuestionImage(id, qId, file);
+        // B1: Pass onProgress to show real upload progress
+        const res = await uploadQuestionImage(id, qId, file, (pct) => {
+            setUploadProgress(prev => ({ ...prev, [idx]: pct }));
+        });
+        setUploadProgress(prev => ({ ...prev, [idx]: null }));
         if (res.ok) {
-            pushHistory(questionsRef.current);
+            // A1 FIX: Push the pre-upload snapshot so undo restores state before image
+            pushHistory(snapshotBeforeUpload);
             updateQuestion(idx, 'questionImage', res.data?.questionImage ?? null);
             showToast('Gambar soal berhasil diunggah!');
         } else {
@@ -929,12 +942,19 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
     };
 
         const handleUploadQuestionAudio = async (idx, file) => {
+        // A1 FIX: Snapshot taken BEFORE await so it reflects pre-upload state
+        const snapshotBeforeUpload = JSON.parse(JSON.stringify(questionsRef.current));
         const qId = await autoSaveBeforeUpload(idx);
         if (!qId) { showToast('Gagal memproses soal sebelum mengunggah audio', 'error'); return; }
 
-        const res = await uploadQuestionAudio(id, qId, file);
+        // B1: Pass onProgress to show real upload progress
+        const res = await uploadQuestionAudio(id, qId, file, (pct) => {
+            setUploadProgress(prev => ({ ...prev, [idx]: pct }));
+        });
+        setUploadProgress(prev => ({ ...prev, [idx]: null }));
         if (res.ok) {
-            pushHistory(questionsRef.current);
+            // A1 FIX: Push the pre-upload snapshot so undo restores state before audio
+            pushHistory(snapshotBeforeUpload);
             updateQuestion(idx, 'questionAudio', res.data?.questionAudio ?? null);
             showToast('Audio soal berhasil diunggah!');
         } else {
@@ -1385,6 +1405,25 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
 
                                         {/* Media Attachments at the TOP of the Question */}
                                         <div className="pb-3 border-b border-slate-100 dark:border-slate-800 space-y-2">
+                                            {/* B1: Live Upload Progress Bar UI */}
+                                            {uploadProgress[idx] != null && (
+                                                <div className="w-full bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 rounded-xl p-2.5 space-y-1.5 animate-fadeIn">
+                                                    <div className="flex items-center justify-between text-[11px] font-bold text-teal-800 dark:text-teal-300">
+                                                        <span className="flex items-center gap-1.5">
+                                                            <Loader2 size={12} className="animate-spin text-teal-600" />
+                                                            Mengunggah media ke server ({uploadProgress[idx]}%)...
+                                                        </span>
+                                                        <span>{uploadProgress[idx]}%</span>
+                                                    </div>
+                                                    <div className="w-full bg-teal-200/60 dark:bg-teal-900/60 h-1.5 rounded-full overflow-hidden">
+                                                        <div
+                                                            className="bg-teal-600 h-full transition-all duration-200 rounded-full"
+                                                            style={{ width: `${uploadProgress[idx]}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <div className="flex flex-wrap items-center gap-3">
                                                 {/* Image attachment */}
                                                 {q.questionImage ? (
@@ -1571,7 +1610,7 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                                     )}
                                                 </div>
                                                 {q.options.map((opt, oIdx) => (
-                                                    <div key={oIdx} className="space-y-1">
+                                                    <div key={opt._id || opt.id || `opt_${idx}_${oIdx}`} className="space-y-1">
                                                         <div className="flex items-center gap-2">
                                                             {q.isScorable !== false ? (
                                                                 <label className="flex items-center gap-1 cursor-pointer">
@@ -2297,7 +2336,7 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                         {isDirty && (
                             <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 border-2 border-white dark:border-slate-900" />
                         )}
-                        {fabMenuOpen ? <X size={20} /> : <Save size={20} />}
+                        {fabMenuOpen ? <X size={20} /> : <MoreVertical size={20} />}
                     </button>
                 </div>
 

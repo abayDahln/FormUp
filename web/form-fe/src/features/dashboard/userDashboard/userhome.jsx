@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FileText, Users, CheckCircle2, Clock, Edit3, BarChart2, Sparkles, SearchX, ArrowRight, BookOpen, Compass, HelpCircle } from 'lucide-react';
+import { Plus, FileText, Users, CheckCircle2, Clock, Edit3, BarChart2, Sparkles, SearchX, ArrowRight, BookOpen, Compass, HelpCircle, ChevronDown } from 'lucide-react';
 import Sidebar from '../../../components/layout/Sidebar';
 import Topbar from '../../../components/layout/Topbar';
 import AIFormBuilderModal from '../../../components/ui/AIFormBuilderModal';
@@ -26,6 +26,18 @@ const UserHome = () => {
     const [aiFormBuilderOpen, setAiFormBuilderOpen] = useState(false);
     const [onboardingTourOpen, setOnboardingTourOpen] = useState(false);
     const [userGuideOpen, setUserGuideOpen] = useState(false);
+    const [createDropdownOpen, setCreateDropdownOpen] = useState(false);
+    const createDropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (createDropdownRef.current && !createDropdownRef.current.contains(e.target)) {
+                setCreateDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // Register global trigger for manual tour launch from Sidebar/Topbar
     useEffect(() => {
@@ -217,24 +229,42 @@ const UserHome = () => {
                             </p>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setAiFormBuilderOpen(true)}
-                            data-tour="create-ai-btn"
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-500 hover:from-teal-700 hover:to-emerald-600 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer w-full sm:w-auto"
-                        >
-                            <Sparkles size={15} />
-                            <span>Buat dengan AI</span>
-                        </button>
-                        <button
-                            onClick={handleCreateNewForm}
-                            disabled={creatingForm}
-                            data-tour="create-form-btn"
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 dark:bg-teal-600 dark:hover:bg-teal-500 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer w-full sm:w-auto disabled:opacity-60"
-                        >
-                            <Plus size={16} />
-                            <span>{creatingForm ? 'Membuat...' : 'Buat Formulir Baru'}</span>
-                        </button>
+                        <div className="relative" ref={createDropdownRef}>
+                            <button
+                                onClick={() => setCreateDropdownOpen(prev => !prev)}
+                                data-tour="create-form-btn"
+                                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 dark:bg-teal-600 dark:hover:bg-teal-500 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer"
+                            >
+                                <Plus size={16} />
+                                <span>Buat Formulir</span>
+                                <ChevronDown size={14} className={`transition-transform duration-200 ${createDropdownOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            {createDropdownOpen && (
+                                <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
+                                    <button
+                                        onClick={() => { setCreateDropdownOpen(false); handleCreateNewForm(); }}
+                                        disabled={creatingForm}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+                                    >
+                                        <Plus size={15} className="text-slate-500" />
+                                        <div>
+                                            <div>Buat Manual</div>
+                                            <div className="text-[10px] font-normal text-slate-400">Mulai dari formulir kosong</div>
+                                        </div>
+                                    </button>
+                                    <button
+                                        onClick={() => { setCreateDropdownOpen(false); setAiFormBuilderOpen(true); }}
+                                        data-tour="create-ai-btn"
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 transition-colors cursor-pointer text-left"
+                                    >
+                                        <Sparkles size={15} className="text-teal-500" />
+                                        <div>
+                                            <div>Buat dengan AI ✨</div>
+                                            <div className="text-[10px] font-normal text-slate-400">Generate otomatis dengan AI</div>
+                                        </div>
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
 

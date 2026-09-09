@@ -41,6 +41,8 @@ export default function FormRunnerPage() {
     const [navPopupOpen, setNavPopupOpen] = useState(false);
     // FEAT-3: submit confirm
     const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+    // B10: First dialog — warns about ragu-ragu questions before submit confirmation
+    const [reviewWarningOpen, setReviewWarningOpen] = useState(false);
     // Exam mode monitoring & violation tracking (Server-side source of truth)
     const [tabSwitchCount, setTabSwitchCount] = useState(0);
     const [violationCount, setViolationCount] = useState(0);
@@ -419,7 +421,14 @@ export default function FormRunnerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tokenUnlocked, form?.timerDuration, formLink]);
 
+    // B13: Support HH:MM:SS for exams > 1 hour
     const formatTimer = (seconds) => {
+        if (seconds >= 3600) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        }
         const m = Math.floor(seconds / 60), s = seconds % 60;
         return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     };
@@ -469,6 +478,11 @@ export default function FormRunnerPage() {
     const handleSubmit = async (e, isAuto = false) => {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
         if (isPreviewMode) { window.close(); return; }
+        // B10: First check for ragu-ragu questions (only for manual submit)
+        if (!isAuto && markedForReview.size > 0 && !reviewWarningOpen && !submitConfirmOpen) {
+            setReviewWarningOpen(true);
+            return;
+        }
         if (!isAuto && !submitConfirmOpen) { setSubmitConfirmOpen(true); return; }
         setSubmitConfirmOpen(false);
         if (isSubmittingRef.current) return;
@@ -686,11 +700,29 @@ export default function FormRunnerPage() {
                         )}
                     </div>
                     {timeLeft !== null && (
-                        <div className={`px-4 py-2 rounded-2xl shadow-lg border backdrop-blur-md flex items-center gap-2 font-mono font-bold text-xs sm:text-sm ${timeLeft <= 60 ? 'bg-red-500/90 text-white border-red-400 animate-pulse' : 'bg-slate-900/90 dark:bg-slate-800/90 text-teal-400 border-slate-700'}`}>
+                        <div className={`px-4 py-2 rounded-2xl shadow-lg border backdrop-blur-md flex items-center gap-2 font-mono font-bold text-xs sm:text-sm ${
+                            timeLeft <= 60
+                                ? 'bg-red-500/90 text-white border-red-400 animate-pulse'
+                                : timeLeft <= 300
+                                ? 'bg-amber-500/90 text-white border-amber-400'
+                                : 'bg-slate-900/90 dark:bg-slate-800/90 text-teal-400 border-slate-700'
+                        }`}>
                             <Clock size={15} /><span>Waktu: {formatTimer(timeLeft)}</span>
                         </div>
                     )}
                 </div>
+
+                {/* B13: Timer progress bar */}
+                {timeLeft !== null && form?.timerDuration > 0 && (
+                    <div className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden mb-4">
+                        <div
+                            className={`h-full rounded-full transition-all duration-1000 ${
+                                timeLeft <= 60 ? 'bg-red-500' : timeLeft <= 300 ? 'bg-amber-500' : 'bg-teal-500'
+                            }`}
+                            style={{ width: `${Math.max(0, (timeLeft / form.timerDuration) * 100)}%` }}
+                        />
+                    </div>
+                )}
 
                 {/* Form header */}
                 <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-sm">
@@ -905,6 +937,45 @@ export default function FormRunnerPage() {
                                 </div>
                             </form>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* B10: Ragu-ragu warning dialog (first of two-dialog sequence) */}
+            {reviewWarningOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setReviewWarningOpen(false)} />
+                    <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 z-10">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-500"><Bookmark size={20} /></div>
+                            <h3 className="text-base font-bold text-slate-900 dark:text-white">Ada Soal Ragu-Ragu</h3>
+                        </div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Kamu masih menandai <span className="font-bold text-amber-600 dark:text-amber-400">{markedForReview.size} soal</span> sebagai ragu-ragu. Ingin meninjau dulu sebelum mengirim?
+                        </p>
+                        <div className="flex items-center gap-2 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setReviewWarningOpen(false);
+                                    const firstMarkedId = [...markedForReview][0];
+                                    if (firstMarkedId) {
+                                        const el = document.getElementById(`question-card-${firstMarkedId}`);
+                                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }
+                                }}
+                                className="flex-1 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-xs font-bold rounded-xl cursor-pointer"
+                            >Tinjau Soal Ragu-Ragu</button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setReviewWarningOpen(false);
+                                    setSubmitConfirmOpen(true);
+                                }}
+                                className="flex-1 px-4 py-2.5 text-white text-xs font-bold rounded-xl cursor-pointer"
+                                style={{ backgroundColor: primaryColor }}
+                            >Tetap Kirim</button>
+                        </div>
                     </div>
                 </div>
             )}
