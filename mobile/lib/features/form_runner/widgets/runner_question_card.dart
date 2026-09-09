@@ -26,6 +26,10 @@ class RunnerQuestionCard extends StatelessWidget {
   final ValueChanged<String?> onTfChanged;
   final VoidCallback onPickDateTime;
   final bool disablePaste;
+  // Tandai ragu-ragu ala web (khusus mode ujian).
+  final bool isMarked;
+  final bool showMarkButton;
+  final VoidCallback? onToggleMark;
 
   const RunnerQuestionCard({
     super.key,
@@ -46,6 +50,9 @@ class RunnerQuestionCard extends StatelessWidget {
     required this.onTfChanged,
     required this.onPickDateTime,
     this.disablePaste = false,
+    this.isMarked = false,
+    this.showMarkButton = false,
+    this.onToggleMark,
   });
 
   @override
@@ -100,6 +107,54 @@ class RunnerQuestionCard extends StatelessWidget {
                     "*",
                     style: TextStyle(color: Color(0xFFC0392B), fontSize: 16),
                   ),
+                if (showMarkButton) ...[
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: onToggleMark,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isMarked
+                            ? const Color(0xFFFACC15)
+                            : cs.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isMarked
+                              ? const Color(0xFFFACC15)
+                              : cs.outlineVariant,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isMarked
+                                ? Icons.bookmark_added_rounded
+                                : Icons.bookmark_add_outlined,
+                            size: 14,
+                            color: isMarked
+                                ? Colors.white
+                                : cs.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isMarked ? 'Ragu-ragu' : 'Tandai',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: kFontBold,
+                              color: isMarked
+                                  ? Colors.white
+                                  : cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

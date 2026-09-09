@@ -23,6 +23,10 @@ class RunnerFillStep extends StatelessWidget {
   final ValueChanged<int> onAnswerChanged;
   final ValueChanged<int> onPickDateTime;
   final bool disablePaste;
+  // Tandai ragu-ragu ala web (khusus mode ujian).
+  final Set<int> markedIds;
+  final bool showMarkButton;
+  final ValueChanged<int>? onToggleMark;
 
   const RunnerFillStep({
     super.key,
@@ -40,6 +44,9 @@ class RunnerFillStep extends StatelessWidget {
     required this.onAnswerChanged,
     required this.onPickDateTime,
     this.disablePaste = false,
+    this.markedIds = const {},
+    this.showMarkButton = false,
+    this.onToggleMark,
   });
 
   @override
@@ -92,6 +99,7 @@ class RunnerFillStep extends StatelessWidget {
           submitting: submitting,
           store: store,
           questions: questions,
+          markedIds: markedIds,
           onPrevious: onPrevious,
           onNext: onNext,
           onSubmit: onSubmit,
@@ -112,6 +120,9 @@ class RunnerFillStep extends StatelessWidget {
       question: q,
       hasError: errorQuestionIds.contains(q.id),
       disablePaste: disablePaste,
+      isMarked: markedIds.contains(q.id),
+      showMarkButton: showMarkButton,
+      onToggleMark: onToggleMark == null ? null : () => onToggleMark!(q.id),
       essayController: store.textAnswers[q.id],
       essayFocusNode: store.essayFocusNodes[q.id],
       singleValue: store.singleAnswers[q.id],
@@ -146,6 +157,7 @@ class _InlineQuizNav extends StatelessWidget {
   final bool submitting;
   final RunnerAnswerStore store;
   final List<PublicQuestion> questions;
+  final Set<int> markedIds;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback onSubmit;
@@ -159,11 +171,15 @@ class _InlineQuizNav extends StatelessWidget {
     required this.submitting,
     required this.store,
     required this.questions,
+    this.markedIds = const {},
     required this.onPrevious,
     required this.onNext,
     required this.onSubmit,
     required this.onJump,
   });
+
+  // Kuning ragu-ragu ala web (di atas hijau terjawab, di bawah soal aktif).
+  static const _markYellow = Color(0xFFFACC15);
 
   void _showJumpPicker(BuildContext context) {
     showModalBottomSheet<void>(
@@ -179,6 +195,16 @@ class _InlineQuizNav extends StatelessWidget {
               Container(width: 40, height: 4, decoration: BoxDecoration(color: Theme.of(ctx).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 12),
               const Text('Daftar soal', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                children: [
+                  _legend(ctx, Theme.of(ctx).colorScheme.primaryContainer, 'Terjawab'),
+                  _legend(ctx, Theme.of(ctx).colorScheme.surfaceContainerHighest, 'Belum'),
+                  _legend(ctx, _markYellow, 'Ragu-ragu'),
+                ],
+              ),
               const SizedBox(height: 12),
               GridView.builder(
                 shrinkWrap: true,
@@ -187,6 +213,19 @@ class _InlineQuizNav extends StatelessWidget {
                 itemBuilder: (c, i) {
                   final selected = i == current;
                   final answered = store.isAnswered(questions[i]);
+                  final marked = markedIds.contains(questions[i].id);
+                  final cellColor = selected
+                      ? Theme.of(ctx).colorScheme.primary
+                      : marked
+                          ? _markYellow
+                          : answered
+                              ? Theme.of(ctx).colorScheme.primaryContainer
+                              : Theme.of(ctx).colorScheme.surfaceContainerHighest;
+                  final numColor = selected || marked
+                      ? Colors.white
+                      : answered
+                          ? Theme.of(ctx).colorScheme.primary
+                          : Theme.of(ctx).colorScheme.onSurface;
                   return InkWell(
                     onTap: () {
                       Navigator.pop(ctx);
@@ -198,13 +237,13 @@ class _InlineQuizNav extends StatelessWidget {
                         Container(
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: selected ? Theme.of(ctx).colorScheme.primary : (answered ? Theme.of(ctx).colorScheme.primaryContainer : Theme.of(ctx).colorScheme.surfaceContainerHighest),
+                            color: cellColor,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: selected ? kAuthPrimary : (answered ? kAuthPrimary.withValues(alpha: 0.5) : Theme.of(ctx).colorScheme.outlineVariant)),
+                            border: Border.all(color: selected ? kAuthPrimary : marked ? _markYellow : (answered ? kAuthPrimary.withValues(alpha: 0.5) : Theme.of(ctx).colorScheme.outlineVariant)),
                           ),
-                          child: Text('${i + 1}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: selected ? Colors.white : (answered ? Theme.of(ctx).colorScheme.primary : Theme.of(ctx).colorScheme.onSurface))),
+                          child: Text('${i + 1}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: numColor)),
                         ),
-                        if (answered)
+                        if ((answered || marked) && !selected)
                           Positioned(
                             top: 4,
                             right: 4,
@@ -212,8 +251,9 @@ class _InlineQuizNav extends StatelessWidget {
                               width: 8,
                               height: 8,
                               decoration: BoxDecoration(
-                                color: selected ? Colors.white : Theme.of(ctx).colorScheme.primary,
+                                color: marked ? _markYellow : Theme.of(ctx).colorScheme.primary,
                                 shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 1),
                               ),
                             ),
                           ),
@@ -226,6 +266,17 @@ class _InlineQuizNav extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  static Widget _legend(BuildContext ctx, Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 12, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4), border: Border.all(color: Theme.of(ctx).colorScheme.outlineVariant))),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(fontSize: 11, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+      ],
     );
   }
 

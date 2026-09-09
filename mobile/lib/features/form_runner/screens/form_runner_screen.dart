@@ -106,6 +106,17 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   // ID soal wajib yang belum dijawab (untuk indikator merah saat submit gagal).
   final Set<int> _errorQuestionIds = {};
 
+  // Soal yang ditandai ragu-ragu (paritas web markedForReview, khusus ujian).
+  final Set<int> _markedForReview = {};
+
+  void _toggleMark(int questionId) {
+    setState(() {
+      if (!_markedForReview.remove(questionId)) {
+        _markedForReview.add(questionId);
+      }
+    });
+  }
+
   bool get _isLoggedIn => _c.isLoggedIn;
   bool get _examActive => _c.info?.isExamMode == true;
   // Pelacakan sesi/pelanggaran ikut server + web: aktif bila isExamMode
@@ -314,12 +325,13 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   }
 
   Future<bool> _confirmManualSubmit() async {
+    final markedCount = _markedForReview.length;
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title:  Text(
+        title: Text(
           'Kirim Jawaban?',
           style: TextStyle(
             fontWeight: FontWeight.bold,
@@ -327,8 +339,10 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
             color: Theme.of(ctx).colorScheme.onSurface,
           ),
         ),
-        content:  Text(
-          'Yakin ingin mengumpulkan jawaban sekarang?',
+        content: Text(
+          markedCount > 0
+              ? 'Masih ada $markedCount soal yang Anda tandai ragu-ragu. Yakin ingin mengumpulkan jawaban sekarang?'
+              : 'Yakin ingin mengumpulkan jawaban sekarang?',
           style: TextStyle(fontSize: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
         ),
         actions: [
@@ -400,6 +414,9 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     try {
       await _c.fetchQuestions(_c.tokenController.text);
       if (!mounted) return;
+      // Set soal baru: bersihkan tanda ragu-ragu & error sesi sebelumnya.
+      _markedForReview.clear();
+      _errorQuestionIds.clear();
       setState(() => _step = _RunnerStep.fill);
       // Pelacakan ujian: kunci perangkat (khusus isExamMode) + mulai sesi
       // server + guard overlay. Sesi server jalan juga untuk form
@@ -629,15 +646,20 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     if (_loading) return const AppLoadingOverlay();
     // FEAT-9: apply theme background if present
     final themeBg = _parseHex(_c.info?.themeBackgroundColor);
+    // Ragu-ragu ala web: hanya untuk tipe ujian (formTypeId 2, multi-page).
+    final isExamQuiz = _c.formTypeId == 2 && _c.questions.length > 1;
     Widget fillWidget = RunnerFillStep(
           info: _c.info!,
           store: _c.store,
           questions: _c.questions,
-          isMultiPage: _c.formTypeId == 2 && _c.questions.length > 1,
+          isMultiPage: isExamQuiz,
           disablePaste: _disableCopy && _step == _RunnerStep.fill,
           currentQuestion: _c.currentQuestion,
           submitting: _submitting,
           errorQuestionIds: _errorQuestionIds,
+          markedIds: _markedForReview,
+          showMarkButton: isExamQuiz,
+          onToggleMark: _toggleMark,
           onSubmit: _submitWithConfirmation,
           onNext: _next,
           onPrevious: () => setState(() => _c.currentQuestion--),
