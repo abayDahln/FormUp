@@ -36,6 +36,9 @@ public class AdminController : ControllerBase
 
         var query = _db.Users.AsQueryable();
 
+        // User soft-delete tidak ditampilkan sama sekali di kelola admin.
+        query = query.Where(u => u.DeletedAt == null);
+
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim();
