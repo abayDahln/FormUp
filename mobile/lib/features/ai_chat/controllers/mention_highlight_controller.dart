@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/auth_widgets.dart';
 
 /// Controller dengan highlight background untuk teks @mention.
 class MentionHighlightController extends TextEditingController {
@@ -39,7 +40,7 @@ class MentionHighlightController extends TextEditingController {
             const TextStyle(
               backgroundColor: Color(0x298FB5B3), // teal lembut ~16%
               color: Color(0xFF018081),
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w600, fontFamily: kFontBold,
             ),
           ),
         ),

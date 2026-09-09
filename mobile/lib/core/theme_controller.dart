@@ -38,7 +38,14 @@ class ThemeController extends ValueNotifier<AppThemeChoice> {
   static const _storageKey = 'app_theme_choice';
   static final ThemeController instance = ThemeController._();
 
-  ThemeController._() : super(AppThemeChoice.system);
+  ThemeController._() : super(AppThemeChoice.system) {
+    // Ikuti perubahan tema sistem secara live selama pilihan = system,
+    // agar helper tanpa-context (isDarkNow) ikut refresh.
+    WidgetsBinding.instance.platformDispatcher.onPlatformBrightnessChanged =
+        () {
+      if (value == AppThemeChoice.system) notifyListeners();
+    };
+  }
 
   bool _loaded = false;
 

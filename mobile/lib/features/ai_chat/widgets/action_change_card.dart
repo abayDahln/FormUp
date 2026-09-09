@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/ai_chat/models/chat_message.dart';
 
@@ -85,8 +86,8 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              fontWeight: FontWeight.w700, fontFamily: kFontBold,
               color: color ?? cs.onSurface),
         ),
       );
@@ -114,7 +115,7 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
               child: Text(
                 label,
                 style: TextStyle(
-                    fontSize: 9.5, fontWeight: FontWeight.w700, color: color),
+                    fontSize: 10.5, fontWeight: FontWeight.w700, fontFamily: kFontBold, color: color),
               ),
             ),
             const SizedBox(width: 6),
@@ -124,7 +125,7 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   height: 1.35,
                   color: cs.onSurface,
                 ),
@@ -185,7 +186,7 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 13,
                 height: 1.35,
                 color: cs.onSurfaceVariant,
                 decoration: TextDecoration.lineThrough,
@@ -290,7 +291,7 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
         if (items.isEmpty) {
           items.add(Text(
             'Pengaturan form diperbarui',
-            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
           ));
         }
         return items;
@@ -364,8 +365,8 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold, fontFamily: kFontBold,
                         color: cs.onSurface,
                       ),
                     ),
@@ -382,8 +383,8 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                       child: Text(
                         statusLabel,
                         style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700, fontFamily: kFontBold,
                           color: statusColor,
                         ),
                       ),
@@ -404,8 +405,8 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                             Text(
                               'Undo',
                               style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600, fontFamily: kFontBold,
                                 color: cs.onSurfaceVariant,
                               ),
                             ),
@@ -431,8 +432,8 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                             Text(
                               'Redo',
                               style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700, fontFamily: kFontBold,
                                 color: cs.primary,
                               ),
                             ),
@@ -471,7 +472,7 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                   const Expanded(
                     child: Text(
                       'Menunggu persetujuan. Gunakan tombol Terima atau Tolak di atas',
-                      style: TextStyle(fontSize: 10.5, color: Colors.orange),
+                      style: TextStyle(fontSize: 11.5, color: Colors.orange),
                     ),
                   ),
                 ],
@@ -500,7 +501,7 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
                   icon: const Icon(Icons.open_in_new, size: 14),
                   label: const Text(
                     'Buka Form',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, fontFamily: kFontBold),
                   ),
                 ),
               ),

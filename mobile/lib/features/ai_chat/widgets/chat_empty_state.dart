@@ -46,7 +46,7 @@ class ChatEmptyState extends StatelessWidget {
             Text(
               'Contoh: "Buatkan form kuis matematika 10 soal pilihan ganda tentang aljabar" atau "Edit form #12 tambahkan 5 soal essay"',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
             Wrap(
@@ -90,7 +90,7 @@ class _QuickChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return ActionChip(
-      label: Text(label, style: const TextStyle(fontSize: 12)),
+      label: Text(label, style: const TextStyle(fontSize: 13)),
       onPressed: onTap,
       backgroundColor: cs.surface,
       shape: RoundedRectangleBorder(

@@ -68,6 +68,13 @@ class ChatBubble extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final m = message;
     final isUser = m.role == 'user';
+    // Error dibedakan dari bubble normal: tint merah agar langsung
+    // dikenali di kedua mode (sebelumnya menyatu dengan background).
+    final errorTint =
+        Color.alphaBlend(Colors.red.withValues(alpha: 0.10), cs.surface);
+    final errorBorder = Theme.of(context).brightness == Brightness.dark
+        ? Colors.red.shade400
+        : Colors.red.shade300;
     final bubble = GestureDetector(
         onLongPress: isUser ? onUserLongPress : null,
         child: Container(
@@ -76,7 +83,9 @@ class ChatBubble extends StatelessWidget {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isUser ? cs.primary : cs.surface,
+          color: isUser
+              ? cs.primary
+              : (m.isError ? errorTint : cs.surface),
           borderRadius: BorderRadius.circular(16).copyWith(
             bottomRight: isUser ? const Radius.circular(4) : null,
             bottomLeft: !isUser ? const Radius.circular(4) : null,
@@ -85,7 +94,7 @@ class ChatBubble extends StatelessWidget {
           border: isUser
               ? null
               : Border.all(
-                  color: m.isError ? Colors.red.shade300 : cs.outlineVariant,
+                  color: m.isError ? errorBorder : cs.outlineVariant,
                 ),
         ),
         child: Column(
@@ -94,7 +103,7 @@ class ChatBubble extends StatelessWidget {
             if (isUser)
               SelectableText(
                 m.text.isEmpty ? '...' : m.text,
-                style: TextStyle(fontSize: 13, color: cs.onPrimary),
+                style: TextStyle(fontSize: 14, color: cs.onPrimary),
               )
             else if (m.stream != null)
               // Bubble AKTIF: rebuild terisolasi via notifier —
@@ -112,7 +121,7 @@ class ChatBubble extends StatelessWidget {
                   Text(
                     'AI mengetik...',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: cs.onSurfaceVariant,
                     ),
                   ),
@@ -197,7 +206,7 @@ class ChatBubble extends StatelessWidget {
     final text = m.text.isEmpty ? 'Respons kosong. Coba kirim ulang.' : m.text;
     final widgets = <Widget>[];
     final aiTextStyle = TextStyle(
-      fontSize: 13,
+      fontSize: 14,
       color: Theme.of(context).colorScheme.onSurface,
     );
 
@@ -295,18 +304,21 @@ class _ErrorBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Merah adaptif: terang di dark mode agar terbaca, gelap di light mode.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final red = isDark ? Colors.red.shade300 : Colors.red.shade800;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.error_outline, size: 15, color: Colors.red.shade700),
+            Icon(Icons.error_outline, size: 18, color: red),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 message.text,
-                style: TextStyle(fontSize: 13, color: Colors.red.shade800),
+                style: TextStyle(fontSize: 14, color: red),
               ),
             ),
           ],
@@ -319,8 +331,12 @@ class _ErrorBody extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4),
             ),
             onPressed: enabled ? onRetry : null,
-            icon: const Icon(Icons.refresh, size: 14),
-            label: const Text('Coba lagi', style: TextStyle(fontSize: 12)),
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Coba lagi',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: kFontBold)),
           ),
         ),
       ],

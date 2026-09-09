@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/router/app_router.dart';
 
 /// Kartu cantik pengganti blok `<FORM_CONTEXT>` mentah yang kadang di-echo
@@ -97,8 +98,8 @@ class FormContextCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700, fontFamily: kFontBold,
                         color: cs.onSurface,
                       ),
                     ),
@@ -109,7 +110,7 @@ class FormContextCard extends StatelessWidget {
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            fontSize: 10.5, color: cs.onSurfaceVariant),
+                            fontSize: 11.5, color: cs.onSurfaceVariant),
                       ),
                     ],
                     if (questionCount != null) ...[
@@ -131,8 +132,8 @@ class FormContextCard extends StatelessWidget {
                             Text(
                               '$questionCount soal',
                               style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600, fontFamily: kFontBold,
                                 color: cs.onSurfaceVariant,
                               ),
                             ),

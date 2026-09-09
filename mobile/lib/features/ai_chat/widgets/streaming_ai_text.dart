@@ -29,14 +29,14 @@ class StreamingAiText extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'AI mengetik...',
-                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
               ),
             ],
           );
         }
         return GptMarkdown(
           text,
-          style: TextStyle(fontSize: 13, color: cs.onSurface),
+          style: TextStyle(fontSize: 14, color: cs.onSurface),
         );
       },
     );

@@ -83,17 +83,14 @@ class FormCard extends StatelessWidget {
                             horizontal: 8,
                             vertical: 3,
                           ),
-                          decoration: BoxDecoration(
-                            color: style.bg,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
+                          decoration: style.chipDecoration(context),
                           child: Text(
                             style.label,
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                               fontFamily: kFontBold,
-                              color: style.fg,
+                              color: style.fgOf(context),
                             ),
                           ),
                         ),
@@ -221,17 +218,14 @@ Future<void> showFormQuickActions(
                               horizontal: 8,
                               vertical: 3,
                             ),
-                            decoration: BoxDecoration(
-                              color: style.bg,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
+                            decoration: style.chipDecoration(context),
                             child: Text(
                               style.label,
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                                 fontFamily: kFontBold,
-                                color: style.fg,
+                                color: style.fgOf(context),
                               ),
                             ),
                           ),

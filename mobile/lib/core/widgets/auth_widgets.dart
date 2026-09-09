@@ -90,6 +90,32 @@ class FormStatusStyle {
   final Color fg;
   final Color bg;
   const FormStatusStyle(this.label, this.fg, this.bg);
+
+  /// Warna teks lencana mengikuti tema: terang pakai [fg] asli, gelap
+  /// diterangkan agar tetap terbaca di atas permukaan gelap.
+  Color fgOf(BuildContext context) {
+    if (Theme.of(context).brightness != Brightness.dark) return fg;
+    if (fg == const Color(0xFF2E7D32)) return const Color(0xFF81C784);
+    if (fg == const Color(0xFFB26A00)) return const Color(0xFFFFB74D);
+    return const Color(0xFFE57373);
+  }
+
+  /// Dekorasi lencana: terang = filled pastel; gelap = stroke saja
+  /// (transparan + border) agar tidak terlalu kontras tapi tetap terbaca.
+  BoxDecoration chipDecoration(BuildContext context) {
+    if (Theme.of(context).brightness != Brightness.dark) {
+      return BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      );
+    }
+    final fg = fgOf(context);
+    return BoxDecoration(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(6),
+      border: Border.all(color: fg.withValues(alpha: 0.7)),
+    );
+  }
 }
 
 FormStatusStyle formStatusStyle(String status) {

@@ -239,7 +239,7 @@ extension _AiChatHistoryOps on _AiChatScreenState {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(title,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, fontFamily: kFontBold)),
         content: SizedBox(
           width: double.maxFinite,
           child: SingleChildScrollView(
@@ -247,12 +247,12 @@ extension _AiChatHistoryOps on _AiChatScreenState {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(message, style: const TextStyle(fontSize: 12.5)),
+                Text(message, style: const TextStyle(fontSize: 13)),
                 const SizedBox(height: 10),
                 if (changes.isNotEmpty) ...[
                   const Text(
                     'Perubahan yang akan di-undo:',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, fontFamily: kFontBold),
                   ),
                   const SizedBox(height: 4),
                   for (final c in changes)
@@ -261,10 +261,10 @@ extension _AiChatHistoryOps on _AiChatScreenState {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('•  ', style: TextStyle(fontSize: 11.5)),
+                          const Text('•  ', style: TextStyle(fontSize: 12.5)),
                           Expanded(
                             child: Text(c,
-                                style: const TextStyle(fontSize: 11.5)),
+                                style: const TextStyle(fontSize: 12.5)),
                           ),
                         ],
                       ),
@@ -272,12 +272,12 @@ extension _AiChatHistoryOps on _AiChatScreenState {
                 ]                 else
                   Text(
                     'Tidak ada perubahan form yang perlu di-undo.',
-                    style: TextStyle(fontSize: 11.5, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                    style: TextStyle(fontSize: 12.5, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                   ),
                 const SizedBox(height: 8),
                 Text(
                   'Catatan: perubahan yang kamu buat manual di form builder tidak ikut di-undo.',
-                  style: TextStyle(fontSize: 10.5, fontStyle: FontStyle.italic, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                  style: TextStyle(fontSize: 11.5, fontStyle: FontStyle.italic, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -369,7 +369,7 @@ extension _AiChatHistoryOps on _AiChatScreenState {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Edit prompt',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, fontFamily: kFontBold)),
         content: SizedBox(
           width: double.maxFinite,
           child: SingleChildScrollView(
@@ -390,7 +390,7 @@ extension _AiChatHistoryOps on _AiChatScreenState {
                 const SizedBox(height: 12),
                 const Text(
                   'Setelah disimpan: semua chat setelah pesan ini dihapus, dan:',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, fontFamily: kFontBold),
                 ),
                 const SizedBox(height: 4),
                 if (changes.isNotEmpty)
@@ -400,10 +400,10 @@ extension _AiChatHistoryOps on _AiChatScreenState {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('•  ', style: TextStyle(fontSize: 11.5)),
+                          const Text('•  ', style: TextStyle(fontSize: 12.5)),
                           Expanded(
                             child: Text(c,
-                                style: const TextStyle(fontSize: 11.5)),
+                                style: const TextStyle(fontSize: 12.5)),
                           ),
                         ],
                       ),
@@ -411,7 +411,7 @@ extension _AiChatHistoryOps on _AiChatScreenState {
                 else
                   Text(
                     'Tidak ada perubahan form yang perlu di-undo.',
-                    style: TextStyle(fontSize: 11.5, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                    style: TextStyle(fontSize: 12.5, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                   ),
               ],
             ),

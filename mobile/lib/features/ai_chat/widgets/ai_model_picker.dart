@@ -42,7 +42,7 @@ class AiModelPicker extends StatelessWidget {
               child: Row(children: [
                 Icon(m == GeminiService.selectedModelDisplay ? Icons.check : Icons.auto_awesome_outlined, size: 14, color: m == GeminiService.selectedModelDisplay ? mcs.primary : mcs.onSurfaceVariant),
                 const SizedBox(width: 8),
-                Text(m, style: TextStyle(fontSize: 12, fontWeight: m == GeminiService.selectedModelDisplay ? FontWeight.bold : FontWeight.normal, color: m == GeminiService.selectedModelDisplay ? mcs.primary : mcs.onSurface)),
+                Text(m, style: TextStyle(fontSize: 13, fontWeight: m == GeminiService.selectedModelDisplay ? FontWeight.bold : FontWeight.normal, color: m == GeminiService.selectedModelDisplay ? mcs.primary : mcs.onSurface)),
               ]),
             ),
         ];

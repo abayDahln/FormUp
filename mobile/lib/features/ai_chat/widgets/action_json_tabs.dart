@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
@@ -99,7 +100,7 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 11.5,
+                  fontSize: 12.5,
                   fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                   color: active ? _cs.primary : _cs.onSurfaceVariant,
                 ),
@@ -138,7 +139,7 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
         final n = (a['questionIds'] as List<dynamic>?)?.length ?? 0;
         return Text(
           '$n soal akan dihapus dari form. Rincian soalnya ada di kartu perubahan di bawah.',
-          style: TextStyle(fontSize: 12, color: _cs.onSurfaceVariant),
+          style: TextStyle(fontSize: 13, color: _cs.onSurfaceVariant),
         );
       case 'update_settings':
         final settings = a['settings'] as Map<dynamic, dynamic>? ?? {};
@@ -156,8 +157,8 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
                       child: Text(
                         '$k',
                         style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700, fontFamily: kFontBold,
                           color: _cs.onSurfaceVariant,
                         ),
                       ),
@@ -166,7 +167,7 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
                       child: RichTextView(
                         text: '${settings[k]}',
                         style: TextStyle(
-                            fontSize: 12, color: _cs.onSurface),
+                            fontSize: 13, color: _cs.onSurface),
                       ),
                     ),
                   ],
@@ -189,8 +190,8 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                fontWeight: FontWeight.w700, fontFamily: kFontBold,
                 color: _cs.onSurface,
               ),
             ),
@@ -246,7 +247,7 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
           // rich text + LaTeX ($...$, $$...$$) via flutter_math_fork.
           RichTextView(
             text: _clean(q['question'] as String?),
-            style: TextStyle(fontSize: 13, color: _cs.onSurface),
+            style: TextStyle(fontSize: 14, color: _cs.onSurface),
           ),
           if (options.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -262,7 +263,7 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
                   child: RichTextView(
                     text: _clean('$correct'),
                     style: TextStyle(
-                        fontSize: 12, color: Colors.green.shade700),
+                        fontSize: 13, color: Colors.green.shade700),
                   ),
                 ),
               ],
@@ -295,8 +296,8 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
             child: Text(
               '$letter.',
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                fontWeight: FontWeight.w700, fontFamily: kFontBold,
                 color: isCorrect ? Colors.green : _cs.onSurfaceVariant,
               ),
             ),
@@ -304,7 +305,7 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
           Expanded(
             child: RichTextView(
               text: _clean(text),
-              style: TextStyle(fontSize: 12, color: _cs.onSurface),
+              style: TextStyle(fontSize: 13, color: _cs.onSurface),
             ),
           ),
           if (isCorrect)
@@ -332,8 +333,8 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 9.5,
-          fontWeight: FontWeight.w700,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700, fontFamily: kFontBold,
           color: filled ? c : cs.onSurfaceVariant,
         ),
       ),
@@ -346,7 +347,7 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
     final pretty = const JsonEncoder.withIndent('  ').convert(widget.action);
     return GptMarkdown(
       '```json\n$pretty\n```',
-      style:  TextStyle(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurface),
+      style:  TextStyle(fontSize: 12.5, color: Theme.of(context).colorScheme.onSurface),
     );
   }
 }

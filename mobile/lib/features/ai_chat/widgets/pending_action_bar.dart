@@ -94,8 +94,8 @@ class PendingActionBar extends StatelessWidget {
                   const Text(
                     'AI ingin menjalankan perubahan',
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700, fontFamily: kFontBold,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -104,7 +104,7 @@ class PendingActionBar extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 10.5,
+                      fontSize: 11.5,
                       color: cs.onSurfaceVariant,
                     ),
                   ),
@@ -119,7 +119,7 @@ class PendingActionBar extends StatelessWidget {
                 foregroundColor: cs.onSurfaceVariant,
               ),
               onPressed: (isWorking || !enabled) ? null : onReject,
-              child: const Text('Tolak', style: TextStyle(fontSize: 12)),
+              child: const Text('Tolak', style: TextStyle(fontSize: 13)),
             ),
             const SizedBox(width: 2),
             FilledButton(
@@ -139,7 +139,7 @@ class PendingActionBar extends StatelessWidget {
                         color: cs.surface,
                       ),
                     )
-                  : const Text('Terima', style: TextStyle(fontSize: 12)),
+                  : const Text('Terima', style: TextStyle(fontSize: 13)),
             ),
           ],
         ),

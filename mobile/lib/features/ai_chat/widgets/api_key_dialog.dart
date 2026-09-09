@@ -29,7 +29,7 @@ Future<void> showAiApiKeyDialog(
               children: [
                 Text(
                   'Dapatkan gratis di https://aistudio.google.com/app/apikey',
-                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                  style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
                 ),
                 const SizedBox(height: 8),
                 if (GeminiService.hasKey)
@@ -51,7 +51,7 @@ Future<void> showAiApiKeyDialog(
                           child: Text(
                             GeminiService.maskedKey,
                             style: const TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               fontFamily: 'monospace',
                             ),
                           ),
@@ -70,7 +70,7 @@ Future<void> showAiApiKeyDialog(
                           child: Text(
                             isUserKey ? 'Tersimpan di App' : 'Dari .env',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 11,
                               color: isUserKey
                                   ? Colors.green.shade800
                                   : Colors.black87,
@@ -93,7 +93,7 @@ Future<void> showAiApiKeyDialog(
                 const SizedBox(height: 8),
                 Text(
                   'Key akan dienkripsi dan tersimpan di perangkat. Tidak perlu restart.',
-                  style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+                  style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
                 ),
               ],
             ),

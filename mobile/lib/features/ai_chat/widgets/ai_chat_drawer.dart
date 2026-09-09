@@ -60,7 +60,7 @@ class AiChatDrawer extends StatelessWidget {
                       Text(
                         modelDisplay,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           color: cs.onSurfaceVariant,
                         ),
                       ),
@@ -105,8 +105,8 @@ class AiChatDrawer extends StatelessWidget {
                 child: Text(
                   'Riwayat',
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold, fontFamily: kFontBold,
                     color: cs.onSurfaceVariant,
                     letterSpacing: 0.8,
                   ),
@@ -119,7 +119,7 @@ class AiChatDrawer extends StatelessWidget {
                       child: Text(
                         'Belum ada riwayat',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           color: cs.onSurfaceVariant,
                         ),
                       ),
@@ -168,7 +168,7 @@ class AiChatDrawer extends StatelessWidget {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        fontSize: 13,
+                                        fontSize: 14,
                                         color: isSelected
                                             ? cs.primary
                                             : cs.onSurface,
@@ -213,7 +213,7 @@ class AiChatDrawer extends StatelessWidget {
                     title: const Text(
                       'Pengaturan',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -234,7 +234,7 @@ class AiChatDrawer extends StatelessWidget {
                     ),
                     title: const Text(
                       'Hapus semua riwayat',
-                      style: TextStyle(fontSize: 13),
+                      style: TextStyle(fontSize: 14),
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),

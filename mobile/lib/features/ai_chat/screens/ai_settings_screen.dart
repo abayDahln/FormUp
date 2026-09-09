@@ -21,7 +21,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           title: const Text('Atur Gemini API Key', style: TextStyle(fontFamily: kFontBold)),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-               Text('Dapatkan gratis di https://aistudio.google.com/app/apikey', style: TextStyle(fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+               Text('Dapatkan gratis di https://aistudio.google.com/app/apikey', style: TextStyle(fontSize: 13, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
               const SizedBox(height: 8),
               if (GeminiService.hasKey)
                 Container(
@@ -30,11 +30,11 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                   child: Row(children: [
                      Icon(Icons.key, size: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                     const SizedBox(width: 6),
-                    Expanded(child: Text(GeminiService.maskedKey, style: const TextStyle(fontSize: 11, fontFamily: 'monospace'))),
+                    Expanded(child: Text(GeminiService.maskedKey, style: const TextStyle(fontSize: 12, fontFamily: 'monospace'))),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(color: isUserKey ? Colors.green.shade100 : Colors.amber.shade100, borderRadius: BorderRadius.circular(6)),
-                      child: Text(isUserKey ? 'Tersimpan di App' : 'Dari .env', style: TextStyle(fontSize: 10, color: isUserKey ? Colors.green.shade800 : Theme.of(ctx).colorScheme.onSurface)),
+                      child: Text(isUserKey ? 'Tersimpan di App' : 'Dari .env', style: TextStyle(fontSize: 11, color: isUserKey ? Colors.green.shade800 : Theme.of(ctx).colorScheme.onSurface)),
                     ),
                   ]),
                 ),
@@ -45,7 +45,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                 obscureText: true,
               ),
               const SizedBox(height: 8),
-               Text('Key akan dienkripsi dan tersimpan di perangkat. Tidak perlu restart.', style: TextStyle(fontSize: 10, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+               Text('Key akan dienkripsi dan tersimpan di perangkat. Tidak perlu restart.', style: TextStyle(fontSize: 11, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
             ]),
           ),
           actions: [
@@ -100,8 +100,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             child: Column(children: [
               ListTile(
                 leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(10)), child:  Icon(Icons.key_outlined, color: cs.primary, size: 20)),
-                title: const Text('API Key Gemini', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                subtitle: Text(GeminiService.hasKey ? GeminiService.maskedKey : 'Belum diatur', style: const TextStyle(fontSize: 11, fontFamily: 'monospace')),
+                title: const Text('API Key Gemini', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, fontFamily: kFontBold)),
+                subtitle: Text(GeminiService.hasKey ? GeminiService.maskedKey : 'Belum diatur', style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
                 trailing:  Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
                 onTap: _showApiKeyDialog,
               ),
@@ -109,14 +109,14 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
               ListTile(
                 leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(10)), child:  Icon(Icons.info_outline, color: cs.primary, size: 20)),
                 title: const Text('Dapatkan API Key', style: TextStyle(fontSize: 14)),
-                subtitle:  Text('aistudio.google.com/app/apikey', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                subtitle:  Text('aistudio.google.com/app/apikey', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
                 trailing:  Icon(Icons.open_in_new, size: 16, color: cs.onSurfaceVariant),
                 onTap: () => showAuthToast(context, 'Buka https://aistudio.google.com/app/apikey di browser'),
               ),
             ]),
           ),
           const SizedBox(height: 20),
-          Text('Riwayat Chat', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: cs.onSurfaceVariant)),
+          Text('Riwayat Chat', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, fontFamily: kFontBold, letterSpacing: 0.8, color: cs.onSurfaceVariant)),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(16), boxShadow: softShadow()),
@@ -124,7 +124,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
               ListTile(
                 leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.delete_sweep_outlined, color: Colors.red, size: 20)),
                 title: const Text('Hapus semua riwayat', style: TextStyle(fontSize: 14)),
-                subtitle:  Text('Semua chat akan hilang permanen', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                subtitle:  Text('Semua chat akan hilang permanen', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
                 trailing:  Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
                 onTap: () async {
                   final c = await showDialog<bool>(context: context, builder: (d) => AlertDialog(title: const Text('Hapus semua?'), content: const Text('Semua riwayat chat akan hilang.'), actions: [TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Batal')), FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Hapus'))]));

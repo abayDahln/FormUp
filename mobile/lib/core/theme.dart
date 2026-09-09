@@ -38,7 +38,22 @@ TextStyle kTitleStyle({double fontSize = 22, Color? color}) =>
 
 /// ThemeData aplikasi — komponen Material 3 otomatis konsisten.
 ThemeData buildFormUpTheme() {
-  final scheme = ColorScheme.fromSeed(seedColor: kPrimary);
+  // Kunci token brand ke nilai asli: fromSeed menggeser primary lebih
+  // gelap dan primaryContainer kehijauan, sehingga merusak tampilan
+  // terang yang sudah ada (tombol/link teal + kartu).
+  final scheme = ColorScheme.fromSeed(seedColor: kPrimary).copyWith(
+    primary: kPrimary,
+    onPrimary: Colors.white,
+    primaryContainer: kPrimarySoft,
+    onPrimaryContainer: kPrimary,
+    // Kartu putih cerah di atas background hijau pudar: kunci surface
+    // ke putih (surface seed cenderung off-white). ContainerHighest
+    // dibiarkan dari seed sebagai fill abu yang kontras di atas kartu.
+    surface: Colors.white,
+    surfaceContainerLowest: Colors.white,
+    surfaceContainerLow: Colors.white,
+    surfaceContainer: Colors.white,
+  );
 
   return ThemeData(
     useMaterial3: true,
@@ -365,6 +380,12 @@ ThemeData buildFormUpDarkTheme() {
     seedColor: kPrimaryDark,
     brightness: Brightness.dark,
   ).copyWith(
+    // Kunci aksen ke brand yang diterangkan (pilihan user) + pasangan
+    // on-container yang kontras, agar konsisten di semua widget.
+    primary: kPrimaryDark,
+    onPrimary: const Color(0xFF00332D),
+    primaryContainer: const Color(0xFF0F3D38),
+    onPrimaryContainer: const Color(0xFFA7F0E4),
     surface: const Color(0xFF1C2629),
     surfaceContainerLowest: const Color(0xFF0A0F11),
     surfaceContainerLow: const Color(0xFF141C1E),

@@ -200,7 +200,7 @@ class ChatInputBar extends StatelessWidget {
                                 ? 'Kamu belum punya form'
                                 : 'Tidak ada form dengan judul "@$mentionQuery"',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               color: cs.onSurfaceVariant,
                             ),
                           ),
@@ -242,14 +242,14 @@ class ChatInputBar extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600, fontFamily: kFontBold,
                           ),
                         ),
                         subtitle: Text(
                           '#${f.id} • ${f.status}',
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 11,
                             color: cs.onSurfaceVariant,
                           ),
                         ),
@@ -276,7 +276,7 @@ class ChatInputBar extends StatelessWidget {
               pickedMentionCount == 0
                   ? 'Ketik @ untuk mention form'
                   : 'Mention: $pickedMentionCount form terpilih',
-              style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
             ),
           ),
         ],
