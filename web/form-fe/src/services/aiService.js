@@ -109,7 +109,7 @@ Anda adalah asisten pembuat soal ujian dan kuis sekolah profesional. Buatlah ${c
 - **Materi / Topik:** ${topic || 'Pengetahuan Umum'}
 - **Tingkat Kesulitan:** ${difficulty}
 - **Bentuk Soal:** ${typeDescription}
-- **Bahasa:** Bahasa Indonesia yang baik, jelas, baku, dan mudah dipahami siswa.
+- **Bahasa:** Gunakan bahasa yang SAMA dengan bahasa topik/materi di atas untuk SELURUH output — termasuk teks pertanyaan, SEMUA opsi jawaban, dan kunci jawaban (correctAnswer). Jangan mencampur bahasa.
 ${extraInstructions.length > 0 ? `- **Panduan Tambahan:**\n  ${extraInstructions.join('\n  ')}` : ''}
 
 **FORMAT KELUARAN WAJIB (JSON ARRAY):**

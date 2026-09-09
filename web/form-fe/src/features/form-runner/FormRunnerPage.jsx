@@ -30,6 +30,10 @@ export default function FormRunnerPage() {
     const [tokenInput, setTokenInput] = useState('');
     const [tokenUnlocked, setTokenUnlocked] = useState(false);
     const [respondentName, setRespondentName] = useState('');
+    // BUG-5 FIX: Keep respondentName in a ref so sendExamEvent doesn't need it
+    // as a useCallback dependency — preventing session_start from re-firing on
+    // every keystroke while the user types their name.
+    const respondentNameRef = useRef('');
 
     // A-2: solid yellow ragu-ragu
     const [markedForReview, setMarkedForReview] = useState(new Set());
@@ -111,6 +115,9 @@ export default function FormRunnerPage() {
 
     const currentUser = getLocalUser();
 
+    // BUG-5 FIX: sync respondentNameRef on every name change
+    useEffect(() => { respondentNameRef.current = respondentName; }, [respondentName]);
+
     // auto-cache
     useEffect(() => {
         if (formLink && Object.keys(answers).length > 0) {
@@ -127,7 +134,11 @@ export default function FormRunnerPage() {
         return () => { root.style.removeProperty('--form-primary'); root.style.removeProperty('--form-bg'); };
     }, [form]);
 
-    // Send incremental exam event to server in background
+    // Send incremental exam event to server in background.
+    // BUG-5 FIX: respondentName is read from respondentNameRef (not captured in
+    // closure) so this callback is NOT recreated on every keystroke. That prevents
+    // the session_start effect from re-firing while the user is typing their name,
+    // which was causing a stale/duplicate sessionId race on first submit.
     const sendExamEvent = useCallback(async (eventType) => {
         if (!form || isPreviewMode || form.isOwner) return;
         const isExam = form.isExamMode || form.detectTabSwitch;
@@ -138,7 +149,7 @@ export default function FormRunnerPage() {
             const sid = examSessionIdRef.current || getStoredSessionId();
             const payload = {
                 sessionId: sid,
-                respondentName: (respondentName || '').trim() || currentUser?.fullname || 'Anonim',
+                respondentName: (respondentNameRef.current || '').trim() || currentUser?.fullname || 'Anonim',
                 type: eventType,
                 occurredAt: new Date().toISOString(),
             };
@@ -166,7 +177,7 @@ export default function FormRunnerPage() {
             console.warn('[ExamEvent] Background event report failed:', eventType, err);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [form, formLink, isPreviewMode, respondentName, currentUser]);
+    }, [form, formLink, isPreviewMode, currentUser]);
 
     // Exam mode session presence: session_start and periodic heartbeat
     useEffect(() => {
@@ -188,8 +199,17 @@ export default function FormRunnerPage() {
     }, [form, isPreviewMode, tokenUnlocked, sendExamEvent]);
 
     // Exam mode violation detection (Real-time incremental report, anti double-count)
+    // BUG-2 FIX: Guard with tokenUnlocked so the visibilitychange / copy / paste
+    // listeners are only attached AFTER the user has passed the token screen and
+    // is actually on the question page. Previously the effect ran as soon as `form`
+    // was loaded, meaning a tab-switch on the token entry screen was counted as a
+    // violation before the exam had even started.
     useEffect(() => {
         if (!form || isPreviewMode || form.isOwner) return;
+        // Do NOT attach violation listeners until the exam has actually started
+        // (i.e. token unlocked, or no token required).
+        if (form.requiresToken && !tokenUnlocked) return;
+
         const isExam = form.isExamMode || form.detectTabSwitch;
         const disableCopy = form.disableCopyPaste || isExam;
 
@@ -242,7 +262,7 @@ export default function FormRunnerPage() {
                 document.removeEventListener('contextmenu', handleContextMenu);
             }
         };
-    }, [form, isPreviewMode, sendExamEvent]);
+    }, [form, isPreviewMode, tokenUnlocked, sendExamEvent]);
 
     const answersRef = useRef(answers);
     const questionsRef = useRef(questions);

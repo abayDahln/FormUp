@@ -116,6 +116,19 @@ export default function FormBuilder() {
     const [history, setHistory] = useState([]);
     const [historyIndex, setHistoryIndex] = useState(-1);
     const historyUpdatingRef = useRef(false);
+    // BUG-1/2/3 FIX: keep mirror refs so pushHistory / handleUndo / handleRedo
+    // always read the *current* value without stale-closure issues.
+    // Previously pushHistory closed over `historyIndex` from its useCallback deps,
+    // which caused the wrong slice index when called before a re-render, and the
+    // debounced text-edit path captured a stale pushHistory that used an old index.
+    const historyRef = useRef([]);
+    const historyIndexRef = useRef(-1);
+    // Mirror ref so async handlers (upload gambar/audio) always read the
+    // latest questions state without stale-closure issues.
+    const questionsRef = useRef(questions);
+    useEffect(() => { questionsRef.current = questions; }, [questions]);
+    // BUG-3: debounce timer ref for text-edit history
+    const textEditDebounceRef = useRef(null);
 
     // FEAT-14: Autosave
     const [autosaveEnabled, setAutosaveEnabled] = useState(() => {
@@ -257,6 +270,32 @@ export default function FormBuilder() {
         return () => window.removeEventListener('beforeunload', handler);
     }, [isDirty]);
 
+    useEffect(() => {
+    window.__formBuilderDirty = isDirty;
+
+    return () => {
+        window.__formBuilderDirty = false;
+    };
+}, [isDirty]);
+
+    // BUG-4 FIX: In-app navigation guard.
+    // useBlocker intercepts client-side route changes (sidebar links, back button, etc.)
+    // that beforeunload does NOT catch inside a SPA. When there are unsaved changes,
+    // the blocker fires and we show a custom confirmation dialog instead of silently
+    // leaving and losing edits.
+    // const navBlocker = useBlocker(
+    //     ({ currentLocation, nextLocation }) =>
+    //         isDirty && currentLocation.pathname !== nextLocation.pathname
+    // );
+
+    // Dismiss the nav-blocker dialog on Escape
+    // useEffect(() => {
+    //     if (navBlocker.state !== 'blocked') return;
+    //     const handler = (e) => { if (e.key === 'Escape') navBlocker.reset(); };
+    //     document.addEventListener('keydown', handler);
+    //     return () => document.removeEventListener('keydown', handler);
+    // }, [navBlocker]);
+
     // A-2: Close actions menu on outside click
     useEffect(() => {
         const handler = (e) => {
@@ -276,18 +315,39 @@ export default function FormBuilder() {
         return () => { document.title = 'FormUp'; };
     }, [isDirty, form?.title]);
 
-    // FEAT-12: Push to history when questions change due to structural ops
-    const pushHistory = useCallback((newQuestions) => {
+    // FEAT-12: Push to history when questions change due to structural ops.
+    // BUG-1/2/3 FIX: Read historyIndexRef.current (always current) instead of
+    // the closure-captured historyIndex state value. This eliminates:
+    //   • the off-by-one that required 2 actions before undo worked (Bug 1)
+    //   • the wrong snapshot being restored because slicing used a stale index (Bug 2)
+    //   • the debounced text-edit path firing with a stale pushHistory ref (Bug 3)
+    // pushHistory is now stable (no deps) so it is safe to capture in setTimeout.
+        const pushHistory = useCallback((snapshotBeforeMutation) => {
         if (historyUpdatingRef.current) return;
-        setHistory(prev => {
-            const sliced = prev.slice(0, historyIndex + 1);
-            const next = [...sliced, JSON.parse(JSON.stringify(newQuestions))].slice(-20);
-            return next;
-        });
-        setHistoryIndex(prev => Math.min(prev + 1, 19));
-    }, [historyIndex]);
+        // FIX: Cancel any pending debounced text-edit history push before
+        // committing this snapshot. Without this, a debounce timer from an
+        // earlier optionText/question edit (e.g. adding an image to an option)
+        // can fire AFTER a structural action (remove option, delete question, etc.)
+        // has already pushed its own checkpoint — inserting a stale, out-of-order
+        // snapshot into history and corrupting undo/redo sequencing.
+        if (textEditDebounceRef.current) {
+            clearTimeout(textEditDebounceRef.current);
+            textEditDebounceRef.current = null;
+        }
+        const snapshot = JSON.parse(JSON.stringify(snapshotBeforeMutation));
+        const currentIdx = historyIndexRef.current;
+        const newHistory = [...historyRef.current.slice(0, currentIdx + 1), snapshot].slice(-20);
+        const newIndex = newHistory.length - 1;
+        historyRef.current = newHistory;
+        historyIndexRef.current = newIndex;
+        setHistory(newHistory);
+        setHistoryIndex(newIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // FEAT-12: Keyboard listener for Ctrl+Z / Ctrl+Y
+    // BUG-1 FIX: handleUndo/Redo are stable (read refs, not closed-over state) so
+    // the keyboard effect needs no deps and never re-registers stale handlers.
     useEffect(() => {
         const handler = (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
@@ -300,23 +360,28 @@ export default function FormBuilder() {
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [history, historyIndex]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleUndo = () => {
-        if (historyIndex <= 0) return;
-        const newIdx = historyIndex - 1;
+        const idx = historyIndexRef.current;
+        if (idx <= 0) return;
+        const newIdx = idx - 1;
         historyUpdatingRef.current = true;
-        setQuestions(JSON.parse(JSON.stringify(history[newIdx])));
+        historyIndexRef.current = newIdx;
         setHistoryIndex(newIdx);
+        setQuestions(JSON.parse(JSON.stringify(historyRef.current[newIdx])));
         setTimeout(() => { historyUpdatingRef.current = false; }, 0);
     };
 
     const handleRedo = () => {
-        if (historyIndex >= history.length - 1) return;
-        const newIdx = historyIndex + 1;
+        const idx = historyIndexRef.current;
+        if (idx >= historyRef.current.length - 1) return;
+        const newIdx = idx + 1;
         historyUpdatingRef.current = true;
-        setQuestions(JSON.parse(JSON.stringify(history[newIdx])));
+        historyIndexRef.current = newIdx;
         setHistoryIndex(newIdx);
+        setQuestions(JSON.parse(JSON.stringify(historyRef.current[newIdx])));
         setTimeout(() => { historyUpdatingRef.current = false; }, 0);
     };
 
@@ -409,6 +474,15 @@ export default function FormBuilder() {
                 loadedQuestions = [newQuestion(1)];
             }
             setQuestions(loadedQuestions);
+
+            // BUG-3 FIX: Seed undo/redo history with the initial loaded state so
+            // the first Ctrl+Z always has a valid snapshot to return to.
+            // Also seed the mirror refs so pushHistory reads a consistent initial index.
+            const seedSnapshot = JSON.parse(JSON.stringify(loadedQuestions));
+            historyRef.current = [seedSnapshot];
+            historyIndexRef.current = 0;
+            setHistory([seedSnapshot]);
+            setHistoryIndex(0);
 
             // Establish clean baseline snapshot for new/loaded form
             baselineRef.current = {
@@ -667,16 +741,15 @@ export default function FormBuilder() {
         e.target.value = '';
     };
 
-    const handleDeleteQuestion = async (idx) => {
-        const q = questions[idx];
-        if (q.id) {
-            const res = await deleteQuestion(id, q.id);
-            if (!res.ok) { showToast(res.message || 'Gagal menghapus soal', 'error'); return; }
-        }
+    // BUG-2 FIX: Stage deletion locally; only committed on "Simpan Perubahan".
+    // Previously called the delete API immediately, which caused permanent deletion
+    // even when the user left without saving. Now matches the same pattern used by
+    // handleClearAllQuestions (local-only until save).
+    const handleDeleteQuestion = (idx) => {
         const next = questions.filter((_, i) => i !== idx);
-        pushHistory(next);
+        pushHistory(questions); // save BEFORE mutation (fixes Bug 3 off-by-one too)
         setQuestions(next);
-        showToast('Soal berhasil dihapus');
+        showToast('Soal dihapus dari draf. Tekan Simpan untuk menyimpan perubahan.', 'success');
     };
 
     // FEAT-10a: Duplicate question
@@ -687,10 +760,11 @@ export default function FormBuilder() {
             _id: `q_dup_${Date.now()}`,
             id: null,
         };
+        // BUG-3 FIX: push snapshot BEFORE mutation
+        pushHistory(questions);
         setQuestions(prev => {
             const next = [...prev];
             next.splice(idx + 1, 0, dupe);
-            pushHistory(next);
             return next;
         });
         showToast('Soal berhasil diduplikasi');
@@ -840,12 +914,13 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
         return currentQ.id;
     };
 
-    const handleUploadQuestionImage = async (idx, file) => {
+        const handleUploadQuestionImage = async (idx, file) => {
         const qId = await autoSaveBeforeUpload(idx);
         if (!qId) { showToast('Gagal memproses soal sebelum mengunggah gambar', 'error'); return; }
 
         const res = await uploadQuestionImage(id, qId, file);
         if (res.ok) {
+            pushHistory(questionsRef.current);
             updateQuestion(idx, 'questionImage', res.data?.questionImage ?? null);
             showToast('Gambar soal berhasil diunggah!');
         } else {
@@ -853,12 +928,13 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
         }
     };
 
-    const handleUploadQuestionAudio = async (idx, file) => {
+        const handleUploadQuestionAudio = async (idx, file) => {
         const qId = await autoSaveBeforeUpload(idx);
         if (!qId) { showToast('Gagal memproses soal sebelum mengunggah audio', 'error'); return; }
 
         const res = await uploadQuestionAudio(id, qId, file);
         if (res.ok) {
+            pushHistory(questionsRef.current);
             updateQuestion(idx, 'questionAudio', res.data?.questionAudio ?? null);
             showToast('Audio soal berhasil diunggah!');
         } else {
@@ -866,19 +942,21 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
         }
     };
 
-    const handleRemoveQuestionImage = (idx) => {
+        const handleRemoveQuestionImage = (idx) => {
+        pushHistory(questions);
         updateQuestion(idx, 'questionImage', null);
     };
 
     const handleRemoveQuestionAudio = (idx) => {
+        pushHistory(questions);
         updateQuestion(idx, 'questionAudio', null);
     };
 
-    const addQuestion = () => setQuestions(prev => {
-        const next = [...prev, newQuestion(prev.length + 1)];
-        pushHistory(next);
-        return next;
-    });
+    const addQuestion = () => {
+        // BUG-3 FIX: push snapshot BEFORE mutation so undo restores the previous state
+        pushHistory(questions);
+        setQuestions(prev => [...prev, newQuestion(prev.length + 1)]);
+    };
 
     const handleAddAIQuestions = (newGeneratedQuestions) => {
         if (!newGeneratedQuestions || newGeneratedQuestions.length === 0) return;
@@ -895,18 +973,38 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
     };
 
     const moveQuestion = (idx, dir) => {
+        // BUG-3 FIX: push snapshot BEFORE mutation
+        pushHistory(questions);
         setQuestions(prev => {
             const arr = [...prev];
             const target = idx + dir;
             if (target < 0 || target >= arr.length) return arr;
             [arr[idx], arr[target]] = [arr[target], arr[idx]];
-            pushHistory(arr);
             return arr;
         });
     };
 
-    const updateQuestion = (idx, field, value) =>
+    const updateQuestion = (idx, field, value) => {
+        // BUG-3 FIX: track text edits in undo/redo history with a 500ms debounce.
+        // Only text-type fields trigger history; structural fields (typeId, isRequired,
+        // isScorable, points) are intentionally excluded — those changes are rarely undone
+        // and fire on single interactions (toggles/selects), not continuous typing.
+        const isTextField = ['question', 'correctAnswer'].includes(field);
+        if (isTextField) {
+            if (textEditDebounceRef.current) clearTimeout(textEditDebounceRef.current);
+            // Capture the CURRENT questions state (before this keystroke) for the snapshot.
+            // We store it in the timeout closure so sequential keystrokes reuse the same
+            // pre-edit snapshot until the user pauses.
+            const snapshotBeforeEditing = JSON.parse(JSON.stringify(questions));
+            textEditDebounceRef.current = setTimeout(() => {
+                if (!historyUpdatingRef.current) {
+                    pushHistory(snapshotBeforeEditing);
+                }
+                textEditDebounceRef.current = null;
+            }, 500);
+        }
         setQuestions(prev => prev.map((q, i) => i === idx ? { ...q, [field]: value } : q));
+    };
 
     const openInsertModal = (qIdx, mode, targetType = 'question', oIdx = null) => {
         setModalTarget({ type: targetType, qIdx, oIdx });
@@ -931,17 +1029,32 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
         setPreviewVisibility(prev => ({ ...prev, [idx]: !prev[idx] }));
     };
 
-    const addOption = (qIdx) =>
+    const addOption = (qIdx) => {
+        pushHistory(questions);
         setQuestions(prev => prev.map((q, i) =>
             i === qIdx ? { ...q, options: [...q.options, { optionText: '', isCorrect: false }] } : q
         ));
+    };
 
-    const removeOption = (qIdx, oIdx) =>
+    const removeOption = (qIdx, oIdx) => {
+        pushHistory(questions);
         setQuestions(prev => prev.map((q, i) =>
             i === qIdx ? { ...q, options: q.options.filter((_, oi) => oi !== oIdx) } : q
         ));
+    };
 
-    const updateOption = (qIdx, oIdx, field, val) =>
+    const updateOption = (qIdx, oIdx, field, val) => {
+        // BUG-3 FIX: debounced history for option text edits
+        if (field === 'optionText') {
+            if (textEditDebounceRef.current) clearTimeout(textEditDebounceRef.current);
+            const snapshotBeforeEditing = JSON.parse(JSON.stringify(questions));
+            textEditDebounceRef.current = setTimeout(() => {
+                if (!historyUpdatingRef.current) {
+                    pushHistory(snapshotBeforeEditing);
+                }
+                textEditDebounceRef.current = null;
+            }, 500);
+        }
         setQuestions(prev => prev.map((q, i) => {
             if (i !== qIdx) return q;
             const opts = q.options.map((opt, oi) => {
@@ -950,6 +1063,7 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
             });
             return { ...q, options: opts };
         }));
+    };
 
     if (loading) {
         return (
@@ -970,7 +1084,23 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                 {/* Top Header */}
                 <div className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-6 py-3 flex items-center justify-between gap-4 shadow-xs">
                     <div className="flex items-center gap-3 min-w-0">
-                        <button onClick={() => navigate('/my-forms')} className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl transition-all cursor-pointer">
+                                            <button onClick={() => {
+                            if (isDirty) {
+                                setConfirmModal({
+                                    isOpen: true,
+                                    title: 'Perubahan Belum Disimpan',
+                                    message: 'Ada perubahan yang belum disimpan. Yakin ingin meninggalkan halaman ini?',
+                                    variant: 'danger',
+                                    confirmText: 'Ya, Tinggalkan',
+                                    onConfirm: () => {
+                                        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                                        navigate('/my-forms');
+                                    },
+                                });
+                                return;
+                            }
+                            navigate('/my-forms');
+                        }} className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl transition-all cursor-pointer">
                             <ArrowLeft size={18} />
                         </button>
                         <div className="min-w-0">
@@ -1936,16 +2066,69 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                 </div>
             )}
 
+            {/* BUG-4 FIX: In-app unsaved-changes navigation guard dialog.
+                Shows when the user tries to navigate away via a client-side route
+                change (sidebar, back button, etc.) while isDirty is true. */}
+            {/* {navBlocker.state === 'blocked' && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                    <div
+                        className="fixed inset-0 bg-black/50 backdrop-blur-xs"
+                        onClick={() => navBlocker.reset()}
+                    />
+                    <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 z-10">
+                        <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-500 flex items-center justify-center shrink-0">
+                                <Save size={18} />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                                    Ada perubahan yang belum disimpan
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    Perubahan pada formulir ini belum disimpan. Tinggalkan halaman sekarang akan membuang semua perubahan tersebut.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 pt-1">
+                            <button
+                                type="button"
+                                onClick={() => navBlocker.reset()}
+                                className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl cursor-pointer transition-all"
+                            >
+                                Batal (Tetap di Sini)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const ok = await handleSaveAll();
+                                    if (ok) navBlocker.proceed();
+                                }}
+                                className="flex-1 px-4 py-2.5 bg-[#00897B] hover:bg-[#00796B] text-white text-xs font-bold rounded-xl cursor-pointer transition-all"
+                            >
+                                Simpan &amp; Keluar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => navBlocker.proceed()}
+                                className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-xl cursor-pointer transition-all"
+                            >
+                                Buang Perubahan
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )} */}
+
             {/* BUG-3: ConfirmModal (replaces window.confirm) */}
             <ConfirmModal
-                isOpen={confirmModal.isOpen}
-                onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
-                onConfirm={confirmModal.onConfirm}
-                title={confirmModal.title}
-                message={confirmModal.message}
-                variant={confirmModal.variant || 'danger'}
-                confirmText="Ya, Hapus"
-            />
+            isOpen={confirmModal.isOpen}
+            onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+            onConfirm={confirmModal.onConfirm}
+            title={confirmModal.title}
+            message={confirmModal.message}
+            variant={confirmModal.variant || 'danger'}
+            confirmText={confirmModal.confirmText || 'Ya, Hapus'}
+        />
 
             {/* Modal Rumus & Kode */}
             <MathAndCodeModal

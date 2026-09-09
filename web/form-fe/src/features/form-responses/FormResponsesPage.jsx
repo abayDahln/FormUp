@@ -125,8 +125,22 @@ export const calculateTotalScore = (answers, questions) => {
         totalPoints += qPoints;
 
         const ans = (answers || []).find(a => Number(a.questionId) === Number(q.id));
+
+        // BUG-3 FIX: honour partial (fractional) earned points when the owner has
+        // set a manualScore override (e.g. 90% of an essay). manualScore is raw
+        // earned points (same unit as qPoints), NOT a percentage.
+        if (ans && ans.manualScore != null && ans.manualScore !== undefined) {
+            const raw = Number(ans.manualScore);
+            if (!isNaN(raw) && raw >= 0) {
+                earnedPoints += Math.min(raw, qPoints);
+                // Count as correct only if they earned > 0 (so status badge shows something sensible)
+                if (raw > 0) correctCount++;
+                else wrongCount++;
+                return; // handled — skip the boolean branch below
+            }
+        }
+
         const effective = getEffectiveIsCorrect(ans, q);
-        
         if (effective === true) {
             earnedPoints += qPoints;
             correctCount++;
@@ -191,6 +205,10 @@ export default function FormResponsesPage() {
 
     const [editingScoreId, setEditingScoreId] = useState(null);
     const [inlineScoreInput, setInlineScoreInput] = useState('');
+
+    // BUG-3: partial per-answer score override state (essay questions only)
+    const [partialScoreEditingId, setPartialScoreEditingId] = useState(null); // answerId being edited
+    const [partialScoreInput, setPartialScoreInput] = useState(''); // string "0"–"100"
 
     // B-3: AI Essay Scoring — redesigned to holistic per-submission (A-8)
     const [aiScoringAnswerId, setAiScoringAnswerId] = useState(null); // answerId being scored
@@ -726,6 +744,107 @@ export default function FormResponsesPage() {
         }
     };
 
+    // BUG-3 FIX: partial score override for essay answers.
+    // pctStr is a string "0"–"100". Converts to raw earned points relative to the
+    // question weight and sends to the backend's existing manualScore field.
+    // The boolean isCorrectOverride is set to true when pct > 0 so the answer is
+    // not shown as "Salah" in the UI, and false only when pct === 0.
+    const handleSetPartialScore = async (responseId, questionId, answerId, pctStr, qPoints) => {
+        const pct = Math.max(0, Math.min(100, parseFloat(pctStr) || 0));
+        const rawPoints = Math.round((pct / 100) * qPoints * 100) / 100; // raw earned points
+        const isCorrectOverride = pct > 0;
+
+        const parsedAnswerId = parseInt(answerId, 10);
+        if (!parsedAnswerId || isNaN(parsedAnswerId)) {
+            // fetch answerId on demand (same fallback as handleSetQuestionCorrect)
+            const fresh = await getResponseResult(id, responseId);
+            if (fresh.ok && fresh.data?.answers) {
+                const found = fresh.data.answers.find(a => Number(a.questionId) === Number(questionId));
+                const fetchedId = found?.answerId || found?.id;
+                if (!fetchedId) { showToast('ID jawaban tidak ditemukan.', 'error'); return; }
+                return handleSetPartialScore(responseId, questionId, fetchedId, pctStr, qPoints);
+            }
+            showToast('ID jawaban tidak ditemukan.', 'error');
+            return;
+        }
+
+        const res = await overrideAnswerScore(responseId, parsedAnswerId, {
+            isCorrectOverride,
+            manualScore: rawPoints,
+            overrideNote: `Skor parsial ${pct}% oleh pemilik formulir`,
+        });
+
+        if (res.ok) {
+            // Persist locally (extend existing override map with manualScore info)
+            try {
+                const cur = getLocalManualOverrides(id);
+                if (!cur[responseId]) cur[responseId] = {};
+                cur[responseId][questionId] = { isCorrect: isCorrectOverride, manualScore: rawPoints, pct };
+                localStorage.setItem(`formup_overrides_${id}`, JSON.stringify(cur));
+            } catch {}
+
+            // Update review modal state
+            setSelectedRespondent(prev => {
+                if (!prev) return prev;
+                const newAnswers = (prev.answers || []).map(a => {
+                    if (Number(a.questionId) === Number(questionId)) {
+                        return {
+                            ...a,
+                            isCorrectOverride,
+                            isCorrect: isCorrectOverride,
+                            manualScore: rawPoints,
+                        };
+                    }
+                    return a;
+                });
+                const scoring = calculateTotalScore(newAnswers, formQuestions);
+                return {
+                    ...prev,
+                    answers: newAnswers,
+                    correctCount: scoring.correctCount,
+                    wrongCount: scoring.wrongCount,
+                    score: scoring.score,
+                };
+            });
+
+            // Update respondent row in summary table
+            setAnalytics(prev => {
+                if (!prev?.respondents) return prev;
+                return {
+                    ...prev,
+                    respondents: prev.respondents.map(r => {
+                        if (r.responseId !== responseId) return r;
+                        const newAnswers = (r.answers || []).map(a => {
+                            if (Number(a.questionId) === Number(questionId)) {
+                                return {
+                                    ...a,
+                                    isCorrectOverride,
+                                    isCorrect: isCorrectOverride,
+                                    manualScore: rawPoints,
+                                };
+                            }
+                            return a;
+                        });
+                        const scoring = calculateTotalScore(newAnswers, formQuestions);
+                        return {
+                            ...r,
+                            answers: newAnswers,
+                            correctCount: scoring.correctCount,
+                            wrongCount: scoring.wrongCount,
+                            score: scoring.score,
+                            isCustomScore: true,
+                        };
+                    }),
+                };
+            });
+
+            setPartialScoreEditingId(null);
+            showToast(`Skor parsial ${pct}% (${rawPoints} poin) berhasil disimpan`);
+        } else {
+            showToast(res.message || 'Gagal menyimpan skor parsial.', 'error');
+        }
+    };
+
     // A-8: Holistic AI analysis — kirim semua jawaban essay + ringkasan PG sekaligus
     const handleAiHolisticScore = async (respondent) => {
         const apiKey = getGeminiApiKey();
@@ -817,6 +936,7 @@ Panduan penilaian:
     };
 
     // A-8: Apply all AI suggestions at once via bulk endpoint
+        // A-8: Apply all AI suggestions at once via bulk endpoint
     const handleApplyAllAiScores = async () => {
         if (!aiHolisticResult || !selectedRespondent) return;
         const responseId = selectedRespondent.responseId;
@@ -824,10 +944,20 @@ Panduan penilaian:
             .map(x => {
                 const aId = parseInt(x.answerId, 10);
                 if (!aId || isNaN(aId)) return null;
+                // FIX: convert the AI's percentage score into raw earned points
+                // (manualScore), the same unit calculateTotalScore expects for
+                // partial credit. Sending manualScore: null discarded the AI's
+                // actual score and fell back to the boolean isCorrectOverride
+                // path, which always awards full points — turning a 95% essay
+                // into 100% once applied.
+                const qDef = (formQuestions || []).find(q => Number(q.id) === Number(x.answer?.questionId));
+                const qPoints = qDef && Number(qDef.points) > 0 ? Number(qDef.points) : 1;
+                const pct = Math.max(0, Math.min(100, Number(x.suggestion.score) || 0));
+                const rawPoints = Math.round((pct / 100) * qPoints * 100) / 100;
                 return {
                     answerId: aId,
-                    manualScore: null, // Keep null so backend does not add 100 raw points!
-                    isCorrectOverride: x.suggestion.isCorrect,
+                    manualScore: rawPoints,
+                    isCorrectOverride: pct > 0,
                     overrideNote: `AI Holistic: ${x.suggestion.reason} (Nilai: ${x.suggestion.score})`,
                 };
             })
@@ -845,17 +975,20 @@ Panduan penilaian:
                 }
             });
 
-            setSelectedRespondent(prev => {
+                        setSelectedRespondent(prev => {
                 if (!prev) return prev;
                 const updatedAnswers = (prev.answers || []).map(a => {
                     const matchedSug = aiHolisticResult.essaySuggestions.find(x => Number(x.answer?.questionId) === Number(a.questionId));
                     if (matchedSug) {
+                        const qDef = (formQuestions || []).find(q => Number(q.id) === Number(a.questionId));
+                        const qPoints = qDef && Number(qDef.points) > 0 ? Number(qDef.points) : 1;
+                        const pct = Math.max(0, Math.min(100, Number(matchedSug.suggestion.score) || 0));
+                        const rawPoints = Math.round((pct / 100) * qPoints * 100) / 100;
                         return {
                             ...a,
-                            isCorrectOverride: matchedSug.suggestion.isCorrect,
-                            isCorrect: matchedSug.suggestion.isCorrect,
-                            score: matchedSug.suggestion.score,
-                            manualScore: null,
+                            isCorrectOverride: pct > 0,
+                            isCorrect: pct > 0,
+                            manualScore: rawPoints,
                         };
                     }
                     return a;
@@ -880,12 +1013,15 @@ Panduan penilaian:
                         const updatedAnswers = (r.answers || []).map(a => {
                             const matchedSug = aiHolisticResult.essaySuggestions.find(x => Number(x.answer?.questionId) === Number(a.questionId));
                             if (matchedSug) {
+                                const qDef = (formQuestions || []).find(q => Number(q.id) === Number(a.questionId));
+                                const qPoints = qDef && Number(qDef.points) > 0 ? Number(qDef.points) : 1;
+                                const pct = Math.max(0, Math.min(100, Number(matchedSug.suggestion.score) || 0));
+                                const rawPoints = Math.round((pct / 100) * qPoints * 100) / 100;
                                 return {
                                     ...a,
-                                    isCorrectOverride: matchedSug.suggestion.isCorrect,
-                                    isCorrect: matchedSug.suggestion.isCorrect,
-                                    score: matchedSug.suggestion.score,
-                                    manualScore: null,
+                                    isCorrectOverride: pct > 0,
+                                    isCorrect: pct > 0,
+                                    manualScore: rawPoints,
                                 };
                             }
                             return a;
@@ -902,6 +1038,7 @@ Panduan penilaian:
                     })
                 };
             });
+
 
             setAiHolisticPreviewOpen(false);
             setAiHolisticResult(null);
@@ -1846,37 +1983,116 @@ Panduan penilaian:
                                             </div>
 
                                             {/* Status Badge & Per-question Score Correction Controls */}
-                                            <div className="shrink-0 flex items-center gap-2">
-                                                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-bold ${status.className}`}>
-                                                    {status.icon}
-                                                    <span>{status.label}</span>
+                                            <div className="shrink-0 flex flex-col items-end gap-1.5">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-bold ${status.className}`}>
+                                                        {status.icon}
+                                                        <span>{status.label}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleSetQuestionCorrect(selectedRespondent.responseId, answer.questionId, true)}
+                                                            className={`px-2 py-1 text-[11px] font-bold rounded cursor-pointer transition-all ${
+                                                                effIsCorrect === true && answer.manualScore == null
+                                                                    ? 'bg-emerald-500 text-white shadow-2xs'
+                                                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                            }`}
+                                                            title="Koreksi: Tandai Benar (100%)"
+                                                        >
+                                                            Benar
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleSetQuestionCorrect(selectedRespondent.responseId, answer.questionId, false)}
+                                                            className={`px-2 py-1 text-[11px] font-bold rounded cursor-pointer transition-all ${
+                                                                effIsCorrect === false
+                                                                    ? 'bg-red-500 text-white shadow-2xs'
+                                                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                            }`}
+                                                            title="Koreksi: Tandai Salah (0%)"
+                                                        >
+                                                            Salah
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleSetQuestionCorrect(selectedRespondent.responseId, answer.questionId, true)}
-                                                        className={`px-2 py-1 text-[11px] font-bold rounded cursor-pointer transition-all ${
-                                                            effIsCorrect === true
-                                                                ? 'bg-emerald-500 text-white shadow-2xs'
-                                                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                                                        }`}
-                                                        title="Koreksi: Tandai Benar"
-                                                    >
-                                                        Benar
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleSetQuestionCorrect(selectedRespondent.responseId, answer.questionId, false)}
-                                                        className={`px-2 py-1 text-[11px] font-bold rounded cursor-pointer transition-all ${
-                                                            effIsCorrect === false
-                                                                ? 'bg-red-500 text-white shadow-2xs'
-                                                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                                                        }`}
-                                                        title="Koreksi: Tandai Salah"
-                                                    >
-                                                        Salah
-                                                    </button>
-                                                </div>
+
+                                                {/* BUG-3 FIX: partial score input — only shown for essay (typeId 1).
+                                                    Lets the owner award e.g. 90% for a near-correct answer instead
+                                                    of the all-or-nothing Benar/Salah toggle. */}
+                                                {(answer.typeId === 1 || qDef?.typeId === 1) && (
+                                                    partialScoreEditingId === (answer.answerId || answer.id || answer.questionId) ? (
+                                                        <div className="flex items-center gap-1">
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                max="100"
+                                                                step="1"
+                                                                autoFocus
+                                                                value={partialScoreInput}
+                                                                onChange={e => setPartialScoreInput(e.target.value)}
+                                                                onKeyDown={e => {
+                                                                    if (e.key === 'Enter') {
+                                                                        handleSetPartialScore(
+                                                                            selectedRespondent.responseId,
+                                                                            answer.questionId,
+                                                                            answer.answerId || answer.id,
+                                                                            partialScoreInput,
+                                                                            qPoints
+                                                                        );
+                                                                    }
+                                                                    if (e.key === 'Escape') setPartialScoreEditingId(null);
+                                                                }}
+                                                                className="w-16 px-2 py-1 bg-white dark:bg-slate-800 border border-amber-400 dark:border-amber-600 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-center"
+                                                                placeholder="0–100"
+                                                            />
+                                                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">%</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleSetPartialScore(
+                                                                    selectedRespondent.responseId,
+                                                                    answer.questionId,
+                                                                    answer.answerId || answer.id,
+                                                                    partialScoreInput,
+                                                                    qPoints
+                                                                )}
+                                                                className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg cursor-pointer"
+                                                                title="Simpan skor parsial"
+                                                            >
+                                                                ✓
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setPartialScoreEditingId(null)}
+                                                                className="px-2 py-1 text-slate-400 hover:text-slate-600 text-[11px] font-bold rounded-lg cursor-pointer"
+                                                                title="Batal"
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const currentPct = answer.manualScore != null
+                                                                    ? Math.round((Number(answer.manualScore) / qPoints) * 100)
+                                                                    : effIsCorrect === true ? 100 : effIsCorrect === false ? 0 : '';
+                                                                setPartialScoreInput(String(currentPct));
+                                                                setPartialScoreEditingId(answer.answerId || answer.id || answer.questionId);
+                                                            }}
+                                                            className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border cursor-pointer transition-all ${
+                                                                answer.manualScore != null
+                                                                    ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'
+                                                                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-amber-300 hover:text-amber-600'
+                                                            }`}
+                                                            title="Atur skor parsial (%)"
+                                                        >
+                                                            {answer.manualScore != null
+                                                                ? `${Math.round((Number(answer.manualScore) / qPoints) * 100)}% parsial`
+                                                                : '± Skor Parsial'}
+                                                        </button>
+                                                    )
+                                                )}
                                             </div>
                                         </div>
 

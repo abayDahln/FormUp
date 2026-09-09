@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { getLocalUser, clearSession } from '../../services/apiService';
 import logo from '../../assets/logo.png';
+import ConfirmModal from '../ui/ConfirmModal';
 import UserGuideModal from '../ui/UserGuideModal';
 
 export default function Sidebar({ onStartTour = null }) {
@@ -21,10 +22,37 @@ export default function Sidebar({ onStartTour = null }) {
     const user = getLocalUser();
     const [guideModalOpen, setGuideModalOpen] = useState(false);
 
-    const handleLogout = () => {
-        clearSession();
-        navigate('/login', { replace: true });
-    };
+    const [confirmNav, setConfirmNav] = useState({ isOpen: false, action: null, message: '' });
+
+   const navigateWithConfirm = (path) => {
+    if (window.__formBuilderDirty === true) {
+        setConfirmNav({
+            isOpen: true,
+            message: 'Ada perubahan yang belum disimpan. Yakin ingin meninggalkan halaman ini?',
+            action: () => navigate(path),
+        });
+        return;
+    }
+
+    navigate(path);
+};
+
+const handleLogout = () => {
+    if (window.__formBuilderDirty === true) {
+        setConfirmNav({
+            isOpen: true,
+            message: 'Ada perubahan yang belum disimpan. Yakin ingin keluar?',
+            action: () => {
+                clearSession();
+                navigate('/login', { replace: true });
+            },
+        });
+        return;
+    }
+
+    clearSession();
+    navigate('/login', { replace: true });
+};
 
     const menuItems = [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -64,18 +92,26 @@ export default function Sidebar({ onStartTour = null }) {
                             const isActive = location.pathname.startsWith(item.path);
 
                             return (
-                                <Link 
-                                    key={item.path}
-                                    to={item.path} 
-                                    className={`flex items-center gap-3 px-4 py-3 font-bold text-sm rounded-xl transition-all ${
-                                        isActive 
-                                            ? 'bg-white/20 dark:bg-teal-600/30 text-white shadow-xs border border-white/20 dark:border-teal-500/40' 
-                                            : 'text-teal-100/80 dark:text-slate-300 hover:bg-white/10 dark:hover:bg-slate-800/80 hover:text-white' 
-                                    }`}
-                                >
-                                    <Icon size={18} className={isActive ? 'text-teal-200 dark:text-teal-300' : 'text-teal-200/70 dark:text-slate-400'} />
-                                    <span>{item.label}</span>
-                                </Link>
+                                <button
+                                key={item.path}
+                                type="button"
+                                onClick={() => navigateWithConfirm(item.path)}
+                                className={`w-full flex items-center gap-3 px-4 py-3 font-bold text-sm rounded-xl transition-all ${
+                                    isActive
+                                        ? 'bg-white/20 dark:bg-teal-600/30 text-white shadow-xs border border-white/20 dark:border-teal-500/40'
+                                        : 'text-teal-100/80 dark:text-slate-300 hover:bg-white/10 dark:hover:bg-slate-800/80 hover:text-white'
+                                }`}
+                            >
+                                <Icon
+                                    size={18}
+                                    className={
+                                        isActive
+                                            ? 'text-teal-200 dark:text-teal-300'
+                                            : 'text-teal-200/70 dark:text-slate-400'
+                                    }
+                                />
+                                <span>{item.label}</span>
+                            </button>
                             );
                         })}
 
@@ -115,6 +151,19 @@ export default function Sidebar({ onStartTour = null }) {
                         window.__startFormUpTour();
                     }
                 }}
+            />
+            <ConfirmModal
+                isOpen={confirmNav.isOpen}
+                onClose={() => setConfirmNav({ isOpen: false, action: null, message: '' })}
+                onConfirm={() => {
+                    const action = confirmNav.action;
+                    setConfirmNav({ isOpen: false, action: null, message: '' });
+                    if (action) action();
+                }}
+                title="Perubahan Belum Disimpan"
+                message={confirmNav.message}
+                variant="danger"
+                confirmText="Ya, Lanjutkan"
             />
         </>
     );
