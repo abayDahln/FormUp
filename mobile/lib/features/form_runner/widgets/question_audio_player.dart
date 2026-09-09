@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
@@ -27,43 +28,53 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
   bool _playing = false;
   bool _loading = true;
   bool _seeking = false; // user sedang menggeser slider
+  bool _toggling = false; // cegah double-tap tombol play
   Duration? _duration;
   Duration _position = Duration.zero;
+  Source? _source; // sumber aktif — dipakai putar ulang saat resume gagal
+  bool _completedOnce = false; // true sejak audio selesai sekali
+  final List<StreamSubscription> _subs = [];
 
   @override
   void initState() {
     super.initState();
     _prepareSource();
-    _player.onPlayerStateChanged.listen((state) {
-      if (mounted) setState(() => _playing = state == PlayerState.playing);
-    });
-    _player.onDurationChanged.listen((d) {
-      if (mounted) setState(() => _duration = d);
-    });
-    _player.onPositionChanged.listen((p) {
-      if (mounted && !_seeking) setState(() => _position = p);
-    });
-    _player.onPlayerComplete.listen((_) async {
-      // Kunci agar play ulang selalu berhasil: kembalikan posisi ke awal
-      // lalu pause, sehingga player tidak tertahan di state stopped.
-      await _player.seek(Duration.zero);
-      await _player.pause();
-      if (mounted) {
-        setState(() {
-          _playing = false;
-          _position = Duration.zero;
-        });
-      }
-    });
+    _subs.addAll([
+      _player.onPlayerStateChanged.listen((state) {
+        if (mounted) setState(() => _playing = state == PlayerState.playing);
+      }),
+      _player.onDurationChanged.listen((d) {
+        if (mounted) setState(() => _duration = d);
+      }),
+      _player.onPositionChanged.listen((p) {
+        if (mounted && !_seeking) setState(() => _position = p);
+      }),
+      _player.onPlayerComplete.listen((_) async {
+        // Kembalikan posisi ke awal lalu pause, sehingga tombol play
+        // siap memutar ulang. Tandai completed: resume() dari state ini
+        // adalah no-op diam-diam di Android — _toggle menanganinya.
+        _completedOnce = true;
+        await _player.seek(Duration.zero);
+        await _player.pause();
+        if (mounted) {
+          setState(() {
+            _playing = false;
+            _position = Duration.zero;
+          });
+        }
+      }),
+    ]);
   }
 
   Future<void> _prepareSource() async {
     try {
       if (widget.bytes != null) {
-        await _player.setSource(BytesSource(widget.bytes!));
+        _source = BytesSource(widget.bytes!);
       } else if (widget.url != null) {
-        await _player.setSource(UrlSource(profileImageUrl(widget.url!)));
+        _source = UrlSource(profileImageUrl(widget.url!));
       }
+      final src = _source;
+      if (src != null) await _player.setSource(src);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -71,23 +82,57 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
 
   @override
   void dispose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    _subs.clear();
     _player.dispose();
     super.dispose();
   }
 
   Future<void> _toggle() async {
-    if (_loading) return;
+    if (_loading || _toggling) return;
     if (_playing) {
       await _player.pause();
-    } else {
-      // Pastikan player aktif sebelum resume (aman untuk semua state).
+      return;
+    }
+    _toggling = true;
+    try {
+      // Setelah audio selesai sekali: seek dulu ke posisi saat ini
+      // (awal bila belum digeser) karena resume() dari state
+      // completed/stopped tidak berefek di Android.
+      if (_completedOnce) {
+        try {
+          await _player.seek(_position);
+        } catch (_) {}
+      }
       try {
         await _player.resume();
       } catch (_) {
-        await _player.stop();
-        await _player.seek(_position);
-        await _player.resume();
+        await _replay();
+        return;
       }
+      // Verifikasi: resume() bisa gagal DIAM-DIAM (tanpa throw) —
+      // bila 600ms kemudian tetap tidak playing, putar ulang source.
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
+      if (!_playing && !_loading) {
+        await _replay();
+      }
+    } finally {
+      _toggling = false;
+    }
+  }
+
+  /// Putar ulang source dari awal — jalan terakhir paling andal.
+  Future<void> _replay() async {
+    final src = _source;
+    if (src == null || !mounted) return;
+    try {
+      await _player.play(src);
+      _completedOnce = false;
+    } catch (_) {
+      if (mounted) setState(() => _playing = false);
     }
   }
 
@@ -110,9 +155,14 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
     final posMs = _position.inMilliseconds.clamp(0, maxMs).toDouble();
     final progress = maxMs == 0 ? 0.0 : (posMs / maxMs).clamp(0.0, 1.0);
     final hasDuration = maxMs > 0;
+    // Kontras adaptif: teks gelap di mode terang, terang di mode gelap.
+    final titleColor = cs.onSurface;
+    final subtitleColor = cs.onSurfaceVariant;
+    final trackColor = cs.surfaceContainerHighest;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
         border: Border.all(color: cs.primary, width: 1),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -133,11 +183,11 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
+                      Text(
                         'Mempersiapkan pratinjau audio',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF123B36),
+                          color: titleColor,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -145,9 +195,9 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
                         const SizedBox(height: 2),
                         Text(
                           widget.label!,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: Color(0xFF1E6B60),
+                            color: subtitleColor,
                             fontWeight: FontWeight.w500,
                           ),
                           maxLines: 1,
@@ -167,13 +217,13 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
                   child: Container(
                     width: 44,
                     height: 44,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF018081),
+                    decoration: BoxDecoration(
+                      color: cs.primary,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                      color: Colors.white,
+                      color: cs.onPrimary,
                       size: 26,
                     ),
                   ),
@@ -183,11 +233,11 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Audio Soal',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF123B36),
+                          color: titleColor,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -195,9 +245,9 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
                         const SizedBox(height: 2),
                         Text(
                           widget.label!,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: Color(0xFF1E6B60),
+                            color: subtitleColor,
                             fontWeight: FontWeight.w500,
                           ),
                           maxLines: 1,
@@ -232,8 +282,8 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
                               await _onSeek(Duration(milliseconds: value.round()));
                               if (mounted) setState(() => _seeking = false);
                             },
-                            activeColor: kAuthPrimary,
-                            inactiveColor: const Color(0xFFBFE9E1),
+                            activeColor: cs.primary,
+                            inactiveColor: trackColor,
                           ),
                         )
                       else
@@ -244,8 +294,8 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
                             child: LinearProgressIndicator(
                               value: progress,
                               minHeight: 4,
-                              backgroundColor: const Color(0xFFBFE9E1),
-                              valueColor:  AlwaysStoppedAnimation<Color>(cs.primary),
+                              backgroundColor: trackColor,
+                              valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
                             ),
                           ),
                         ),
@@ -255,9 +305,9 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
                 const SizedBox(width: 12),
                 Text(
                   '${_fmt(_position)} / ${hasDuration ? _fmt(_duration!) : '--:--'}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: Color(0xFF123B36),
+                    color: titleColor,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
