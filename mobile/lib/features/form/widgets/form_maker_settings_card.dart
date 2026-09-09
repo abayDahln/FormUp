@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:form_up/core/theme.dart';
+import 'package:form_up/core/services/exam_warning_sound.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/features/form/controllers/form_maker_controller.dart';
 
@@ -214,6 +215,23 @@ class FormMakerSettingsCard extends StatelessWidget {
               c.maxTabSwitch = int.tryParse(v);
               onChanged();
             },
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () async {
+              final err = await ExamWarningSound.testPlay();
+              if (!context.mounted) return;
+              showAuthToast(
+                context,
+                err == null
+                    ? 'Bunyi peringatan diputar'
+                    : 'Bunyi gagal: $err',
+                isError: err != null,
+              );
+            },
+            icon: const Icon(Icons.volume_up_outlined, size: 18),
+            label: const Text('Tes bunyi peringatan',
+                style: TextStyle(fontSize: 12)),
           ),
         ],
         const Divider(height: 24),

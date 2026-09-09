@@ -97,6 +97,11 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   bool _multiWindowFlagged = false;
   DateTime? _lastWindowBlurAt;
   static const _windowBlurCooldown = Duration(seconds: 10);
+  // True bila auto-submit karena limit pelanggaran sudah jalan: bunyi
+  // alarm dibiarkan terus sampai dialog ditutup (dispose), tidak ikut
+  // berhenti saat resumed. True bila app sedang di luar (background).
+  bool _violationSubmitted = false;
+  bool _appInBackground = false;
 
   // ID soal wajib yang belum dijawab (untuk indikator merah saat submit gagal).
   final Set<int> _errorQuestionIds = {};
@@ -143,6 +148,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     }
     if (state == AppLifecycleState.paused) {
       _sawPaused = true;
+      _appInBackground = true;
       // Langsung bunyikan peringatan tiap keluar app saat ujian —
       // tanpa menunggu limit tercapai.
       unawaited(ExamWarningSound.playDeterrent());
@@ -152,6 +158,13 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       return;
     }
     if (state == AppLifecycleState.resumed) {
+      _appInBackground = false;
+      // Kembali ke form: hentikan bunyi — KECUALI auto-submit karena
+      // limit sudah jalan (alarm terus sampai dialog ditutup), agar
+      // tidak terasa seperti ke-pause saat dialog muncul.
+      if (!_violationSubmitted) {
+        unawaited(ExamWarningSound.stop());
+      }
       // Kembali tanpa pernah pause = interupsi overlay/floating semata.
       final wasOverlayOnly = _sawInactive && !_sawPaused;
       _sawInactive = false;
@@ -178,6 +191,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
             maxSwitch > 0 &&
             _tabSwitchCount >= maxSwitch &&
             autoSubmit)) {
+      _violationSubmitted = true;
       await _autoSubmit(violationLimit: true);
       if (mounted) {
         showAppToast(
@@ -217,6 +231,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     }
     if (!mounted) return;
     if (serverAutoSubmit) {
+      _violationSubmitted = true;
       await _autoSubmit(violationLimit: true);
       if (mounted) {
         showAppToast(
@@ -237,11 +252,16 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   }
 
   /// Cek split-screen berkala selama ujian (tiap 5 detik). Dilaporkan 1x
-  /// sebagai window_blur sampai user keluar dari split-screen.
+  /// sebagai window_blur sampai user keluar dari split-screen. Merangkap
+  /// watchdog bunyi: selama user di luar form, pastikan alarm tetap
+  /// berbunyi (pulihkan bila OS menjeda audio).
   void _startExamGuard() {
     _examGuardTimer?.cancel();
     _examGuardTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       if (!_examTracking || _step != _RunnerStep.fill) return;
+      if (_appInBackground) {
+        await ExamWarningSound.ensureLooping();
+      }
       bool inMulti = false;
       try {
         inMulti = await ExamLockService.isInMultiWindowMode();
@@ -394,7 +414,11 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
           respondentName: _c.isLoggedIn ? null : _c.nameController.text,
         );
         _exam = exam;
+        // Sesi baru: matikan sisa bunyi sesi lama, reset flag.
+        await ExamWarningSound.stop();
         ExamWarningSound.reset();
+        _violationSubmitted = false;
+        _appInBackground = false;
         unawaited(ExamWarningSound.prime());
         await exam.start();
         if (mounted) setState(() => _tabSwitchCount = exam.tabSwitchCount);
@@ -439,24 +463,32 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-            violationLimit ? "Jawaban Terkirim" : "Form Selesai",
-            style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Theme.of(ctx).colorScheme.onSurface)),
-        content: Text(
-            violationLimit
-                ? "Batas pelanggaran tercapai. Jawaban telah dikirim otomatis."
-                : "Waktu pengerjaan telah habis. Jawaban telah dikirim.",
-            style: TextStyle(fontSize: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
-        actions: [
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: kAuthPrimary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Tutup"),
-          ),
-        ],
-      ),
+      builder: (ctx) => violationLimit
+          ? _ViolationDoneDialog(onClose: () => Navigator.pop(ctx))
+          : AlertDialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              title: Text("Form Selesai",
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontFamily: kFontBold,
+                      color: Theme.of(ctx).colorScheme.onSurface)),
+              content: Text("Waktu pengerjaan telah habis. Jawaban telah dikirim.",
+                  style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+              actions: [
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                      backgroundColor: kAuthPrimary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10))),
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("Tutup"),
+                ),
+              ],
+            ),
     );
     if (!mounted) return;
     AppRouter.of(context).pop();
@@ -529,6 +561,8 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       );
       _exam?.stop();
       await _releaseExamLock();
+      // Kumpul manual oleh user yang hadir: hentikan bunyi bila menyala.
+      await ExamWarningSound.stop();
       if (!mounted) return false;
       if (returnToStartScreen) {
         await showDialog<void>(
@@ -644,7 +678,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
                     Expanded(
                       child: Text(
                         _detectSwitch
-                            ? 'Mode Ujian aktif • Jangan keluar aplikasi ($_tabSwitchCount${_c.info?.maxTabSwitch != null && _c.info!.maxTabSwitch! > 0 ? '/${_c.info!.maxTabSwitch}' : ''})'
+                            ? 'Mode Ujian aktif • Pelanggaran ($_tabSwitchCount${_c.info?.maxTabSwitch != null && _c.info!.maxTabSwitch! > 0 ? '/${_c.info!.maxTabSwitch}' : ''})'
                             : 'Mode Ujian aktif',
                         style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
                       ),
@@ -685,5 +719,97 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
           DateTime(date.year, date.month, date.day, time.hour, time.minute);
       _errorQuestionIds.remove(questionId);
     });
+  }
+}
+
+/// Dialog selesai karena ketahuan menyontek (batas pelanggaran tercapai):
+/// bernuansa merah peringatan, hanya ada tombol Tutup yang terkunci
+/// selama 5 detik (hitungan mundur). Bunyi alarm terus menyala sampai
+/// dialog ini ditutup.
+class _ViolationDoneDialog extends StatefulWidget {
+  final VoidCallback onClose;
+
+  const _ViolationDoneDialog({required this.onClose});
+
+  @override
+  State<_ViolationDoneDialog> createState() => _ViolationDoneDialogState();
+}
+
+class _ViolationDoneDialogState extends State<_ViolationDoneDialog> {
+  static const _lockSeconds = 5;
+  int _remaining = _lockSeconds;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_remaining > 0) _remaining--;
+      });
+      if (_remaining <= 0) _timer?.cancel();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final unlocked = _remaining <= 0;
+    final red =
+        Theme.of(context).brightness == Brightness.dark
+            ? Colors.red.shade400
+            : Colors.red.shade700;
+    return PopScope(
+      // Tombol back HP juga dikunci selama hitungan mundur.
+      canPop: unlocked,
+      child: AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: red, width: 2),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: red, size: 26),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "Ketahuan Menyontek!",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontFamily: kFontBold,
+                  color: red,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          "Batas pelanggaran tercapai. Jawaban telah dikirim otomatis.",
+          style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
+        ),
+        actions: [
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: unlocked ? red : cs.surfaceContainerHighest,
+              foregroundColor:
+                  unlocked ? Colors.white : cs.onSurfaceVariant,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: unlocked ? widget.onClose : null,
+            child: Text(unlocked
+                ? "Tutup"
+                : "Tutup ($_remaining)"),
+          ),
+        ],
+      ),
+    );
   }
 }
