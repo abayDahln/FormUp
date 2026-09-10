@@ -4,11 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/services/exam_lock_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 
-/// Strip info selama ujian terkunci/pin: jam saat ini + baterai + gembok.
+/// Strip info selama ujian terkunci/pin: jam + tanggal di KIRI,
+/// baterai di KANAN (+ hitungan pelanggaran bila ada).
 /// Pengganti status bar sistem yang disembunyikan pin/FLAG_SECURE.
 /// Baterai via method channel (tanpa plugin, tanpa permission).
 class ExamLockStatusBar extends StatefulWidget {
-  const ExamLockStatusBar({super.key});
+  /// Label hitungan pelanggaran, mis. "2/3". Null = sembunyikan.
+  final String? violationLabel;
+
+  const ExamLockStatusBar({super.key, this.violationLabel});
 
   @override
   State<ExamLockStatusBar> createState() => _ExamLockStatusBarState();
@@ -78,18 +82,9 @@ class _ExamLockStatusBarState extends State<ExamLockStatusBar> {
       padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
       child: Row(
         children: [
+          // Kiri: gembok + tanggal + jam.
           Icon(Icons.lock_outline, size: 13, color: cs.primary),
           const SizedBox(width: 6),
-          Text(
-            'Terkunci',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              fontFamily: kFontBold,
-              color: cs.primary,
-            ),
-          ),
-          const Spacer(),
           Text(
             '$_date • $_time',
             style: TextStyle(
@@ -99,7 +94,28 @@ class _ExamLockStatusBarState extends State<ExamLockStatusBar> {
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          const SizedBox(width: 10),
+          if (widget.violationLabel != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: cs.errorContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                widget.violationLabel!,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: kFontBold,
+                  color: cs.onErrorContainer,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          ],
+          const Spacer(),
+          // Kanan: baterai.
           Icon(
             _batteryIcon(),
             size: 15,

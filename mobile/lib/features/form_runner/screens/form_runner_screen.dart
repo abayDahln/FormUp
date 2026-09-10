@@ -225,8 +225,11 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     }
   }
 
-  /// Lapor 1x gangguan fokus/overlay ke server; auto-submit bila diminta.
+  /// Lapor 1x gangguan fokus/overlay ke server; auto-submit bila limit tembus.
   /// Cooldown 10 detik agar interupsi beruntun tidak spam pelanggaran.
+  /// PENTING: cek limit di sisi klien seperti jalur tab_switch — server
+  /// hanya menghitung tab_switch untuk ShouldAutoSubmit, sehingga tanpa
+  /// cek ini floating app tak pernah memicu auto-submit.
   Future<void> _reportWindowBlur() async {
     if (!_examTracking || _step != _RunnerStep.fill) return;
     // Bunyi dulu (deterrent), baru lapor — sama seperti keluar app.
@@ -244,7 +247,15 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       if (mounted) setState(() => _tabSwitchCount = exam.tabSwitchCount);
     }
     if (!mounted) return;
-    if (serverAutoSubmit) {
+    // Hitung SEMUA pelanggaran (termasuk window_blur) terhadap batas.
+    final totalViolations = exam?.violationCount ?? _tabSwitchCount;
+    final maxSwitch = _c.info?.maxTabSwitch;
+    final autoSubmit = _c.info?.autoSubmitOnTabSwitch == true;
+    if (serverAutoSubmit ||
+        (maxSwitch != null &&
+            maxSwitch > 0 &&
+            totalViolations >= maxSwitch &&
+            autoSubmit)) {
       _violationSubmitted = true;
       await _autoSubmit(violationLimit: true);
       if (mounted) {
@@ -259,7 +270,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     if (mounted) {
       showAppToast(
         context,
-        'Peringatan mode ujian: gangguan layar terdeteksi, kembali fokus ke aplikasi',
+        'Peringatan mode ujian: gangguan layar terdeteksi, kembali fokus ke aplikasi ($totalViolations${maxSwitch != null && maxSwitch > 0 ? '/$maxSwitch' : ''})',
         type: ToastType.info,
       );
     }
@@ -771,30 +782,14 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
         ),
       _RunnerStep.fill => Column(
           children: [
-            if (_examActive) ...[
-              Container(
-                width: double.infinity,
-                color: Colors.red.shade700,
-                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-                child: Row(
-                  children: [
-                    const Icon(Icons.shield_outlined, size: 16, color: Colors.white),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _detectSwitch
-                            ? 'Mode Ujian aktif • Pelanggaran ($_tabSwitchCount${_c.info?.maxTabSwitch != null && _c.info!.maxTabSwitch! > 0 ? '/${_c.info!.maxTabSwitch}' : ''})'
-                            : 'Mode Ujian aktif',
-                        style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    if (_disableCopy) const Icon(Icons.content_copy, size: 12, color: Colors.white70),
-                  ],
-                ),
+            if (_examActive)
+              // Strip status ujian (jam kiri, baterai kanan, hitungan
+              // pelanggaran). Section banner merah dihapus — tidak perlu.
+              ExamLockStatusBar(
+                violationLabel: _detectSwitch
+                    ? '$_tabSwitchCount${_c.info?.maxTabSwitch != null && _c.info!.maxTabSwitch! > 0 ? '/${_c.info!.maxTabSwitch}' : ''}'
+                    : null,
               ),
-              // Jam + baterai pengganti status bar sistem selama pin/secure.
-              const ExamLockStatusBar(),
-            ],
             Expanded(child: fillWidget),
           ],
         ),
