@@ -97,10 +97,10 @@ const _kTemplates = [
     bannerImage: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&auto=format&fit=crop&q=80',
     settings: {'showScore': true, 'randomizeQuestions': true, 'formTypeId': 1, 'oneResponse': false, 'requiredLogin': false},
     questions: [
-      {'typeId': 2, 'question': '<p>Tentukan himpunan penyelesaian dari persamaan kuadrat berikut jika \$\$a = 1, b = -5, c = 6\$\$ menggunakan rumus kuadratik:</p><p>\$\$x = \\\\frac{-b \\\\pm \\\\sqrt{b^2 - 4ac}}{2a}\$\$</p>', 'isRequired': true, 'correctAnswer': 'x = 2 dan x = 3', 'options': [{'optionText': 'x = 2 dan x = 3', 'isCorrect': true}, {'optionText': 'x = -2 dan x = -3'}, {'optionText': 'x = 1 dan x = 6'}, {'optionText': 'x = -1 dan x = 5'}]},
-      {'typeId': 2, 'question': '<p>Berapakah hasil evaluasi dari integral tentu berikut?</p><p>\$\$\\\\int_{0}^{2} 3x^2 \\\\, dx\$\$</p>', 'isRequired': true, 'correctAnswer': '8', 'options': [{'optionText': '8', 'isCorrect': true}, {'optionText': '6'}, {'optionText': '12'}, {'optionText': '4'}]},
-      {'typeId': 2, 'question': '<p>Hitunglah nilai limit fungsi trigonometri berikut:</p><p>\$\$\\\\lim_{x \\\\to 0} \\\\frac{\\\\sin(2x)}{x}\$\$</p>', 'isRequired': true, 'correctAnswer': '2', 'options': [{'optionText': '2', 'isCorrect': true}, {'optionText': '0'}, {'optionText': '1'}, {'optionText': 'Tak Hingga (\\\\infty)'}]},
-      {'typeId': 2, 'question': '<p>Diketahui segitiga siku-siku dengan panjang sisi tegak \$\$a = 6\\\\text{ cm}\$\$ dan \$\$b = 8\\\\text{ cm}\$\$. Berapakah panjang sisi miring (\$\$c\$\$) berdasarkan teorema Pythagoras \$\$a^2 + b^2 = c^2\$\$?</p>', 'isRequired': true, 'correctAnswer': '10 cm', 'options': [{'optionText': '10 cm', 'isCorrect': true}, {'optionText': '12 cm'}, {'optionText': '14 cm'}, {'optionText': '15 cm'}]},
+      {'typeId': 2, 'question': '<p>Tentukan himpunan penyelesaian dari persamaan kuadrat berikut jika \$\$a = 1, b = -5, c = 6\$\$ menggunakan rumus kuadratik:</p><p>\$\$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}\$\$</p>', 'isRequired': true, 'correctAnswer': 'x = 2 dan x = 3', 'options': [{'optionText': 'x = 2 dan x = 3', 'isCorrect': true}, {'optionText': 'x = -2 dan x = -3'}, {'optionText': 'x = 1 dan x = 6'}, {'optionText': 'x = -1 dan x = 5'}]},
+      {'typeId': 2, 'question': '<p>Berapakah hasil evaluasi dari integral tentu berikut?</p><p>\$\$\\int_{0}^{2} 3x^2 \\, dx\$\$</p>', 'isRequired': true, 'correctAnswer': '8', 'options': [{'optionText': '8', 'isCorrect': true}, {'optionText': '6'}, {'optionText': '12'}, {'optionText': '4'}]},
+      {'typeId': 2, 'question': '<p>Hitunglah nilai limit fungsi trigonometri berikut:</p><p>\$\$\\lim_{x \\to 0} \\frac{\\sin(2x)}{x}\$\$</p>', 'isRequired': true, 'correctAnswer': '2', 'options': [{'optionText': '2', 'isCorrect': true}, {'optionText': '0'}, {'optionText': '1'}, {'optionText': 'Tak Hingga (\\infty)'}]},
+      {'typeId': 2, 'question': '<p>Diketahui segitiga siku-siku dengan panjang sisi tegak \$\$a = 6\\text{ cm}\$\$ dan \$\$b = 8\\text{ cm}\$\$. Berapakah panjang sisi miring (\$\$c\$\$) berdasarkan teorema Pythagoras \$\$a^2 + b^2 = c^2\$\$?</p>', 'isRequired': true, 'correctAnswer': '10 cm', 'options': [{'optionText': '10 cm', 'isCorrect': true}, {'optionText': '12 cm'}, {'optionText': '14 cm'}, {'optionText': '15 cm'}]},
     ],
   ),
   FormTemplate(
@@ -115,10 +115,106 @@ const _kTemplates = [
     bannerImage: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
     settings: {'showScore': true, 'oneResponse': true, 'timerDuration': 2700, 'formTypeId': 1, 'randomizeQuestions': false, 'requiredLogin': false},
     questions: [
-      {'typeId': 2, 'question': '<p>Perhatikan potongan kode JavaScript berikut:</p><pre><code class="language-javascript">const numbers = [1, 2, 3, 4];\\nconst result = numbers.map(n => n * 2).filter(n => n > 4);\\nconsole.log(result);</code></pre><p>Apakah output yang dicetak ke console?</p>', 'isRequired': true, 'correctAnswer': '[6, 8]', 'options': [{'optionText': '[6, 8]', 'isCorrect': true}, {'optionText': '[4, 6, 8]'}, {'optionText': '[2, 4, 6, 8]'}, {'optionText': '[8]'}]},
-      {'typeId': 2, 'question': '<p>Perhatikan fungsi rekursif Python berikut:</p><pre><code class="language-python">def faktorial(n):\\n    if n <= 1:\\n        return 1\\n    return n * faktorial(n - 1)\\n\\nprint(faktorial(4))</code></pre><p>Berapakah nilai yang dihasilkan?</p>', 'isRequired': true, 'correctAnswer': '24', 'options': [{'optionText': '24', 'isCorrect': true}, {'optionText': '12'}, {'optionText': '16'}, {'optionText': '4'}]},
+      {'typeId': 2, 'question': '<p>Perhatikan potongan kode JavaScript berikut:</p><pre><code class="language-javascript">const numbers = [1, 2, 3, 4];\nconst result = numbers.map(n => n * 2).filter(n => n > 4);\nconsole.log(result);</code></pre><p>Apakah output yang dicetak ke console?</p>', 'isRequired': true, 'correctAnswer': '[6, 8]', 'options': [{'optionText': '[6, 8]', 'isCorrect': true}, {'optionText': '[4, 6, 8]'}, {'optionText': '[2, 4, 6, 8]'}, {'optionText': '[8]'}]},
+      {'typeId': 2, 'question': '<p>Perhatikan fungsi rekursif Python berikut:</p><pre><code class="language-python">def faktorial(n):\n    if n <= 1:\n        return 1\n    return n * faktorial(n - 1)\n\nprint(faktorial(4))</code></pre><p>Berapakah nilai yang dihasilkan?</p>', 'isRequired': true, 'correctAnswer': '24', 'options': [{'optionText': '24', 'isCorrect': true}, {'optionText': '12'}, {'optionText': '16'}, {'optionText': '4'}]},
       {'typeId': 2, 'question': '<p>Dalam struktur data, operasi <code>push()</code> dan <code>pop()</code> pada Stack mengikuti prinsip apa?</p>', 'isRequired': true, 'correctAnswer': 'LIFO (Last In, First Out)', 'options': [{'optionText': 'LIFO (Last In, First Out)', 'isCorrect': true}, {'optionText': 'FIFO (First In, First Out)'}, {'optionText': 'LILO (Last In, Last Out)'}, {'optionText': 'Random Access'}]},
       {'typeId': 2, 'question': '<p>Perhatikan query SQL:</p><pre><code class="language-sql">SELECT COUNT(*) FROM users WHERE status = \'active\';</code></pre><p>Apa fungsi <code>COUNT(*)</code>?</p>', 'isRequired': true, 'correctAnswer': 'Menghitung total baris pengguna yang berstatus aktif', 'options': [{'optionText': 'Menghitung total baris pengguna yang berstatus aktif', 'isCorrect': true}, {'optionText': 'Mengambil seluruh kolom tabel users'}, {'optionText': 'Menjumlahkan nilai kolom status'}, {'optionText': 'Menghapus data user yang aktif'}]},
+    ],
+  ),
+  FormTemplate(
+    id: 'tpl-survei',
+    title: 'Survei & Kuesioner Umum',
+    category: 'Survei',
+    icon: Icons.poll_outlined,
+    iconBg: Color(0xFFE0F7FA),
+    iconColor: Color(0xFF00838F),
+    questionCount: 6,
+    description: 'Kuesioner kepuasan serbaguna: biodata, tingkat kepuasan, aspek layanan, dan masukan terbuka.',
+    bannerImage: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&auto=format&fit=crop&q=80',
+    settings: {'randomizeQuestions': true, 'formTypeId': 1, 'showScore': false, 'oneResponse': false, 'requiredLogin': false},
+    questions: [
+      {'typeId': 1, 'question': 'Nama Lengkap', 'isRequired': true, 'options': []},
+      {'typeId': 1, 'question': 'Asal Instansi / Kelas', 'isRequired': false, 'options': []},
+      {'typeId': 2, 'question': 'Seberapa puas Anda dengan layanan kami?', 'isRequired': true, 'options': [{'optionText': 'Sangat Puas'}, {'optionText': 'Puas'}, {'optionText': 'Cukup'}, {'optionText': 'Kurang Puas'}, {'optionText': 'Tidak Puas'}]},
+      {'typeId': 2, 'question': 'Apakah Anda akan merekomendasikan layanan kami ke orang lain?', 'isRequired': true, 'options': [{'optionText': 'Ya, pasti'}, {'optionText': 'Mungkin'}, {'optionText': 'Tidak'}]},
+      {'typeId': 3, 'question': 'Aspek apa saja yang perlu ditingkatkan? (boleh pilih lebih dari satu)', 'isRequired': false, 'options': [{'optionText': 'Kecepatan layanan'}, {'optionText': 'Keramahan petugas'}, {'optionText': 'Kualitas hasil'}, {'optionText': 'Harga / biaya'}, {'optionText': 'Fasilitas'}]},
+      {'typeId': 1, 'question': 'Masukan atau saran terbuka untuk kami', 'isRequired': false, 'options': []},
+    ],
+  ),
+  FormTemplate(
+    id: 'tpl-absensi',
+    title: 'Absensi & Kehadiran',
+    category: 'Absensi',
+    icon: Icons.fact_check_outlined,
+    iconBg: Color(0xFFE8F5E9),
+    iconColor: Color(0xFF2E7D32),
+    questionCount: 5,
+    description: 'Catat kehadiran rapat, kelas, atau acara: identitas, kelas, tanggal, dan keterangan.',
+    bannerImage: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800&auto=format&fit=crop&q=80',
+    settings: {'randomizeQuestions': false, 'formTypeId': 1, 'showScore': false, 'oneResponse': true, 'requiredLogin': false},
+    questions: [
+      {'typeId': 1, 'question': 'Nama Lengkap', 'isRequired': true, 'options': []},
+      {'typeId': 1, 'question': 'NIM / NIS / NIP', 'isRequired': true, 'options': []},
+      {'typeId': 2, 'question': 'Kelas / Kelompok', 'isRequired': true, 'options': [{'optionText': 'A'}, {'optionText': 'B'}, {'optionText': 'C'}, {'optionText': 'D'}]},
+      {'typeId': 4, 'question': 'Tanggal Kehadiran', 'isRequired': true, 'options': []},
+      {'typeId': 2, 'question': 'Status Kehadiran', 'isRequired': true, 'options': [{'optionText': 'Hadir'}, {'optionText': 'Izin'}, {'optionText': 'Sakit'}]},
+    ],
+  ),
+  FormTemplate(
+    id: 'tpl-pengumpulan',
+    title: 'Pengumpulan Data & Berkas',
+    category: 'Pengumpulan',
+    icon: Icons.upload_file_outlined,
+    iconBg: Color(0xFFFFF3E0),
+    iconColor: Color(0xFFE65100),
+    questionCount: 5,
+    description: 'Kumpulkan data tugas beserta tautan berkas (Drive/Cloud) dan pernyataan orisinalitas.',
+    bannerImage: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
+    settings: {'randomizeQuestions': false, 'formTypeId': 1, 'showScore': false, 'oneResponse': true, 'requiredLogin': false},
+    questions: [
+      {'typeId': 1, 'question': 'Nama Lengkap', 'isRequired': true, 'options': []},
+      {'typeId': 1, 'question': 'NIM / NIS', 'isRequired': true, 'options': []},
+      {'typeId': 1, 'question': 'Judul Tugas / Berkas', 'isRequired': true, 'options': []},
+      {'typeId': 1, 'question': 'Tautan Berkas (Google Drive / Cloud). Contoh: https://drive.google.com/...', 'isRequired': true, 'options': []},
+      {'typeId': 4, 'question': 'Tanggal Pengumpulan', 'isRequired': true, 'options': []},
+    ],
+  ),
+  FormTemplate(
+    id: 'tpl-aduan',
+    title: 'Kritik, Saran & Pengaduan',
+    category: 'Pengaduan',
+    icon: Icons.feedback_outlined,
+    iconBg: Color(0xFFFCE4EC),
+    iconColor: Color(0xFFC2185B),
+    questionCount: 5,
+    description: 'Saluran aspirasi: kategori laporan, isi aduan, waktu kejadian, dan kontak pelapor.',
+    bannerImage: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&auto=format&fit=crop&q=80',
+    settings: {'randomizeQuestions': false, 'formTypeId': 1, 'showScore': false, 'oneResponse': false, 'requiredLogin': false},
+    questions: [
+      {'typeId': 2, 'question': 'Kategori Laporan', 'isRequired': true, 'options': [{'optionText': 'Kritik'}, {'optionText': 'Saran'}, {'optionText': 'Pengaduan'}, {'optionText': 'Lainnya'}]},
+      {'typeId': 1, 'question': 'Isi Laporan / Aspirasi Anda', 'isRequired': true, 'options': []},
+      {'typeId': 1, 'question': 'Lokasi Kejadian (jika ada)', 'isRequired': false, 'options': []},
+      {'typeId': 4, 'question': 'Waktu Kejadian', 'isRequired': false, 'options': []},
+      {'typeId': 1, 'question': 'Kontak yang Bisa Dihubungi (opsional, rahasia)', 'isRequired': false, 'options': []},
+    ],
+  ),
+  FormTemplate(
+    id: 'tpl-evaluasi',
+    title: 'Ujian & Evaluasi (Kuis)',
+    category: 'Evaluasi',
+    icon: Icons.quiz_outlined,
+    iconBg: Color(0xFFEDE7F6),
+    iconColor: Color(0xFF4527A0),
+    questionCount: 5,
+    description: 'Kuis evaluasi cepat: timer 30 menit, skor otomatis tampil, pilihan ganda pengetahuan umum.',
+    bannerImage: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800&auto=format&fit=crop&q=80',
+    settings: {'timerDuration': 1800, 'oneResponse': true, 'requiredLogin': true, 'showScore': true, 'randomizeQuestions': true, 'formTypeId': 2},
+    questions: [
+      {'typeId': 2, 'question': 'Apa sila pertama Pancasila?', 'isRequired': true, 'correctAnswer': 'Ketuhanan Yang Maha Esa', 'options': [{'optionText': 'Ketuhanan Yang Maha Esa', 'isCorrect': true}, {'optionText': 'Kemanusiaan yang Adil dan Beradab'}, {'optionText': 'Persatuan Indonesia'}, {'optionText': 'Keadilan Sosial bagi Seluruh Rakyat Indonesia'}]},
+      {'typeId': 2, 'question': 'Berapakah hasil dari 25 - 7 x 2?', 'isRequired': true, 'correctAnswer': '11', 'options': [{'optionText': '11', 'isCorrect': true}, {'optionText': '36'}, {'optionText': '18'}, {'optionText': '16'}]},
+      {'typeId': 2, 'question': 'Proses fotosintesis pada tumbuhan menghasilkan gas apa?', 'isRequired': true, 'correctAnswer': 'Oksigen', 'options': [{'optionText': 'Oksigen', 'isCorrect': true}, {'optionText': 'Karbon dioksida'}, {'optionText': 'Nitrogen'}, {'optionText': 'Hidrogen'}]},
+      {'typeId': 2, 'question': 'Sinonim kata "bahagia" adalah?', 'isRequired': true, 'correctAnswer': 'Senang', 'options': [{'optionText': 'Senang', 'isCorrect': true}, {'optionText': 'Sedih'}, {'optionText': 'Marah'}, {'optionText': 'Takut'}]},
+      {'typeId': 2, 'question': 'Jika semua murid memakai seragam dan Budi adalah murid, maka?', 'isRequired': true, 'correctAnswer': 'Budi memakai seragam', 'options': [{'optionText': 'Budi memakai seragam', 'isCorrect': true}, {'optionText': 'Budi tidak memakai seragam'}, {'optionText': 'Budi bukan murid'}, {'optionText': 'Tidak dapat disimpulkan'}]},
     ],
   ),
 ];
@@ -151,6 +247,22 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
   Future<void> _useTemplate(FormTemplate tpl) async {
     if (!AppDebouncer.tryAcquire('form:useTemplate')) return;
     if (_cloningId != null) return;
+    // Guard regresi porting JS→Dart: escape LaTeX/newline harus tunggal
+    // (satu backslash). Backslash ganda merusak render rumus & blok kode.
+    assert(() {
+      for (final q in tpl.questions) {
+        final texts = [
+          q['question'] as String? ?? '',
+          for (final o in (q['options'] as List? ?? []))
+            (o as Map)['optionText'] as String? ?? '',
+        ];
+        for (final t in texts) {
+          assert(!t.contains('\\\\'),
+              'Template ${tpl.id} mengandung backslash ganda.');
+        }
+      }
+      return true;
+    }());
     setState(() => _cloningId = tpl.id);
     try {
       final formId = await FormService.createForm(title: tpl.title, description: tpl.description);
