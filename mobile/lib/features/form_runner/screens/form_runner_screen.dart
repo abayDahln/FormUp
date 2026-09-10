@@ -749,9 +749,6 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     if (_disableCopy && _step == _RunnerStep.fill) {
       fillWidget = SelectionContainer.disabled(child: fillWidget);
     }
-    if (_step == _RunnerStep.fill && formTheme.hasCustom) {
-      fillWidget = FormThemeScope(theme: formTheme, child: fillWidget);
-    }
     if (_step == _RunnerStep.fill && !_submitting) {
       // Swipe-refresh soal: hanya soal berubah yang jawabannya di-reset.
       fillWidget = AppRefreshIndicator(
@@ -759,7 +756,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
         child: fillWidget,
       );
     }
-    return switch (_step) {
+    final page = switch (_step) {
       _RunnerStep.code => RunnerCodeStep(
           showTitle: widget.showTitle,
           codeController: _c.codeController,
@@ -802,6 +799,11 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
           ],
         ),
     };
+    // Tema dinamis seluruh layar runner (code + fill + banner ujian).
+    if (formTheme.hasCustom) {
+      return FormThemeScope(theme: formTheme, child: page);
+    }
+    return page;
   }
 
   /// Lanjut soal berikutnya (multi-page) - bebas pindah, validasi hanya saat submit
