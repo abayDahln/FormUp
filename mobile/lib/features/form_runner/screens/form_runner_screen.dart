@@ -16,6 +16,7 @@ import 'package:form_up/features/form_runner/controllers/form_runner_controller.
 import 'package:form_up/features/form_runner/widgets/runner_code_step.dart';
 import 'package:form_up/features/form_runner/widgets/runner_exit_dialog.dart';
 import 'package:form_up/features/form_runner/widgets/runner_fill_step.dart';
+import 'package:form_up/features/form_runner/widgets/exam_lock_status_bar.dart';
 import 'package:form_up/features/form_runner/widgets/runner_screen_shell.dart';
 
 /// Alur: kode → token → jawaban → kembali ke screen awal form
@@ -264,10 +265,14 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     }
   }
 
-  /// Cek split-screen berkala selama ujian (tiap 5 detik). Dilaporkan 1x
-  /// sebagai window_blur sampai user keluar dari split-screen. Merangkap
-  /// watchdog bunyi: selama user di luar form, pastikan alarm tetap
-  /// berbunyi (pulihkan bila OS menjeda audio).
+  /// Cek split-screen + pin berkala selama ujian (tiap 5 detik).
+  /// Split-screen dilaporkan 1x sebagai window_blur sampai user keluar.
+  /// Pin yang dilepas paksa dilaporkan 1x sebagai window_blur lalu pin
+  /// ulang otomatis. Merangkap watchdog bunyi: selama user di luar form,
+  /// pastikan alarm tetap berbunyi (pulihkan bila OS menjeda audio).
+  /// Hanya aktif untuk mode ujian penuh (bukan detect-saja).
+  bool _unpinFlagged = false;
+
   void _startExamGuard() {
     _examGuardTimer?.cancel();
     _examGuardTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
@@ -287,15 +292,41 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       } else if (!inMulti) {
         _multiWindowFlagged = false;
       }
+      // Pin dilepas paksa saat ujian → pelanggaran + pin ulang.
+      if (_examActive && !_appInBackground) {
+        bool pinned = true;
+        try {
+          pinned = await ExamLockService.isPinned();
+        } catch (_) {
+          return;
+        }
+        if (!pinned && !_unpinFlagged) {
+          _unpinFlagged = true;
+          await _reportWindowBlur();
+          if (mounted) {
+            showAppToast(
+              context,
+              'Pin ujian dilepas — pelanggaran tercatat, pin dipasang ulang',
+              type: ToastType.warning,
+            );
+          }
+          try {
+            await ExamLockService.startPin();
+          } catch (_) {}
+        } else if (pinned) {
+          _unpinFlagged = false;
+        }
+      }
     });
   }
 
   /// Lepas seluruh pengaman perangkat + hentikan guard. Wajib di semua
-  /// jalur keluar ujian agar FLAG_SECURE tidak bocor ke layar lain.
+  /// jalur keluar ujian agar FLAG_SECURE/pin tidak bocor ke layar lain.
   Future<void> _releaseExamLock() async {
     _examGuardTimer?.cancel();
     _examGuardTimer = null;
     _multiWindowFlagged = false;
+    _unpinFlagged = false;
     try {
       await ExamLockService.unlock();
     } catch (_) {}
@@ -313,10 +344,20 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   }
 
   /// Konfirmasi keluar dari form.
-  /// Keluar = langsung keluar tanpa submit (tidak tercatat), Batal = tetap di form.
+  /// Mode ujian: TIDAK BISA keluar sama sekali — hanya submit
+  /// (manual / auto-submit / timer habis / force-submit pengawas).
+  /// Non-ujian: dialog Keluar seperti biasa.
   Future<bool> _confirmExit() async {
     if (_step != _RunnerStep.fill) return true;
     if (!mounted) return true;
+    if (_examActive) {
+      showAuthToast(
+        context,
+        'Ujian terkunci — kirim jawaban untuk selesai',
+        isError: true,
+      );
+      return false;
+    }
     final action = await showRunnerExitDialog(context);
     return action == RunnerExitAction.exitWithoutSubmit;
   }
@@ -733,7 +774,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
         ),
       _RunnerStep.fill => Column(
           children: [
-            if (_examActive)
+            if (_examActive) ...[
               Container(
                 width: double.infinity,
                 color: Colors.red.shade700,
@@ -754,6 +795,9 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
                   ],
                 ),
               ),
+              // Jam + baterai pengganti status bar sistem selama pin/secure.
+              const ExamLockStatusBar(),
+            ],
             Expanded(child: fillWidget),
           ],
         ),
