@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/utils/search_history.dart';
 
-/// M3 SearchBar + SearchAnchor + history & auto-suggest per screen.
-/// historyKey mis. "search_history_form" — beda tiap screen agar tidak campur.
+/// Field pencarian inline: ketik langsung di field (tanpa pindah ke
+/// fullscreen search view) + dropdown riwayat per screen.
+/// API sama seperti sebelumnya sehingga semua pemanggil tidak berubah:
+/// [controller] (two-way sync), [onChanged] (filter live),
+/// [onSubmitted] (enter → simpan riwayat), [historyKey] (riwayat per screen).
 class AppSearchField extends StatefulWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
@@ -28,32 +31,15 @@ class AppSearchField extends StatefulWidget {
 }
 
 class _AppSearchFieldState extends State<AppSearchField> {
-  late final SearchController _searchController;
   List<String> _history = [];
-  bool _wasOpen = false;
-  bool _didSubmit = false;
+  // Controller internal milik Autocomplete (dipegang untuk sync eksternal).
+  TextEditingController? _inner;
+  // True sesaat setelah tombol X: jangan tampilkan dropdown sampai user mengetik lagi.
+  bool _suppressOptions = false;
 
   @override
   void initState() {
     super.initState();
-    _searchController = SearchController();
-    _searchController.text = widget.controller.text;
-    _searchController.addListener(() {
-      // sync text
-      if (widget.controller.text != _searchController.text) {
-        widget.controller.text = _searchController.text;
-        widget.controller.selection = TextSelection.fromPosition(
-          TextPosition(offset: _searchController.text.length),
-        );
-      }
-      final isOpen = _searchController.isOpen;
-      if (_wasOpen && !isOpen && !_didSubmit && _searchController.text.isNotEmpty) {
-        _clearSearch(_searchController);
-      }
-      _wasOpen = isOpen;
-      if (_didSubmit && !isOpen) _didSubmit = false;
-      if (mounted) setState(() {});
-    });
     widget.controller.addListener(_syncFromExternal);
     _loadHistory();
   }
@@ -64,6 +50,7 @@ class _AppSearchFieldState extends State<AppSearchField> {
       final h = await SearchHistory.get(widget.historyKey!);
       if (!mounted) return;
       setState(() => _history = h);
+      _refreshOptions();
     } catch (_) {
       // Riwayat pencarian bersifat opsional — gagal baca diabaikan.
     }
@@ -75,10 +62,18 @@ class _AppSearchFieldState extends State<AppSearchField> {
     final h = await SearchHistory.get(widget.historyKey!);
     if (!mounted) return;
     setState(() => _history = h);
+    _refreshOptions();
+  }
+
+  /// Paksa Autocomplete membangun ulang daftar opsi (mis. setelah
+  /// riwayat dimuat/diubah tanpa perubahan teks).
+  void _refreshOptions() {
+    final inner = _inner;
+    if (inner == null || !mounted) return;
+    inner.value = inner.value.copyWith();
   }
 
   void _submit(String value) {
-    _didSubmit = true;
     final q = value.trim();
     _saveHistory(q);
     if (widget.onSubmitted != null) {
@@ -86,15 +81,15 @@ class _AppSearchFieldState extends State<AppSearchField> {
     } else {
       widget.onChanged(q);
     }
-    // tutup view jika terbuka
-    try {
-      _searchController.closeView(q);
-    } catch (_) {}
   }
 
   void _syncFromExternal() {
-    if (_searchController.text != widget.controller.text) {
-      _searchController.text = widget.controller.text;
+    final inner = _inner;
+    if (inner != null && inner.text != widget.controller.text) {
+      inner.text = widget.controller.text;
+      inner.selection = TextSelection.fromPosition(
+        TextPosition(offset: widget.controller.text.length),
+      );
       if (mounted) setState(() {});
     }
   }
@@ -105,192 +100,206 @@ class _AppSearchFieldState extends State<AppSearchField> {
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_syncFromExternal);
       widget.controller.addListener(_syncFromExternal);
-      _searchController.text = widget.controller.text;
+      final inner = _inner;
+      if (inner != null) inner.text = widget.controller.text;
     }
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_syncFromExternal);
-    _searchController.dispose();
     super.dispose();
   }
 
-  List<Widget> _buildTrailing(SearchController controller, ColorScheme cs) {
-    final list = <Widget>[];
-    if (controller.text.isNotEmpty) {
-      list.add(
-        IconButton(
-          icon: Icon(Icons.close, color: cs.onSurfaceVariant, size: 18),
-          tooltip: 'Hapus',
-          onPressed: () {
-            // FIX: hanya clear field + reset list, jangan closeView/navigate
-            controller.text = '';
-            widget.controller.text = '';
-            widget.controller.selection = const TextSelection.collapsed(offset: 0);
-            widget.onChanged('');
-            if (widget.onSubmitted != null) widget.onSubmitted!('');
-            if (mounted) setState(() {});
-          },
-        ),
-      );
-    }
-    if (widget.onOpenFilter != null) {
-      list.add(
-        Container(
-          margin: const EdgeInsets.only(left: 4),
-          decoration: BoxDecoration(
-            color: widget.filterActive ? cs.primaryContainer : Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: IconButton(
-            icon: Icon(Icons.tune, color: widget.filterActive ? cs.primary : cs.onSurfaceVariant, size: 20),
-            tooltip: 'Filter & urutkan',
-            onPressed: widget.onOpenFilter,
-          ),
-        ),
-      );
-    }
-    return list;
-  }
-
-  void _clearSearch(SearchController controller) {
-    controller.clear();
+  void _clear() {
+    _suppressOptions = true;
+    _inner?.clear();
     widget.controller.clear();
     widget.onChanged('');
     if (widget.onSubmitted != null) widget.onSubmitted!('');
-    try {
-      controller.closeView('');
-    } catch (_) {}
     if (mounted) setState(() {});
+  }
+
+  Iterable<String> _optionsFor(TextEditingValue value) {
+    if (_suppressOptions || _history.isEmpty) return const Iterable.empty();
+    final query = value.text.trim().toLowerCase();
+    final filtered = query.isEmpty
+        ? _history
+        : _history.where((h) => h.toLowerCase().contains(query)).toList();
+    return filtered.take(5);
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return SearchAnchor(
-      searchController: _searchController,
-      viewOnChanged: (value) {
-        widget.onChanged(value);
+    return Autocomplete<String>(
+      displayStringForOption: (o) => o,
+      optionsBuilder: _optionsFor,
+      optionsMaxHeight: 300,
+      onSelected: (option) {
+        _suppressOptions = true;
+        _inner?.text = option;
+        widget.controller.text = option;
+        _submit(option);
         if (mounted) setState(() {});
       },
-      viewOnSubmitted: (value) => _submit(value),
-      viewLeading: IconButton(
-        icon: Icon(Icons.arrow_back, color: cs.onSurfaceVariant),
-        tooltip: 'Kembali',
-        onPressed: () => _clearSearch(_searchController),
-      ),
-      viewTrailing: _buildTrailing(_searchController, cs),
-      builder: (BuildContext context, SearchController controller) {
-        return SearchBar(
-          controller: controller,
-          hintText: widget.hint,
-          hintStyle: WidgetStatePropertyAll<TextStyle>(
-            TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
-          ),
-          textStyle: WidgetStatePropertyAll<TextStyle>(
-            TextStyle(color: cs.onSurface, fontSize: 14),
-          ),
-          backgroundColor: WidgetStatePropertyAll<Color>(cs.surface),
-          elevation: const WidgetStatePropertyAll<double>(1),
-          shadowColor: WidgetStatePropertyAll<Color>(Colors.black.withValues(alpha: 0.08)),
-          surfaceTintColor: const WidgetStatePropertyAll<Color>(Colors.transparent),
-          shape: const WidgetStatePropertyAll<OutlinedBorder>(
-            RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(24))),
-          ),
-          padding: const WidgetStatePropertyAll<EdgeInsets>(
-            EdgeInsets.symmetric(horizontal: 16),
-          ),
-          leading: Icon(Icons.search, color: cs.onSurfaceVariant, size: 20),
-          trailing: _buildTrailing(controller, cs),
+      fieldViewBuilder:
+          (context, textEditingController, focusNode, onFieldSubmitted) {
+        _inner = textEditingController;
+        if (textEditingController.text != widget.controller.text) {
+          textEditingController.text = widget.controller.text;
+        }
+        return TextField(
+          controller: textEditingController,
+          focusNode: focusNode,
+          style: const TextStyle(fontSize: 14),
           textInputAction: TextInputAction.search,
-          onTap: () {
-            controller.openView();
-          },
           onChanged: (value) {
+            _suppressOptions = false;
+            if (widget.controller.text != value) {
+              widget.controller.text = value;
+              widget.controller.selection = TextSelection.fromPosition(
+                TextPosition(offset: value.length),
+              );
+            }
             widget.onChanged(value);
             setState(() {});
-            if (!controller.isOpen) controller.openView();
           },
-          onSubmitted: (value) => _submit(value),
+          onSubmitted: _submit,
+          decoration: InputDecoration(
+            hintText: widget.hint,
+            hintStyle: TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
+            prefixIcon:
+                Icon(Icons.search, color: cs.onSurfaceVariant, size: 20),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (textEditingController.text.isNotEmpty)
+                  IconButton(
+                    icon: Icon(Icons.close,
+                        color: cs.onSurfaceVariant, size: 18),
+                    tooltip: 'Hapus',
+                    onPressed: _clear,
+                  ),
+                if (widget.onOpenFilter != null)
+                  Container(
+                    margin: const EdgeInsets.only(right: 4),
+                    decoration: BoxDecoration(
+                      color: widget.filterActive
+                          ? cs.primaryContainer
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: IconButton(
+                      icon: Icon(Icons.tune,
+                          color: widget.filterActive
+                              ? cs.primary
+                              : cs.onSurfaceVariant,
+                          size: 20),
+                      tooltip: 'Filter & urutkan',
+                      onPressed: widget.onOpenFilter,
+                    ),
+                  ),
+              ],
+            ),
+            filled: true,
+            fillColor: cs.surface,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide(color: cs.outlineVariant),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide(color: cs.primary, width: 1.5),
+            ),
+          ),
         );
       },
-      suggestionsBuilder: (BuildContext context, SearchController controller) {
+      optionsViewBuilder: (context, onSelected, options) {
         final cs = Theme.of(context).colorScheme;
-        final query = controller.text.trim().toLowerCase();
-        final hist = _history;
-        final filteredHist = query.isEmpty
-            ? hist
-            : hist.where((h) => h.toLowerCase().contains(query)).toList();
-
-        final items = <Widget>[];
-        // Auto-suggest: jika ada query, tampilkan "Cari ..."
-        if (query.isNotEmpty) {
-          items.add(
-            ListTile(
-              leading: Icon(Icons.search, color: cs.onSurfaceVariant, size: 20),
-              title: Text('Cari "$query"', style: TextStyle(fontSize: 14, color: cs.onSurface)),
-              onTap: () => _submit(query),
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            color: cs.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: cs.outlineVariant),
             ),
-          );
-        }
-        // History per screen
-        if (filteredHist.isNotEmpty) {
-          if (query.isEmpty) {
-            items.add(
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Riwayat pencarian', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.bold)),
-                    InkWell(
-                      onTap: () async {
-                        if (widget.historyKey != null) {
-                          await SearchHistory.clear(widget.historyKey!);
-                          final h = await SearchHistory.get(widget.historyKey!);
-                          if (mounted) setState(() => _history = h);
-                        }
-                      },
-                      child: Text('Hapus semua', style: TextStyle(color: cs.primary, fontSize: 12)),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 300),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                shrinkWrap: true,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Riwayat pencarian',
+                          style: TextStyle(
+                            color: cs.onSurfaceVariant,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        InkWell(
+                          onTap: () async {
+                            if (widget.historyKey != null) {
+                              await SearchHistory.clear(widget.historyKey!);
+                              final h = await SearchHistory.get(
+                                  widget.historyKey!);
+                              if (mounted) {
+                                setState(() => _history = h);
+                                _refreshOptions();
+                              }
+                            }
+                          },
+                          child: Text(
+                            'Hapus semua',
+                            style: TextStyle(
+                                color: cs.primary, fontSize: 12),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  for (final h in options)
+                    ListTile(
+                      dense: true,
+                      leading: Icon(Icons.history,
+                          color: cs.onSurfaceVariant, size: 20),
+                      title: Text(h,
+                          style: TextStyle(
+                              fontSize: 14, color: cs.onSurface)),
+                      trailing: IconButton(
+                        icon: Icon(Icons.close,
+                            size: 16, color: cs.onSurfaceVariant),
+                        tooltip: 'Hapus riwayat ini',
+                        onPressed: () async {
+                          if (widget.historyKey != null) {
+                            await SearchHistory.remove(
+                                widget.historyKey!, h);
+                            final nh = await SearchHistory.get(
+                                widget.historyKey!);
+                            if (mounted) {
+                              setState(() => _history = nh);
+                              _refreshOptions();
+                            }
+                          }
+                        },
+                      ),
+                      onTap: () => onSelected(h),
+                    ),
+                ],
               ),
-            );
-          }
-          for (final h in filteredHist.take(5)) {
-            items.add(
-              ListTile(
-                leading: Icon(Icons.history, color: cs.onSurfaceVariant, size: 20),
-                title: Text(h, style: TextStyle(fontSize: 14, color: cs.onSurface)),
-                trailing: IconButton(
-                  icon: Icon(Icons.close, size: 16, color: cs.onSurfaceVariant),
-                  onPressed: () async {
-                    if (widget.historyKey != null) {
-                      await SearchHistory.remove(widget.historyKey!, h);
-                      final nh = await SearchHistory.get(widget.historyKey!);
-                      if (mounted) setState(() => _history = nh);
-                    }
-                  },
-                ),
-                onTap: () {
-                  controller.text = h;
-                  widget.controller.text = h;
-                  _submit(h);
-                },
-              ),
-            );
-          }
-        } else if (query.isEmpty) {
-          items.add(
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Text('Ketik untuk mencari', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
             ),
-          );
-        }
-        return items;
+          ),
+        );
       },
     );
   }
