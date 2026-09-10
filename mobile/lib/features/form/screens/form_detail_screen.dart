@@ -37,11 +37,14 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
     _fetch();
   }
 
-  /// Pantau Ujian hanya untuk form tipe/mode ujian.
+  /// Pantau Ujian untuk form tipe/mode ujian:
+  /// - Tipe Ujian (formTypeId 2) SELALU berhak pantau (bug: sempat hilang).
+  /// - Atau mode ujian aktif (isExamMode / detectTabSwitch).
   /// Belum tahu (settings null / gagal load) = sembunyikan, tanpa celah.
   bool get _showExamMonitoring {
     final s = _settings;
     if (s == null) return false;
+    if (s['formTypeId'] == 2) return true;
     return s['isExamMode'] == true || s['detectTabSwitch'] == true;
   }
 
@@ -148,11 +151,12 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
                 children: [
                   FormDetailHeader(form: form),
                   const SizedBox(height: 16),
-                  FormDetailActions(
-                      form: form,
-                      onPush: _push,
-                      onShare: _openShare,
-                      showExamMonitoring: _showExamMonitoring),
+                FormDetailActions(
+                    form: form,
+                    onPush: _push,
+                    onShare: _openShare,
+                    showExamMonitoring: _showExamMonitoring,
+                    examMonitoringEnabled: form.status == 'published'),
                   const SizedBox(height: 16),
                   FormDetailPublishCard(form: form, onToggle: _togglePublish),
                 ],

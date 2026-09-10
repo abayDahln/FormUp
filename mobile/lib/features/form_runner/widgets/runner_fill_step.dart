@@ -243,7 +243,7 @@ class _InlineQuizNav extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: cellColor,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: selected ? kAuthPrimary : marked ? _markYellow : (answered ? kAuthPrimary.withValues(alpha: 0.5) : Theme.of(ctx).colorScheme.outlineVariant)),
+                            border: Border.all(color: selected ? Theme.of(ctx).colorScheme.primary : marked ? _markYellow : (answered ? Theme.of(ctx).colorScheme.primary.withValues(alpha: 0.5) : Theme.of(ctx).colorScheme.outlineVariant)),
                           ),
                           child: Text('${i + 1}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: numColor)),
                         ),
@@ -322,8 +322,8 @@ class _InlineQuizNav extends StatelessWidget {
           FilledButton(
             onPressed: submitting ? null : onSubmit,
             style: FilledButton.styleFrom(
-              backgroundColor: kAuthPrimary,
-              foregroundColor: Colors.white,
+              backgroundColor: cs.primary,
+              foregroundColor: cs.onPrimary,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             ),
@@ -335,8 +335,8 @@ class _InlineQuizNav extends StatelessWidget {
           IconButton(
             tooltip: 'Berikutnya',
             onPressed: onNext,
-            icon: const Icon(Icons.arrow_forward, size: 20, color: Colors.white),
-            style: IconButton.styleFrom(backgroundColor: kAuthPrimary),
+            icon: Icon(Icons.arrow_forward, size: 20, color: cs.onPrimary),
+            style: IconButton.styleFrom(backgroundColor: cs.primary),
           ),
       ],
     );

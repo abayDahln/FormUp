@@ -7,6 +7,7 @@ import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/search_field.dart';
 
 /// Pantauan LIVE mode ujian untuk owner — setara tab monitoring di web:
 /// - Polling tiap 15 detik + indikator LIVE berdenyut.
@@ -43,6 +44,7 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
 
   String _filter = 'all';
   String _search = '';
+  final _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -56,6 +58,7 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
   void dispose() {
     _poller?.cancel();
     _pulse.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -120,7 +123,7 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 17,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
                 ),
@@ -135,11 +138,10 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
             child: Center(
               child: Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: Colors.green.shade200),
+                  color: cs.tertiaryContainer,
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -150,18 +152,19 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
                         width: 7,
                         height: 7,
                         decoration: BoxDecoration(
-                          color: Colors.green.shade600,
+                          color: cs.onTertiaryContainer,
                           shape: BoxShape.circle,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 5),
+                    const SizedBox(width: 6),
                     Text(
                       'LIVE',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.w800,
-                        color: Colors.green.shade700,
+                        fontFamily: kFontBold,
+                        color: cs.onTertiaryContainer,
                       ),
                     ),
                   ],
@@ -171,6 +174,7 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
           ),
           IconButton(
             icon: Icon(Icons.refresh, color: cs.onSurface),
+            tooltip: 'Muat ulang',
             onPressed: () => _fetch(),
           ),
         ],
@@ -190,7 +194,7 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
                     _FilterBar(
                       data: data,
                       filter: _filter,
-                      search: _search,
+                      searchController: _searchController,
                       onFilter: (f) => setState(() => _filter = f),
                       onSearch: (s) => setState(() => _search = s),
                     ),
@@ -220,28 +224,41 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
   }
 
   List<Widget> _sessionList(ExamMonitoringData data) {
+    final cs = Theme.of(context).colorScheme;
     final sessions = _filtered(data);
     if (sessions.isEmpty) {
       return [
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: _cardDecoration(Theme.of(context).colorScheme),
-          child: Column(
-            children: [
-              Icon(Icons.shield_outlined, size: 34, color: Theme.of(context).colorScheme.onSurfaceVariant),
-              const SizedBox(height: 8),
-              const Text(
-                'Belum ada peserta ujian ditemukan',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Peserta yang membuka halaman ujian otomatis tercatat dan '
-                'muncul di sini secara real-time.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
-              ),
-            ],
+        Card(
+          elevation: 0,
+          color: cs.surfaceContainerLow,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: cs.outlineVariant),
+          ),
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                Icon(Icons.shield_outlined, size: 34, color: cs.onSurfaceVariant),
+                const SizedBox(height: 10),
+                const Text(
+                  'Belum ada peserta ujian ditemukan',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: kFontBold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Peserta yang membuka halaman ujian otomatis tercatat dan '
+                  'muncul di sini secara real-time.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
           ),
         ),
       ];
@@ -252,15 +269,6 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
         const SizedBox(height: 10),
       ],
     ];
-  }
-
-  BoxDecoration _cardDecoration(ColorScheme cs) {
-    return BoxDecoration(
-      color: cs.surface,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: cs.outlineVariant),
-      boxShadow: softShadow(),
-    );
   }
 }
 
@@ -286,8 +294,8 @@ class _SummaryGrid extends StatelessWidget {
                 label: 'Mode Ujian',
                 value: examActive ? 'Aktif' : 'Nonaktif',
                 icon: Icons.shield_outlined,
-                iconColor: examActive ? Colors.green.shade600 : cs.onSurfaceVariant,
-                valueColor: examActive ? Colors.green.shade700 : cs.onSurfaceVariant,
+                iconColor: examActive ? cs.primary : cs.onSurfaceVariant,
+                valueColor: examActive ? cs.primary : cs.onSurfaceVariant,
                 subtitle: data.autoSubmitOnTabSwitch == true
                     ? 'Auto-submit maks ${data.maxTabSwitch ?? 3}x pindah tab'
                     : (examActive ? 'Pencatatan pelanggaran aktif' : 'Belum aktif'),
@@ -299,8 +307,8 @@ class _SummaryGrid extends StatelessWidget {
                 label: 'Online',
                 value: '${data.onlineCount}',
                 icon: Icons.wifi_rounded,
-                iconColor: Colors.green.shade600,
-                valueColor: Colors.green.shade700,
+                iconColor: cs.tertiary,
+                valueColor: cs.tertiary,
                 subtitle: 'Aktif 90 detik terakhir',
               ),
             ),
@@ -313,9 +321,9 @@ class _SummaryGrid extends StatelessWidget {
               child: _SummaryCard(
                 label: 'Mengerjakan',
                 value: '${data.inProgressCount}',
-                icon: Icons.edit_note_rounded,
-                iconColor: Colors.orange.shade600,
-                valueColor: Colors.orange.shade700,
+                icon: Icons.edit_note_outlined,
+                iconColor: cs.secondary,
+                valueColor: cs.secondary,
                 subtitle: 'Belum mengirim jawaban',
               ),
             ),
@@ -324,9 +332,9 @@ class _SummaryGrid extends StatelessWidget {
               child: _SummaryCard(
                 label: 'Terkumpul',
                 value: '${data.submittedCount}',
-                icon: Icons.check_circle_outline_rounded,
-                iconColor: Colors.blue.shade600,
-                valueColor: Colors.blue.shade700,
+                icon: Icons.check_circle_outline,
+                iconColor: cs.primary,
+                valueColor: cs.primary,
                 subtitle: 'Jawaban tersimpan',
               ),
             ),
@@ -357,53 +365,57 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.outlineVariant),
-        boxShadow: softShadow(),
+    return Card(
+      elevation: 0,
+      color: cs.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: cs.outlineVariant),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label.toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                    color: cs.onSurfaceVariant,
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: kFontBold,
+                      letterSpacing: 0.6,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ),
-              ),
-              Icon(icon, size: 15, color: iconColor),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              fontFamily: kFontBold,
-              color: valueColor,
+                Icon(icon, size: 16, color: iconColor),
+              ],
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
-          ),
-        ],
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                fontFamily: kFontBold,
+                color: valueColor,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -416,14 +428,14 @@ class _SummaryCard extends StatelessWidget {
 class _FilterBar extends StatelessWidget {
   final ExamMonitoringData data;
   final String filter;
-  final String search;
+  final TextEditingController searchController;
   final ValueChanged<String> onFilter;
   final ValueChanged<String> onSearch;
 
   const _FilterBar({
     required this.data,
     required this.filter,
-    required this.search,
+    required this.searchController,
     required this.onFilter,
     required this.onSearch,
   });
@@ -432,79 +444,66 @@ class _FilterBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     const filters = [
-      ('all', 'Semua'),
-      ('in_progress', 'Mengerjakan'),
-      ('submitted', 'Terkumpul'),
-      ('violations', 'Berpelanggaran'),
-      ('high_violations', 'Pelanggaran Tinggi'),
+      ('all', 'Semua', Icons.apps_outlined),
+      ('in_progress', 'Mengerjakan', Icons.edit_note_outlined),
+      ('submitted', 'Terkumpul', Icons.check_circle_outline),
+      ('violations', 'Berpelanggaran', Icons.flag_outlined),
+      ('high_violations', 'Bahaya', Icons.warning_amber_outlined),
     ];
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.outlineVariant),
+    return Card(
+      elevation: 0,
+      color: cs.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: cs.outlineVariant),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            height: 30,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                for (final (id, label) in filters)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(999),
-                      onTap: () => onFilter(id),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 11, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: filter == id ? cs.primary : cs.primaryContainer,
-                          borderRadius: BorderRadius.circular(999),
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  for (final (id, label, icon) in filters)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(icon, size: 15),
+                            const SizedBox(width: 5),
+                            Text(label),
+                          ],
                         ),
-                        child: Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            color:
-                                filter == id ? cs.onPrimary : cs.onSurfaceVariant,
-                          ),
+                        selected: filter == id,
+                        onSelected: (_) => onFilter(id),
+                        labelStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        showCheckmark: false,
                       ),
                     ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            onChanged: onSearch,
-            style: const TextStyle(fontSize: 12.5),
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: 'Cari nama peserta...',
-              prefixIcon:
-                  Icon(Icons.search, size: 17, color: cs.onSurfaceVariant),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              filled: true,
-              fillColor: cs.surfaceContainerHighest,
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: cs.outlineVariant),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: cs.primary),
+                ],
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 10),
+            AppSearchField(
+              controller: searchController,
+              onChanged: onSearch,
+              hint: 'Cari nama peserta...',
+              historyKey: 'search_history_exam_monitoring',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -626,32 +625,41 @@ class _SessionCardState extends State<_SessionCard> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
     final name = (s.respondentName?.isNotEmpty ?? false)
         ? s.respondentName!
         : 'Anonim';
     final hasViolations = s.violationCount > 0;
-    // Pelanggar berat: terang = fill pink; gelap = stroke saja
-    // (transparan + border merah) agar tidak terlalu kontras.
-    final highBorder =
-        dark ? Colors.red.shade400 : Colors.red.shade300;
-    return Container(
-      decoration: BoxDecoration(
-        color: _high
-            ? (dark ? Colors.transparent : const Color(0xFFFDF3F2))
-            : cs.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: _high ? highBorder : cs.outlineVariant,
-          width: _high ? 1.3 : 1,
+    // Warna status tonal sesuai scheme (aman terang/gelap).
+    final statusBg = _submitted
+        ? cs.surfaceContainerHighest
+        : (s.isOnline ? cs.tertiaryContainer : cs.secondaryContainer);
+    final statusFg = _submitted
+        ? cs.onSurfaceVariant
+        : (s.isOnline ? cs.onTertiaryContainer : cs.onSecondaryContainer);
+    final statusLabel =
+        _submitted ? 'Terkumpul' : (s.isOnline ? 'Online' : 'Offline');
+    final dotColor = _submitted
+        ? cs.outline
+        : (s.isOnline ? cs.tertiary : cs.outline);
+    final progress = s.totalQuestions > 0
+        ? (s.answeredCount / s.totalQuestions).clamp(0.0, 1.0)
+        : 0.0;
+    return Card(
+      elevation: 0,
+      color: _high ? cs.errorContainer.withValues(alpha: 0.35) : cs.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: _high ? cs.error : cs.outlineVariant,
+          width: _high ? 1.5 : 1,
         ),
-        boxShadow: softShadow(),
       ),
+      margin: EdgeInsets.zero,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         onTap: hasViolations ? () => setState(() => _expanded = !_expanded) : null,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -662,14 +670,15 @@ class _SessionCardState extends State<_SessionCard> {
                     clipBehavior: Clip.none,
                     children: [
                       CircleAvatar(
-                        radius: 17,
+                        radius: 18,
                         backgroundColor: cs.primaryContainer,
                         child: Text(
                           name.characters.first.toUpperCase(),
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
-                            color: cs.primary,
+                            fontFamily: kFontBold,
+                            color: cs.onPrimaryContainer,
                           ),
                         ),
                       ),
@@ -677,14 +686,10 @@ class _SessionCardState extends State<_SessionCard> {
                         right: -1,
                         bottom: -1,
                         child: Container(
-                          width: 11,
-                          height: 11,
+                          width: 12,
+                          height: 12,
                           decoration: BoxDecoration(
-                            color: _submitted
-                                ? Colors.blueGrey.shade300
-                                : (s.isOnline
-                                    ? Colors.green.shade500
-                                    : Colors.grey.shade400),
+                            color: dotColor,
                             shape: BoxShape.circle,
                             border: Border.all(color: cs.surface, width: 2),
                           ),
@@ -692,7 +697,7 @@ class _SessionCardState extends State<_SessionCard> {
                       ),
                     ],
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -701,10 +706,10 @@ class _SessionCardState extends State<_SessionCard> {
                           name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: cs.onSurface,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: kFontBold,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -715,57 +720,71 @@ class _SessionCardState extends State<_SessionCard> {
                                   ? 'Aktivitas ${_relativeTime(s.lastSeenAt)}'
                                   : 'Terakhir aktif ${_relativeTime(s.lastSeenAt)}'),
                           style: TextStyle(
-                              fontSize: 10.5, color: cs.onSurfaceVariant),
+                              fontSize: 11.5, color: cs.onSurfaceVariant),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                        horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: _submitted
-                          ? Colors.blueGrey.shade50
-                          : (s.isOnline
-                              ? Colors.green.shade50
-                              : Colors.orange.shade50),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: _submitted
-                            ? Colors.blueGrey.shade200
-                            : (s.isOnline
-                                ? Colors.green.shade200
-                                : Colors.orange.shade200),
-                      ),
+                      color: statusBg,
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      _submitted
-                          ? 'Terkumpul'
-                          : (s.isOnline ? 'Online' : 'Offline'),
+                      statusLabel,
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: _submitted
-                            ? Colors.blueGrey.shade600
-                            : (s.isOnline
-                                ? Colors.green.shade700
-                                : Colors.orange.shade700),
+                        fontFamily: kFontBold,
+                        color: statusFg,
                       ),
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              // Progres jawaban.
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 6,
+                        backgroundColor: cs.surfaceContainerHighest,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(cs.primary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    s.totalQuestions > 0
+                        ? '${s.answeredCount}/${s.totalQuestions}'
+                        : '${s.answeredCount}',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: kFontBold,
+                      color: cs.primary,
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 10),
-              // Ringkasan pelanggaran + progres jawaban + tanda merah bila tinggi.
+              // Ringkasan pelanggaran.
               Row(
                 children: [
                   Expanded(
                     child: _violationStat(
                       context,
-                      'Total pelanggaran',
+                      'Pelanggaran',
                       '${s.violationCount}',
-                      s.violationCount > 0 ? Colors.red : cs.onSurfaceVariant,
+                      s.violationCount > 0 ? cs.error : cs.onSurfaceVariant,
                     ),
                   ),
                   Expanded(
@@ -773,82 +792,85 @@ class _SessionCardState extends State<_SessionCard> {
                       context,
                       'Pindah tab',
                       '${s.tabSwitchCount}',
-                      s.tabSwitchCount > 0 ? Colors.red : cs.onSurfaceVariant,
-                    ),
-                  ),
-                  Expanded(
-                    child: _violationStat(
-                      context,
-                      'Progres',
-                      s.totalQuestions > 0 ? '${s.answeredCount}/${s.totalQuestions}' : '${s.answeredCount}',
-                      cs.onSurfaceVariant,
+                      s.tabSwitchCount > 0 ? cs.error : cs.onSurfaceVariant,
                     ),
                   ),
                   if (hasViolations)
-                    AnimatedRotation(
-                      turns: _expanded ? 0.25 : 0,
-                      duration: const Duration(milliseconds: 150),
-                      child: Icon(Icons.chevron_right,
-                          size: 18, color: cs.onSurfaceVariant),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: _expanded ? 'Sembunyikan' : 'Lihat log',
+                      onPressed: () =>
+                          setState(() => _expanded = !_expanded),
+                      icon: AnimatedRotation(
+                        turns: _expanded ? 0.25 : 0,
+                        duration: const Duration(milliseconds: 150),
+                        child: Icon(Icons.chevron_right,
+                            size: 20, color: cs.onSurfaceVariant),
+                      ),
                     ),
                 ],
               ),
               if (_high)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: Row(
-                    children: [
-                      Icon(Icons.warning_amber_rounded,
-                          size: 13,
-                          color: dark
-                              ? Colors.red.shade400
-                              : Colors.red.shade700),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Pelanggaran tinggi (batas ${widget.maxTabSwitch}x)',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                          color: dark
-                              ? Colors.red.shade400
-                              : Colors.red.shade700,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: cs.errorContainer,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded,
+                            size: 15, color: cs.onErrorContainer),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Pelanggaran tinggi (batas ${widget.maxTabSwitch}x)',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: kFontBold,
+                              color: cs.onErrorContainer,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               // Log pelanggaran (expand).
               if (_expanded && hasViolations) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: cs.outlineVariant),
+                    color: cs.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       for (final v in s.violations)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
+                          padding: const EdgeInsets.only(bottom: 6),
                           child: Row(
                             children: [
                               Icon(Icons.flag_rounded,
-                                  size: 12, color: Colors.red.shade400),
-                              const SizedBox(width: 5),
+                                  size: 13, color: cs.error),
+                              const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   _violationLabel(v.type),
                                   style: TextStyle(
-                                      fontSize: 11.5, color: cs.onSurface),
+                                      fontSize: 12, color: cs.onSurface),
                                 ),
                               ),
                               Text(
                                 _clockTime(v.occurredAt),
                                 style: TextStyle(
-                                    fontSize: 10.5,
+                                    fontSize: 11,
                                     color: cs.onSurfaceVariant),
                               ),
                             ],
@@ -860,22 +882,42 @@ class _SessionCardState extends State<_SessionCard> {
               ],
               // Kontrol owner: paksa submit / reset sesi (hanya sesi aktif).
               if (!_submitted && s.sessionId != null && s.sessionId!.isNotEmpty) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton.icon(
+                      child: FilledButton.tonalIcon(
                         onPressed: _acting ? null : _forceSubmit,
-                        icon: const Icon(Icons.upload_rounded, size: 15),
-                        label: const Text('Paksa submit', style: TextStyle(fontSize: 12)),
+                        icon: const Icon(Icons.upload_rounded, size: 16),
+                        label: const Text('Paksa submit',
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: kFontBold)),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _acting ? null : _reset,
-                        icon: const Icon(Icons.restart_alt_rounded, size: 15),
-                        label: const Text('Reset sesi', style: TextStyle(fontSize: 12)),
+                        icon: const Icon(Icons.restart_alt_rounded, size: 16),
+                        label: const Text('Reset sesi',
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: kFontBold)),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                       ),
                     ),
                   ],

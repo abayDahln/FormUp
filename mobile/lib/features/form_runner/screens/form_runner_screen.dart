@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
+import 'package:form_up/core/theme/form_theme.dart';
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -325,21 +326,29 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     await _autoSubmit();
   }
 
+  /// Tema per-form dari info yang dimuat (primer + background adaptif).
+  FormTheme get _formTheme => FormTheme.parse(
+        primaryHex: _c.info?.themePrimaryColor,
+        backgroundHex: _c.info?.themeBackgroundColor,
+      );
+
   Future<bool> _confirmManualSubmit() async {
     final markedCount = _markedForReview.length;
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Kirim Jawaban?',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontFamily: kFontBold,
-            color: Theme.of(ctx).colorScheme.onSurface,
+      builder: (ctx) => FormThemeScope(
+        theme: _formTheme,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            'Kirim Jawaban?',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontFamily: kFontBold,
+              color: Theme.of(ctx).colorScheme.onSurface,
+            ),
           ),
-        ),
         content: Text(
           markedCount > 0
               ? 'Masih ada $markedCount soal yang Anda tandai ragu-ragu. Yakin ingin mengumpulkan jawaban sekarang?'
@@ -356,8 +365,8 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: kAuthPrimary,
-              foregroundColor: Colors.white,
+              backgroundColor: Theme.of(ctx).colorScheme.primary,
+              foregroundColor: Theme.of(ctx).colorScheme.onPrimary,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -366,6 +375,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
             child: const Text('Kirim'),
           ),
         ],
+        ),
       ),
     );
     return confirmed ?? false;
@@ -485,29 +495,34 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       barrierDismissible: false,
       builder: (ctx) => violationLimit
           ? _ViolationDoneDialog(onClose: () => Navigator.pop(ctx))
-          : AlertDialog(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
-              title: Text("Form Selesai",
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontFamily: kFontBold,
-                      color: Theme.of(ctx).colorScheme.onSurface)),
-              content: Text("Waktu pengerjaan telah habis. Jawaban telah dikirim.",
-                  style: TextStyle(
-                      fontSize: 14,
-                      color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
-              actions: [
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                      backgroundColor: kAuthPrimary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10))),
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text("Tutup"),
-                ),
-              ],
+          : FormThemeScope(
+              theme: _formTheme,
+              child: AlertDialog(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20)),
+                title: Text("Form Selesai",
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontFamily: kFontBold,
+                        color: Theme.of(ctx).colorScheme.onSurface)),
+                content: Text("Waktu pengerjaan telah habis. Jawaban telah dikirim.",
+                    style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                actions: [
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                        backgroundColor:
+                            Theme.of(ctx).colorScheme.primary,
+                        foregroundColor:
+                            Theme.of(ctx).colorScheme.onPrimary,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10))),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text("Tutup"),
+                  ),
+                ],
+              ),
             ),
     );
     if (!mounted) return;
@@ -610,17 +625,20 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
         await showDialog<void>(
           context: context,
           barrierDismissible: false,
-          builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title:  Text("Jawaban Terkirim", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Theme.of(ctx).colorScheme.onSurface)),
-            content:  Text("Jawaban sudah terkirim.", style: TextStyle(fontSize: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
-            actions: [
-              FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: kAuthPrimary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text("Tutup"),
-              ),
-            ],
+          builder: (ctx) => FormThemeScope(
+            theme: _formTheme,
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title:  Text("Jawaban Terkirim", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Theme.of(ctx).colorScheme.onSurface)),
+              content:  Text("Jawaban sudah terkirim.", style: TextStyle(fontSize: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+              actions: [
+                FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.primary, foregroundColor: Theme.of(ctx).colorScheme.onPrimary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("Tutup"),
+                ),
+              ],
+            ),
           ),
         );
         if (!mounted) return true;
@@ -659,16 +677,11 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     await _submitInternal(returnToStartScreen: true);
   }
 
-  Color? _parseHex(String? hex) {
-    if (hex == null || !hex.startsWith('#') || hex.length != 7) return null;
-    try { return Color(int.parse(hex.substring(1), radix: 16) + 0xFF000000); } catch (_) { return null; }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_loading) return const AppLoadingOverlay();
-    // FEAT-9: apply theme background if present
-    final themeBg = _parseHex(_c.info?.themeBackgroundColor);
+    // Tema per-form (primer + background adaptif terang/gelap).
+    final formTheme = _formTheme;
     // Ragu-ragu ala web: hanya untuk tipe ujian (formTypeId 2, multi-page).
     final isExamQuiz = _c.formTypeId == 2 && _c.questions.length > 1;
     Widget fillWidget = RunnerFillStep(
@@ -695,8 +708,8 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     if (_disableCopy && _step == _RunnerStep.fill) {
       fillWidget = SelectionContainer.disabled(child: fillWidget);
     }
-    if (themeBg != null && _step == _RunnerStep.fill) {
-      fillWidget = Container(color: themeBg, child: fillWidget);
+    if (_step == _RunnerStep.fill && formTheme.hasCustom) {
+      fillWidget = FormThemeScope(theme: formTheme, child: fillWidget);
     }
     if (_step == _RunnerStep.fill && !_submitting) {
       // Swipe-refresh soal: hanya soal berubah yang jawabannya di-reset.

@@ -212,13 +212,14 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
     });
   }
 
-  Future<void> _load({int page = 1}) async {
+  Future<void> _load({int page = 1, bool refresh = false}) async {
     setState(() => _loading = true);
     try {
       final result = await AdminService.getUsers(
         page: page,
         pageSize: _pageSize,
         search: _query,
+        refresh: refresh,
       );
       if (!mounted) return;
       setState(() {
@@ -262,7 +263,7 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
         Expanded(
           child: AppRefreshIndicator(
             indicatorColor: cs.primary,
-            onRefresh: () => _load(),
+            onRefresh: () => _load(refresh: true),
             child: !_loading && _users.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -357,7 +358,6 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
   bool _loading = true;
   int _page = 1;
   int _totalPages = 1;
-  final _acting = <int>{};
 
   @override
   void initState() {
@@ -389,7 +389,7 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
     });
   }
 
-  Future<void> _load({int page = 1}) async {
+  Future<void> _load({int page = 1, bool refresh = false}) async {
     setState(() => _loading = true);
     try {
       final result = await AdminService.getForms(
@@ -397,6 +397,7 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
         pageSize: _pageSize,
         search: _query,
         status: _statusFilter,
+        refresh: refresh,
       );
       if (!mounted) return;
       setState(() {
@@ -411,51 +412,6 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  /// Aksi cepat takedown/restore langsung dari daftar (bolak-balik).
-  Future<void> _toggleTakedown(AdminFormItem f) async {
-    if (_acting.contains(f.id)) return;
-    final takeDown = f.takenDownAt == null && f.deletedAt == null;
-    if (!takeDown && f.deletedAt != null) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(takeDown ? 'Takedown Form' : 'Restore Form',
-            style: const TextStyle(fontFamily: kFontBold)),
-        content: Text(takeDown
-            ? 'Form "${f.title}" akan disembunyikan dari publik.'
-            : 'Form "${f.title}" akan bisa diakses publik kembali.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Batal')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(takeDown ? 'Takedown' : 'Restore',
-                style: TextStyle(color: Theme.of(context).colorScheme.primary)),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    setState(() => _acting.add(f.id));
-    try {
-      if (takeDown) {
-        await AdminService.takedownForm(f.id);
-      } else {
-        await AdminService.restoreForm(f.id);
-      }
-      if (!mounted) return;
-      showAuthToast(
-          context, takeDown ? 'Form di-takedown' : 'Form di-restore');
-      await _load(page: _page);
-    } catch (e) {
-      if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
-    } finally {
-      if (mounted) setState(() => _acting.remove(f.id));
     }
   }
 
@@ -541,7 +497,7 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
         Expanded(
           child: AppRefreshIndicator(
             indicatorColor: cs.primary,
-            onRefresh: () => _load(),
+            onRefresh: () => _load(refresh: true),
             child: !_loading && _forms.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -594,6 +550,8 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                               if (takenDown)
                                 const _Badge('Taken Down', kDangerColor),
                             ],
+                            // Takedown/restore hanya dari layar detail
+                            // (aman dari salah pencet di daftar).
                             onTap: () async {
                               await AppRouter.of(context).push(
                                 AppPage.adminFormDetail,
@@ -601,25 +559,6 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                               );
                               _load(page: _page);
                             },
-                            trailing: f.deletedAt != null
-                                ? null
-                                : IconButton(
-                                    tooltip: takenDown
-                                        ? 'Restore form'
-                                        : 'Takedown form',
-                                    onPressed: _acting.contains(f.id)
-                                        ? null
-                                        : () => _toggleTakedown(f),
-                                    icon: Icon(
-                                      takenDown
-                                          ? Icons.restore
-                                          : Icons.block_outlined,
-                                      color: takenDown
-                                          ? kSuccessColor
-                                          : kWarningColor,
-                                      size: 22,
-                                    ),
-                                  ),
                           );
                         },
                       ),
@@ -671,11 +610,11 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
     super.dispose();
   }
 
-  Future<void> _load({int page = 1}) async {
+  Future<void> _load({int page = 1, bool refresh = false}) async {
     setState(() => _loading = true);
     try {
       final result =
-          await AdminService.getFeedbacks(page: page, pageSize: _pageSize);
+          await AdminService.getFeedbacks(page: page, pageSize: _pageSize, refresh: refresh);
       if (!mounted) return;
       setState(() {
         _feedbacks = result.items;
@@ -762,7 +701,7 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
         Expanded(
           child: AppRefreshIndicator(
             indicatorColor: cs.primary,
-            onRefresh: () => _load(),
+            onRefresh: () => _load(refresh: true),
             child: !_loading && _feedbacks.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),

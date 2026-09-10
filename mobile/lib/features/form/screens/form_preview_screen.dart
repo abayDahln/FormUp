@@ -8,6 +8,7 @@ import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/features/form/widgets/form_zoom_controls.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/router/app_router.dart';
+import 'package:form_up/core/theme/form_theme.dart';
 
 /// Pratinjau responden
 class FormPreviewScreen extends StatefulWidget {
@@ -24,6 +25,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
   String _title = '';
   String _description = '';
   List<QuestionData> _questions = [];
+  Map<String, dynamic>? _settings;
 
   final Map<int, TextEditingController> _textAnswers = {};
   final Map<int, int?> _singleAnswers = {};
@@ -55,6 +57,8 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
       setState(() {
         _title = form['title'] as String? ?? '';
         _description = form['description'] as String? ?? '';
+        final settings = form['settings'];
+        _settings = settings is Map<String, dynamic> ? settings : null;
         _questions = questions;
       });
     } catch (e) {
@@ -147,23 +151,26 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
               valueListenable: formZoom,
               builder: (context, zoom, _) => AuthBackground(
                 plain: true,
-                child: SafeArea(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                          children: [
-                            _buildHeader(zoom),
-                            const SizedBox(height: 16),
-                            for (var i = 0; i < _questions.length; i++) ...[
-                              _buildQuestionCard(i, zoom),
-                              const SizedBox(height: 12),
+                child: FormThemeScope(
+                  theme: FormTheme.fromSettings(_settings),
+                  child: SafeArea(
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: ListView(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                            children: [
+                              _buildHeader(zoom),
+                              const SizedBox(height: 16),
+                              for (var i = 0; i < _questions.length; i++) ...[
+                                _buildQuestionCard(i, zoom),
+                                const SizedBox(height: 12),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

@@ -1,6 +1,13 @@
 import 'auth_service.dart';
 import 'form_service.dart' show PagedResult;
 
+class _AdminCacheEntry {
+  final Map<String, dynamic> json;
+  final DateTime at = DateTime.now();
+
+  _AdminCacheEntry(this.json);
+}
+
 /// Item user pada daftar admin
 class AdminUserItem {
   final int id;
@@ -266,6 +273,27 @@ DateTime? _date(Object? value) {
 
 /// Akses endpoint khusus admin (/api/admin/*)
 class AdminService {
+  /// Cache in-memory khusus daftar admin (30 detik): pindah tab tidak
+  /// fetch ulang, tapi aksi moderasi selalu bust agar status segar.
+  /// (AuthService.get tidak dipakai agar tidak kena cache 30 menit.)
+  static final Map<String, _AdminCacheEntry> _listCache = {};
+  static const _listTtl = Duration(seconds: 30);
+
+  static Future<Map<String, dynamic>> _cachedGet(String path,
+      {bool refresh = false}) async {
+    if (!refresh) {
+      final hit = _listCache[path];
+      if (hit != null &&
+          DateTime.now().difference(hit.at) < _listTtl) {
+        return hit.json;
+      }
+    }
+    final json = await AuthService.get(path, useCache: false);
+    _listCache[path] = _AdminCacheEntry(json);
+    return json;
+  }
+
+  static void _bustList() => _listCache.clear();
   static PagedResult<T> _paged<T>(
     Map<String, dynamic> map,
     T Function(Map<String, dynamic>) fromJson,
@@ -278,12 +306,13 @@ class AdminService {
         total: map['total'] as int? ?? 0,
       );
 
-  /// GET /admin/users — data moderasi live: tanpa cache agar status
-  /// ban/aktif selalu segar setelah aksi (termasuk pull-to-refresh).
+  /// GET /admin/users — data moderasi live: tanpa cache 30 menit, tapi
+  /// cache in-memory 30 detik agar pindah tab tidak fetch ulang.
   static Future<PagedResult<AdminUserItem>> getUsers({
     int? page,
     int? pageSize,
     String? search,
+    bool refresh = false,
   }) async {
     final params = <String>[
       if (page != null && pageSize != null) ...['page=$page', 'pageSize=$pageSize'],
@@ -291,7 +320,7 @@ class AdminService {
         'search=${Uri.encodeQueryComponent(search.trim())}',
     ];
     final query = params.isEmpty ? '' : '?${params.join('&')}';
-    final json = await AuthService.get('/admin/users$query', useCache: false);
+    final json = await _cachedGet('/admin/users$query', refresh: refresh);
     return _paged(json['data'] as Map<String, dynamic>, AdminUserItem.fromJson);
   }
 
@@ -302,12 +331,16 @@ class AdminService {
   }
 
   /// PUT /admin/users/{id}/ban
-  static Future<void> banUser(int id) =>
-      AuthService.put('/admin/users/$id/ban', {});
+  static Future<void> banUser(int id) async {
+    await AuthService.put('/admin/users/$id/ban', {});
+    _bustList();
+  }
 
   /// PUT /admin/users/{id}/activate — kembalikan user yang di-ban
-  static Future<void> activateUser(int id) =>
-      AuthService.put('/admin/users/$id/activate', {});
+  static Future<void> activateUser(int id) async {
+    await AuthService.put('/admin/users/$id/activate', {});
+    _bustList();
+  }
 
   /// GET /admin/forms
   static Future<PagedResult<AdminFormItem>> getForms({
@@ -315,6 +348,7 @@ class AdminService {
     int? pageSize,
     String? search,
     String? status,
+    bool refresh = false,
   }) async {
     final params = <String>[
       if (page != null && pageSize != null) ...['page=$page', 'pageSize=$pageSize'],
@@ -324,7 +358,7 @@ class AdminService {
         'status=$status',
     ];
     final query = params.isEmpty ? '' : '?${params.join('&')}';
-    final json = await AuthService.get('/admin/forms$query', useCache: false);
+    final json = await _cachedGet('/admin/forms$query', refresh: refresh);
     return _paged(json['data'] as Map<String, dynamic>, AdminFormItem.fromJson);
   }
 
@@ -335,36 +369,47 @@ class AdminService {
   }
 
   /// POST /admin/forms/{id}/takedown
-  static Future<void> takedownForm(int id) =>
-      AuthService.post('/admin/forms/$id/takedown', {});
+  static Future<void> takedownForm(int id) async {
+    await AuthService.post('/admin/forms/$id/takedown', {});
+    _bustList();
+  }
 
   /// POST /admin/forms/{id}/restore — kembalikan form yang di-takedown
-  static Future<void> restoreForm(int id) =>
-      AuthService.post('/admin/forms/$id/restore', {});
+  static Future<void> restoreForm(int id) async {
+    await AuthService.post('/admin/forms/$id/restore', {});
+    _bustList();
+  }
 
   /// GET /admin/feedback
   static Future<PagedResult<AdminFeedbackItem>> getFeedbacks({
     int? page,
     int? pageSize,
+    bool refresh = false,
   }) async {
     final params = <String>[
       if (page != null && pageSize != null) ...['page=$page', 'pageSize=$pageSize'],
     ];
     final query = params.isEmpty ? '' : '?${params.join('&')}';
-    final json = await AuthService.get('/admin/feedback$query', useCache: false);
+    final json = await _cachedGet('/admin/feedback$query', refresh: refresh);
     return _paged(
         json['data'] as Map<String, dynamic>, AdminFeedbackItem.fromJson);
   }
 
   /// DELETE /admin/feedback/{id}
-  static Future<void> dismissFeedback(int id) =>
-      AuthService.delete('/admin/feedback/$id');
+  static Future<void> dismissFeedback(int id) async {
+    await AuthService.delete('/admin/feedback/$id');
+    _bustList();
+  }
 
   /// POST /admin/feedback/{id}/takedown — takedown form pelapor
-  static Future<void> feedbackTakedown(int id) =>
-      AuthService.post('/admin/feedback/$id/takedown', {});
+  static Future<void> feedbackTakedown(int id) async {
+    await AuthService.post('/admin/feedback/$id/takedown', {});
+    _bustList();
+  }
 
   /// POST /admin/feedback/{id}/restore — restore form pelapor
-  static Future<void> feedbackRestore(int id) =>
-      AuthService.post('/admin/feedback/$id/restore', {});
+  static Future<void> feedbackRestore(int id) async {
+    await AuthService.post('/admin/feedback/$id/restore', {});
+    _bustList();
+  }
 }

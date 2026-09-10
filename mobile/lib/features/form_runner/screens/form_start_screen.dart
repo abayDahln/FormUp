@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/theme.dart';
+import 'package:form_up/core/theme/form_theme.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -193,8 +194,8 @@ class _FormStartScreenState extends State<FormStartScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: kAuthPrimary,
-              foregroundColor: Colors.white,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -242,7 +243,13 @@ class _FormStartScreenState extends State<FormStartScreen> {
         ),
       ),
       body: AuthBackground(plain: true,
-        child: _buildBody(),
+        child: FormThemeScope(
+          theme: FormTheme.parse(
+            primaryHex: _formInfo?.themePrimaryColor,
+            backgroundHex: _formInfo?.themeBackgroundColor,
+          ),
+          child: _buildBody(),
+        ),
       ),
     );
   }

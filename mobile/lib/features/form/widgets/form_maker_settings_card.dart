@@ -64,6 +64,17 @@ class FormMakerSettingsCard extends StatelessWidget {
                   // Tipe "Ujian" otomatis mengaktifkan Mode Ujian;
                   // "Formulir" selalu non-ujian (tanpa pilihan manual).
                   c.isExamMode = (v == 2);
+                  if (v == 2) {
+                    // Default ujian: semua pengaman aktif + batas 1x.
+                    c.disableCopyPaste = true;
+                    c.detectTabSwitch = true;
+                    c.autoSubmitOnTabSwitch = true;
+                    c.maxTabSwitch ??= 1;
+                  } else {
+                    c.disableCopyPaste = false;
+                    c.detectTabSwitch = false;
+                    c.autoSubmitOnTabSwitch = false;
+                  }
                   onChanged();
                 }
               },

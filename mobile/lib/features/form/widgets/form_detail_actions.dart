@@ -15,12 +15,19 @@ class FormDetailActions extends StatelessWidget {
   /// Pantau Ujian hanya relevan untuk form tipe/mode ujian.
   final bool showExamMonitoring;
 
+  /// Pantau Ujian hanya bisa dibuka bila form sudah terbit; saat draf
+  /// tombol tampil nonaktif (bukan hilang) agar tidak membingungkan.
+  final bool examMonitoringEnabled;
+  final String examMonitoringDisabledHint;
+
   const FormDetailActions({
     super.key,
     required this.form,
     required this.onPush,
     required this.onShare,
     this.showExamMonitoring = true,
+    this.examMonitoringEnabled = true,
+    this.examMonitoringDisabledHint = 'Terbitkan form dulu untuk memantau ujian',
   });
 
   @override
@@ -71,6 +78,8 @@ class FormDetailActions extends StatelessWidget {
                   'formId': form.id,
                   'title': richToPlainText(form.title),
                 }),
+                disabled: !examMonitoringEnabled,
+                disabledHint: examMonitoringDisabledHint,
               ),
               _divider(),
             ],
@@ -150,17 +159,20 @@ class _ActionTile extends StatelessWidget {
   final VoidCallback onTap;
   final bool locked;
   final bool danger;
+  final bool disabled;
+  final String? disabledHint;
 
-  const _ActionTile(this.icon, this.label, this.onTap, {this.locked = false, this.danger = false});
+  const _ActionTile(this.icon, this.label, this.onTap, {this.locked = false, this.danger = false, this.disabled = false, this.disabledHint});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final color = danger ? kDangerColor : cs.primary;
+    final inactive = locked || disabled;
     return ListTile(
       leading: Icon(
         locked ? Icons.lock_outline : icon,
-        color: locked ? cs.onSurfaceVariant : color,
+        color: inactive ? cs.onSurfaceVariant : color,
       ),
       title: Text(
         label,
@@ -168,11 +180,17 @@ class _ActionTile extends StatelessWidget {
           fontSize: 14,
           fontWeight: danger ? FontWeight.bold : FontWeight.normal,
           fontFamily: danger ? kFontBold : null,
-          color: danger ? kDangerColor : (locked ? cs.onSurfaceVariant : cs.onSurface),
+          color: danger && !disabled ? kDangerColor : (inactive ? cs.onSurfaceVariant : cs.onSurface),
         ),
       ),
-      trailing: Icon(Icons.chevron_right, size: 18, color: danger ? kDangerColor : cs.onSurfaceVariant),
-      onTap: onTap,
+      trailing: Icon(Icons.chevron_right, size: 18, color: inactive ? cs.outline : cs.onSurfaceVariant),
+      onTap: disabled
+          ? () {
+              if (disabledHint != null) {
+                showAuthToast(context, disabledHint!, isError: true);
+              }
+            }
+          : onTap,
     );
   }
 }
