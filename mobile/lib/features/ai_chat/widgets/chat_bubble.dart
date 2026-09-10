@@ -29,6 +29,9 @@ class ChatBubble extends StatelessWidget {
 
   final VoidCallback onRetry;
 
+  /// Lanjutkan respons terpotong (null = sembunyikan tombol Lanjutkan).
+  final VoidCallback? onContinue;
+
   /// Undo perubahan form dari aksi AI di bubble ini (null = sembunyikan).
   final VoidCallback? onUndo;
 
@@ -54,6 +57,7 @@ class ChatBubble extends StatelessWidget {
     required this.streaming,
     required this.isLast,
     required this.onRetry,
+    this.onContinue,
     this.onUndo,
     this.onRedo,
     this.onUserLongPress,
@@ -138,6 +142,14 @@ class ChatBubble extends StatelessWidget {
               // block, LaTeX). Blok <FORM_CONTEXT> yang ter-echo dipisah dan
               // digambar sebagai kartu form yang bisa diketuk ke detail.
               ..._buildAiBody(context, m),
+            // Respons terpotong (JSON tak lengkap): notice + tombol Lanjutkan.
+            if (!isUser && m.isTruncated && m.actionJson == null) ...[
+              const SizedBox(height: 8),
+              _TruncatedNotice(
+                onContinue: onContinue,
+                enabled: actionsEnabled,
+              ),
+            ],
             // Kartu ringkasan perubahan (diff) untuk aksi AI: ringkasan +
             // status + Undo + dropdown detail + tombol Buka Form.
             if (!isUser && m.actionJson != null) ...[
@@ -256,6 +268,65 @@ class ChatBubble extends StatelessWidget {
       }
     } catch (_) {}
     return null;
+  }
+}
+
+/// Notice respons terpotong + tombol Lanjutkan (tulis ulang JSON lengkap).
+class _TruncatedNotice extends StatelessWidget {
+  final VoidCallback? onContinue;
+  final bool enabled;
+
+  const _TruncatedNotice({this.onContinue, this.enabled = true});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final amber = isDark ? Colors.amber.shade300 : Colors.amber.shade800;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: isDark ? 0.12 : 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.amber.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.warning_amber_rounded, size: 18, color: amber),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Respons terpotong karena terlalu panjang — JSON belum lengkap.',
+                  style: TextStyle(fontSize: 13, color: amber),
+                ),
+              ),
+            ],
+          ),
+          if (onContinue != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+                onPressed: enabled ? onContinue : null,
+                icon: const Icon(Icons.play_arrow_rounded, size: 16),
+                label: const Text('Lanjutkan',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: kFontBold)),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 

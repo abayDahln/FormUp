@@ -23,6 +23,9 @@ class ChatHistoryMessage {
   /// True bila bubble ini pesan error (agar gaya error tetap setelah restart).
   bool? isError;
 
+  /// True bila respons terpotong (agar tombol Lanjutkan tetap setelah restart).
+  bool? isTruncated;
+
   /// Snapshot untuk undo + status undo (lihat ChatMessage.undoSnapshot).
   Map<String, dynamic>? undoSnapshot;
   bool? actionUndone;
@@ -36,6 +39,7 @@ class ChatHistoryMessage {
     this.actionFormId,
     this.actionExecuted,
     this.isError,
+    this.isTruncated,
     this.undoSnapshot,
     this.actionUndone,
   });
@@ -48,6 +52,7 @@ class ChatHistoryMessage {
         'actionFormId': actionFormId,
         'actionExecuted': actionExecuted,
         'isError': isError,
+        'isTruncated': isTruncated,
         'undoSnapshot': undoSnapshot,
         'actionUndone': actionUndone,
       };
@@ -61,6 +66,7 @@ class ChatHistoryMessage {
         actionFormId: j['actionFormId'] as int?,
         actionExecuted: j['actionExecuted'] as bool?,
         isError: j['isError'] as bool?,
+        isTruncated: j['isTruncated'] as bool?,
         undoSnapshot: j['undoSnapshot'] as Map<String, dynamic>?,
         actionUndone: j['actionUndone'] as bool?,
       );

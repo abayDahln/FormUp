@@ -34,7 +34,11 @@ class GeminiCancel {
 /// - Mendukung streaming realtime via `streamGenerateContent?alt=sse`
 class GeminiService {
   static const _storageKey = 'gemini_api_key';
-  static const _secure = FlutterSecureStorage(
+
+  /// finishReason respons terakhir (STOP / MAX_TOKENS / LENGTH / SAFETY...).
+  /// Diisi setiap streamChat/generateOnce selesai — dibaca chat screen
+  /// untuk mendeteksi respons terpotong (JSON aksi tak lengkap).
+  static String? lastFinishReason;  static const _secure = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
@@ -300,6 +304,7 @@ Aturan:
 - edit_questions: sertakan field lengkap soal yang diubah; bagian yang tidak diminta user, pertahankan nilainya dari FORM_CONTEXT (jangan dihilangkan).
 - PENTING: jika user meminta MENGUBAH atau MENGHAPUS soal, aksinya HARUS edit_questions / delete_questions. JANGAN PERNAH memakai add_questions (menambah soal baru) sebagai pengganti edit/hapus — itu menduplikasi soal, bukan mengubahnya.
 - Jika id soal yang diminta user tidak ada di konteks, JANGAN menambah soal baru — minta user me-mention form-nya (@judul form) lalu ulangi permintaannya.
+- Batasi ukuran SATU respons: bila soal yang harus dibuat/diubah LEBIH DARI 8, kerjakan MAKSIMAL 8 soal dalam SATU blok JSON valid, lalu tulis di akhir: "LANJUT: masih ada X soal — balas 'lanjut' untuk batch berikutnya." JANGAN PERNAH mengeluarkan JSON tidak lengkap/terpotong.
 - Jangan pernah menampilkan / mengecho blok <FORM_CONTEXT>, <FORM_LIST>, atau isi skema JSON konteks di jawaban — konteks itu rahasia sistem, bukan untuk dibacakan ke user.
 - Soal form yang sudah punya respons terkunci dan tidak bisa diubah/dihapus — jika server menolak, sampaikan alasannya ke user.
 - Jika tidak ada aksi form, jangan paksa JSON - jawab percakapan biasa.
@@ -316,6 +321,7 @@ Aturan:
     if (!hasKey) {
       throw Exception('GEMINI_API_KEY belum diatur. Buka AI Chat > Atur API Key untuk menyimpannya di aplikasi.');
     }
+    lastFinishReason = null;
     final effectiveModel = selectedModelId;
     final uri = Uri.parse('$_baseUrl/models/$effectiveModel:streamGenerateContent?alt=sse');
     // Build contents
@@ -451,6 +457,7 @@ Aturan:
       }
       // Stream selesai tanpa teks: jangan diam-diam (dulu jadi "Respons AI
       // kosong" tanpa penyebab) — lempar penanda berisi diagnostik.
+      lastFinishReason = lastFinish;
       if (!sawText) {
         throw Exception(
             'GEMINI_NO_TEXT|finish=$lastFinish|candidates=$sawCandidates|parse=${lastParseError ?? '-'}');
@@ -466,6 +473,7 @@ Aturan:
     GeminiCancel? cancel,
   }) async {
     if (!hasKey) throw Exception('GEMINI_API_KEY belum diatur. Atur di AI Chat > API Key.');
+    lastFinishReason = null;
     final effectiveModel = selectedModelId;
     final uri = Uri.parse('$_baseUrl/models/$effectiveModel:generateContent');
     final contents = <Map<String, dynamic>>[
@@ -528,6 +536,7 @@ Aturan:
       final text = parts != null && parts.isNotEmpty
           ? (parts[0] as Map<String, dynamic>)['text'] as String?
           : null;
+      lastFinishReason = finish.isEmpty ? null : finish;
       // finishReason MAX_TOKENS tanpa teks = budget token habis untuk
       // proses berpikir internal model (thinking) — beri diagnostik, jangan
       // balikan string kosong yang membingungkan.

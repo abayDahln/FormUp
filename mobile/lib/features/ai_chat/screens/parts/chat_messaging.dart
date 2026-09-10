@@ -41,6 +41,7 @@ extension _AiChatMessaging on _AiChatScreenState {
   /// Hentikan respons AI yang sedang streaming (tombol stop di input bar).
   /// Teks yang sudah terketik di layar tetap disimpan sebagai bubble.
   Future<void> stopGeneration() async {
+    _dismissKeyboard();
     if (!_streaming) return;
     // Ambil pesan aktif DULU lalu nolkan referensi state — callback
     // onDone/onError yang telat akan berhenti sendiri karena
@@ -72,29 +73,93 @@ extension _AiChatMessaging on _AiChatScreenState {
     await persistCurrent();
   }
 
-  /// Kirim ulang pesan user terakhir setelah bubble error (tombol "Coba lagi").
-  /// Bubble error dibuang dulu agar tidak menumpuk, lalu pesan dikirim ulang.
+  /// Kirim ulang dari bubble error (tombol "Coba lagi"): SAMA seperti
+  /// retry prompt — hapus prompt sebelumnya beserta bubble error, lalu
+  /// kirim ulang (jangan jadi pesan duplikat).
   Future<void> retryMessage(ChatMessage failed) async {
+    _dismissKeyboard();
     if (_streaming || _sending) return;
     final idx = _messages.indexOf(failed);
-    String? lastUser;
+    ChatMessage? lastUser;
     for (var i = idx - 1; i >= 0; i--) {
       if (_messages[i].role == 'user') {
-        lastUser = _messages[i].text;
+        lastUser = _messages[i];
         break;
       }
     }
-    if (lastUser == null || lastUser.trim().isEmpty) return;
-    setState(() {
-      failed.disposeStream();
-      _messages.remove(failed);
-    });
-    await persistCurrent();
-    await sendWithText(lastUser);
+    if (lastUser == null || lastUser.text.trim().isEmpty) {
+      if (mounted) {
+        showAuthToast(context, 'Prompt tidak ditemukan', isError: true);
+      }
+      return;
+    }
+    failed.disposeStream();
+    await retryUserMessage(lastUser);
   }
 
-  Map<String, dynamic>? extractActionJson(String text) {
-    final fence = RegExp(r'```json\s*([\s\S]*?)\s*```', caseSensitive: false);
+  /// True bila teks tampak seperti JSON aksi yang tak selesai (pagar
+  /// ```json tak tertutup / ada penanda "action" tapi gagal parse).
+  /// [strict] = hanya bila finishReason MAX_TOKENS/LENGTH (jalur normal);
+  /// non-strict untuk potongan akibat koneksi putus (watchdog 40 dtk).
+  bool _isTruncatedResponse(String text, {bool strict = true}) {
+    final opens =
+        RegExp(r'```json', caseSensitive: false).allMatches(text).length;
+    final fences = '```'.allMatches(text).length;
+    final hasUnclosedFence = opens > 0 && fences <= opens;
+    final hasActionMarker = RegExp(r'"action"\s*:').hasMatch(text);
+    if (!hasUnclosedFence && !hasActionMarker) return false;
+    if (!strict) return true;
+    final finish = GeminiService.lastFinishReason;
+    return finish == 'MAX_TOKENS' || finish == 'LENGTH';
+  }
+
+  /// Finalisasi aksi setelah teks final tersedia — dipakai jalur stream
+  /// maupun fallback non-stream: parse JSON → pending + toast, atau tandai
+  /// terpotong (notice + tombol Lanjutkan) bila MAX_TOKENS.
+  Future<void> _finalizeAction(ChatMessage botMsg,
+      {bool allowUnknownFinish = false}) async {
+    final action = extractActionJson(botMsg.text);
+    if (action != null) {
+      botMsg.actionJson = action;
+      botMsg.actionStatus = 'pending';
+      botMsg.actionResult = null;
+      botMsg.isTruncated = false;
+      if (!mounted) return;
+      setState(() {});
+      showAuthToast(
+        context,
+        'AI mengajukan perubahan form — terima atau tolak di bawah',
+      );
+    } else if (_isTruncatedResponse(botMsg.text,
+        strict: !allowUnknownFinish)) {
+      botMsg.isTruncated = true;
+      if (!mounted) return;
+      setState(() {});
+      showAuthToast(
+        context,
+        'Respons AI terpotong — ketuk Lanjutkan di bubble',
+        isError: true,
+      );
+    }
+    await persistCurrent();
+  }
+
+  /// Lanjutkan respons terpotong: minta AI tulis ulang SELURUH jawaban +
+  /// SATU blok JSON aksi yang lengkap dalam satu respons.
+  Future<void> continueTruncated(ChatMessage m) async {
+    if (_streaming || _sending) return;
+    _dismissKeyboard();
+    m.isTruncated = false;
+    if (mounted) setState(() {});
+    await persistCurrent();
+    await sendWithText(
+      'Respons kamu sebelumnya terpotong di tengah JSON aksi. '
+      'Tulis ULANG seluruh jawaban + SATU blok ```json aksi yang lengkap dan valid '
+      'dalam satu respons ini. Singkat saja penjelasannya agar tidak terpotong lagi.',
+    );
+  }
+
+  Map<String, dynamic>? extractActionJson(String text) {    final fence = RegExp(r'```json\s*([\s\S]*?)\s*```', caseSensitive: false);
     final m = fence.firstMatch(text);
     String? candidate;
     if (m != null) candidate = m.group(1);
@@ -308,6 +373,7 @@ extension _AiChatMessaging on _AiChatScreenState {
   /// Terima aksi pending dari bar di atas field prompt: jalankan aksi form.
   /// Gagal → status tetap pending (bisa coba lagi atau tolak).
   Future<void> acceptPendingAction() async {
+    _dismissKeyboard();
     final m = pendingActionMessage;
     if (m == null || _actionWorking) return;
     if (_streaming || _sending) {
@@ -339,6 +405,7 @@ extension _AiChatMessaging on _AiChatScreenState {
 
   /// Tolak aksi pending dari bar di atas field prompt.
   Future<void> rejectPendingAction() async {
+    _dismissKeyboard();
     final m = pendingActionMessage;
     if (m == null || _actionWorking) return;
     if (_streaming || _sending) {
@@ -537,23 +604,11 @@ extension _AiChatMessaging on _AiChatScreenState {
           _streamingMsg = null;
           _streamingBuffer = null;
           setState(() => _streaming = false);
-          await persistCurrent();
           // Aksi form (buat/edit): TIDAK pakai dialog. Aksi disimpan sebagai
           // "pending" di pesan — ikut persist ke session, dan tombol
           // Terima/Tolak tampil di ATAS field prompt (PendingActionBar).
-          final action = extractActionJson(botMsg.text);
-          if (action != null) {
-            botMsg.actionJson = action;
-            botMsg.actionStatus = 'pending';
-            botMsg.actionResult = null;
-            if (!mounted) return;
-            setState(() {});
-            showAuthToast(
-              context,
-              'AI mengajukan perubahan form — terima atau tolak di bawah',
-            );
-          }
-          await persistCurrent();
+          // Terpotong (MAX_TOKENS) → notice + tombol Lanjutkan, bukan diam.
+          await _finalizeAction(botMsg);
         },
         onError: (e) async {
           // Stream sudah dihentikan user (stop) — biarkan stopGeneration
@@ -573,7 +628,8 @@ extension _AiChatMessaging on _AiChatScreenState {
             _streamingMsg = null;
             _streamingBuffer = null;
             setState(() => _streaming = false);
-            await persistCurrent();
+            // Parsial bisa berupa JSON aksi terpotong → beri tombol Lanjutkan.
+            await _finalizeAction(botMsg, allowUnknownFinish: true);
             return;
           }
           if (cancelToken?.isCancelled ?? false) return;
@@ -620,7 +676,8 @@ extension _AiChatMessaging on _AiChatScreenState {
             _streamingMsg = null;
             _streamingBuffer = null;
             setState(() => _streaming = false);
-            await persistCurrent();
+            // Samakan dengan jalur stream: parse aksi / tandai terpotong.
+            await _finalizeAction(botMsg);
           } catch (e2) {
             if (botMsg != _streamingMsg) return; // di-stop saat fallback jalan
             botMsg.text = GeminiService.friendlyMessage(e2);

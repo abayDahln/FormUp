@@ -9,6 +9,7 @@ extension _AiChatHistoryOps on _AiChatScreenState {
   /// Hanya menyentuh entitas yang kena aksi tersebut — soal buatan user
   /// manual tidak pernah terganggu.
   Future<void> undoActionChange(ChatMessage m) async {
+    _dismissKeyboard();
     if (_streaming || _sending) {
       showAuthToast(context, 'Tunggu respons AI selesai dulu', isError: true);
       return;
@@ -47,6 +48,7 @@ extension _AiChatHistoryOps on _AiChatScreenState {
   /// lagi karena chat-nya dipotong — jadi memang tidak bisa di-redo; jawaban
   /// AI atas prompt yang diedit menghasilkan aksi baru dengan siklusnya sendiri.)
   Future<void> redoActionChange(ChatMessage m) async {
+    _dismissKeyboard();
     if (_streaming || _sending) {
       showAuthToast(context, 'Tunggu respons AI selesai dulu', isError: true);
       return;
@@ -325,6 +327,7 @@ extension _AiChatHistoryOps on _AiChatScreenState {
   /// undo perubahan form-nya (setelah konfirmasi), lalu kirim ulang prompt
   /// yang sama.
   Future<void> retryUserMessage(ChatMessage m) async {
+    _dismissKeyboard();
     if (_streaming || _sending) {
       showAuthToast(context, 'Tunggu respons AI selesai dulu', isError: true);
       return;
@@ -356,6 +359,7 @@ extension _AiChatHistoryOps on _AiChatScreenState {
   /// disimpan → chat setelahnya dihapus, perubahan di-undo, lalu prompt
   /// yang sudah diedit dikirim ulang otomatis.
   Future<void> showEditMessageDialog(ChatMessage m) async {
+    _dismissKeyboard();
     if (_streaming || _sending) {
       showAuthToast(context, 'Tunggu respons AI selesai dulu', isError: true);
       return;
@@ -455,6 +459,7 @@ extension _AiChatHistoryOps on _AiChatScreenState {
   /// Rollback (long-press menu): potong chat mulai pesan ini + undo
   /// perubahan form-nya — dengan dialog konfirmasi rinci terlebih dahulu.
   Future<void> rollbackToMessage(ChatMessage m) async {
+    _dismissKeyboard();
     if (_streaming || _sending) {
       showAuthToast(context, 'Tunggu respons AI selesai dulu', isError: true);
       return;
@@ -484,6 +489,7 @@ extension _AiChatHistoryOps on _AiChatScreenState {
   /// Long-press pesanku: menu tambahan rollback (coba lagi / edit / salin
   /// sudah tersedia sebagai tombol di bawah bubble).
   Future<void> showMessageMenu(ChatMessage m) async {
+    _dismissKeyboard();
     if (m.role != 'user') return;
     final choice = await showModalBottomSheet<String>(
       context: context,

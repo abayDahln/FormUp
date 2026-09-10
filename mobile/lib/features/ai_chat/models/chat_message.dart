@@ -33,6 +33,10 @@ class ChatMessage {
   /// True bila bubble ini berisi pesan error (tampilkan gaya error + tombol coba lagi).
   bool isError = false;
 
+  /// True bila respons AI terpotong (MAX_TOKENS) sehingga JSON aksi tak
+  /// lengkap — tampilkan notice + tombol Lanjutkan.
+  bool isTruncated = false;
+
   /// True bila bubble ini mengajukan aksi form yang belum diterima/ditolak.
   bool get hasPendingAction => actionJson != null && actionStatus == 'pending';
 

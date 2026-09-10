@@ -7,6 +7,10 @@ import 'package:form_up/features/ai_chat/controllers/mention_highlight_controlle
 /// + pill text field gaya Gemini.
 class ChatInputBar extends StatelessWidget {
   final MentionHighlightController textController;
+
+  /// Focus field chat (milik AiChatScreen) — agar keyboard bisa ditutup
+  /// dari aksi tombol tanpa user menyentuh field.
+  final FocusNode? focusNode;
   final bool streaming;
 
   /// True selama persiapan kirim (belum streaming): tombol kirim
@@ -33,6 +37,7 @@ class ChatInputBar extends StatelessWidget {
   const ChatInputBar({
     super.key,
     required this.textController,
+    this.focusNode,
     required this.streaming,
     this.sending = false,
     required this.mentionActive,
@@ -80,6 +85,7 @@ class ChatInputBar extends StatelessWidget {
                     Expanded(
                       child: TextField(
                         controller: textController,
+                        focusNode: focusNode,
                         minLines: 1,
                         maxLines: 4,
                         textInputAction: TextInputAction.send,

@@ -60,6 +60,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
   final _controller = MentionHighlightController();
   final _scroll = ScrollController();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+  // Focus field chat dipegang sendiri agar keyboard TIDAK otomatis terbuka
+  // saat dialog/popup (ganti model, konfirmasi undo, retry, drawer sesi)
+  // ditutup — Flutter me-restore fokus ke node terakhir bila tidak di-unfocus.
+  final _chatFocus = FocusNode();
   final List<ChatMessage> _messages = [];
   List<ChatSession> _sessions = [];
   String? _currentSessionId;
@@ -172,6 +176,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   void dispose() {
     _controller.removeListener(_onTextChanged);
     _controller.dispose();
+    _chatFocus.dispose();
     _scroll.dispose();
     _activeCancel?.cancel();
     _typingStream?.dispose();
@@ -180,6 +185,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
       m.disposeStream();
     }
     super.dispose();
+  }
+
+  /// Tutup keyboard chat. Dipanggil di SEMUA aksi tombol yang tidak
+  /// butuh mengetik (ganti model, retry, terima/tolak, stop, undo/redo,
+  /// ganti/hapus sesi) agar keyboard tidak terbuka sendiri.
+  /// Sengaja TIDAK dipanggil di send() — sehabis kirim user biasa lanjut mengetik.
+  void _dismissKeyboard() {
+    if (_chatFocus.hasFocus) _chatFocus.unfocus();
   }
 
   /// True jika user sedang di (atau sangat dekat dengan) dasar chat.
@@ -301,6 +314,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
     return Scaffold(
       key: _scaffoldKey,
+      // Drawer dibuka → tutup keyboard dulu agar saat drawer ditutup
+      // fokus tidak me-restore ke field dan keyboard tidak terbuka sendiri.
+      onDrawerChanged: (open) {
+        if (open) _dismissKeyboard();
+      },
       drawer: AiChatDrawer(
         sessions: _sessions,
         currentSessionId: _currentSessionId,
@@ -358,6 +376,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         isLast: i == _messages.length - 1,
                         actionsEnabled: !_streaming && !_sending,
                         onRetry: () => retryMessage(m),
+                        onContinue: () => continueTruncated(m),
                         onUndo: () => undoActionChange(m),
                         onRedo: () => redoActionChange(m),
                         onUserLongPress:
@@ -414,6 +433,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       key: AiChatScreen.inputTourKey,
                       child: ChatInputBar(
                         textController: _controller,
+                        focusNode: _chatFocus,
                         streaming: _streaming,
                         sending: _sending,
                         mentionActive: _isMentionActive,
@@ -501,7 +521,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   const SizedBox(width: 8),
                   // Title sekaligus pemilih model AI (ketuk untuk ganti).
                   Flexible(
-                    child: AiModelPicker(onChanged: () => setState(() {})),
+                    child: AiModelPicker(onChanged: () {
+                      _dismissKeyboard();
+                      setState(() {});
+                    }),
                   ),
                   // Top-right sengaja dikosongkan (tanpa action buttons).
                   const Spacer(),

@@ -51,6 +51,7 @@ extension _AiChatSessions on _AiChatScreenState {
                 actionFormId: m.actionFormId,
                 actionExecuted: m.actionExecuted,
                 isError: m.isError,
+                isTruncated: m.isTruncated,
                 undoSnapshot: m.undoSnapshot,
                 actionUndone: m.actionUndone,
               ))
@@ -92,6 +93,7 @@ extension _AiChatSessions on _AiChatScreenState {
   }
 
   Future<void> newSession() async {
+    _dismissKeyboard();
     // Anti spam: chat baru hanya jika sudah ada prompt yang dikirim
     if (_messages.isEmpty) {
       // Jika sudah ada session kosong yang belum tersimpan, jangan buat lagi
@@ -149,6 +151,7 @@ extension _AiChatSessions on _AiChatScreenState {
   }
 
   Future<void> switchSession(String id) async {
+    _dismissKeyboard();
     if (id == _currentSessionId) return;
     saveCurrentDraft();
     await stopActiveStream();
@@ -172,6 +175,7 @@ extension _AiChatSessions on _AiChatScreenState {
           // status "accepted" memang berarti aksi sudah pernah dijalankan.
           msg.actionExecuted = m.actionExecuted ?? (m.actionStatus == 'accepted');
           msg.isError = m.isError ?? false;
+          msg.isTruncated = m.isTruncated ?? false;
           msg.undoSnapshot = m.undoSnapshot;
           msg.actionUndone = m.actionUndone ?? false;
           return msg;
@@ -187,6 +191,7 @@ extension _AiChatSessions on _AiChatScreenState {
   }
 
   Future<void> deleteSession(String id) async {
+    _dismissKeyboard();
     await AiChatHistoryService.delete(id);
     if (_currentSessionId == id) {
       await stopActiveStream();
@@ -207,6 +212,7 @@ extension _AiChatSessions on _AiChatScreenState {
 
   /// Hapus seluruh riwayat (dipanggil dari drawer setelah konfirmasi).
   Future<void> clearAllSessions() async {
+    _dismissKeyboard();
     await AiChatHistoryService.clearAll();
     setState(() {
       _messages.clear();
