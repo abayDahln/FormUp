@@ -93,6 +93,20 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   int _tabSwitchCount = 0;
   ExamSessionClient? _exam;
 
+  /// Kunci submit tunggal: manual, auto-submit limit, dan timer habis
+  /// saling mengunci — hanya satu pengiriman + satu dialog selesai.
+  bool _submitLocked = false;
+
+  bool _tryAcquireSubmit() {
+    if (_submitting || _submitLocked) return false;
+    _submitLocked = true;
+    return true;
+  }
+
+  void _releaseSubmit() {
+    _submitLocked = false;
+  }
+
   // Guard pengaman ujian: overlay/floating app & split-screen.
   Timer? _examGuardTimer;
   bool _sawInactive = false;
@@ -277,56 +291,64 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   }
 
   /// Cek split-screen + pin berkala selama ujian (tiap 5 detik).
+  /// Anti-tumpuk: tick dilewati bila pengecekan sebelumnya belum selesai.
   /// Split-screen dilaporkan 1x sebagai window_blur sampai user keluar.
   /// Pin yang dilepas paksa dilaporkan 1x sebagai window_blur lalu pin
   /// ulang otomatis. Merangkap watchdog bunyi: selama user di luar form,
   /// pastikan alarm tetap berbunyi (pulihkan bila OS menjeda audio).
   /// Hanya aktif untuk mode ujian penuh (bukan detect-saja).
   bool _unpinFlagged = false;
+  bool _guardBusy = false;
 
   void _startExamGuard() {
     _examGuardTimer?.cancel();
     _examGuardTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       if (!_examTracking || _step != _RunnerStep.fill) return;
-      if (_appInBackground) {
-        await ExamWarningSound.ensureLooping();
-      }
-      bool inMulti = false;
+      if (_guardBusy) return;
+      _guardBusy = true;
       try {
-        inMulti = await ExamLockService.isInMultiWindowMode();
-      } catch (_) {
-        return;
-      }
-      if (inMulti && !_multiWindowFlagged) {
-        _multiWindowFlagged = true;
-        await _reportWindowBlur();
-      } else if (!inMulti) {
-        _multiWindowFlagged = false;
-      }
-      // Pin dilepas paksa saat ujian → pelanggaran + pin ulang.
-      if (_examActive && !_appInBackground) {
-        bool pinned = true;
+        if (_appInBackground) {
+          await ExamWarningSound.ensureLooping();
+        }
+        bool inMulti = false;
         try {
-          pinned = await ExamLockService.isPinned();
+          inMulti = await ExamLockService.isInMultiWindowMode();
         } catch (_) {
-          return;
+          inMulti = false;
         }
-        if (!pinned && !_unpinFlagged) {
-          _unpinFlagged = true;
+        if (inMulti && !_multiWindowFlagged) {
+          _multiWindowFlagged = true;
           await _reportWindowBlur();
-          if (mounted) {
-            showAppToast(
-              context,
-              'Pin ujian dilepas — pelanggaran tercatat, pin dipasang ulang',
-              type: ToastType.warning,
-            );
-          }
-          try {
-            await ExamLockService.startPin();
-          } catch (_) {}
-        } else if (pinned) {
-          _unpinFlagged = false;
+        } else if (!inMulti) {
+          _multiWindowFlagged = false;
         }
+        // Pin dilepas paksa saat ujian → pelanggaran + pin ulang.
+        if (_examActive && !_appInBackground) {
+          bool pinned = true;
+          try {
+            pinned = await ExamLockService.isPinned();
+          } catch (_) {
+            pinned = true;
+          }
+          if (!pinned && !_unpinFlagged) {
+            _unpinFlagged = true;
+            await _reportWindowBlur();
+            if (mounted) {
+              showAppToast(
+                context,
+                'Pin ujian dilepas — pelanggaran tercatat, pin dipasang ulang',
+                type: ToastType.warning,
+              );
+            }
+            try {
+              await ExamLockService.startPin();
+            } catch (_) {}
+          } else if (pinned) {
+            _unpinFlagged = false;
+          }
+        }
+      } finally {
+        _guardBusy = false;
       }
     });
   }
@@ -486,8 +508,17 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       // detectTabSwitch-saja (paritas web + aturan terima server).
       if (_examTracking && _c.formLink != null) {
         if (_examActive) {
-          // FLAG_SECURE + tolak sentuhan overlay (best-effort, tidak blokir).
-          unawaited(ExamLockService.lock());
+          // FLAG_SECURE + tolak sentuhan overlay + pin (best-effort).
+          // Bila ada lapisan gagal → beri tahu user, JANGAN diam seolah
+          // terkunci penuh (pelanggaran tetap tercatat ke server).
+          unawaited(ExamLockService.lock().then((state) {
+            if (!mounted || state.fullyLocked) return;
+            showAppToast(
+              context,
+              'Pengaman tak penuh (${state.failedLayers.join(', ')}). Pelanggaran tetap tercatat.',
+              type: ToastType.warning,
+            );
+          }));
         }
         final exam = ExamSessionClient(
           formLink: _c.formLink!,
@@ -519,7 +550,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   /// mencapai limit ([violationLimit]), volume dimaksimalkan + bunyi
   /// peringatan diputar sebelum mengirim.
   Future<void> _autoSubmit({bool violationLimit = false}) async {
-    if (_submitting) return;
+    if (!_tryAcquireSubmit()) return;
     if (violationLimit) {
       await ExamWarningSound.playLimitWarning();
     }
@@ -533,9 +564,15 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
         tabSwitchCount: _examTracking ? _tabSwitchCount : null,
       );
     } catch (e) {
+      // Gagal: JANGAN tampilkan dialog selesai (menyesatkan) — lepas kunci
+      // agar user bisa kirim manual, matikan flag alarm + bunyinya.
+      _violationSubmitted = false;
+      _releaseSubmit();
+      await ExamWarningSound.stop();
       if (!mounted) return;
-      // Tetap tampilkan dialog selesai meski submit gagal (mis. sudah pernah submit)
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      if (mounted) setState(() => _submitting = false);
+      return;
     } finally {
       _exam?.stop();
       await _releaseExamLock();
@@ -583,6 +620,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
 
   /// Scroll ke soal belum dijawab pertama dan fokus ke field esai-nya (jika ada).
   void _scrollToUnanswered(int index) {
+    if (index < 0 || index >= _c.questions.length) return;
     if (_c.formTypeId == 2 && _c.questions.length > 1) {
       // Mode multi-page: pindah ke halaman soal tsb.
       setState(() => _c.currentQuestion = index);
@@ -590,6 +628,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       return;
     }
     // Mode single-page: scroll ke kartu soal tsb lalu fokus.
+    if (index >= _c.store.questionKeys.length) return;
     final ctx = _c.store.questionKeys[index].currentContext;
     if (ctx != null) {
       Scrollable.ensureVisible(
@@ -602,6 +641,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   }
 
   void _focusEssayIfAny(int index) {
+    if (index < 0 || index >= _c.questions.length) return;
     final q = _c.questions[index];
     if (q.typeId == 1) {
       _c.store.essayFocusNodes[q.id]?.requestFocus();
@@ -611,7 +651,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   /// Swipe-refresh saat mengerjakan: ambil soal terbaru, HANYA jawaban
   /// soal yang berubah isinya yang di-reset — sisanya dipertahankan.
   Future<void> _refreshQuestions() async {
-    if (_loading || _submitting || _step != _RunnerStep.fill) return;
+    if (_loading || _submitting || _submitLocked || _step != _RunnerStep.fill) return;
     try {
       final diff = await _c.refreshQuestions(_c.tokenController.text);
       if (!mounted) return;
@@ -638,7 +678,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   Future<bool> _submitInternal({
     required bool returnToStartScreen,
   }) async {
-    if (_submitting) return false;
+    if (!_tryAcquireSubmit()) return false;
     final firstUnanswered = _c.store.firstUnansweredIndex(_c.questions);
     if (firstUnanswered != null) {
       setState(() {
@@ -698,6 +738,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       }
       return true;
     } catch (e) {
+      _releaseSubmit();
       if (!mounted) return false;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
       return false;
@@ -707,7 +748,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   }
 
   Future<void> _submitWithConfirmation() async {
-    if (_submitting) return;
+    if (_submitting || _submitLocked) return;
     final firstUnanswered = _c.store.firstUnansweredIndex(_c.questions);
     if (firstUnanswered != null) {
       setState(() {
@@ -736,8 +777,28 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     final formTheme = _formTheme;
     // Ragu-ragu ala web: hanya untuk tipe ujian (formTypeId 2, multi-page).
     final isExamQuiz = _c.formTypeId == 2 && _c.questions.length > 1;
-    Widget fillWidget = RunnerFillStep(
-          info: _c.info!,
+    final info = _c.info;
+    // Info belum ada (mis. load gagal lalu state basi): jangan paksa `!`,
+    // tampilkan layar error yang bisa kembali.
+    if (_step == _RunnerStep.fill && info == null) {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 48),
+          const SizedBox(height: 12),
+          const Text('Data form tidak tersedia.'),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: () => AppRouter.of(context).pop(),
+            child: const Text('Kembali'),
+          ),
+        ],
+      );
+    }
+    Widget fillWidget = const SizedBox.shrink();
+    if (info != null) {
+      fillWidget = RunnerFillStep(
+          info: info,
           store: _c.store,
           questions: _c.questions,
           isMultiPage: isExamQuiz,
@@ -750,12 +811,15 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
           onToggleMark: _toggleMark,
           onSubmit: _submitWithConfirmation,
           onNext: _next,
-          onPrevious: () => setState(() => _c.currentQuestion--),
-          onJumpTo: (idx) => setState(() => _c.currentQuestion = idx),
+          onPrevious: () => setState(() => _c.currentQuestion =
+              (_c.currentQuestion - 1).clamp(0, _c.questions.isEmpty ? 0 : _c.questions.length - 1)),
+          onJumpTo: (idx) => setState(() => _c.currentQuestion =
+              idx.clamp(0, _c.questions.isEmpty ? 0 : _c.questions.length - 1)),
           onAnswerChanged: (qid) =>
               setState(() => _errorQuestionIds.remove(qid)),
           onPickDateTime: _pickDateTime,
         );
+    }
     // FEAT-6: wrap disabled copy-paste via SelectionContainer disabled
     if (_disableCopy && _step == _RunnerStep.fill) {
       fillWidget = SelectionContainer.disabled(child: fillWidget);
@@ -801,9 +865,12 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     return page;
   }
 
-  /// Lanjut soal berikutnya (multi-page) - bebas pindah, validasi hanya saat submit
+  /// Lanjut soal berikutnya (multi-page) - bebas pindah, validasi hanya saat submit.
+  /// Dijepit agar tidak overflow setelah refresh menghapus soal.
   void _next() {
-    setState(() => _c.currentQuestion++);
+    if (_c.questions.isEmpty) return;
+    setState(() => _c.currentQuestion =
+        (_c.currentQuestion + 1).clamp(0, _c.questions.length - 1));
   }
 
   Future<void> _pickDateTime(int questionId) async {

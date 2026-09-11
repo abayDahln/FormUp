@@ -1,5 +1,6 @@
 import 'auth_service.dart';
 import 'form_service.dart' show PagedResult;
+import 'package:form_up/core/cache/api_cache.dart';
 
 class _AdminCacheEntry {
   final Map<String, dynamic> json;
@@ -293,7 +294,15 @@ class AdminService {
     return json;
   }
 
-  static void _bustList() => _listCache.clear();
+  static void _bustList() {
+    _listCache.clear();
+    // Aksi moderasi mengubah visibilitas user/form (ban, takedown,
+    // restore, dismiss) — bersihkan juga cache sisi user agar form yang
+    // di-takedown tak lagi terlihat publik sampai cache kedaluwarsa.
+    ApiCache.invalidatePrefix('forms:');
+    ApiCache.invalidatePrefix('publicForms:');
+    ApiCache.invalidatePrefix('http:get:');
+  }
   static PagedResult<T> _paged<T>(
     Map<String, dynamic> map,
     T Function(Map<String, dynamic>) fromJson,

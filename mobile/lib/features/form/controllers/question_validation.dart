@@ -12,11 +12,34 @@ String? validateQuestionDraft(QuestionDraft q) {
     if (q.options.isEmpty) {
       return "Tambahkan opsi pada pertanyaan pilihan";
     }
+    if (q.typeId == 2 && q.options.length < 2) {
+      return "Pilihan ganda butuh minimal 2 opsi";
+    }
+    final seen = <String>{};
     for (final o in q.options) {
-      if (o.text.document.toPlainText().trim().isEmpty) {
+      final text = o.text.document.toPlainText().trim();
+      if (text.isEmpty) {
         return "Teks opsi tidak boleh kosong";
       }
+      if (!seen.add(text.toLowerCase())) {
+        return 'Opsi "$text" duplikat';
+      }
     }
+    if (q.typeId == 3 && q.isScorable) {
+      final correct = q.options.where((o) => o.isCorrect).length;
+      if (correct == 0) {
+        return "Tandai minimal 1 opsi benar untuk soal bernilai";
+      }
+    }
+  }
+  if ((q.points ?? 0) < 0) {
+    return "Bobot poin tidak boleh negatif";
+  }
+  if (q.isScorable &&
+      q.typeId != 3 &&
+      q.correctAnswer.text.trim().isEmpty &&
+      !q.options.any((o) => o.isCorrect)) {
+    return "Isi kunci jawaban untuk soal bernilai";
   }
   return null;
 }

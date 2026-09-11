@@ -35,8 +35,11 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
       final form = await AdminService.getFormDetail(widget.feedback.formId);
       if (!mounted) return;
       setState(() => _form = form);
-    } catch (_) {
-      // ponytail: info form gagal dimuat tidak fatal
+    } catch (e) {
+      // Info form gagal dimuat tidak fatal bagi aksi feedback,
+      // tapi user wajib tahu (sebelumnya diam total).
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _formLoading = false);
     }

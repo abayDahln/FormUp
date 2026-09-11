@@ -23,6 +23,12 @@ class ExamWarningSound {
   static DateTime? _lastPlay;
   static Timer? _safetyTimer;
 
+  /// Antrean serial play: dua pemicu bersamaan tak lagi membuat 2 player
+  /// loop menumpuk — pemicu kedua antre, membuang hasil pertama.
+  static Future<void> _playChain = Future.value();
+  static int _playGen = 0;
+  static bool _looping = false;
+
   /// Pengaman: hentikan loop maksimal 3 menit agar tidak bunyi selamanya
   /// bila user tak kunjung kembali (hemat baterai).
   static const _maxLoop = Duration(minutes: 3);
@@ -55,18 +61,41 @@ class ExamWarningSound {
     }
   }
 
-  static Future<void> _playNow() async {
+  static Future<void> _playNow() {
+    // Serialkan: pemicu bersamaan antre, bukan menumpuk player.
+    _playChain = _playChain.then((_) => _playNowInner()).catchError((_) {});
+    return _playChain;
+  }
+
+  static Future<void> _playNowInner() async {
+    final gen = _playGen;
     try {
       // Selalu player + play() baru: dijamin mulai dari awal,
       // tidak tergantung state player sebelumnya. Mode LOOP agar
       // terus berbunyi selama user di luar form.
-      try {
-        await _player?.dispose();
-      } catch (_) {}
+      final stale = _player;
+      _player = null;
+      _looping = false;
+      if (stale != null) {
+        try {
+          await stale.stop();
+        } catch (_) {}
+        try {
+          await stale.dispose();
+        } catch (_) {}
+      }
       final player = AudioPlayer();
       _player = player;
       await player.setVolume(1.0);
       await player.setReleaseMode(ReleaseMode.loop);
+      // Disusul play baru / stop di tengah jalan: buang diri.
+      if (gen != _playGen) {
+        try {
+          await player.dispose();
+        } catch (_) {}
+        if (identical(_player, player)) _player = null;
+        return;
+      }
       try {
         await player.play(AssetSource(_asset));
       } catch (_) {
@@ -75,6 +104,16 @@ class ExamWarningSound {
         final bytes = await rootBundle.load(_asset);
         await player.play(BytesSource(bytes.buffer.asUint8List()));
       }
+      if (gen != _playGen || !identical(_player, player)) {
+        try {
+          await player.stop();
+        } catch (_) {}
+        try {
+          await player.dispose();
+        } catch (_) {}
+        return;
+      }
+      _looping = true;
       _lastPlay = DateTime.now();
       _armSafetyTimer();
     } catch (e) {
@@ -91,6 +130,8 @@ class ExamWarningSound {
 
   /// Hentikan bunyi (kembali ke form / submit manual / keluar ujian).
   static Future<void> stop() async {
+    _playGen++; // batalkan play yang antre/berjalan
+    _looping = false;
     _safetyTimer?.cancel();
     _safetyTimer = null;
     try {
@@ -108,6 +149,8 @@ class ExamWarningSound {
   static Future<String?> testPlay() async {
     try {
       // Matikan loop lama dulu agar tidak menumpuk tak terhentikan.
+      _playGen++;
+      _looping = false;
       await stop();
       await maxVolume();
       final player = AudioPlayer();
@@ -128,14 +171,20 @@ class ExamWarningSound {
     }
   }
 
-  /// True bila loop bunyi sedang berjalan.
-  static bool get isPlaying => _player?.state == PlayerState.playing;
+  /// True bila loop bunyi sedang berjalan (flag internal, bukan baca
+  /// state sinkron yang tak andal).
+  static bool get isPlaying => _looping && _player != null;
 
   /// Pastikan alarm berbunyi (dipanggil berkala selama user di luar form).
   /// Memulihkan bila OS menjeda audio (fokus audio direbut notifikasi
   /// lain) — tanpa cooldown karena hanya jalan bila sedang sunyi.
   static Future<void> ensureLooping() async {
-    if (isPlaying) return;
+    if (_looping && _player != null) {
+      try {
+        await _player!.resume();
+      } catch (_) {}
+      return;
+    }
     await maxVolume();
     await ExamWarningSound._playNow();
   }
@@ -166,6 +215,8 @@ class ExamWarningSound {
   }
 
   static Future<void> dispose() async {
+    _playGen++;
+    _looping = false;
     try {
       await _player?.dispose();
     } catch (_) {}

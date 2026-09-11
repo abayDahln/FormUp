@@ -14,8 +14,11 @@ import 'package:form_up/core/widgets/search_field.dart';
 
 /// Konten tab "Kelola" pada shell admin: kelola user, form, dan feedback.
 /// Ditampilkan di dalam AdminHomeScreen (tanpa Scaffold sendiri).
+/// [initialTab]: 0 = User, 1 = Form, 2 = Feedback (deep-link dari Beranda).
 class AdminPanelContent extends StatefulWidget {
-  const AdminPanelContent({super.key});
+  final int initialTab;
+
+  const AdminPanelContent({super.key, this.initialTab = 0});
 
   @override
   State<AdminPanelContent> createState() => _AdminPanelContentState();
@@ -26,7 +29,8 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return DefaultTabController(
-      length: 2,
+      length: 3,
+      initialIndex: widget.initialTab.clamp(0, 2),
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -69,6 +73,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
               tabs: [
                 Tab(text: 'User'),
                 Tab(text: 'Form'),
+                Tab(text: 'Feedback'),
               ],
             ),
           ),
@@ -78,6 +83,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
               children: [
                 _AdminUsersTab(),
                 _AdminFormsTab(),
+                _AdminFeedbackTab(),
               ],
             ),
           ),

@@ -45,6 +45,10 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
   String _filter = 'all';
   String _search = '';
   final _searchController = TextEditingController();
+  // Cegah polling tumpang-tindih: request lambat tak menimpa data baru
+  // dengan respons basi, dan kegagalan sunyi beruntun ditandai.
+  bool _fetchBusy = false;
+  int _silentFailStreak = 0;
 
   @override
   void initState() {
@@ -63,10 +67,13 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
   }
 
   Future<void> _fetch({bool silent = false}) async {
+    if (_fetchBusy) return;
+    _fetchBusy = true;
     if (!silent) setState(() => _loading = true);
     try {
       final data = await FormService.getExamMonitoring(widget.formId);
       if (!mounted) return;
+      _silentFailStreak = 0;
       setState(() {
         _data = data;
         _loading = false;
@@ -77,7 +84,16 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
       setState(() => _loading = false);
       if (!silent) {
         showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      } else {
+        _silentFailStreak++;
+        if (_silentFailStreak == 3 && mounted) {
+          showAuthToast(context,
+              'Gagal memuat pantauan. Tarik untuk memuat ulang.',
+              isError: true);
+        }
       }
+    } finally {
+      _fetchBusy = false;
     }
   }
 
@@ -205,7 +221,7 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
                         child: Text(
                           'Diperbarui '
                               '${_lastUpdated!.toLocal().toString().substring(11, 16)}'
-                              ' • diperbarui otomatis tiap 15 detik',
+                              ' • otomatis tiap 5 detik',
                           style:  TextStyle(
                               fontSize: 10.5, color: cs.onSurfaceVariant),
                         ),

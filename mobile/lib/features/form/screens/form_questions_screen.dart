@@ -339,18 +339,40 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
       if (!mounted || confirmed != true) return;
 
       // 3) Masukkan hasil impor ke draf lokal, belum disimpan ke database.
+      // Saring dengan validasi lokal: baris lolos server tapi cacat
+      // (opsi kosong/duplikat, PG <2 opsi) langsung ditolak di sini.
       final importedDrafts = <QuestionDraft>[
         for (final item in questions) _draftFromImportItem(item),
       ];
-      if (!mounted) return;
+      final validDrafts = <QuestionDraft>[];
+      String? firstRejectReason;
+      for (final d in importedDrafts) {
+        final err = validateQuestionDraft(d);
+        if (err == null) {
+          validDrafts.add(d);
+        } else {
+          d.dispose();
+          firstRejectReason ??= err;
+        }
+      }
+      final rejected = importedDrafts.length - validDrafts.length;
+      if (!mounted) {
+        for (final d in validDrafts) {
+          d.dispose();
+        }
+        return;
+      }
       setState(() {
-        _questions.addAll(importedDrafts);
+        _questions.addAll(validDrafts);
       });
       showAppToast(
         context,
-        "${importedDrafts.length} soal masuk draf",
-        type: importedDrafts.isNotEmpty ? ToastType.success : ToastType.warning,
-        title: "Impor Selesai",
+        validDrafts.isEmpty
+            ? 'Tidak ada soal valid untuk dimasukkan'
+            : '${validDrafts.length} soal masuk draf'
+                '${rejected > 0 ? ', $rejected ditolak (${firstRejectReason ?? 'tidak valid'})' : ''}',
+        type: validDrafts.isNotEmpty ? ToastType.success : ToastType.warning,
+        title: 'Impor Selesai',
       );
     } catch (e) {
       if (!mounted) return;

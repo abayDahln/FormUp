@@ -225,6 +225,13 @@ class FormMakerController {
   /// Bangun payload settings untuk updateSettings.
   Map<String, dynamic> buildSettingsPayload() {
     final timerValue = int.tryParse(timerController.text.trim());
+    final timerEmpty = timerController.text.trim().isEmpty;
+    // Baseline 'menit:'/'jam:' = dulu kosong. Kosong sekarang + dulu ada isi
+    // = user menghapus timer → kirim 0 eksplisit (server: 0 = tanpa batas).
+    final baseHadTimer = switch (baseline?.timer) {
+      null => true, // form baru: kirim apa adanya
+      final t => !['', 'menit:', 'jam:'].contains(t),
+    };
     final curToken = tokenController.text.trim();
     final baseToken = baseline?.token ?? '';
     final base = baseline;
@@ -235,7 +242,9 @@ class FormMakerController {
       'oneResponse': oneResponse,
       'requiredLogin': requiredLogin,
       if (timerValue != null && timerValue > 0)
-        'timerDuration': timerValue * (timerUnit == 'jam' ? 3600 : 60),
+        'timerDuration': timerValue * (timerUnit == 'jam' ? 3600 : 60)
+      else if (timerEmpty && (base == null || baseHadTimer))
+        'timerDuration': 0,
       if (openFormTime != null && !openTimeAlreadySet)
         'openFormTime': _toUtcIso8601(openFormTime!),
       if (closeFormTime != null)

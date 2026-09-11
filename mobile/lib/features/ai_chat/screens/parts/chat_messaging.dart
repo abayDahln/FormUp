@@ -382,7 +382,11 @@ extension _AiChatMessaging on _AiChatScreenState {
     }
     setState(() => _actionWorking = true);
     try {
-      final result = await executeAction(m.actionJson!);
+      final actionJson = m.actionJson;
+      if (actionJson == null) {
+        throw Exception('Data aksi rusak. Minta AI mengulang perubahannya.');
+      }
+      final result = await executeAction(actionJson);
       m.actionExecuted = true;
       m.actionStatus = 'accepted';
       m.actionResult = null;
@@ -452,6 +456,9 @@ extension _AiChatMessaging on _AiChatScreenState {
   /// Persiapan kirim (konteks + bubble) lalu mulai streaming.
   /// Dipanggil sekali per kirim; flag _sending dilepas saat streaming
   /// resmi mulai (atau saat method ini melempar).
+  /// Konteks basi TIDAK dipakai diam-diam: bila build konteks form gagal
+  /// dan tidak ada cache, kirim dibatalkan dengan penjelasan (hindari AI
+  /// mengarang id soal dari konteks kedaluwarsa).
   Future<void> _prepareAndStream(String rawText) async {
     // ensure session exists
     if (_currentSessionId == null) await newSession();
@@ -466,7 +473,19 @@ extension _AiChatMessaging on _AiChatScreenState {
         _lastFormContext = extraContext;
         // Mention = user eksplisit memilih form → jadi form aktif sesi.
         _activeFormId = mentionIds.first;
-      } catch (_) {}
+      } catch (_) {
+        // Mention eksplisit tapi konteks gagal dimuat: batalkan, jangan
+        // kirim tanpa konteks (AI akan mengarang id soal).
+        if (!mounted) return;
+        _sending = false;
+        setState(() {});
+        showAuthToast(
+          context,
+          'Form yang di-mention tidak bisa dimuat. Coba lagi.',
+          isError: true,
+        );
+        return;
+      }
     } else if (rawText.toLowerCase().contains('form saya') ||
         rawText.toLowerCase().contains('list form') ||
         rawText.toLowerCase().contains('daftar form')) {
@@ -481,7 +500,17 @@ extension _AiChatMessaging on _AiChatScreenState {
         extraContext = await AiFormContextService.buildContext([_activeFormId!]);
         _lastFormContext = extraContext;
       } catch (_) {
-        extraContext = _lastFormContext; // fallback ke cache terakhir
+        // Konteks segar gagal (form dihapus / offline): JANGAN pakai cache
+        // basi diam-diam — batalkan kirim dengan penjelasan.
+        if (!mounted) return;
+        _sending = false;
+        setState(() {});
+        showAuthToast(
+          context,
+          'Konteks form kedaluwarsa. Mention ulang (@nama form) lalu kirim lagi.',
+          isError: true,
+        );
+        return;
       }
     } else if (_lastFormContext != null && _lastFormContext!.isNotEmpty) {
       // Fallback terakhir: konteks cache tanpa form aktif yang diketahui.

@@ -23,6 +23,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   // ponytail: IndexedStack lazy, state terjaga
   final Set<int> _visitedTabs = {0};
 
+  /// Tab awal konten Kelola (0=User, 1=Form, 2=Feedback) + versi untuk
+  /// rebuild saat deep-link dari Beranda.
+  int _manageTab = 0;
+  int _manageVersion = 0;
+
   String _name = '';
 
   @override
@@ -51,13 +56,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           children: [
             _AdminBerandaTab(
               name: _name,
-              onOpenManage: () => setState(() {
+              onOpenManageTab: (tab) => setState(() {
                 _visitedTabs.add(1);
+                _manageTab = tab.clamp(0, 2);
+                _manageVersion++;
                 _currentIndex = 1;
               }),
             ),
             if (_visitedTabs.contains(1))
-              const AdminPanelContent()
+              AdminPanelContent(
+                key: ValueKey('manage-$_manageVersion-$_manageTab'),
+                initialTab: _manageTab,
+              )
             else
               const SizedBox.shrink(),
             if (_visitedTabs.contains(2))
@@ -122,11 +132,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 // ---------------------------------------------------------------------------
 class _AdminBerandaTab extends StatefulWidget {
   final String name;
-  final VoidCallback onOpenManage;
+  final ValueChanged<int> onOpenManageTab;
 
   const _AdminBerandaTab({
     required this.name,
-    required this.onOpenManage,
+    required this.onOpenManageTab,
   });
 
   @override
@@ -135,6 +145,7 @@ class _AdminBerandaTab extends StatefulWidget {
 
 class _AdminBerandaTabState extends State<_AdminBerandaTab> {
   bool _loading = true;
+  bool _loadFailed = false;
   int _totalUsers = 0;
   int _totalForms = 0;
   int _totalFeedback = 0;
@@ -147,7 +158,10 @@ class _AdminBerandaTabState extends State<_AdminBerandaTab> {
 
   /// Ringkasan diambil dari field `total` endpoint list (pageSize 1).
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadFailed = false;
+    });
     try {
       final results = await Future.wait([
         AdminService.getUsers(page: 1, pageSize: 1),
@@ -161,9 +175,13 @@ class _AdminBerandaTabState extends State<_AdminBerandaTab> {
         _totalFeedback = results[2].total;
         _loading = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _loadFailed = true;
+      });
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
     }
   }
 
@@ -226,6 +244,35 @@ class _AdminBerandaTabState extends State<_AdminBerandaTab> {
                 ),
               ],
             ),
+            if (_loadFailed && !_loading) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: cs.errorContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline,
+                        size: 18, color: cs.onErrorContainer),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Ringkasan gagal dimuat',
+                        style: TextStyle(
+                            fontSize: 12.5, color: cs.onErrorContainer),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _load,
+                      child: const Text('Coba lagi'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 25),
              Text(
               "Aksi Cepat",
@@ -241,21 +288,21 @@ class _AdminBerandaTabState extends State<_AdminBerandaTab> {
               icon: Icons.people_outline,
               title: 'Kelola User',
               subtitle: 'Lihat, ban, dan aktifkan user terdaftar',
-              onTap: widget.onOpenManage,
+              onTap: () => widget.onOpenManageTab(0),
             ),
             const SizedBox(height: 12),
             _QuickActionTile(
               icon: Icons.description_outlined,
               title: 'Kelola Form',
               subtitle: 'Takedown dan restore form',
-              onTap: widget.onOpenManage,
+              onTap: () => widget.onOpenManageTab(1),
             ),
             const SizedBox(height: 12),
             _QuickActionTile(
               icon: Icons.forum_outlined,
               title: 'Feedback Masuk',
               subtitle: 'Tinjau laporan dari pengguna',
-              onTap: widget.onOpenManage,
+              onTap: () => widget.onOpenManageTab(2),
             ),
             const SizedBox(height: 30),
           ],

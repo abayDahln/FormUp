@@ -43,8 +43,12 @@ class FormRunnerController {
   }
 
   Future<List<PublicQuestion>> fetchQuestions(String token) async {
+    final link = formLink;
+    if (link == null || link.isEmpty) {
+      throw const ApiException('Form belum dimuat. Kembali lalu buka ulang.');
+    }
     final questions = await PublicFormService.getQuestions(
-      formLink!,
+      link,
       token: token.trim().isEmpty ? null : token.trim(),
     );
     store.init(questions);
@@ -58,11 +62,15 @@ class FormRunnerController {
   /// berubah isinya yang jawabannya di-reset. Mengembalikan ringkasan
   /// {added, removed, changed} untuk toast info.
   Future<Map<String, int>> refreshQuestions(String token) async {
-    final prevSig = {
+    final link = formLink;
+    if (link == null || link.isEmpty) {
+      throw const ApiException('Form belum dimuat. Kembali lalu buka ulang.');
+    }
+    final prevSig = <int, String>{
       for (final q in questions) q.id: RunnerAnswerStore.signatureOf(q),
     };
     final next = await PublicFormService.getQuestions(
-      formLink!,
+      link,
       token: token.trim().isEmpty ? null : token.trim(),
       refresh: true,
     );
@@ -82,8 +90,12 @@ class FormRunnerController {
     String? examSessionId,
     int? tabSwitchCount,
   }) async {
+    final link = formLink;
+    if (link == null || link.isEmpty) {
+      throw const ApiException('Form belum dimuat. Kembali lalu buka ulang.');
+    }
     final data = await PublicFormService.submit(
-      formLink!,
+      link,
       token: tokenController.text.trim().isEmpty
           ? null
           : tokenController.text.trim(),
@@ -97,7 +109,11 @@ class FormRunnerController {
   }
 
   Future<PublicFormResult> fetchResult(int responseId) {
-    return PublicFormService.getResult(formLink!, responseId);
+    final link = formLink;
+    if (link == null || link.isEmpty) {
+      throw const ApiException('Form belum dimuat. Kembali lalu buka ulang.');
+    }
+    return PublicFormService.getResult(link, responseId);
   }
 
   /// Bersihkan state untuk kembali ke step kode (form lain).

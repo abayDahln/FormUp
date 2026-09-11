@@ -63,7 +63,11 @@ extension _AiChatHistoryOps on _AiChatScreenState {
     if (!confirmed || !mounted) return;
     setState(() => _actionWorking = true);
     try {
-      final result = await executeAction(m.actionJson!);
+      final actionJson = m.actionJson;
+      if (actionJson == null) {
+        throw Exception('Data aksi rusak. Minta AI mengulang perubahannya.');
+      }
+      final result = await executeAction(actionJson);
       m.actionExecuted = true;
       m.actionStatus = 'accepted';
       m.actionResult = null;
@@ -95,7 +99,8 @@ extension _AiChatHistoryOps on _AiChatScreenState {
   /// Deskripsi satu baris untuk redo satu aksi (dipakai dialog konfirmasi) —
   /// menjelaskan perubahan maju yang akan diterapkan ulang.
   String _describeRedo(ChatMessage m) {
-    final a = m.actionJson!;
+    final a = m.actionJson;
+    if (a == null) return 'Ulangi aksi (data aksi tidak tersedia)';
     final formId = a['formId'];
     switch (a['action']) {
       case 'create_form':
@@ -325,7 +330,8 @@ extension _AiChatHistoryOps on _AiChatScreenState {
 
   /// Tombol "coba lagi" di bawah pesanku: potong chat setelah pesan ini,
   /// undo perubahan form-nya (setelah konfirmasi), lalu kirim ulang prompt
-  /// yang sama.
+  /// yang sama. Bila ada aksi yang GAGAL di-undo, chat TIDAK dipotong
+  /// (batal total) agar form dan riwayat tak divergen permanen.
   Future<void> retryUserMessage(ChatMessage m) async {
     _dismissKeyboard();
     if (_streaming || _sending) {
@@ -343,15 +349,20 @@ extension _AiChatHistoryOps on _AiChatScreenState {
     );
     if (!confirmed || !mounted) return;
     final failed = await _undoAcceptedActionsFrom(index);
+    if (failed > 0) {
+      // Jangan potong chat: sebagian perubahan tak bisa dikembalikan,
+      // memotong akan membuat form dan riwayat divergen permanen.
+      if (mounted) {
+        showAuthToast(
+          context,
+          '$failed perubahan tidak bisa di-undo (mis. form sudah punya respons). Coba lagi dibatalkan.',
+          isError: true,
+        );
+      }
+      return;
+    }
     setState(() => _messages.removeRange(index, _messages.length));
     await persistCurrent();
-    if (mounted && failed > 0) {
-      showAuthToast(
-        context,
-        '$failed perubahan tidak bisa di-undo (form punya respons)',
-        isError: true,
-      );
-    }
     await sendWithText(m.text);
   }
 
@@ -438,15 +449,19 @@ extension _AiChatHistoryOps on _AiChatScreenState {
     final newText = ctrl.text.trim();
     if (newText.isEmpty) return;
     final failed = await _undoAcceptedActionsFrom(index);
+    if (failed > 0) {
+      // Sama seperti retry: jangan potong chat bila undo tak tuntas.
+      if (mounted) {
+        showAuthToast(
+          context,
+          '$failed perubahan tidak bisa di-undo (mis. form sudah punya respons). Edit dibatalkan.',
+          isError: true,
+        );
+      }
+      return;
+    }
     setState(() => _messages.removeRange(index, _messages.length));
     await persistCurrent();
-    if (mounted && failed > 0) {
-      showAuthToast(
-        context,
-        '$failed perubahan tidak bisa di-undo (form punya respons)',
-        isError: true,
-      );
-    }
     await sendWithText(newText);
   }
 

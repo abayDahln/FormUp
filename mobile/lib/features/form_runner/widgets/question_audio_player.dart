@@ -33,6 +33,10 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
   Source? _source; // sumber aktif — dipakai putar ulang saat resume gagal
   bool _completedOnce = false; // true sejak audio selesai sekali
   final List<StreamSubscription> _subs = [];
+  bool _disposed = false; // listener tak boleh setState setelah ini
+  int _seekGen = 0; // serial penomoran seek: hanya yang terbaru diterapkan
+
+  bool get _alive => mounted && !_disposed;
 
   @override
   void initState() {
@@ -40,22 +44,27 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
     _prepareSource();
     _subs.addAll([
       _player.onPlayerStateChanged.listen((state) {
-        if (mounted) setState(() => _playing = state == PlayerState.playing);
+        if (_alive) setState(() => _playing = state == PlayerState.playing);
       }),
       _player.onDurationChanged.listen((d) {
-        if (mounted) setState(() => _duration = d);
+        if (_alive) setState(() => _duration = d);
       }),
       _player.onPositionChanged.listen((p) {
-        if (mounted && !_seeking) setState(() => _position = p);
+        if (_alive && !_seeking) setState(() => _position = p);
       }),
       _player.onPlayerComplete.listen((_) async {
         // Kembalikan posisi ke awal lalu pause, sehingga tombol play
         // siap memutar ulang. Tandai completed: resume() dari state ini
         // adalah no-op diam-diam di Android — _toggle menanganinya.
         _completedOnce = true;
-        await _player.seek(Duration.zero);
-        await _player.pause();
-        if (mounted) {
+        try {
+          await _player.seek(Duration.zero);
+        } catch (_) {}
+        if (!_alive) return;
+        try {
+          await _player.pause();
+        } catch (_) {}
+        if (_alive) {
           setState(() {
             _playing = false;
             _position = Duration.zero;
@@ -75,17 +84,19 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
       final src = _source;
       if (src != null) await _player.setSource(src);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (_alive) setState(() => _loading = false);
     }
   }
 
   @override
   void dispose() {
+    _disposed = true;
+    _seekGen++; // batalkan seek yang masih berjalan
     for (final s in _subs) {
-      s.cancel();
+      unawaited(s.cancel());
     }
     _subs.clear();
-    _player.dispose();
+    unawaited(_player.dispose());
     super.dispose();
   }
 
@@ -111,11 +122,13 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
         await _replay();
         return;
       }
-      // Verifikasi: resume() bisa gagal DIAM-DIAM (tanpa throw) —
-      // bila 600ms kemudian tetap tidak playing, putar ulang source.
+      // Verifikasi ganda: resume() bisa gagal DIAM-DIAM (tanpa throw).
+      // Flag _playing (via listener) bisa basi, jadi bandingkan juga
+      // posisi: bila tak jalan DAN posisi tak maju → putar ulang source.
+      final posBefore = _position;
       await Future.delayed(const Duration(milliseconds: 600));
-      if (!mounted) return;
-      if (!_playing && !_loading) {
+      if (!_alive) return;
+      if (!_playing && !_loading && !_seeking && _position == posBefore) {
         await _replay();
       }
     } finally {
@@ -126,18 +139,25 @@ class _QuestionAudioPlayerState extends State<QuestionAudioPlayer> {
   /// Putar ulang source dari awal — jalan terakhir paling andal.
   Future<void> _replay() async {
     final src = _source;
-    if (src == null || !mounted) return;
+    if (src == null || !_alive) return;
     try {
       await _player.play(src);
       _completedOnce = false;
     } catch (_) {
-      if (mounted) setState(() => _playing = false);
+      if (_alive) setState(() => _playing = false);
     }
   }
 
   Future<void> _onSeek(Duration target) async {
-    await _player.seek(target);
-    if (mounted) setState(() => _position = target);
+    // Serial: geser-cepat hanya menerapkan target TERAKHIR.
+    final gen = ++_seekGen;
+    try {
+      await _player.seek(target);
+    } catch (_) {
+      return;
+    }
+    if (!_alive || gen != _seekGen) return;
+    setState(() => _position = target);
   }
 
 

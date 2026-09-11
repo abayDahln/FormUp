@@ -87,7 +87,8 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
   // ---- Ringkasan (baris kepala kartu) ----
 
   String _summary() {
-    final a = m.actionJson!;
+    final a = m.actionJson;
+    if (a == null) return 'Aksi tidak tersedia';
     switch (a['action']) {
       case 'create_form':
         final n = (a['questions'] as List<dynamic>?)?.length ?? 0;
@@ -247,7 +248,12 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
   }
 
   List<Widget> _detailItems(ColorScheme cs) {
-    final a = m.actionJson!;
+    final a = m.actionJson;
+    if (a == null) {
+      return [
+        _itemTitle('Data aksi tidak tersedia — minta AI mengulang.', cs),
+      ];
+    }
     final undo = m.undoSnapshot;
     switch (a['action']) {
       case 'create_form':

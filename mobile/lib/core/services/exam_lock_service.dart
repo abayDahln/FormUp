@@ -18,19 +18,23 @@ import 'package:flutter/services.dart';
 class ExamLockService {
   static const _channel = MethodChannel('formup/exam_lock');
 
-  static Future<void> setSecure(bool secure) async {
+  static Future<bool> setSecure(bool secure) async {
     try {
       await _channel.invokeMethod('setSecure', {'secure': secure});
+      return true;
     } catch (e) {
       if (kDebugMode) debugPrint('[ExamLock] setSecure gagal: $e');
+      return false;
     }
   }
 
-  static Future<void> setObscuredTouchBlocked(bool blocked) async {
+  static Future<bool> setObscuredTouchBlocked(bool blocked) async {
     try {
       await _channel.invokeMethod('setObscuredTouchBlocked', {'blocked': blocked});
+      return true;
     } catch (e) {
       if (kDebugMode) debugPrint('[ExamLock] setObscuredTouchBlocked gagal: $e');
+      return false;
     }
   }
 
@@ -88,17 +92,54 @@ class ExamLockService {
 
   /// Aktifkan seluruh pengaman saat pengerjaan ujian dimulai.
   /// Pin paling akhir agar izin sistem muncul setelah sesi siap.
-  static Future<void> lock() async {
-    await setSecure(true);
-    await setObscuredTouchBlocked(true);
-    await startPin();
+  /// Mengembalikan status per-lapisan — caller WAJIB memberi tahu user
+  /// bila ada lapisan yang gagal (jangan diam seolah terkunci penuh).
+  static Future<ExamLockState> lock() async {
+    final secure = await setSecure(true);
+    final touch = await setObscuredTouchBlocked(true);
+    final pinned = await startPin();
+    return ExamLockState(
+        secure: secure, touchBlocked: touch, pinned: pinned);
   }
 
   /// Lepaskan seluruh pengaman (submit / keluar / batal). Wajib dipanggil
   /// di semua jalur keluar agar FLAG_SECURE/pin tidak bocor ke layar lain.
-  static Future<void> unlock() async {
-    await stopPin();
-    await setSecure(false);
-    await setObscuredTouchBlocked(false);
+  /// Mengembalikan true bila semua lapisan berhasil dilepas.
+  static Future<bool> unlock() async {
+    var ok = true;
+    try {
+      await _channel.invokeMethod('stopLockTask');
+    } catch (e) {
+      ok = false;
+      if (kDebugMode) debugPrint('[ExamLock] stopPin gagal: $e');
+    }
+    ok = await setSecure(false) && ok;
+    ok = await setObscuredTouchBlocked(false) && ok;
+    return ok;
+  }
+}
+
+/// Status per-lapisan pengaman ujian — agar kegagalan satu lapisan
+/// terlihat jelas, bukan ditelan diam-diam.
+class ExamLockState {
+  final bool secure;
+  final bool touchBlocked;
+  final bool pinned;
+
+  const ExamLockState({
+    this.secure = false,
+    this.touchBlocked = false,
+    this.pinned = false,
+  });
+
+  bool get fullyLocked => secure && touchBlocked && pinned;
+
+  /// Lapisan yang gagal aktif, untuk pesan peringatan ke user/pengawas.
+  List<String> get failedLayers {
+    final out = <String>[];
+    if (!secure) out.add('anti-screenshot');
+    if (!touchBlocked) out.add('anti-overlay');
+    if (!pinned) out.add('pin aplikasi');
+    return out;
   }
 }
