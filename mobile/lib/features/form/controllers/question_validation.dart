@@ -84,6 +84,7 @@ List<QuestionDraft> draftsFromQuestions(List<QuestionData> questions) {
         id: o.id,
         text: o.optionText,
         isCorrect: o.isCorrect ?? false,
+        optionImage: o.optionImage,
       ));
     }
     drafts.add(draft);

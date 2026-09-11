@@ -64,8 +64,10 @@ class QuestionOptionData {
   final int? id;
   final String optionText;
   final bool? isCorrect;
+  final String? optionImage;
 
-  const QuestionOptionData({this.id, required this.optionText, this.isCorrect});
+  const QuestionOptionData(
+      {this.id, required this.optionText, this.isCorrect, this.optionImage});
 }
 
 /// Pertanyaan lengkap
@@ -113,6 +115,7 @@ class QuestionData {
               id: o['id'] as int?,
               optionText: o['optionText'] as String? ?? '',
               isCorrect: o['isCorrect'] as bool?,
+              optionImage: o['optionImage'] as String?,
             ),
         ],
       );
@@ -981,6 +984,21 @@ class FormService {
         bytes,
         filename,
         'questionImage',
+      );
+
+  /// POST /forms/{formId}/questions/{id}/options/{optionId}/upload-image
+  static Future<String> uploadOptionImage(
+    int formId,
+    int questionId,
+    int optionId,
+    Uint8List bytes,
+    String filename,
+  ) =>
+      _uploadFile(
+        '/forms/$formId/questions/$questionId/options/$optionId/upload-image',
+        bytes,
+        filename,
+        'optionImage',
       );
 
   /// POST /forms/{formId}/questions/{id}/upload-audio

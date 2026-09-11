@@ -33,6 +33,8 @@ List<Map<String, dynamic>> buildQuestionsPayload(List<QuestionDraft> questions) 
               {
                 'optionText': encodeRichText(o.text).isEmpty ? o.text.document.toPlainText().trim() : encodeRichText(o.text),
                 'isCorrect': questions[i].isScorable ? o.isCorrect : false,
+                if (o.optionImage != null && o.optionImage!.isNotEmpty)
+                  'optionImage': o.optionImage,
               },
           ],
       },

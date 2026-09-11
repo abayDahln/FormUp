@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/models/question_draft.dart';
+import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
+import 'package:image_picker/image_picker.dart';
+
+import 'question_image_source_sheet.dart';
 
 /// Isi section "Jawaban": benar/salah, esai, atau daftar opsi
 class QuestionAnswerSection extends StatelessWidget {
@@ -287,8 +293,8 @@ class _AnswerChip extends StatelessWidget {
   }
 }
 
-/// Satu baris opsi jawaban (radio/checkbox + editor + hapus)
-class _OptionRow extends StatelessWidget {
+/// Satu baris opsi jawaban (radio/checkbox + editor + gambar + hapus)
+class _OptionRow extends StatefulWidget {
   final int index;
   final QuestionDraft draft;
   final VoidCallback onChanged;
@@ -300,59 +306,211 @@ class _OptionRow extends StatelessWidget {
   });
 
   @override
+  State<_OptionRow> createState() => _OptionRowState();
+}
+
+class _OptionRowState extends State<_OptionRow> {
+  bool _picking = false;
+
+  Future<void> _pickImage() async {
+    final o = widget.draft.options[widget.index];
+    final source = await showQuestionImageSourceSheet(context);
+    if (source == null || !mounted) return;
+    setState(() => _picking = true);
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+      final bytes = await picked.readAsBytes();
+      if (!mounted) return;
+      if (exceedsUploadLimit(bytes)) {
+        showAuthToast(context, 'Gambar maksimal 10 MB', isError: true);
+        return;
+      }
+      setState(() {
+        o.pendingImageBytes = bytes;
+        o.pendingImageName = 'option.jpg';
+        // Nilai final optionImage ditetapkan setelah soal disimpan.
+        o.optionImage = null;
+      });
+      widget.onChanged();
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
+
+  void _removeImage() {
+    final o = widget.draft.options[widget.index];
+    setState(() {
+      o.optionImage = null;
+      o.pendingImageBytes = null;
+      o.pendingImageName = null;
+    });
+    widget.onChanged();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final q = draft;
-    final o = q.options[index];
+    final q = widget.draft;
+    final o = q.options[widget.index];
     final singleSelect = q.typeId == 2;
+    final hasImage =
+        o.optionImage != null || o.pendingImageBytes != null;
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InkWell(
-            onTap: !q.isScorable
-                ? null
-                : () {
-                    if (singleSelect) {
-                      for (final opt in q.options) {
-                        opt.isCorrect = false;
-                      }
-                      o.isCorrect = true;
-                    } else {
-                      o.isCorrect = !o.isCorrect;
-                    }
-                    onChanged();
-                  },
-            child: Icon(
-              singleSelect
-                  ? (o.isCorrect
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked)
-                  : (o.isCorrect
-                        ? Icons.check_box
-                        : Icons.check_box_outline_blank),
-              color: o.isCorrect ? cs.primary : cs.outline,
-              size: 22,
+          Row(
+            children: [
+              InkWell(
+                onTap: !q.isScorable
+                    ? null
+                    : () {
+                        if (singleSelect) {
+                          for (final opt in q.options) {
+                            opt.isCorrect = false;
+                          }
+                          o.isCorrect = true;
+                        } else {
+                          o.isCorrect = !o.isCorrect;
+                        }
+                        widget.onChanged();
+                      },
+                child: Icon(
+                  singleSelect
+                      ? (o.isCorrect
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked)
+                      : (o.isCorrect
+                            ? Icons.check_box
+                            : Icons.check_box_outline_blank),
+                  color: o.isCorrect ? cs.primary : cs.outline,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: RichTextEditor(
+                  controller: o.text,
+                  hint: 'Opsi ${widget.index + 1}',
+                  minHeight: 40,
+                ),
+              ),
+              IconButton(
+                tooltip: hasImage ? 'Ganti gambar opsi' : 'Tambah gambar opsi',
+                icon: _picking
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: cs.primary,
+                        ),
+                      )
+                    : Icon(
+                        hasImage
+                            ? Icons.image_outlined
+                            : Icons.add_photo_alternate_outlined,
+                        size: 20,
+                        color: hasImage ? cs.primary : cs.onSurfaceVariant,
+                      ),
+                onPressed: _picking ? null : _pickImage,
+              ),
+              IconButton(
+                icon: Icon(Icons.close, size: 18, color: cs.onSurfaceVariant),
+                onPressed: () {
+                  o.text.dispose();
+                  q.options.removeAt(widget.index);
+                  widget.onChanged();
+                },
+              ),
+            ],
+          ),
+          // Pratinjau gambar opsi.
+          if (o.pendingImageBytes != null) ...[
+            const SizedBox(height: 6),
+            _optionImagePreview(
+              cs,
+              Image.memory(
+                o.pendingImageBytes!,
+                height: 90,
+                width: 140,
+                fit: BoxFit.cover,
+              ),
+              '(belum tersimpan)',
+              onRemove: _removeImage,
             ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: RichTextEditor(
-              controller: o.text,
-              hint: "Opsi ${index + 1}",
-              minHeight: 40,
+          ] else if (o.optionImage != null) ...[
+            const SizedBox(height: 6),
+            _optionImagePreview(
+              cs,
+              CachedRemoteImage(
+                url: profileImageUrl(o.optionImage),
+                height: 90,
+                width: 140,
+                fit: BoxFit.cover,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              null,
+              onRemove: _removeImage,
             ),
-          ),
-          IconButton(
-            icon: Icon(Icons.close, size: 18, color: cs.onSurfaceVariant),
-            onPressed: () {
-              o.text.dispose();
-              q.options.removeAt(index);
-              onChanged();
-            },
-          ),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _optionImagePreview(
+    ColorScheme cs,
+    Widget image,
+    String? caption, {
+    required VoidCallback onRemove,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(width: 30),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: image,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (caption != null)
+                Text(
+                  'Pratinjau gambar $caption',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: cs.onSurfaceVariant,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              TextButton.icon(
+                onPressed: onRemove,
+                icon: const Icon(Icons.delete_outline,
+                    size: 15, color: Color(0xFFC0392B)),
+                label: const Text(
+                  'Hapus gambar',
+                  style: TextStyle(
+                      fontSize: 11, color: Color(0xFFC0392B)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

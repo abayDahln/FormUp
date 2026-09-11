@@ -9,12 +9,26 @@ class OptionDraft {
   int? id;
   final QuillController text;
   bool isCorrect;
+  String? optionImage;
 
-  OptionDraft({this.id, String text = '', this.isCorrect = false})
+  /// Gambar baru yang belum ter-upload (draf) — di-upload setelah opsi dapat id.
+  Uint8List? pendingImageBytes;
+  String? pendingImageName;
+
+  OptionDraft(
+      {this.id,
+      String text = '',
+      this.isCorrect = false,
+      this.optionImage,
+      this.pendingImageBytes,
+      this.pendingImageName})
       : text = richTextController(text);
 
   bool sameAs(OptionDraft other) =>
       isCorrect == other.isCorrect &&
+      optionImage == other.optionImage &&
+      pendingImageName == other.pendingImageName &&
+      listEquals(pendingImageBytes, other.pendingImageBytes) &&
       jsonEncode(text.document.toDelta().toJson()) ==
           jsonEncode(other.text.document.toDelta().toJson());
 }
@@ -101,7 +115,8 @@ class QuestionDraft {
     copy.pendingAudioBytes = pendingAudioBytes;
     copy.pendingAudioName = pendingAudioName;
     for (final o in options) {
-      final oc = OptionDraft(id: o.id, isCorrect: o.isCorrect);
+      final oc = OptionDraft(
+          id: o.id, isCorrect: o.isCorrect, optionImage: o.optionImage);
       oc.text.document = Document.fromJson(o.text.document.toDelta().toJson());
       copy.options.add(oc);
     }
@@ -135,6 +150,9 @@ class QuestionDraft {
             id: o.id,
             text: encodeRichText(o.text),
             isCorrect: o.isCorrect,
+            optionImage: o.optionImage,
+            pendingImageBytes: o.pendingImageBytes,
+            pendingImageName: o.pendingImageName,
           ),
       ]);
   }

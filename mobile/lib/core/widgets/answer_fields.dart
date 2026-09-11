@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
+import 'package:form_up/core/widgets/full_screen_image_viewer.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 
 class AnswerOption {
   final int id;
   final String text;
-  const AnswerOption(this.id, this.text);
+  final String? image;
+  const AnswerOption(this.id, this.text, [this.image]);
 }
 
 /// Warna status hasil (benar/salah) yang adaptif tema: terang memakai
@@ -110,6 +114,7 @@ class AnswerFields extends StatelessWidget {
                   _buildChoiceOption(context, 
                     index: i,
                     text: options[i].text,
+                    image: options[i].image,
                     onTap: onSingleChanged == null
                         ? null
                         : () => onSingleChanged!(options[i].id),
@@ -140,6 +145,7 @@ class AnswerFields extends StatelessWidget {
                 _buildChoiceOption(context, 
                   index: i,
                   text: options[i].text,
+                  image: options[i].image,
                   onTap: onMultiChanged == null
                       ? null
                       : () => _toggleMulti(options[i].id),
@@ -256,9 +262,11 @@ class AnswerFields extends StatelessWidget {
 
   /// Baris opsi pilihan ganda/checkbox:
   /// kontrol (radio/checkbox) + teks opsi format "A. {text}".
+  /// Bila opsi punya gambar: thumbnail 56px, ketuk untuk zoom.
   Widget _buildChoiceOption(BuildContext context, {
     required int index,
     required String text,
+    String? image,
     required Widget control,
     VoidCallback? onTap,
   }) {
@@ -301,6 +309,20 @@ class AnswerFields extends StatelessWidget {
                 ),
               ),
             ),
+            if (image != null && image.trim().isNotEmpty) ...[
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => showFullScreenImage(
+                    context, profileImageUrl(image)),
+                child: CachedRemoteImage(
+                  url: profileImageUrl(image),
+                  height: 56,
+                  width: 56,
+                  fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ],
           ],
         ),
       ),

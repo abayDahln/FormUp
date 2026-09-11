@@ -26,7 +26,12 @@ Map<String, dynamic> _questionToSaveJson(QuestionData q) => {
       if (q.points != null) 'points': q.points,
       'options': [
         for (final o in q.options)
-          {'optionText': o.optionText, 'isCorrect': o.isCorrect ?? false},
+          {
+            'optionText': o.optionText,
+            'isCorrect': o.isCorrect ?? false,
+            if (o.optionImage != null && o.optionImage!.isNotEmpty)
+              'optionImage': o.optionImage,
+          },
       ],
     };
 
@@ -281,6 +286,9 @@ extension _AiChatMessaging on _AiChatScreenState {
                         {
                           'optionText': o.optionText,
                           'isCorrect': o.isCorrect ?? false,
+                          if (o.optionImage != null &&
+                              o.optionImage!.isNotEmpty)
+                            'optionImage': o.optionImage,
                         },
                     ]
                   : [

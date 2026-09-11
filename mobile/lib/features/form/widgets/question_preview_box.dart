@@ -1,5 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:form_up/core/models/question_draft.dart';
+import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 
 /// Kotak pratinjau soal (teks + opsi/chip jawaban)
@@ -65,45 +69,19 @@ class QuestionPreviewBox extends StatelessWidget {
           const SizedBox(height: 8),
           if (q.typeId == 2)
             for (final o in q.options)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.radio_button_unchecked,
-                      size: 16,
-                      color: cs.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: RichTextView(
-                        text: encodeRichText(o.text),
-                        style: TextStyle(fontSize: 13, color: cs.onSurface),
-                      ),
-                    ),
-                  ],
-                ),
+              _PreviewOptionRow(
+                icon: Icons.radio_button_unchecked,
+                text: encodeRichText(o.text),
+                imagePath: o.optionImage,
+                pendingBytes: o.pendingImageBytes,
               )
           else if (q.typeId == 3)
             for (final o in q.options)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.check_box_outline_blank,
-                      size: 16,
-                      color: cs.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: RichTextView(
-                        text: encodeRichText(o.text),
-                        style: TextStyle(fontSize: 13, color: cs.onSurface),
-                      ),
-                    ),
-                  ],
-                ),
+              _PreviewOptionRow(
+                icon: Icons.check_box_outline_blank,
+                text: encodeRichText(o.text),
+                imagePath: o.optionImage,
+                pendingBytes: o.pendingImageBytes,
               )
           else if (q.typeId == 5)
             const Row(
@@ -129,6 +107,66 @@ class QuestionPreviewBox extends StatelessWidget {
               q.typeId == 1 ? 'Jawaban esai (teks panjang)' : '',
               style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Baris opsi pratinjau + thumbnail gambar opsi (server / draf lokal).
+class _PreviewOptionRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final String? imagePath;
+  final Uint8List? pendingBytes;
+
+  const _PreviewOptionRow({
+    required this.icon,
+    required this.text,
+    this.imagePath,
+    this.pendingBytes,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hasImage = pendingBytes != null ||
+        (imagePath != null && imagePath!.isNotEmpty);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(icon, size: 16, color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: RichTextView(
+              text: text,
+              style: TextStyle(fontSize: 13, color: cs.onSurface),
+            ),
+          ),
+          if (hasImage) ...[
+            const SizedBox(width: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: pendingBytes != null
+                  ? Image.memory(
+                      pendingBytes!,
+                      height: 40,
+                      width: 40,
+                      fit: BoxFit.cover,
+                    )
+                  : CachedRemoteImage(
+                      url: profileImageUrl(imagePath),
+                      height: 40,
+                      width: 40,
+                      fit: BoxFit.cover,
+                    ),
+            ),
+          ],
         ],
       ),
     );

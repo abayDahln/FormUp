@@ -838,6 +838,57 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
         }
         setProgress(0.85 + (0.15 * (i + 1) / uploads.length));
       }
+
+      // Upload gambar opsi draf: butuh id soal + id opsi dari hasil save
+      // (server kembalikan opsi berurutan sesuai optionOrder).
+      for (var i = 0; i < _questions.length && i < saved.length; i++) {
+        final q = _questions[i];
+        final savedOpts =
+            (saved[i]['options'] as List<dynamic>? ?? [])
+                .whereType<Map<String, dynamic>>()
+                .toList();
+        for (var j = 0;
+            j < q.options.length && j < savedOpts.length;
+            j++) {
+          q.options[j].id ??= savedOpts[j]['id'] as int?;
+        }
+      }
+      for (final q in _questions) {
+        if (q.id == null) continue;
+        for (final o in q.options) {
+          final bytes = o.pendingImageBytes;
+          if (bytes == null || o.id == null) continue;
+          if (exceedsUploadLimit(bytes)) {
+            showAuthToast(
+              context,
+              'Gambar opsi maksimal 10 MB — 1 file dilewati',
+              isError: true,
+            );
+            o.pendingImageBytes = null;
+            o.pendingImageName = null;
+            continue;
+          }
+          try {
+            o.optionImage = await FormService.uploadOptionImage(
+              formId,
+              q.id!,
+              o.id!,
+              bytes,
+              o.pendingImageName ?? 'option.jpg',
+            );
+          } catch (e) {
+            showAuthToast(
+              context,
+              'Gagal upload gambar opsi (${AuthService.errorMessage(e)})',
+              isError: true,
+            );
+          } finally {
+            o.pendingImageBytes = null;
+            o.pendingImageName = null;
+          }
+          if (!mounted) return;
+        }
+      }
       if (!mounted) return;
       setProgress(1.0);
       await Future<void>.delayed(const Duration(milliseconds: 120));

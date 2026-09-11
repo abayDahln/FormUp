@@ -174,7 +174,7 @@ class RunnerQuestionCard extends StatelessWidget {
             typeId: q.typeId,
             disablePaste: disablePaste,
             options: [
-              for (final o in q.options) AnswerOption(o.id, o.optionText),
+              for (final o in q.options) AnswerOption(o.id, o.optionText, o.optionImage),
             ],
             essayController: essayController,
             essayFocusNode: essayFocusNode,

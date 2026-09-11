@@ -43,7 +43,13 @@ class AiFormContextService {
                   if (q.isRequired != null) 'required': q.isRequired,
                   if (q.correctAnswer != null) 'correctAnswer': q.correctAnswer,
                   if (q.points != null) 'points': q.points,
-                  'options': [for (final o in q.options) o.optionText],
+                  'options': [
+                    for (final o in q.options)
+                      o.optionText +
+                          (o.optionImage != null && o.optionImage!.isNotEmpty
+                              ? ' [gambar]'
+                              : '')
+                  ],
                 },
             ],
           };
@@ -95,8 +101,8 @@ class AiFormContextService {
   }
 
   /// Ringkasan agregat jawaban per soal (tanpa identitas responden).
-  /// Format per baris: Soal <id>: dijawab X, benar Y, opsi teratas [...],
-  /// contoh essay [...]. Dibatasi agar prompt tetap ringan.
+  /// Format per baris: `Soal id: dijawab X, benar Y, opsi teratas [...]`,
+  /// contoh essay `[...]`. Dibatasi agar prompt tetap ringan.
   static Future<String> _buildResponseSummary(int formId, Set<int> questionIds) async {
     final analytics = await FormService.getAnalytics(formId);
     if (analytics.respondents.isEmpty) return '';

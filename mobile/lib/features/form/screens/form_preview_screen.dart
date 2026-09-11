@@ -279,7 +279,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
             typeId: q.typeId,
             options: [
               for (final o in q.options)
-                if (o.id != null) AnswerOption(o.id!, o.optionText),
+                if (o.id != null) AnswerOption(o.id!, o.optionText, o.optionImage),
             ],
             essayController: _textAnswers[q.id],
             singleValue: _singleAnswers[q.id],
