@@ -351,8 +351,16 @@ public class ResponsesController : ControllerBase
     }
 
     [HttpGet("api/forms/{formId}/responses/export")]
-    public async Task<IActionResult> Export(int formId, [FromQuery] string format = "csv", [FromQuery] bool includeAnswerKey = true, CancellationToken ct = default)
+    [EnableRateLimiting("export")]
+    public async Task<IActionResult> Export(int formId, [FromQuery] string format = "csv", [FromQuery] bool includeAnswerKey = true, [FromQuery] int? limit = null, CancellationToken ct = default)
     {
+        // G1-1: batas baris agar export form raksasa tak OOM/timeout.
+        // Default = cap tinggi; kontrak byte tetap, sinyal via header.
+        const int MaxExportRows = 50000;
+        var take = limit.HasValue
+            ? Math.Clamp(limit.Value, 1, MaxExportRows)
+            : MaxExportRows;
+
         var user = await GetCurrentUser();
         if (user == null)
             return Unauthorized(new ApiResponse<object>(401, "User not found"));
@@ -364,19 +372,32 @@ public class ResponsesController : ControllerBase
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
         var questions = await _db.Questions
+            .AsNoTracking()
             .Include(q => q.OptionQuestions)
             .Where(q => q.FormId == formId && q.DeletedAt == null)
             .OrderBy(q => q.QuestionOrder)
             .ToListAsync(ct);
 
+        var totalResponses = await _db.Responses
+            .Where(r => r.FormId == formId)
+            .CountAsync(ct);
+
         var responses = await _db.Responses
+            .AsNoTracking()
             .Include(r => r.Respondent)
             .Include(r => r.Status)
             .Include(r => r.RespondentAnswers)
                 .ThenInclude(a => a.Option)
             .Where(r => r.FormId == formId)
             .OrderByDescending(r => r.SubmittedAt)
+            .Take(take)
             .ToListAsync(ct);
+
+        // Sinyal aditif (rambu kontrak): klien lama abaikan, klien baru bisa toast.
+        Response.Headers["X-Result-Total"] = totalResponses.ToString();
+        Response.Headers["X-Result-Returned"] = responses.Count.ToString();
+        Response.Headers["X-Result-Truncated"] =
+            (totalResponses > responses.Count).ToString().ToLowerInvariant();
 
         var fmt = (format ?? "csv").ToLowerInvariant();
         return fmt switch

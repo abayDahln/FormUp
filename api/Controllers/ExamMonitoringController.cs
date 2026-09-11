@@ -55,8 +55,8 @@ public class ExamMonitoringController : ControllerBase
         if (form == null || form.TakenDownAt != null)
             return NotFound(new ApiResponse<object>(404, "Form tidak ditemukan"));
 
-        var publishedStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "published");
-        if (form.StatusId != publishedStatus.Id)
+        var publishedStatusId = await ReferenceCache.GetFormStatusIdAsync(_db, "published");
+        if (form.StatusId != publishedStatusId)
             return NotFound(new ApiResponse<object>(404, "Form tidak ditemukan"));
 
         if (form.FormSetting?.IsExamMode != true && form.FormSetting?.DetectTabSwitch != true)
@@ -115,12 +115,11 @@ public class ExamMonitoringController : ControllerBase
             });
             session.LastSeenAt = now;
             session.UpdatedAt = now;
-            await _db.SaveChangesAsync();
         }
-        else
-        {
-            await _db.SaveChangesAsync();
-        }
+
+        // G1-7: SATU save per request (dulu 2×: sekali saat buat sesi +
+        // sekali lagi di cabang violation/else).
+        await _db.SaveChangesAsync();
 
         var counts = await _db.ExamViolationLogs
             .Where(l => l.ExamSessionId == session.Id)
@@ -149,7 +148,12 @@ public class ExamMonitoringController : ControllerBase
     /// sesi dianggap online bila ada event dalam 90 detik terakhir.
     /// </summary>
     [HttpGet("api/forms/{formId}/exam-monitoring")]
-    public async Task<ActionResult<ApiResponse<object>>> GetExamMonitoring(int formId)
+    public async Task<ActionResult<ApiResponse<object>>> GetExamMonitoring(
+        int formId,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        [FromQuery] DateTime? since,
+        CancellationToken ct = default)
     {
         var user = await GetCurrentUser();
         if (user == null)
@@ -157,7 +161,7 @@ public class ExamMonitoringController : ControllerBase
 
         var form = await _db.Forms
             .Include(f => f.FormSetting)
-            .FirstOrDefaultAsync(f => f.Id == formId && f.DeletedAt == null);
+            .FirstOrDefaultAsync(f => f.Id == formId && f.DeletedAt == null, ct);
 
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
@@ -168,11 +172,21 @@ public class ExamMonitoringController : ControllerBase
         var now = DateTime.UtcNow;
         var onlineSince = now.AddSeconds(-OnlineThresholdSeconds);
 
-        var sessions = await _db.ExamSessions
+        var sessionsQuery = _db.ExamSessions
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(s => s.Respondent)
             .Include(s => s.ViolationLogs)
-            .Where(s => s.FormId == formId)
+            .Where(s => s.FormId == formId);
+        // ?since= : hanya sesi aktif sejak timestamp (polling ringan).
+        if (since.HasValue)
+            sessionsQuery = sessionsQuery.Where(s =>
+                (s.LastSeenAt ?? s.CreatedAt) >= since.Value ||
+                s.SubmittedResponseId == null);
+
+        var sessions = await sessionsQuery
             .OrderByDescending(s => s.LastSeenAt)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         var submittedResponseIds = sessions
             .Where(s => s.SubmittedResponseId.HasValue)
@@ -225,15 +239,21 @@ public class ExamMonitoringController : ControllerBase
 
         // Respons yang disubmit tanpa sesi (mis. client lama / tanpa exam-events):
         // tetap tampil agar owner melihat status submit yang lengkap.
+        // G1-5: batch NOT IN sekali — ganti subquery korelasi per baris.
+        var linkedResponseIds = await _db.ExamSessions
+            .Where(s => s.FormId == formId && s.SubmittedResponseId != null)
+            .Select(s => s.SubmittedResponseId!.Value)
+            .ToListAsync(ct);
         var orphanResponses = await _db.Responses
+            .AsNoTracking()
             .Include(r => r.Respondent)
             .Include(r => r.ExamViolationLogs)
             .Include(r => r.RespondentAnswers)
             .Where(r => r.FormId == formId
                 && !submittedResponseIds.Contains(r.Id)
-                && !_db.ExamSessions.Any(s => s.SubmittedResponseId == r.Id))
+                && !linkedResponseIds.Contains(r.Id))
             .OrderByDescending(r => r.SubmittedAt)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         foreach (var r in orphanResponses)
         {
@@ -261,6 +281,21 @@ public class ExamMonitoringController : ControllerBase
             });
         }
 
+        // G1-5: paging sesi opsional (default = semua, bentuk tetap).
+        // Count dihitung dari SEMUA sesi, slice hanya untuk daftar.
+        var totalSessions = items.Count;
+        List<ExamMonitoringSessionDto> pageItems = items;
+        int? outPage = null;
+        int? outPageSize = null;
+        if (page.HasValue && pageSize.HasValue && pageSize.Value > 0)
+        {
+            var p = Math.Max(1, page.Value);
+            var ps = Math.Clamp(pageSize.Value, 1, 100);
+            pageItems = items.Skip((p - 1) * ps).Take(ps).ToList();
+            outPage = p;
+            outPageSize = ps;
+        }
+
         return Ok(new ApiResponse<object>(200, "OK", new
         {
             formId,
@@ -272,7 +307,10 @@ public class ExamMonitoringController : ControllerBase
             inProgressCount = items.Count(i => i.Status == "in_progress"),
             submittedCount = items.Count(i => i.Status == "submitted"),
             onlineCount = items.Count(i => i.IsOnline),
-            sessions = items,
+            sessions = pageItems,
+            totalSessions,
+            page = outPage,
+            pageSize = outPageSize,
         }));
     }
 
@@ -316,12 +354,12 @@ public class ExamMonitoringController : ControllerBase
 
         // Finalisasi draft dari sync-answers bila ada (status "new" milik responden sesi).
         Response? response = null;
-        var newStatus = await _db.ResponseStatuses.FirstOrDefaultAsync(s => s.Status == "new");
-        if (newStatus != null)
+        var newStatusId = await ReferenceCache.GetResponseStatusIdAsync(_db, "new");
+        if (newStatusId.HasValue)
         {
             var draftQuery = _db.Responses
                 .Include(r => r.RespondentAnswers)
-                .Where(r => r.FormId == formId && r.StatusId == newStatus.Id);
+                .Where(r => r.FormId == formId && r.StatusId == newStatusId.Value);
             response = session.RespondentId.HasValue
                 ? await draftQuery.OrderByDescending(r => r.CreatedAt)
                     .FirstOrDefaultAsync(r => r.RespondentId == session.RespondentId)
@@ -331,9 +369,7 @@ public class ExamMonitoringController : ControllerBase
                     : null);
         }
 
-        var submittedStatus = await _db.ResponseStatuses
-            .FirstOrDefaultAsync(s => s.Status == "submitted")
-            ?? await _db.ResponseStatuses.FirstOrDefaultAsync();
+        var submittedStatusId = await ReferenceCache.GetResponseStatusIdAsync(_db, "submitted");
 
         if (response == null)
         {
@@ -342,7 +378,7 @@ public class ExamMonitoringController : ControllerBase
                 FormId = formId,
                 RespondentId = session.RespondentId,
                 RespondentName = session.RespondentName,
-                StatusId = submittedStatus?.Id ?? 1,
+                StatusId = submittedStatusId ?? 1,
                 SubmittedAt = now,
                 CreatedAt = now,
                 UpdatedAt = now,
@@ -352,7 +388,7 @@ public class ExamMonitoringController : ControllerBase
         }
         else
         {
-            response.StatusId = submittedStatus?.Id ?? response.StatusId;
+            response.StatusId = submittedStatusId ?? response.StatusId;
             response.SubmittedAt = now;
             response.UpdatedAt = now;
             await _db.SaveChangesAsync();
@@ -443,6 +479,8 @@ public class ExamMonitoringController : ControllerBase
 
         var session = await _db.ExamSessions
             .FirstOrDefaultAsync(s => s.FormId == form.Id && s.SessionId == sessionId);
+        // G1-7: JANGAN save di tengah — satu SaveChanges di akhir.
+        // EF merapikan FK identitas sementara (session/draft baru) otomatis.
         if (session == null)
         {
             session = new ExamSession
@@ -456,7 +494,6 @@ public class ExamMonitoringController : ControllerBase
                 CreatedAt = now,
             };
             _db.ExamSessions.Add(session);
-            await _db.SaveChangesAsync();
         }
         else
         {
@@ -484,15 +521,14 @@ public class ExamMonitoringController : ControllerBase
         if (validQuestionIds.Count == 0)
             return BadRequest(new ApiResponse<object>(400, "Tidak ada questionId valid untuk form ini"));
 
-        var newStatus = await _db.ResponseStatuses.FirstOrDefaultAsync(s => s.Status == "new")
-            ?? await _db.ResponseStatuses.FirstOrDefaultAsync();
-        if (newStatus == null)
-            return BadRequest(new ApiResponse<object>(400, "Status respons belum dikonfigurasi"));
+        var newStatusId = await ReferenceCache.GetResponseStatusIdAsync(_db, "new");
+        if (!newStatusId.HasValue)
+            return BadRequest(new ApiResponse<object>(400, "Status respons belum dikonfigurasi"));// G1-8: status draft wajib "new" (tanpa fallback status acak).
 
         Response? draft = null;
         var draftQuery = _db.Responses
             .Include(r => r.RespondentAnswers)
-            .Where(r => r.FormId == form.Id && r.StatusId == newStatus.Id);
+            .Where(r => r.FormId == form.Id && r.StatusId == newStatusId.Value);
         draft = session.RespondentId.HasValue
             ? await draftQuery.OrderByDescending(r => r.CreatedAt)
                 .FirstOrDefaultAsync(r => r.RespondentId == session.RespondentId)
@@ -508,21 +544,24 @@ public class ExamMonitoringController : ControllerBase
                 FormId = form.Id,
                 RespondentId = session.RespondentId,
                 RespondentName = session.RespondentName,
-                StatusId = newStatus.Id,
+                StatusId = newStatusId.Value,
                 CreatedAt = now,
                 UpdatedAt = now,
             };
             _db.Responses.Add(draft);
-            await _db.SaveChangesAsync();
         }
 
         var saved = 0;
         // Hapus dulu jawaban draft lama untuk soal-soal ini agar checkbox
         // (multi-baris per questionId) tidak menumpuk/ganda, lalu insert ulang.
-        var stale = await _db.RespondentAnswers
-            .Where(a => a.ResponseId == draft.Id && validQuestionIds.Contains(a.QuestionId))
-            .ToListAsync();
-        _db.RespondentAnswers.RemoveRange(stale);
+        // Draft baru (Id sementara 0) tak punya baris lama — lewati query.
+        if (draft.Id != 0)
+        {
+            var stale = await _db.RespondentAnswers
+                .Where(a => a.ResponseId == draft.Id && validQuestionIds.Contains(a.QuestionId))
+                .ToListAsync();
+            _db.RespondentAnswers.RemoveRange(stale);
+        }
 
         foreach (var item in items.Where(a => validQuestionIds.Contains(a.QuestionId)))
         {

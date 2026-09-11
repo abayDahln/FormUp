@@ -35,6 +35,7 @@ public class AnalyticsController : ControllerBase
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
         var questions = await _db.Questions
+            .AsNoTracking()
             .Include(q => q.OptionQuestions)
             .Where(q => q.FormId == formId && q.DeletedAt == null)
             .OrderBy(q => q.QuestionOrder)
@@ -44,6 +45,7 @@ public class AnalyticsController : ControllerBase
         var scorableQuestions = ResponseScorer.CountScorable(questions);
 
         var responsesQuery = _db.Responses
+            .AsNoTracking()
             .Include(r => r.Respondent)
             .Include(r => r.RespondentAnswers)
                 .ThenInclude(a => a.Option)
@@ -68,9 +70,11 @@ public class AnalyticsController : ControllerBase
             .Distinct()
             .CountAsync(ct);
 
-        var currentPage = page.GetValueOrDefault(1);
-        var currentPageSize = pageSize.GetValueOrDefault(0);
-        var paged = currentPageSize > 0;
+        var currentPage = Math.Max(1, page.GetValueOrDefault(1));
+        // G1-3/G1-4: batasi halaman agar payload tak raksasa (rambu kontrak:
+        // paging tetap opsional, tapi selalu dibatasi).
+        var currentPageSize = Math.Clamp(pageSize.GetValueOrDefault(20), 1, 100);
+        var paged = true;
         var pageResponses = paged
             ? await responsesQuery
                 .OrderByDescending(r => r.SubmittedAt)
@@ -98,15 +102,18 @@ public class AnalyticsController : ControllerBase
 
         foreach (var response in pageResponses)
         {
+            // G1-3: grup sekali per respons — hindari Where per sel (O(R×Q²)).
+            var answersByQuestion = response.RespondentAnswers
+                .GroupBy(a => a.QuestionId)
+                .ToDictionary(g => g.Key, g => g.ToList());
             var answers = new List<AnswerAnalytics>();
             var answeredCount = 0;
             var correctCount = 0;
 
             foreach (var q in questions)
             {
-                var questionAnswerRows = response.RespondentAnswers
-                    .Where(a => a.QuestionId == q.Id)
-                    .ToList();
+                answersByQuestion.TryGetValue(q.Id, out var questionAnswerRows);
+                questionAnswerRows ??= new List<RespondentAnswer>();
                 var answer = questionAnswerRows.FirstOrDefault();
 
                 if (questionAnswerRows.Count > 0)
@@ -139,8 +146,9 @@ public class AnalyticsController : ControllerBase
                 double earned = 0;
                 foreach (var q in questions)
                 {
-                    var questionAnswerRows = response.RespondentAnswers.Where(a => a.QuestionId == q.Id).ToList();
-                    if (ResponseScorer.IsScorable(q) && ResponseScorer.IsAnswerCorrect(questionAnswerRows, q) == true)
+                    answersByQuestion.TryGetValue(q.Id, out var earnedRows);
+                    earnedRows ??= new List<RespondentAnswer>();
+                    if (ResponseScorer.IsScorable(q) && ResponseScorer.IsAnswerCorrect(earnedRows, q) == true)
                     {
                         earned += (q.Points ?? 1);
                     }
@@ -216,13 +224,18 @@ public class AnalyticsController : ControllerBase
         if (totalPoints == 0) totalPoints = scorableQuestions > 0 ? scorableQuestions : questions.Count;
 
         var scores = new List<double>();
+        // G1-3: grup sekali — hindari Where per (respons, soal).
+        var rowsByResponseQuestion = answerRows
+            .GroupBy(a => (a.ResponseId, a.QuestionId))
+            .ToDictionary(g => g.Key, g => g.ToList());
         foreach (var group in answerRows.GroupBy(a => a.ResponseId))
         {
             var correctCount = 0;
             double earnedPoints = 0;
             foreach (var q in questions)
             {
-                var rows = group.Where(r => r.QuestionId == q.Id).ToList();
+                if (!rowsByResponseQuestion.TryGetValue((group.Key, q.Id), out var rows))
+                    rows = new List<(int ResponseId, int QuestionId, int? OptionId, string? AnswerValue)>();
                 var isCorr = ResponseScorer.IsScorable(q) && ResponseScorer.IsAnswerCorrect(rows, q) == true;
                 if (isCorr)
                 {

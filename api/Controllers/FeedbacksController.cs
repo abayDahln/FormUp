@@ -1,4 +1,5 @@
 using FormUpAPI.Models;
+using FormUpAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -40,8 +41,8 @@ public class FeedbacksController : ControllerBase
         if (form.TakenDownAt != null)
             return BadRequest(new ApiResponse<object>(400, "Form telah di-takedown dan tidak dapat diberi umpan balik"));
 
-        var publishedStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "published");
-        if (form.StatusId != publishedStatus.Id)
+        var publishedStatusId = await ReferenceCache.GetFormStatusIdAsync(_db, "published");
+        if (form.StatusId != publishedStatusId)
             return BadRequest(new ApiResponse<object>(400, "Can only submit feedback for published forms"));
 
         // 1x per user per form
@@ -227,18 +228,21 @@ public class FeedbacksController : ControllerBase
 
         if (page.HasValue && pageSize.HasValue && pageSize > 0)
         {
+            // G1-4: jepit paging agar ?pageSize=besar tak OOM (bentuk tetap).
+            var p = Math.Max(1, page.Value);
+            var ps = Math.Clamp(pageSize.Value, 1, 100);
             var total = await projected.CountAsync();
             var items = await projected
-                .Skip((page.Value - 1) * pageSize.Value)
-                .Take(pageSize.Value)
+                .Skip((p - 1) * ps)
+                .Take(ps)
                 .ToListAsync();
 
             return Ok(new ApiResponse<object>(200, "OK", new
             {
                 items,
                 total,
-                page = page.Value,
-                pageSize = pageSize.Value,
+                page = p,
+                pageSize = ps,
             }));
         }
 

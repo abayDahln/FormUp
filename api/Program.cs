@@ -221,6 +221,21 @@ namespace FormUpAPI
                         QueueLimit = 0,
                     });
                 });
+
+                // Export respons (CSV/XLSX/PDF digenerate di server → mahal).
+                // Partisi per user agar satu user rakus tak memblokir yang lain.
+                options.AddPolicy("export", context =>
+                {
+                    var key = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                        ?? context.Connection.RemoteIpAddress?.ToString()
+                        ?? "anon";
+                    return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 6,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                    });
+                });
             });
 
             var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? [];

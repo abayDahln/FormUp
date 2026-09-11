@@ -245,8 +245,8 @@ public class PublicFormsController : ControllerBase
         if (form == null || form.TakenDownAt != null)
             return null;
 
-        var publishedStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "published");
-        if (form.StatusId != publishedStatus.Id)
+        var publishedStatusId = await ReferenceCache.GetFormStatusIdAsync(_db, "published");
+        if (form.StatusId != publishedStatusId)
             return null;
 
         if (form.FormSetting?.OpenFormTime != null && form.FormSetting.OpenFormTime > DateTime.UtcNow)

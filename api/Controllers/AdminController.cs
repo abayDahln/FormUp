@@ -87,18 +87,21 @@ public class AdminController : ControllerBase
 
         if (page.HasValue && pageSize.HasValue && pageSize > 0)
         {
+            // G1-4: jepit paging agar ?pageSize=besar tak OOM (bentuk tetap).
+            var p = Math.Max(1, page.Value);
+            var ps = Math.Clamp(pageSize.Value, 1, 100);
             var total = await projected.CountAsync();
             var items = await projected
-                .Skip((page.Value - 1) * pageSize.Value)
-                .Take(pageSize.Value)
+                .Skip((p - 1) * ps)
+                .Take(ps)
                 .ToListAsync();
 
             return Ok(new ApiResponse<object>(200, "OK", new
             {
                 items,
                 total,
-                page = page.Value,
-                pageSize = pageSize.Value,
+                page = p,
+                pageSize = ps,
             }));
         }
 
@@ -282,18 +285,21 @@ public class AdminController : ControllerBase
 
         if (page.HasValue && pageSize.HasValue && pageSize > 0)
         {
+            // G1-4: jepit paging agar ?pageSize=besar tak OOM (bentuk tetap).
+            var p = Math.Max(1, page.Value);
+            var ps = Math.Clamp(pageSize.Value, 1, 100);
             var total = await projected.CountAsync();
             var items = await projected
-                .Skip((page.Value - 1) * pageSize.Value)
-                .Take(pageSize.Value)
+                .Skip((p - 1) * ps)
+                .Take(ps)
                 .ToListAsync();
 
             return Ok(new ApiResponse<object>(200, "OK", new
             {
                 items,
                 total,
-                page = page.Value,
-                pageSize = pageSize.Value,
+                page = p,
+                pageSize = ps,
             }));
         }
 

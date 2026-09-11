@@ -57,6 +57,9 @@ public partial class FormUpDbContext : DbContext
 
             entity.HasIndex(e => e.FormLink, "UQ__Form__12EAC3A5F2FF2D7C").IsUnique();
 
+            // G1-2: kunci akses owner — list/detail form per user.
+            entity.HasIndex(e => new { e.UserId, e.DeletedAt }, "IX__Form__user_deleted");
+
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.BannerImage)
                 .HasMaxLength(255)
@@ -235,6 +238,9 @@ public partial class FormUpDbContext : DbContext
 
             entity.ToTable("Question");
 
+            // G1-2: daftar soal per form + filter soft-delete.
+            entity.HasIndex(e => new { e.FormId, e.DeletedAt }, "IX__Question__form_deleted");
+
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.CorrectAnswer).HasColumnName("correct_answer");
             entity.Property(e => e.CreatedAt)
@@ -300,6 +306,10 @@ public partial class FormUpDbContext : DbContext
 
             entity.ToTable("RespondentAnswer");
 
+            // G1-2: join jawaban per respons + agregasi per soal.
+            entity.HasIndex(e => e.ResponseId, "IX__RespondentAnswer__response_id");
+            entity.HasIndex(e => e.QuestionId, "IX__RespondentAnswer__question_id");
+
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.AnswerValue).HasColumnName("answer_value");
             entity.Property(e => e.ManualScore).HasColumnName("manual_score");
@@ -337,6 +347,10 @@ public partial class FormUpDbContext : DbContext
             entity.HasKey(e => e.Id).HasName("PK__Response__3213E83F3BCBD39E");
 
             entity.ToTable("Response");
+
+            // G1-2: daftar respons per form (urut kirim) + riwayat responden.
+            entity.HasIndex(e => new { e.FormId, e.SubmittedAt }, "IX__Response__form_submitted");
+            entity.HasIndex(e => e.RespondentId, "IX__Response__respondent_id");
 
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.CreatedAt)
@@ -379,6 +393,9 @@ public partial class FormUpDbContext : DbContext
             entity.ToTable("ExamSession");
 
             entity.HasIndex(e => new { e.FormId, e.SessionId }, "UQ__ExamSession__Form_Session").IsUnique();
+
+            // G1-2: pantauan live per form (urut aktivitas).
+            entity.HasIndex(e => new { e.FormId, e.LastSeenAt }, "IX__ExamSession__form_lastseen");
 
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.FormId).HasColumnName("form_id");
@@ -522,6 +539,11 @@ public partial class FormUpDbContext : DbContext
 
             entity.HasKey(e => e.Id).HasName("PK__Feedback__3213E83F3D69895B");
 
+            // G1-2: daftar feedback per form + filter user/respons.
+            entity.HasIndex(e => e.FormId, "IX__Feedback__form_id");
+            entity.HasIndex(e => e.UserId, "IX__Feedback__user_id");
+            entity.HasIndex(e => e.ResponseId, "IX__Feedback__response_id");
+
             entity.Property(e => e.Id).HasColumnName("id");
 
             entity.Property(e => e.FormId).HasColumnName("form_id");
@@ -569,6 +591,9 @@ public partial class FormUpDbContext : DbContext
 
             entity.HasKey(e => e.Id);
 
+            // G1-2: lookup token per user.
+            entity.HasIndex(e => e.UserId, "IX__PasswordResetToken__user_id");
+
             entity.Property(e => e.UserId).HasColumnName("user_id");
 
             entity.Property(e => e.Otp)
@@ -599,6 +624,9 @@ public partial class FormUpDbContext : DbContext
         {
             entity.ToTable("RegistrationOtp");
             entity.HasKey(e => e.Id);
+
+            // G1-2: lookup OTP per email.
+            entity.HasIndex(e => e.Email, "IX__RegistrationOtp__email");
 
             entity.Property(e => e.Id).HasColumnName("id");
 

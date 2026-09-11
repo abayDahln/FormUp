@@ -31,14 +31,13 @@ public static class ResponseSubmission
         FormUpDbContext db, ClaimsPrincipal user,
         int formId, SubmitResponseRequest body)
     {
-        // Transaksi serializable + UPDLOCK pada row form: menyerialisasi
-        // submit respons terhadap pembuat form yang sedang mengedit/menghapus
-        // soal di waktu bersamaan.
+        // G1-6: ReadCommitted TANPA UPDLOCK. Jalur submit adalah yang
+        // terpanas (ujian massal); Serializable+UPDLOCK di sini membuat
+        // semua submit antre pada satu row form (= ambruk saat ramai).
+        // Balapan dengan edit soal owner ditangani FK + soft-delete
+        // (soal tak pernah hilang fisik) + EnsureNoResponses di sisi edit.
         await using var tx = await db.Database.BeginTransactionAsync(
-            System.Data.IsolationLevel.Serializable);
-
-        await db.Database.ExecuteSqlRawAsync(
-            "SELECT [id] FROM [Form] WITH (UPDLOCK, ROWLOCK) WHERE [id] = {0}", formId);
+            System.Data.IsolationLevel.ReadCommitted);
 
         var form = await db.Forms
             .Include(f => f.FormSetting)
@@ -47,13 +46,13 @@ public static class ResponseSubmission
         if (form == null || form.TakenDownAt != null)
             return Unavailable(FormAccess.NotFound, form);
 
-        var publishedStatus = await db.FormStatuses.FirstAsync(s => s.Status == "published");
-        var closedStatus = await db.FormStatuses.FirstAsync(s => s.Status == "closed");
+        var publishedStatusId = await ReferenceCache.GetFormStatusIdAsync(db, "published");
+        var closedStatusId = await ReferenceCache.GetFormStatusIdAsync(db, "closed");
 
-        if (form.StatusId == closedStatus.Id)
+        if (form.StatusId == closedStatusId)
             return Unavailable(FormAccess.Closed, form);
 
-        if (form.StatusId != publishedStatus.Id)
+        if (form.StatusId != publishedStatusId)
             return Unavailable(FormAccess.NotFound, form);
 
         // Validasi hanya di awal (saat ambil soal) – jika user sudah mulai
@@ -180,14 +179,15 @@ public static class ResponseSubmission
 
         var respondentName = respondentId == null ? body.RespondentName : null;
 
-        var newStatus = await db.ResponseStatuses.FirstAsync(s => s.Status == "new");
+        var newStatusId = await ReferenceCache.GetResponseStatusIdAsync(db, "new")
+            ?? throw new InvalidOperationException("Response status 'new' belum dikonfigurasi");
 
         var response = new Response
         {
             FormId = formId,
             RespondentId = respondentId,
             RespondentName = respondentName,
-            StatusId = newStatus.Id,
+            StatusId = newStatusId,
             SubmittedAt = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow,
         };

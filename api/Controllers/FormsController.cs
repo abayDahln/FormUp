@@ -240,14 +240,11 @@ public class FormsController : ControllerBase
         if (user == null)
             return Unauthorized(new ApiResponse<object>(401, "User not found"));
 
-        var draftStatus = await _db.FormStatuses.FirstOrDefaultAsync(s => s.Status == "draft");
-        if (draftStatus == null)
-            return StatusCode(500, new ApiResponse<object>(500, "Draft status not found"));
-
+        var draftStatusId = await ReferenceCache.GetFormStatusIdAsync(_db, "draft");
         var form = new Form
         {
             UserId = user.Id,
-            StatusId = draftStatus.Id,
+            StatusId = draftStatusId,
             Title = request.Title,
             Description = request.Description,
             DescriptionFormat = RichTextValidation.FormatOf(request.Description),
@@ -295,7 +292,7 @@ public class FormsController : ControllerBase
         var filePath = Path.Combine(uploadDir, uniqueName);
 
         ms.Position = 0;
-        using (var stream = new FileStream(filePath, FileMode.Create))
+        await using (var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
         {
             await ms.CopyToAsync(stream);
         }
@@ -456,12 +453,12 @@ public class FormsController : ControllerBase
         if (form == null)
             return NotFound(new ApiResponse<object>(404, "Form not found"));
 
-        var draftStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "draft");
-        var publishedStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "published");
+        var draftStatusId = await ReferenceCache.GetFormStatusIdAsync(_db, "draft");
+        var publishedStatusId = await ReferenceCache.GetFormStatusIdAsync(_db, "published");
 
-        if (form.StatusId == publishedStatus.Id)
+        if (form.StatusId == publishedStatusId)
         {
-            form.StatusId = draftStatus.Id;
+            form.StatusId = draftStatusId;
             form.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
             return Ok(new ApiResponse<object>(200, "Form unpublished"));
@@ -473,7 +470,7 @@ public class FormsController : ControllerBase
             return BadRequest(new ApiResponse<object>(400,
                 "Form tidak dapat dipublish karena belum memiliki soal"));
 
-        form.StatusId = publishedStatus.Id;
+        form.StatusId = publishedStatusId;
         form.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 

@@ -791,7 +791,7 @@ public class QuestionsController : ControllerBase
         var filePath = Path.Combine(uploadDir, uniqueName);
 
         ms.Position = 0;
-        using (var stream = new FileStream(filePath, FileMode.Create))
+        await using (var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
         {
             await ms.CopyToAsync(stream);
         }
@@ -853,7 +853,7 @@ public class QuestionsController : ControllerBase
         var filePath = Path.Combine(uploadDir, uniqueName);
 
         ms.Position = 0;
-        using (var stream = new FileStream(filePath, FileMode.Create))
+        await using (var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
         {
             await ms.CopyToAsync(stream);
         }
@@ -919,7 +919,7 @@ public class QuestionsController : ControllerBase
         var filePath = Path.Combine(uploadDir, uniqueName);
 
         ms.Position = 0;
-        using (var stream = new FileStream(filePath, FileMode.Create))
+        await using (var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
         {
             await ms.CopyToAsync(stream);
         }
@@ -981,10 +981,10 @@ public class QuestionsController : ControllerBase
         if (remaining > 0 || form.Status == null)
             return;
 
-        var draftStatus = await _db.FormStatuses.FirstAsync(s => s.Status == "draft");
-        if (form.StatusId != draftStatus.Id)
+        var draftStatusId = await ReferenceCache.GetFormStatusIdAsync(_db, "draft");
+        if (form.StatusId != draftStatusId)
         {
-            form.StatusId = draftStatus.Id;
+            form.StatusId = draftStatusId;
             form.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
         }

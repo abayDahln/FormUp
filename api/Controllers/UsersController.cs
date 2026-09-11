@@ -126,7 +126,7 @@ public class UsersController : ControllerBase
         var filePath = Path.Combine(uploadDir, uniqueName);
 
         ms.Position = 0;
-        using (var stream = new FileStream(filePath, FileMode.Create))
+        await using (var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
         {
             await ms.CopyToAsync(stream);
         }
@@ -181,6 +181,8 @@ public class UsersController : ControllerBase
             .Include(r => r.Status)
             .Where(r => r.RespondentId == user.Id)
             .OrderByDescending(r => r.SubmittedAt)
+            // G1-4: batas pengaman (riwayat sendiri, bentuk tetap array).
+            .Take(1000)
             .Select(r => new MyResponseListItem
             {
                 ResponseId = r.Id,
