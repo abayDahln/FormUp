@@ -4,6 +4,9 @@ public class CreateOptionRequest
 {
     public string OptionText { get; set; } = null!;
     public bool? IsCorrect { get; set; }
+    /// Path gambar opsi (hasil upload /questions/options/...).
+    /// Null = tidak diubah (saat edit), "" = hapus gambar.
+    public string? OptionImage { get; set; }
 }
 
 public class QuestionResponse

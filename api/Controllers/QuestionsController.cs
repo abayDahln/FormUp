@@ -156,6 +156,7 @@ public class QuestionsController : ControllerBase
                         QuestionId = question.Id,
                         OptionText = o.OptionText,
                         IsCorrect = o.IsCorrect ?? false,
+                        OptionImage = string.IsNullOrWhiteSpace(o.OptionImage) ? null : o.OptionImage.Trim(),
                         OptionOrder = i + 1,
                         CreatedAt = DateTime.UtcNow,
                     }).ToList();
@@ -224,6 +225,14 @@ public class QuestionsController : ControllerBase
                 .ToListAsync();
 
             var existingById = existingQuestions.ToDictionary(q => q.Id);
+            // Snapshot path gambar opsi SEBELUM loop (collection di-Clear
+            // saat recreate) — untuk bersih-bersih file yatim.
+            var oldOptionImages = existingQuestions
+                .SelectMany(q => q.OptionQuestions)
+                .Select(o => o.OptionImage)
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
             var nextOrder = existingQuestions.Count > 0 ? existingQuestions.Max(q => q.QuestionOrder) : 0;
             var submittedIds = incoming
                 .Where(q => q.Id.HasValue && existingById.ContainsKey(q.Id.Value))
@@ -287,6 +296,7 @@ public class QuestionsController : ControllerBase
                         QuestionId = question.Id,
                         OptionText = o.OptionText,
                         IsCorrect = o.IsCorrect ?? false,
+                        OptionImage = string.IsNullOrWhiteSpace(o.OptionImage) ? null : o.OptionImage.Trim(),
                         OptionOrder = i + 1,
                         CreatedAt = DateTime.UtcNow,
                     }).ToList();
@@ -319,6 +329,31 @@ public class QuestionsController : ControllerBase
             await UnpublishIfNoQuestions(form);
 
             await tx.CommitAsync();
+
+            // Hapus file gambar opsi yang tak lagi dirujuk (opsi di-recreate
+            // di atas, bukan di-update — tanpa ini disk menumpuk).
+            try
+            {
+                var referenced = incoming
+                    .Where(q => q.Options != null)
+                    .SelectMany(q => q.Options!)
+                    .Select(o => o.OptionImage?.Trim())
+                    .Where(s => !string.IsNullOrEmpty(s))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var orphans = oldOptionImages
+                    .Where(s => !referenced.Contains(s!.Trim()))
+                    .ToList();
+                foreach (var rel in orphans)
+                {
+                    // Hanya file lokal di bawah wwwroot yang boleh dihapus.
+                    if (rel!.Contains("..") || Uri.TryCreate(rel, UriKind.Absolute, out _))
+                        continue;
+                    var abs = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", rel.TrimStart('/'));
+                    if (System.IO.File.Exists(abs))
+                        System.IO.File.Delete(abs);
+                }
+            }
+            catch { /* best-effort: kegagalan hapus file tak menggagalkan save */ }
 
             var resultQuestions = await _db.Questions
                 .Include(q => q.OptionQuestions.OrderBy(o => o.OptionOrder))
@@ -835,6 +870,72 @@ public class QuestionsController : ControllerBase
         await _db.SaveChangesAsync();
 
         return Ok(new ApiResponse<object>(200, "Image uploaded", new { questionImage = question.QuestionImage }));
+    }
+
+    /// Upload gambar untuk SATU opsi jawaban. Opsi harus sudah tersimpan
+    /// (punya id) — alur sama seperti gambar soal. Path hasil dipakai di
+    /// field `optionImage` saat Create/Save soal.
+    [HttpPost("{id}/options/{optionId}/upload-image")]
+    public async Task<ActionResult<ApiResponse<object>>> UploadOptionImage(int formId, int id, int optionId, IFormFile? file)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new ApiResponse<object>(400, "No file uploaded"));
+
+        if (file.Length > FileValidation.MaxImageBytes)
+            return BadRequest(new ApiResponse<object>(400, "File size must be under 10 MB"));
+
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        ms.Position = 0;
+
+        var ext = FileValidation.DetectImageExt(ms);
+        if (ext == null)
+            return BadRequest(new ApiResponse<object>(400, "Invalid image file. Only JPG, PNG, GIF, and WebP are allowed"));
+
+        var user = await GetCurrentUser();
+        if (user == null)
+            return Unauthorized(new ApiResponse<object>(401, "User not found"));
+
+        var form = await _db.Forms
+            .FirstOrDefaultAsync(f => f.Id == formId && f.UserId == user.Id && f.DeletedAt == null);
+
+        if (form == null)
+            return NotFound(new ApiResponse<object>(404, "Form not found"));
+
+        var blocked = await EnsureNoResponses(formId);
+        if (blocked != null)
+            return blocked;
+
+        var option = await _db.OptionQuestions
+            .Include(o => o.Question)
+            .FirstOrDefaultAsync(o => o.Id == optionId && o.QuestionId == id && o.Question.FormId == formId && o.Question.DeletedAt == null);
+
+        if (option == null)
+            return NotFound(new ApiResponse<object>(404, "Option not found"));
+
+        var uniqueName = $"{Guid.NewGuid()}{ext}";
+        var uploadDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "questions", "options");
+        Directory.CreateDirectory(uploadDir);
+        var filePath = Path.Combine(uploadDir, uniqueName);
+
+        ms.Position = 0;
+        using (var stream = new FileStream(filePath, FileMode.Create))
+        {
+            await ms.CopyToAsync(stream);
+        }
+
+        if (!string.IsNullOrEmpty(option.OptionImage) && !option.OptionImage.Contains("..") && !Uri.TryCreate(option.OptionImage, UriKind.Absolute, out _))
+        {
+            var oldPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", option.OptionImage.TrimStart('/'));
+            if (System.IO.File.Exists(oldPath))
+                System.IO.File.Delete(oldPath);
+        }
+
+        option.OptionImage = $"/questions/options/{uniqueName}";
+        option.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return Ok(new ApiResponse<object>(200, "Option image uploaded", new { optionImage = option.OptionImage }));
     }
 
     private async Task<User?> GetCurrentUser()
