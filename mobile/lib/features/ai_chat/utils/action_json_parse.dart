@@ -87,3 +87,78 @@ bool hasUnclosedJsonFence(String text) {
   final fences = '```'.allMatches(text).length;
   return fences <= opens;
 }
+
+/// Hasil ekstraksi progresif untuk preview streaming: soal-soal yang
+/// objek JSON-nya SUDAH lengkap + info apakah ada objek yang masih jalan.
+class StreamingQuestions {
+  final String? action;
+  final List<Map<String, dynamic>> questions;
+  final bool hasOpenObject;
+
+  const StreamingQuestions({
+    this.action,
+    this.questions = const [],
+    this.hasOpenObject = false,
+  });
+}
+
+/// Panen objek soal lengkap dari buffer stream yang terus bertambah.
+/// Hanya melihat di dalam blok ```json pertama (teks prosa diabaikan),
+/// sehingga aman dipanggil tiap tick. Murah: berhenti di objek tak lengkap.
+StreamingQuestions extractStreamingQuestions(String text) {
+  var scope = text;
+  final fence = RegExp(r'```json', caseSensitive: false).firstMatch(text);
+  if (fence == null) return const StreamingQuestions();
+  scope = text.substring(fence.end);
+  // Bila pagar penutup sudah ada, batasi di situ (respons selesai).
+  final closeIdx = scope.indexOf('```');
+  final body = closeIdx >= 0 ? scope.substring(0, closeIdx) : scope;
+
+  String? action;
+  final actionMatch =
+      RegExp(r'"action"\s*:\s*"([A-Za-z_]+)"').firstMatch(body);
+  if (actionMatch != null) action = actionMatch.group(1);
+
+  final qKey = RegExp(r'"questions"\s*:').firstMatch(body);
+  if (qKey == null) return StreamingQuestions(action: action);
+  final arrStart = body.indexOf('[', qKey.end);
+  if (arrStart < 0) return StreamingQuestions(action: action);
+
+  final questions = <Map<String, dynamic>>[];
+  var hasOpen = false;
+  var i = arrStart + 1;
+  while (i < body.length) {
+    final c = body[i];
+    if (c == ' ' ||
+        c == '\n' ||
+        c == '\r' ||
+        c == '\t' ||
+        c == ',') {
+      i++;
+      continue;
+    }
+    if (c == ']') break; // array selesai
+    if (c != '{') {
+      i++; // toleran terhadap karakter asing
+      continue;
+    }
+    final end = _balancedEnd(body, i);
+    if (end < 0) {
+      hasOpen = true; // objek masih ditulis model
+      break;
+    }
+    try {
+      final decoded = jsonDecode(body.substring(i, end));
+      if (decoded is Map<String, dynamic>) questions.add(decoded);
+    } catch (_) {
+      hasOpen = true; // rusak/di tengah escape — anggap masih jalan
+      break;
+    }
+    i = end;
+  }
+  return StreamingQuestions(
+    action: action,
+    questions: questions,
+    hasOpenObject: hasOpen,
+  );
+}

@@ -16,7 +16,7 @@ import 'package:flutter/foundation.dart';
 class TypingStream {
   TypingStream(this.out, {this.onTick});
 
-  /// Notifier yang dirender StreamingAiText.
+  /// Notifier yang dirender StreamingAiPreview.
   final ValueNotifier<String> out;
 
   /// Dipanggil tiap kali teks tampil bertambah (untuk auto-scroll).

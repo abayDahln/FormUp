@@ -4,7 +4,7 @@ import 'package:form_up/features/ai_chat/models/chat_message.dart';
 import 'package:form_up/features/ai_chat/widgets/action_change_card.dart';
 import 'package:form_up/features/ai_chat/widgets/action_json_tabs.dart';
 import 'package:form_up/features/ai_chat/widgets/form_context_card.dart';
-import 'package:form_up/features/ai_chat/widgets/streaming_ai_text.dart';
+import 'package:form_up/features/ai_chat/widgets/streaming_ai_preview.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
 import 'package:form_up/features/ai_chat/utils/action_json_parse.dart';
@@ -110,9 +110,10 @@ class ChatBubble extends StatelessWidget {
                 style: TextStyle(fontSize: 14, color: cs.onPrimary),
               )
             else if (m.stream != null)
-              // Bubble AKTIF: rebuild terisolasi via notifier —
-              // sisa ListView tidak ikut rebuild per chunk.
-              StreamingAiText(notifier: m.stream!)
+              // Bubble AKTIF: preview progresif per soal (pagar JSON
+              // disembunyikan) — rebuild terisolasi via notifier, sisa
+              // ListView tidak ikut rebuild per chunk.
+              StreamingAiPreview(notifier: m.stream!)
             else if (streaming && isLast && m.text.isEmpty)
               Row(
                 children: [

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
+import 'package:form_up/features/ai_chat/widgets/ai_question_preview_card.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
 /// Tab layout untuk blok ```json aksi AI di dalam jawaban:
@@ -23,14 +24,6 @@ class ActionJsonTabs extends StatefulWidget {
 }
 
 class _ActionJsonTabsState extends State<ActionJsonTabs> {
-  static const _typeNames = {
-    1: 'Esai',
-    2: 'Pilihan Ganda',
-    3: 'Checkbox',
-    4: 'Date Time',
-    5: 'True / False',
-  };
-
   int _tab = 0; // 0 = Preview, 1 = JSON
 
   /// Skema warna tema aktif agar seluruh kartu sadar-tema (terang/gelap).
@@ -40,9 +33,6 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
       .replaceAll(RegExp(r'<[^>]*>'), '')
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
-
-  String _typeLabel(dynamic typeId) =>
-      _typeNames[typeId is int ? typeId : int.tryParse('$typeId')] ?? 'Soal';
 
   @override
   Widget build(BuildContext context) {
@@ -203,142 +193,11 @@ class _ActionJsonTabsState extends State<ActionJsonTabs> {
     final questions = a['questions'] as List<dynamic>? ?? [];
     return [
       for (var i = 0; i < questions.length; i++)
-        _questionCard(questions[i] as Map, i),
+        AiQuestionPreviewCard(
+          question: questions[i] as Map,
+          index: i,
+        ),
     ];
-  }
-
-  Widget _questionCard(Map q, int index) {
-    final orderRaw = q['questionOrder'] ?? q['order'];
-    final order = orderRaw is int
-        ? orderRaw
-        : int.tryParse('${orderRaw ?? ''}');
-    final isRequired = q['isRequired'] == true;
-    final points = q['points'];
-    final options = q['options'] as List<dynamic>? ?? [];
-    final correct = q['correctAnswer'];
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: _cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _cs.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 4,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _chip(
-                'Soal ${order ?? index + 1}',
-                color: _cs.primary,
-                filled: true,
-              ),
-              _chip(_typeLabel(q['typeId'])),
-              if (isRequired) _chip('Wajib', color: Colors.orange),
-              if (points != null) _chip('$points poin'),
-            ],
-          ),
-          const SizedBox(height: 6),
-          // Render sama dengan screen edit/pratinjau/pengerjaan soal:
-          // rich text + LaTeX ($...$, $$...$$) via flutter_math_fork.
-          RichTextView(
-            text: _clean(q['question'] as String?),
-            style: TextStyle(fontSize: 14, color: _cs.onSurface),
-          ),
-          if (options.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            for (var i = 0; i < options.length; i++) _optionRow(options[i], i),
-          ],
-          if (correct != null && '$correct'.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Icon(Icons.check_circle, size: 13, color: Colors.green),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: RichTextView(
-                    text: _clean('$correct'),
-                    style: TextStyle(
-                        fontSize: 13, color: Colors.green.shade700),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _optionRow(dynamic o, int index) {
-    String text;
-    bool isCorrect = false;
-    if (o is String) {
-      text = o;
-    } else if (o is Map) {
-      text = '${o['optionText'] ?? ''}';
-      isCorrect = o['isCorrect'] == true;
-    } else {
-      text = '$o';
-    }
-    final letter = String.fromCharCode(65 + index);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 20,
-            child: Text(
-              '$letter.',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700, fontFamily: kFontBold,
-                color: isCorrect ? Colors.green : _cs.onSurfaceVariant,
-              ),
-            ),
-          ),
-          Expanded(
-            child: RichTextView(
-              text: _clean(text),
-              style: TextStyle(fontSize: 13, color: _cs.onSurface),
-            ),
-          ),
-          if (isCorrect)
-            const Padding(
-              padding: EdgeInsets.only(left: 4),
-              child: Icon(Icons.check_circle, size: 14, color: Colors.green),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _chip(String label, {Color? color, bool filled = false}) {
-    final cs = Theme.of(context).colorScheme;
-    final c = color ?? cs.onSurfaceVariant;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: filled ? c.withValues(alpha: 0.14) : cs.surface,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: filled ? c.withValues(alpha: 0.4) : cs.outlineVariant,
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w700, fontFamily: kFontBold,
-          color: filled ? c : cs.onSurfaceVariant,
-        ),
-      ),
-    );
   }
 
   // ---- Tab JSON ----

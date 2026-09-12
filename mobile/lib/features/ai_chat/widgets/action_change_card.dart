@@ -375,12 +375,19 @@ class _ActionChangeCardState extends State<ActionChangeCard> {
         !m.actionUndone &&
         widget.onUndo != null &&
         !widget.disabled;
+    // Kartu konfirmasi (pending) tampil solid paling depan — senada dengan
+    // PendingActionBar: tanpa tint pucat agar tak terlihat "wash"/pudar.
+    final isPending = m.hasPendingAction;
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 4, 8, 8),
       decoration: BoxDecoration(
-        color: cs.primaryContainer,
+        color: isPending ? cs.surface : cs.primaryContainer,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant),
+        border: Border.all(
+          color: isPending ? cs.primary : cs.outlineVariant,
+          width: isPending ? 1.2 : 1,
+        ),
+        boxShadow: isPending ? softShadow() : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
