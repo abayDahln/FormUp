@@ -107,10 +107,7 @@ extension _AiChatMessaging on _AiChatScreenState {
   /// [strict] = hanya bila finishReason MAX_TOKENS/LENGTH (jalur normal);
   /// non-strict untuk potongan akibat koneksi putus (watchdog 40 dtk).
   bool _isTruncatedResponse(String text, {bool strict = true}) {
-    final opens =
-        RegExp(r'```json', caseSensitive: false).allMatches(text).length;
-    final fences = '```'.allMatches(text).length;
-    final hasUnclosedFence = opens > 0 && fences <= opens;
+    final hasUnclosedFence = hasUnclosedJsonFence(text);
     final hasActionMarker = RegExp(r'"action"\s*:').hasMatch(text);
     if (!hasUnclosedFence && !hasActionMarker) return false;
     if (!strict) return true;
@@ -164,22 +161,10 @@ extension _AiChatMessaging on _AiChatScreenState {
     );
   }
 
-  Map<String, dynamic>? extractActionJson(String text) {    final fence = RegExp(r'```json\s*([\s\S]*?)\s*```', caseSensitive: false);
-    final m = fence.firstMatch(text);
-    String? candidate;
-    if (m != null) candidate = m.group(1);
-    if (candidate == null) {
-      final brace = RegExp(r'\{[\s\S]*"action"[\s\S]*\}');
-      final m2 = brace.firstMatch(text);
-      if (m2 != null) candidate = m2.group(0);
-    }
-    if (candidate == null) return null;
-    try {
-      final j = jsonDecode(candidate) as Map<String, dynamic>;
-      if (j.containsKey('action')) return j;
-    } catch (_) {}
-    return null;
-  }
+  /// Parse JSON aksi secara toleran (abaikan teks pengiring seperti
+  /// "LANJUT: ..." di dalam/luar pagar). Lihat action_json_parse.dart.
+  Map<String, dynamic>? extractActionJson(String text) =>
+      parseActionJson(text);
 
   /// Jalankan aksi form dari AI. Mengembalikan formId yang terlibat
   /// (form baru untuk create_form, form target untuk aksi lain) + data

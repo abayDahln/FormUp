@@ -16,17 +16,16 @@ extension _AiChatSessions on _AiChatScreenState {
       });
       return;
     }
-    if (_sessions.isEmpty) {
-      // Jangan auto-buat session kosong (anti spam) — buat id in-memory saja
+    if (_sessions.isEmpty || _currentSessionId == null) {
+      // Selalu mulai NEW CHAT kosong saat aplikasi dibuka ulang:
+      // membuka chat lama otomatis membuat render awal lama.
+      // Riwayat tetap tersimpan dan bisa dibuka manual dari drawer.
       if (_currentSessionId == null) {
         setState(() {
           _currentSessionId = DateTime.now().millisecondsSinceEpoch.toString();
           _messages.clear();
         });
       }
-    } else if (_currentSessionId == null) {
-      // load most recent
-      await switchSession(_sessions.first.id);
     }
   }
 

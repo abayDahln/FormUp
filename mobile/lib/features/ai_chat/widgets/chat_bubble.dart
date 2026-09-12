@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/features/ai_chat/models/chat_message.dart';
@@ -8,6 +6,8 @@ import 'package:form_up/features/ai_chat/widgets/action_json_tabs.dart';
 import 'package:form_up/features/ai_chat/widgets/form_context_card.dart';
 import 'package:form_up/features/ai_chat/widgets/streaming_ai_text.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
+
+import 'package:form_up/features/ai_chat/utils/action_json_parse.dart';
 
 /// Gaya teks AI dibuat per-build agar sadar-tema (lihat _buildAiBody).
 
@@ -227,23 +227,38 @@ class ChatBubble extends StatelessWidget {
       if (t.isNotEmpty) widgets.add(GptMarkdown(t, style: aiTextStyle));
     }
 
-    void addMarkdown(String raw) {
-      final t = raw.trim();
-      if (t.isEmpty) return;
-      var last = 0;
-      for (final match in _jsonFenceRegex.allMatches(t)) {
-        addPlain(t.substring(last, match.start));
-        final action = _tryParseAction(match.group(1) ?? '');
-        if (action != null) {
-          widgets.add(ActionJsonTabs(action: action));
-        } else {
-          // Bukan aksi valid (json rusak / bukan action) → render apa adanya.
-          addPlain(t.substring(match.start, match.end));
-        }
-        last = match.end;
+  void addMarkdown(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return;
+    var last = 0;
+    var addedPreview = false;
+    for (final match in _jsonFenceRegex.allMatches(t)) {
+      addPlain(t.substring(last, match.start));
+      // Parse toleran: teks pengiring (mis. "LANJUT: ...") di dalam/luar
+      // pagar tidak menggugurkan preview.
+      final action = parseActionJson(match.group(0) ?? '');
+      if (action != null) {
+        widgets.add(ActionJsonTabs(action: action));
+        addedPreview = true;
+      } else {
+        // Bukan aksi valid (json rusak / bukan action) → render apa adanya.
+        addPlain(t.substring(match.start, match.end));
       }
-      addPlain(t.substring(last));
+      last = match.end;
     }
+    // Tak ada pagar tertutup yang termakan (mis. pagar menggantung atau
+    // teks pengiring merusak match) — coba parse seluruh sisa teks.
+    if (!addedPreview && t.contains('```json')) {
+      final action = parseActionJson(t);
+      if (action != null) {
+        final fenceAt = t.indexOf('```json');
+        addPlain(t.substring(last, fenceAt));
+        widgets.add(ActionJsonTabs(action: action));
+        return;
+      }
+    }
+    addPlain(t.substring(last));
+  }
 
     final ctxRegex = RegExp(r'<FORM_CONTEXT>([\s\S]*?)</FORM_CONTEXT>');
     var last = 0;
@@ -257,17 +272,6 @@ class ChatBubble extends StatelessWidget {
       widgets.add(GptMarkdown(text, style: aiTextStyle));
     }
     return widgets;
-  }
-
-  /// Parse isi fence menjadi aksi valid (Map dengan key "action").
-  Map<String, dynamic>? _tryParseAction(String raw) {
-    try {
-      final decoded = jsonDecode(raw.trim());
-      if (decoded is Map<String, dynamic> && decoded['action'] != null) {
-        return decoded;
-      }
-    } catch (_) {}
-    return null;
   }
 }
 

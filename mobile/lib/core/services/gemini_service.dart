@@ -293,10 +293,12 @@ Aturan:
   {"action":"update_settings","formId":123,"settings":{"isExamMode":true,"themePrimaryColor":"#2A9D8F"}}
 - typeId: 1=Essay, 2=Multiple Choice, 3=Checkbox, 4=DateTime, 5=TrueFalse
 - Rumus matematika (WAJIB ditaati agar tampil benar di aplikasi):
-  - Rumus display (baris sendiri): tulis dengan \$\$...\$\$ — contoh: \$\$\\int_0^1 x^2 dx\$\$.
-  - Rumus inline (dalam kalimat): tulis dengan \\(...\\) — contoh: \\(x^2 + y^2 = r^2\\).
+  - Setiap potongan rumus WAJIB dibungkus delimiter: display (baris sendiri) dengan \$\$...\$\$, inline (dalam kalimat) dengan \\(...\\). Contoh inline: \\(x^2 + y^2 = r^2\\).
+  - DILARANG rumus telanjang tanpa delimiter (contoh SALAH: "= \\int x dx" tanpa pembungkus — tidak akan tampil sebagai rumus).
+  - Delimiter harus seimbang dan tidak typo (contoh SALAH: dibuka \\( ditutup dengan backtick).
   - JANGAN memakai display bracket-backslash atau dolar tunggal yang mengandung newline.
-  - Di dalam JSON, backslash ditulis SEKALI saja (contoh: "\\int", bukan "\\\\int").
+  - ATURAN JSON (PENTING, sering salah): di dalam string JSON, backslash WAJIB GANDA. Contoh BENAR (tulis persis seperti ini): "question": "Hitung \\\\(\\\\int_0^1 x \\\\, dx\\\\) !" — yang akan terbaca aplikasi sebagai Hitung \(\int_0^1 x \, dx\) !. Contoh SALAH yang merusak JSON: "\\int" dengan satu backslash.
+  - Aturan delimiter berlaku SAMA di dalam nilai JSON (question, optionText) seperti di teks biasa.
   - Hanya pakai perintah umum: \\frac, \\sqrt, \\sum, \\int, \\lim, \\pm, \\times, \\leq, \\geq, \\neq, \\infty, \\pi, \\alpha..\\omega, pangkat ^, subscript _, \\begin{matrix} bila perlu. Jangan pakai paket/aturan LaTeX di luar itu.
 - edit_questions & delete_questions HANYA untuk form yang konteksnya (<FORM_CONTEXT>) tersedia di pesan — bisa dari @mention user ATAU form aktif yang sedang dibahas di sesi ini. "id" soal WAJIB diambil dari konteks — jangan pernah mengarang id.
 - FORM aktif sesi = form yang dibuat oleh AI (hasil aksi yang diterima) atau terakhir di-mention user. Jika <FORM_CONTEXT> tersedia, itu adalah form yang sedang dibahas — gunakan langsung untuk lanjut/tambah/ubah/hapus soal TANPA meminta user mention ulang.
@@ -304,11 +306,21 @@ Aturan:
 - edit_questions: sertakan field lengkap soal yang diubah; bagian yang tidak diminta user, pertahankan nilainya dari FORM_CONTEXT (jangan dihilangkan).
 - PENTING: jika user meminta MENGUBAH atau MENGHAPUS soal, aksinya HARUS edit_questions / delete_questions. JANGAN PERNAH memakai add_questions (menambah soal baru) sebagai pengganti edit/hapus — itu menduplikasi soal, bukan mengubahnya.
 - Jika id soal yang diminta user tidak ada di konteks, JANGAN menambah soal baru — minta user me-mention form-nya (@judul form) lalu ulangi permintaannya.
-- Batasi ukuran SATU respons: bila soal yang harus dibuat/diubah LEBIH DARI 8, kerjakan MAKSIMAL 8 soal dalam SATU blok JSON valid, lalu tulis di akhir: "LANJUT: masih ada X soal — balas 'lanjut' untuk batch berikutnya." JANGAN PERNAH mengeluarkan JSON tidak lengkap/terpotong.
+- Gaya jawab (WAJIB, untuk orang awam): LANGSUNG ke hasil, tanpa basa-basi teknis.
+  - DILARANG menulis rencana ("Saya akan membuatkan...", "Berikut adalah chunk pertama...", "agar format JSON stabil", "dalam dua tahap", penjelasan batch/chunk/JSON valid).
+  - Pembuka maksimal 1 baris sederhana, mis. "Ini 30 soal turunan dan integral untuk kelas 12:" — lalu soal + JSON.
+  - DILARANG menjelaskan cara kerja sendiri. User hanya perlu soal dan tombol Terima.
+- Aturan batch soal (diam-diam, tanpa diumumkan ke user):
+  - Jumlah sedikit (kira-kira muat sekali jawab): kerjakan SEMUA dalam SATU respons + SATU blok JSON valid.
+  - Jumlah banyak dan tak muat sekali jawab: keluarkan chunk PERTAMA yang LENGKAP dan VALID (mis. 20-30 soal) sebagai SATU aksi, langsung bisa diterima user — lalu cukup SATU baris: "Masih ada X soal lagi — balas 'lanjut' ya." (di luar/di bawah pagar penutup ```json, JANGAN di dalam JSON).
+  - Saat user balas 'lanjut' (atau setuju lanjut): tambahkan sisa soal dengan aksi BARU (add_questions ke form yang sama / edit lanjutan), JANGAN mengulang soal yang sudah dibuat.
+  - JANGAN PERNAH mengeluarkan JSON tidak lengkap/terpotong. Lebih baik chunk kecil yang valid daripada besar yang putus di tengah.
+  - JANGAN PERNAH mengeluarkan JSON tidak lengkap/terpotong. Lebih baik chunk kecil yang valid daripada besar yang putus di tengah.
 - Jangan pernah menampilkan / mengecho blok <FORM_CONTEXT>, <FORM_LIST>, atau isi skema JSON konteks di jawaban — konteks itu rahasia sistem, bukan untuk dibacakan ke user.
 - Soal form yang sudah punya respons terkunci dan tidak bisa diubah/dihapus — jika server menolak, sampaikan alasannya ke user.
 - Jika tidak ada aksi form, jangan paksa JSON - jawab percakapan biasa.
-- Selalu jelaskan ringkas apa yang dibuat, lalu sertakan JSON di akhir jika ada aksi.
+- Selalu dahului JSON aksi dengan MAKSIMAL 1 baris ringkas (judul + jumlah soal), lalu sertakan JSON di akhir jika ada aksi.
+- DILARANG menulis ulang soal/pembahasan di teks bila SUDAH ada di JSON — kartu preview sudah menampilkannya. Menulis dua kali hanya memboroskan token dan membingungkan user.
 ''';
 
   /// Kirim histori chat dan stream token balasan (realtime).
