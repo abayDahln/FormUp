@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 
 /// Bottom sheet panduan pengguna (paritas web UserGuideModal):
 /// 5 tab + tombol "Mulai Tur Interaktif" di footer.
@@ -10,14 +11,14 @@ class UserGuideSheet extends StatefulWidget {
   const UserGuideSheet({super.key, this.onStartTour});
 
   static Future<void> show(BuildContext context, {VoidCallback? onStartTour}) {
-    return showModalBottomSheet<void>(
+    return AdaptiveSheet.show<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => DraggableScrollableSheet(
+      builder: (ctx, _) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.88,
         minChildSize: 0.5,

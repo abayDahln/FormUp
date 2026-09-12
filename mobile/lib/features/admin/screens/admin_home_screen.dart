@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/admin_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/user_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/features/admin/screens/admin_panel_screen.dart';
 
 /// Shell aplikasi untuk admin: Beranda, Kelola, Profil — dengan navigation bar.
@@ -46,37 +47,149 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     }
   }
 
+  void _selectTab(int index) {
+    if (index == _currentIndex) return;
+    setState(() {
+      _visitedTabs.add(index);
+      _currentIndex = index;
+    });
+  }
+
+  IndexedStack _buildTabs() {
+    return IndexedStack(
+      index: _currentIndex,
+      children: [
+        _AdminBerandaTab(
+          name: _name,
+          onOpenManageTab: (tab) => setState(() {
+            _visitedTabs.add(1);
+            _manageTab = tab.clamp(0, 2);
+            _manageVersion++;
+            _currentIndex = 1;
+          }),
+        ),
+        if (_visitedTabs.contains(1))
+          AdminPanelContent(
+            key: ValueKey('manage-$_manageVersion-$_manageTab'),
+            initialTab: _manageTab,
+          )
+        else
+          const SizedBox.shrink(),
+        if (_visitedTabs.contains(2))
+          const _AdminProfileTab()
+        else
+          const SizedBox.shrink(),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: [
-            _AdminBerandaTab(
-              name: _name,
-              onOpenManageTab: (tab) => setState(() {
-                _visitedTabs.add(1);
-                _manageTab = tab.clamp(0, 2);
-                _manageVersion++;
-                _currentIndex = 1;
-              }),
-            ),
-            if (_visitedTabs.contains(1))
-              AdminPanelContent(
-                key: ValueKey('manage-$_manageVersion-$_manageTab'),
-                initialTab: _manageTab,
-              )
-            else
-              const SizedBox.shrink(),
-            if (_visitedTabs.contains(2))
-              const _AdminProfileTab()
-            else
-              const SizedBox.shrink(),
-          ],
+    // 3a: desktop ≥1200 memakai NavigationDrawer permanen.
+    if (isDesktopWidth(context)) {
+      return Scaffold(
+        body: SafeArea(
+          child: Row(
+            children: [
+              NavigationDrawer(
+                selectedIndex: _currentIndex,
+                onDestinationSelected: _selectTab,
+                backgroundColor: cs.surface,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 16, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'FormUp Admin',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: kFontBold,
+                            color: cs.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 12, color: cs.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const NavigationDrawerDestination(
+                    icon: Icon(Icons.home_outlined),
+                    selectedIcon: Icon(Icons.home),
+                    label: Text('Beranda'),
+                  ),
+                  const NavigationDrawerDestination(
+                    icon: Icon(Icons.admin_panel_settings_outlined),
+                    selectedIcon: Icon(Icons.admin_panel_settings),
+                    label: Text('Kelola'),
+                  ),
+                  const NavigationDrawerDestination(
+                    icon: Icon(Icons.person_outline),
+                    selectedIcon: Icon(Icons.person),
+                    label: Text('Profil'),
+                  ),
+                ],
+              ),
+              VerticalDivider(width: 1, thickness: 1, color: cs.outlineVariant),
+              Expanded(child: _buildTabs()),
+            ],
           ),
         ),
+      );
+    }
+    // G2: layar lebar (≥840) memakai NavigationRail kiri; phone identik.
+    if (isExpanded(context)) {
+      return Scaffold(
+        body: SafeArea(
+          child: Row(
+            children: [
+              NavigationRail(
+                selectedIndex: _currentIndex,
+                onDestinationSelected: _selectTab,
+                extended: isDesktopWidth(context),
+                labelType: isDesktopWidth(context)
+                    ? NavigationRailLabelType.none
+                    : NavigationRailLabelType.all,
+                backgroundColor: cs.surface,
+                selectedIconTheme: IconThemeData(color: cs.primary),
+                destinations: const [
+                  NavigationRailDestination(
+                    icon: Icon(Icons.home_outlined),
+                    selectedIcon: Icon(Icons.home),
+                    label: Text('Beranda'),
+                  ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.admin_panel_settings_outlined),
+                    selectedIcon: Icon(Icons.admin_panel_settings),
+                    label: Text('Kelola'),
+                  ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.person_outline),
+                    selectedIcon: Icon(Icons.person),
+                    label: Text('Profil'),
+                  ),
+                ],
+              ),
+              VerticalDivider(width: 1, thickness: 1, color: cs.outlineVariant),
+              Expanded(child: _buildTabs()),
+            ],
+          ),
+        ),
+      );
+    }
+    return Scaffold(
+      body: SafeArea(
+        child: _buildTabs(),
+      ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: cs.surface,
@@ -90,13 +203,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) {
-            if (index == _currentIndex) return;
-            setState(() {
-              _visitedTabs.add(index);
-              _currentIndex = index;
-            });
-          },
+          onTap: _selectTab,
           type: BottomNavigationBarType.fixed,
           backgroundColor: cs.surface,
           selectedItemColor: cs.primary,
@@ -193,7 +300,7 @@ class _AdminBerandaTabState extends State<_AdminBerandaTab> {
       indicatorColor: cs.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        padding: centerPad(context, base: const EdgeInsets.symmetric(horizontal: 20, vertical: 8)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -495,7 +602,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
     final stats = _stats ?? const UserStats();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 15, 20, 24),
+      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 15, 20, 24)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -549,7 +656,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
                     backgroundColor: cs.primaryContainer,
                     backgroundImage:
                         (_profile?.profileImage ?? '').isNotEmpty
-                            ? CachedNetworkImageProvider(
+                            ? adaptiveNetworkImage(
                                 profileImageUrl(_profile!.profileImage))
                             : null,
                     child: (_profile?.profileImage ?? '').isEmpty

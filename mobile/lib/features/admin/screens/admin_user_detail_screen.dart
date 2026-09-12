@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/services/admin_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -129,7 +130,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
               : AbsorbPointer(
                   absorbing: _busy,
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                    padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
                     children: [
                       Container(
                         padding: const EdgeInsets.all(20),
@@ -144,7 +145,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                               radius: 34,
                               backgroundColor: cs.primaryContainer,
                               backgroundImage: (u.profileImage ?? '').isNotEmpty
-                                  ? CachedNetworkImageProvider(
+                                  ? adaptiveNetworkImage(
                                       profileImageUrl(u.profileImage))
                                   : null,
                               child: (u.profileImage ?? '').isEmpty

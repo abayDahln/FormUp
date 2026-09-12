@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
@@ -259,11 +260,14 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                   final toolbarVisible = active != null;
                   return SingleChildScrollView(
                     controller: _scrollController,
-                    padding: EdgeInsets.fromLTRB(
-                      22,
-                      4,
-                      22,
-                      toolbarVisible ? 110 : 24,
+                    padding: centerPad(
+                      context,
+                      base: EdgeInsets.fromLTRB(
+                        22,
+                        4,
+                        22,
+                        toolbarVisible ? 110 : 24,
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/widgets/search_field.dart';
@@ -328,7 +329,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
 
   Widget _buildInfoTab(AdminFormDetail f, bool takenDown) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
       children: [
         Container(
           decoration: BoxDecoration(

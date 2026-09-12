@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/router/app_router.dart';
 
@@ -49,7 +50,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
     if (password != confirm) {
-      showAuthToast(context, "Konfirmasi kata sandi tidak cocok", isError: true);
+      showAuthToast(
+        context,
+        "Konfirmasi kata sandi tidak cocok",
+        isError: true,
+      );
       return;
     }
     if (!_accepted) {
@@ -65,10 +70,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: password,
       );
       if (!mounted) return;
-      AppRouter.of(context).push(
-        AppPage.otp,
-        {'email': email, 'fullname': fullname, 'password': password},
-      );
+      AppRouter.of(context).push(AppPage.otp, {
+        'email': email,
+        'fullname': fullname,
+        'password': password,
+      });
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
@@ -87,120 +93,127 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: AuthBackground(
           child: SafeArea(
             child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         AuthCard(
-                           child: Column(
-                             crossAxisAlignment: CrossAxisAlignment.stretch,
-                             children: [
-                               const AuthTitle(
-                                 title: "Daftar",
-                                 subtitle: "Buat akun baru untuk memulai",
-                               ),
-                               const SizedBox(height: 24),
-                               AuthTextField(
-                                controller: _fullnameController,
-                                hint: "Nama Lengkap",
-                                label: "Nama Lengkap",
-                                icon: Icons.person_outline,
-                              ),
-                              const SizedBox(height: 17),
-                              AuthTextField(
-                                controller: _emailController,
-                                hint: "Email",
-                                label: "Email",
-                                icon: Icons.email_outlined,
-                                keyboardType: TextInputType.emailAddress,
-                              ),
-                              const SizedBox(height: 17),
-                              AuthTextField(
-                                controller: _passwordController,
-                                hint: "Kata Sandi",
-                                label: "Kata Sandi",
-                                icon: Icons.lock_outline,
-                                obscure: true,
-                              ),
-                              const SizedBox(height: 17),
-                              AuthTextField(
-                                controller: _confirmController,
-                                hint: "Konfirmasi Kata Sandi",
-                                label: "Konfirmasi Kata Sandi",
-                                icon: Icons.lock_outline,
-                                obscure: true,
-                              ),
-                              const SizedBox(height: 16),
-                              AuthPrimaryButton(
-                                label: "Daftar",
-                                loading: _loading,
-                                onPressed: _signUp,
-                              ),
-                              const SizedBox(height: 20),
-                              Row(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ResponsiveCenter(
+                            maxWidth: 480,
+                            child: AuthCard(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  GestureDetector(
-                                    onTap: () =>
-                                        setState(() => _accepted = !_accepted),
-                                    child: Container(
-                                      width: 19,
-                                      height: 19,
-                                      decoration: BoxDecoration(
-                                        color: _accepted
-                                            ? cs.primary
-                                            : cs.surface,
-                                        borderRadius: BorderRadius.circular(
-                                          5.5,
-                                        ),
-                                        border: Border.all(color: cs.onSurfaceVariant),
-                                      ),
-                                      child: _accepted
-                                          ? Icon(
-                                              Icons.check,
-                                              size: 14,
-                                              color: cs.onPrimary,
-                                            )
-                                          : null,
-                                    ),
+                                  const AuthTitle(
+                                    title: "Daftar",
+                                    subtitle: "Buat akun baru untuk memulai",
                                   ),
-                                  const SizedBox(width: 10),
-                                   Expanded(
-                                    child: Text(
-                                      "Saya menyetujui Syarat & Ketentuan",
-                                      style: TextStyle(
-                                        color: cs.onSurfaceVariant,
-                                        fontSize: 12,
+                                  const SizedBox(height: 24),
+                                  AuthTextField(
+                                    controller: _fullnameController,
+                                    hint: "Nama Lengkap",
+                                    label: "Nama Lengkap",
+                                    icon: Icons.person_outline,
+                                  ),
+                                  const SizedBox(height: 17),
+                                  AuthTextField(
+                                    controller: _emailController,
+                                    hint: "Email",
+                                    label: "Email",
+                                    icon: Icons.email_outlined,
+                                    keyboardType: TextInputType.emailAddress,
+                                  ),
+                                  const SizedBox(height: 17),
+                                  AuthTextField(
+                                    controller: _passwordController,
+                                    hint: "Kata Sandi",
+                                    label: "Kata Sandi",
+                                    icon: Icons.lock_outline,
+                                    obscure: true,
+                                  ),
+                                  const SizedBox(height: 17),
+                                  AuthTextField(
+                                    controller: _confirmController,
+                                    hint: "Konfirmasi Kata Sandi",
+                                    label: "Konfirmasi Kata Sandi",
+                                    icon: Icons.lock_outline,
+                                    obscure: true,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  AuthPrimaryButton(
+                                    label: "Daftar",
+                                    loading: _loading,
+                                    onPressed: _signUp,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Row(
+                                    children: [
+                                      GestureDetector(
+                                        onTap: () => setState(
+                                          () => _accepted = !_accepted,
+                                        ),
+                                        child: Container(
+                                          width: 19,
+                                          height: 19,
+                                          decoration: BoxDecoration(
+                                            color: _accepted
+                                                ? cs.primary
+                                                : cs.surface,
+                                            borderRadius: BorderRadius.circular(
+                                              5.5,
+                                            ),
+                                            border: Border.all(
+                                              color: cs.onSurfaceVariant,
+                                            ),
+                                          ),
+                                          child: _accepted
+                                              ? Icon(
+                                                  Icons.check,
+                                                  size: 14,
+                                                  color: cs.onPrimary,
+                                                )
+                                              : null,
+                                        ),
                                       ),
-                                    ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          "Saya menyetujui Syarat & Ketentuan",
+                                          style: TextStyle(
+                                            color: cs.onSurfaceVariant,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 20),
+                                  AuthInlineLink(
+                                    question: "Sudah punya akun? ",
+                                    link: "Masuk",
+                                    onTap: () => AppRouter.of(context).pop(),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 20),
-                              AuthInlineLink(
-                                question: "Sudah punya akun? ",
-                                link: "Masuk",
-                                onTap: () => AppRouter.of(context).pop(),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
-      ),
       ),
     );
   }
 }
-

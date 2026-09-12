@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -102,13 +103,13 @@ class _FormScreenState extends State<FormScreen> {
   Future<void> _openFilterSheet() async {
     if (_filterOpen) return;
     _filterOpen = true;
-    await showModalBottomSheet<void>(
+    await AdaptiveSheet.show<void>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (sheetContext) => FormFilterSheetContent(
+      builder: (sheetContext, _) => FormFilterSheetContent(
         filterDate: _filterDate,
         sortIndex: _sort.index,
         onPickDate: () async {
@@ -170,43 +171,98 @@ class _FormScreenState extends State<FormScreen> {
       indicatorColor: cs.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 15, 20, 24),
+        padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 15, 20, 24), wideMaxWidth: 1500),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-             Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  'Form Saya',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: kFontBold,
-                    color: cs.onSurface,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Form Saya',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: kFontBold,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Lihat dan Kelola Form Anda',
+                        style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+                      ),
+                    ],
                   ),
                 ),
-                SizedBox(height: 2),
-                Text(
-                  'Lihat dan Kelola Form Anda',
-                  style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
-                ),
+                // 3b: desktop — tombol di header (ganti FAB melayang).
+                if (isDesktopWidth(context)) ...[
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    onPressed: () => AppRouter.of(context)
+                        .push(AppPage.formTemplateChooser),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Buat Form Baru'),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 16),
 
-            FormSearchBar(
-              controller: _searchController,
-              onChanged: _onSearchChanged,
-              onSubmitted: _onSearchImmediate,
-              onClearSearch: () {
-                _searchController.clear();
-                _onSearchImmediate('');
-              },
-              filterActive: _filterDate != null || _sort != FormSort.newest,
-              onOpenFilter: _openFilterSheet,
-              historyKey: 'search_history_form',
-            ),
+            // 3c: desktop — search 480px + tombol filter di sebelahnya.
+            if (isDesktopWidth(context))
+              Row(
+                children: [
+                  // Flexible + maxWidth: selebar 480 bila muat, menyusut
+                  // mengikuti ruang (anti-overflow saat window dikecilkan).
+                  Flexible(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 480),
+                      child: FormSearchBar(
+                        controller: _searchController,
+                        onChanged: _onSearchChanged,
+                        onSubmitted: _onSearchImmediate,
+                        onClearSearch: () {
+                          _searchController.clear();
+                          _onSearchImmediate('');
+                        },
+                        filterActive:
+                            _filterDate != null || _sort != FormSort.newest,
+                        onOpenFilter: _openFilterSheet,
+                        historyKey: 'search_history_form',
+                        inlineFilter: false,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.tonalIcon(
+                    onPressed: _openFilterSheet,
+                    icon: const Icon(Icons.tune, size: 18),
+                    label: Text(
+                      (_filterDate != null || _sort != FormSort.newest)
+                          ? 'Filter aktif'
+                          : 'Filter',
+                    ),
+                  ),
+                ],
+              )
+            else
+              FormSearchBar(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                onSubmitted: _onSearchImmediate,
+                onClearSearch: () {
+                  _searchController.clear();
+                  _onSearchImmediate('');
+                },
+                filterActive: _filterDate != null || _sort != FormSort.newest,
+                onOpenFilter: _openFilterSheet,
+                historyKey: 'search_history_form',
+              ),
             const SizedBox(height: 16),
 
             if (_loadingForms && _myForms.isEmpty)
@@ -216,12 +272,21 @@ class _FormScreenState extends State<FormScreen> {
               )
             else if (all.isEmpty)
               FormEmptyState(hasFilter: hasFilter)
-            else ...[
+            // 1b: grid 2/3/4 kolom di tablet/desktop; phone identik.
+            else if (!isTablet(context)) ...[
               for (final form in all) ...[
                 _buildFormCard(form),
                 const SizedBox(height: 12),
               ],
-            ],
+            ] else
+              // Grid Form Saya: 2 / 4 / 6 kolom mengikuti lebar.
+              ResponsiveGrid(
+                columnCountFor: (w) =>
+                    w >= 1400 ? 6 : w >= 1000 ? 4 : w >= 600 ? 2 : 1,
+                children: [
+                  for (final form in all) _buildFormCard(form),
+                ],
+              ),
           ],
         ),
       ),

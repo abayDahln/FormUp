@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
@@ -148,7 +149,7 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
               indicatorColor: cs.primary,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24)),
                 children: [
                   FormDetailHeader(form: form),
                   const SizedBox(height: 16),

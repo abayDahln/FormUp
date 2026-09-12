@@ -50,6 +50,10 @@ dependencies:
   custom_refresh_indicator: ^4.0.2
   gpt_markdown: ^1.2.1
   volume_controller: ^3.6.1
+  window_manager: ^0.5.2
+  camera: ^0.12.1
+  zxing2: ^0.2.4
+  camera_windows: ^0.2.6+5
 
 dev_dependencies:
   flutter_test:

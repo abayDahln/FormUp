@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -40,13 +41,13 @@ Future<void> showFormShareSheet(BuildContext context, FormData form) async {
     return;
   }
 
-  await showModalBottomSheet<void>(
+  await AdaptiveSheet.show<void>(
     context: context,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (sheetContext) {
+    builder: (sheetContext, _) {
       final cs = Theme.of(sheetContext).colorScheme;
       // Ukuran QR mengikuti lebar layar agar muat di HP kecil (320px).
       final qrSize =

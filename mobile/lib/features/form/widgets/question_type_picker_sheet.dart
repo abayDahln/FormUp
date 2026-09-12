@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/models/question_draft.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 
 /// Bottom sheet pemilihan tipe pertanyaan baru.
 Future<int?> showQuestionTypePicker(BuildContext context) {
-  return showModalBottomSheet<int>(
+  return AdaptiveSheet.show<int>(
     context: context,
     backgroundColor: Colors.transparent,
-    builder: (context) => Builder(builder: (ctx) {
+    builder: (context, _) => Builder(builder: (ctx) {
       final cs = Theme.of(ctx).colorScheme;
       return Container(
       decoration: BoxDecoration(

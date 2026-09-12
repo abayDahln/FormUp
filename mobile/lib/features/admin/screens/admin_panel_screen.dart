@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/theme.dart';
@@ -295,7 +296,7 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                        padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 4, 20, 24)),
                         itemCount:
                             _users.length + (_totalPages > 1 ? 1 : 0),
                         separatorBuilder: (_, _) => const SizedBox(height: 12),
@@ -530,7 +531,7 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                        padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 4, 20, 24)),
                         itemCount: _forms.length + (_totalPages > 1 ? 1 : 0),
                         separatorBuilder: (_, _) => const SizedBox(height: 12),
                         itemBuilder: (context, i) {
@@ -644,13 +645,13 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
   }
 
   Future<void> _actionMenu(AdminFeedbackItem item) async {
-    final choice = await showModalBottomSheet<String>(
+    final choice = await AdaptiveSheet.show<String>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetContext) => SafeArea(
+      builder: (sheetContext, _) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -729,7 +730,7 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                        padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 4, 20, 24)),
                         itemCount:
                             _feedbacks.length + (_totalPages > 1 ? 1 : 0),
                         separatorBuilder: (_, _) => const SizedBox(height: 12),

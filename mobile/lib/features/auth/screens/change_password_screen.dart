@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/router/app_router.dart';
 
@@ -37,15 +38,27 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       return;
     }
     if (newPassword.length < 8) {
-      showAuthToast(context, 'Kata sandi baru minimal 8 karakter', isError: true);
+      showAuthToast(
+        context,
+        'Kata sandi baru minimal 8 karakter',
+        isError: true,
+      );
       return;
     }
     if (newPassword == current) {
-      showAuthToast(context, 'Kata sandi baru tidak boleh sama dengan yang lama', isError: true);
+      showAuthToast(
+        context,
+        'Kata sandi baru tidak boleh sama dengan yang lama',
+        isError: true,
+      );
       return;
     }
     if (newPassword != confirm) {
-      showAuthToast(context, 'Konfirmasi kata sandi tidak cocok', isError: true);
+      showAuthToast(
+        context,
+        'Konfirmasi kata sandi tidak cocok',
+        isError: true,
+      );
       return;
     }
 
@@ -74,14 +87,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape:  Border(
-          bottom: BorderSide(color: cs.outlineVariant),
-        ),
+        shape: Border(bottom: BorderSide(color: cs.outlineVariant)),
         leading: IconButton(
-          icon:  Icon(Icons.arrow_back, color: cs.onSurface),
+          icon: Icon(Icons.arrow_back, color: cs.onSurface),
           onPressed: () => AppRouter.of(context).pop(),
         ),
-        title:  Text(
+        title: Text(
           "Ubah Kata Sandi",
           style: TextStyle(
             fontSize: 22,
@@ -98,66 +109,80 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           child: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  AuthCard(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                         Text(
-                          "Masukkan kata sandi saat ini dan kata sandi baru Anda.",
-                          style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
-                        ),
-                        const SizedBox(height: 20),
-                        AuthTextField(
-                          controller: _currentController,
-                          hint: "Kata Sandi Saat Ini",
-                          label: "Kata Sandi Saat Ini",
-                          icon: Icons.lock_outline,
-                          obscure: true,
-                        ),
-                        const SizedBox(height: 14),
-                        AuthTextField(
-                          controller: _newController,
-                          hint: "Kata Sandi Baru",
-                          label: "Kata Sandi Baru",
-                          icon: Icons.lock_reset,
-                          obscure: true,
-                        ),
-                        const SizedBox(height: 14),
-                        AuthTextField(
-                          controller: _confirmController,
-                          hint: "Konfirmasi Kata Sandi Baru",
-                          label: "Konfirmasi Kata Sandi Baru",
-                          icon: Icons.lock_outline,
-                          obscure: true,
-                        ),
-                        const SizedBox(height: 14),
-                         Row(
-                          children: [
-                            Icon(Icons.info_outline, size: 16, color: cs.onSurfaceVariant),
-                            SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                "Kata sandi baru minimal 8 karakter.",
-                                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
-                              ),
+              // G1: kartu terpusat (maks 480) di tablet/desktop; phone identik.
+              child: ResponsiveCenter(
+                maxWidth: 480,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AuthCard(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            "Masukkan kata sandi saat ini dan kata sandi baru Anda.",
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: cs.onSurfaceVariant,
                             ),
-                          ],
-                        ),
-                      ],
+                          ),
+                          const SizedBox(height: 20),
+                          AuthTextField(
+                            controller: _currentController,
+                            hint: "Kata Sandi Saat Ini",
+                            label: "Kata Sandi Saat Ini",
+                            icon: Icons.lock_outline,
+                            obscure: true,
+                          ),
+                          const SizedBox(height: 14),
+                          AuthTextField(
+                            controller: _newController,
+                            hint: "Kata Sandi Baru",
+                            label: "Kata Sandi Baru",
+                            icon: Icons.lock_reset,
+                            obscure: true,
+                          ),
+                          const SizedBox(height: 14),
+                          AuthTextField(
+                            controller: _confirmController,
+                            hint: "Konfirmasi Kata Sandi Baru",
+                            label: "Konfirmasi Kata Sandi Baru",
+                            icon: Icons.lock_outline,
+                            obscure: true,
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                size: 16,
+                                color: cs.onSurfaceVariant,
+                              ),
+                              SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  "Kata sandi baru minimal 8 karakter.",
+                                  style: TextStyle(
+                                    color: cs.onSurfaceVariant,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  AuthPrimaryButton(
-                    label: _loading ? "Menyimpan..." : "Simpan",
-                    pill: true,
-                    loading: _loading,
-                    onPressed: _save,
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    AuthPrimaryButton(
+                      label: _loading ? "Menyimpan..." : "Simpan",
+                      pill: true,
+                      loading: _loading,
+                      onPressed: _save,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

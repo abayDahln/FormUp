@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/router/app_router.dart';
 
@@ -56,59 +57,63 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         child: AuthBackground(
           child: SafeArea(
             child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         AuthCard(
-                           child: Column(
-                             crossAxisAlignment: CrossAxisAlignment.stretch,
-                             children: [
-                               const AuthTitle(
-                                 title: "Lupa Kata Sandi",
-                                 subtitle:
-                                     "Masukkan email yang terdaftar.\nKami akan mengirimkan kode OTP ke email Anda.",
-                               ),
-                               const SizedBox(height: 24),
-                               AuthTextField(
-                                 controller: _emailController,
-                                 hint: "Email",
-                                 label: "Email",
-                                 icon: Icons.email_outlined,
-                                 keyboardType: TextInputType.emailAddress,
-                               ),
-                               const SizedBox(height: 22),
-                               AuthPrimaryButton(
-                                 label: "Kirim OTP",
-                                 pill: true,
-                                 loading: _loading,
-                                 onPressed: _sendOtp,
-                               ),
-                               const SizedBox(height: 20),
-                               AuthInlineLink(
-                                 link: "Kembali ke Masuk",
-                                 onTap: () => AppRouter.of(context).pop(),
-                               ),
-                             ],
-                           ),
-                         ),
-                       ],
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ResponsiveCenter(
+                            maxWidth: 480,
+                            child: AuthCard(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const AuthTitle(
+                                    title: "Lupa Kata Sandi",
+                                    subtitle:
+                                        "Masukkan email yang terdaftar.\nKami akan mengirimkan kode OTP ke email Anda.",
+                                  ),
+                                  const SizedBox(height: 24),
+                                  AuthTextField(
+                                    controller: _emailController,
+                                    hint: "Email",
+                                    label: "Email",
+                                    icon: Icons.email_outlined,
+                                    keyboardType: TextInputType.emailAddress,
+                                  ),
+                                  const SizedBox(height: 22),
+                                  AuthPrimaryButton(
+                                    label: "Kirim OTP",
+                                    pill: true,
+                                    loading: _loading,
+                                    onPressed: _sendOtp,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  AuthInlineLink(
+                                    link: "Kembali ke Masuk",
+                                    onTap: () => AppRouter.of(context).pop(),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
-      ),
       ),
     );
   }
 }
-

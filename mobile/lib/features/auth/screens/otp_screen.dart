@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/router/app_router.dart';
 
@@ -62,7 +63,11 @@ class _OtpScreenState extends State<OtpScreen> {
     if (!AppDebouncer.tryAcquire('auth:verify')) return;
     if (_loading) return;
     if (widget.email.trim().isEmpty) {
-      showAuthToast(context, "Email tidak valid. Ulangi dari awal.", isError: true);
+      showAuthToast(
+        context,
+        "Email tidak valid. Ulangi dari awal.",
+        isError: true,
+      );
       return;
     }
     final otp = _otpController.text.trim();
@@ -78,7 +83,11 @@ class _OtpScreenState extends State<OtpScreen> {
         final password = widget.password;
         if (fullname == null || password == null) {
           if (!mounted) return;
-          showAuthToast(context, "Data pendaftaran tidak lengkap. Ulangi dari awal.", isError: true);
+          showAuthToast(
+            context,
+            "Data pendaftaran tidak lengkap. Ulangi dari awal.",
+            isError: true,
+          );
           return;
         }
         final result = await AuthService.verifyRegistration(
@@ -96,15 +105,11 @@ class _OtpScreenState extends State<OtpScreen> {
         // A1: verifikasi OTP forgot-password ke server dulu sebelum pindah
         // layar — OTP salah/kedaluwarsa ditolak di sini, bukan setelah
         // user mengisi password baru.
-        await AuthService.verifyResetOtp(
-          email: widget.email.trim(),
-          otp: otp,
-        );
+        await AuthService.verifyResetOtp(email: widget.email.trim(), otp: otp);
         if (!mounted) return;
-        AppRouter.of(context).push(
-          AppPage.resetPassword,
-          {'email': widget.email, 'otp': otp},
-        );
+        AppRouter.of(
+          context,
+        ).push(AppPage.resetPassword, {'email': widget.email, 'otp': otp});
       }
     } catch (e) {
       if (!mounted) return;
@@ -116,11 +121,19 @@ class _OtpScreenState extends State<OtpScreen> {
 
   Future<void> _resend() async {
     if (_cooldown > 0) {
-      showAuthToast(context, "Tunggu $_cooldown detik untuk mengirim ulang", isError: true);
+      showAuthToast(
+        context,
+        "Tunggu $_cooldown detik untuk mengirim ulang",
+        isError: true,
+      );
       return;
     }
     if (widget.email.trim().isEmpty) {
-      showAuthToast(context, "Email tidak valid. Ulangi dari awal.", isError: true);
+      showAuthToast(
+        context,
+        "Email tidak valid. Ulangi dari awal.",
+        isError: true,
+      );
       return;
     }
     try {
@@ -129,7 +142,11 @@ class _OtpScreenState extends State<OtpScreen> {
         final password = widget.password;
         if (fullname == null || password == null) {
           if (!mounted) return;
-          showAuthToast(context, "Data pendaftaran tidak lengkap. Ulangi dari awal.", isError: true);
+          showAuthToast(
+            context,
+            "Data pendaftaran tidak lengkap. Ulangi dari awal.",
+            isError: true,
+          );
           return;
         }
         await AuthService.register(
@@ -159,84 +176,88 @@ class _OtpScreenState extends State<OtpScreen> {
         child: AuthBackground(
           child: SafeArea(
             child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         AuthCard(
-                           child: Column(
-                             crossAxisAlignment: CrossAxisAlignment.stretch,
-                             children: [
-                               const AuthTitle(
-                                 title: "Verifikasi",
-                                 subtitle: "Verifikasi email Anda",
-                               ),
-                               const SizedBox(height: 24),
-                              Text(
-                                "Kode OTP telah dikirim ke\n${widget.email}",
-                                textAlign: TextAlign.center,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style:  TextStyle(
-                                  color: cs.onSurfaceVariant,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 28),
-                              OtpField(controller: _otpController),
-                              const SizedBox(height: 16),
-                              Align(
-                                alignment: Alignment.center,
-                                child: GestureDetector(
-                                  onTap: _resend,
-                                  child: Text(
-                                    _cooldown > 0
-                                        ? "kirim ulang ($_cooldown s)"
-                                        : "kirim ulang",
-                                    style:  TextStyle(
-                                      color: cs.primary,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      fontFamily: kFontBold,
-                                      decoration: TextDecoration.underline,
-                                      decorationColor: cs.primary,
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ResponsiveCenter(
+                            maxWidth: 480,
+                            child: AuthCard(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const AuthTitle(
+                                    title: "Verifikasi",
+                                    subtitle: "Verifikasi email Anda",
+                                  ),
+                                  const SizedBox(height: 24),
+                                  Text(
+                                    "Kode OTP telah dikirim ke\n${widget.email}",
+                                    textAlign: TextAlign.center,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: cs.onSurfaceVariant,
+                                      fontSize: 14,
                                     ),
                                   ),
-                                ),
+                                  const SizedBox(height: 28),
+                                  OtpField(controller: _otpController),
+                                  const SizedBox(height: 16),
+                                  Align(
+                                    alignment: Alignment.center,
+                                    child: GestureDetector(
+                                      onTap: _resend,
+                                      child: Text(
+                                        _cooldown > 0
+                                            ? "kirim ulang ($_cooldown s)"
+                                            : "kirim ulang",
+                                        style: TextStyle(
+                                          color: cs.primary,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          fontFamily: kFontBold,
+                                          decoration: TextDecoration.underline,
+                                          decorationColor: cs.primary,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 28),
+                                  AuthPrimaryButton(
+                                    label: "Verifikasi",
+                                    pill: true,
+                                    loading: _loading,
+                                    onPressed: _verify,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  AuthInlineLink(
+                                    link: "Kembali ke Masuk",
+                                    onTap: () =>
+                                        AppRouter.of(context).resetToLogin(),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 28),
-                              AuthPrimaryButton(
-                                label: "Verifikasi",
-                                pill: true,
-                                loading: _loading,
-                                onPressed: _verify,
-                              ),
-                              const SizedBox(height: 20),
-                              AuthInlineLink(
-                                link: "Kembali ke Masuk",
-                                onTap: () =>
-                                    AppRouter.of(context).resetToLogin(),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
-      ),
       ),
     );
   }
 }
-

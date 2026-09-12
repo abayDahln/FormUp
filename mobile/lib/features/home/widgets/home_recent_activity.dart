@@ -5,17 +5,23 @@ import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/features/home/widgets/home_empty_card.dart';
 
-/// Section "Aktivitas Respons Terbaru" pada beranda (maksimal 3 item)
+/// Section "Aktivitas Respons Terbaru" pada beranda.
+/// [limit] = jumlah item tampil (default 3, phone/tablet identik).
+/// [bare] = tanpa card pembungkus (desktop Drive tampil clear).
 class HomeRecentActivity extends StatelessWidget {
   final bool loading;
   final List<MyResponseItem> responses;
   final void Function(MyResponseItem item) onOpenResponse;
+  final int limit;
+  final bool bare;
 
   const HomeRecentActivity({
     super.key,
     required this.loading,
     required this.responses,
     required this.onOpenResponse,
+    this.limit = 3,
+    this.bare = false,
   });
 
   @override
@@ -33,22 +39,28 @@ class HomeRecentActivity extends StatelessWidget {
         message: 'Belum ada aktivitas respons.',
       );
     }
+    final items = responses.take(limit).toList();
+    final list = Column(
+      children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0)
+            Divider(
+                height: 1,
+                color: cs.outlineVariant.withValues(alpha: 0.45)),
+          _ActivityItem(
+            item: items[i],
+            onTap: () => onOpenResponse(items[i]),
+          ),
+        ],
+      ],
+    );
+    if (bare) return list;
     return Container(
       decoration: BoxDecoration(
         color: cs.surface,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
-        children: [
-          for (var i = 0; i < responses.take(3).length; i++) ...[
-            if (i > 0) Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.45)),
-            _ActivityItem(
-              item: responses[i],
-              onTap: () => onOpenResponse(responses[i]),
-            ),
-          ],
-        ],
-      ),
+      child: list,
     );
   }
 }

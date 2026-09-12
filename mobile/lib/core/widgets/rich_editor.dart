@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_quill/flutter_quill.dart';
@@ -1055,14 +1056,14 @@ void _insertText(QuillController controller, String text) {
 /// Dialog insert rumus LaTeX
 Future<void> _insertMath(BuildContext context, QuillController controller) async {
   final focusScope = FocusScope.of(context);
-  final formula = await showModalBottomSheet<String>(
+  final formula = await AdaptiveSheet.show<String>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (_) => const _MathInsertSheet(),
+    builder: (_, _) => const _MathInsertSheet(),
   );
   if (formula == null || formula.trim().isEmpty) return;
   _insertText(controller, '\n\$\$${formula.trim()}\$\$\n');
@@ -1072,14 +1073,14 @@ Future<void> _insertMath(BuildContext context, QuillController controller) async
 /// Dialog insert blok kode
 Future<void> _insertCode(BuildContext context, QuillController controller) async {
   final focusScope = FocusScope.of(context);
-  final snippet = await showModalBottomSheet<String>(
+  final snippet = await AdaptiveSheet.show<String>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (_) => const _CodeInsertSheet(),
+    builder: (_, _) => const _CodeInsertSheet(),
   );
   if (snippet == null || snippet.isEmpty) return;
   _insertText(controller, '\n$snippet\n');

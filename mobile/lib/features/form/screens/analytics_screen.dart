@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
@@ -321,11 +322,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     if (result != null && mounted) setState(() => _sort = result);
   }
 
-  Future<String?> _pickExportFormat() => showModalBottomSheet<String>(
+  Future<String?> _pickExportFormat() => AdaptiveSheet.show<String>(
         context: context,
         backgroundColor: Theme.of(context).colorScheme.surface,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        builder: (ctx) {
+        builder: (ctx, _) {
           final cs = Theme.of(ctx).colorScheme;
           return SafeArea(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -525,7 +526,7 @@ Berikan analisis yang mencakup:
             },
             child: ListView(
               controller: _responScrollController,
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24)),
               children: [
                 if (_exporting)
                   const progress.ProgressIndicator.linear(

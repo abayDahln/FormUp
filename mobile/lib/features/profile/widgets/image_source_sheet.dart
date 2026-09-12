@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:image_picker/image_picker.dart';
 
 /// Bottom sheet pemilihan sumber gambar (galeri / kamera)
 Future<ImageSource?> showImageSourceSheet(BuildContext context) {
-  return showModalBottomSheet<ImageSource>(
+  return AdaptiveSheet.show<ImageSource>(
     context: context,
     backgroundColor: Colors.transparent,
-    builder: (context) => Container(
+    builder: (context, _) => Container(
       decoration:  BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -29,11 +30,13 @@ Future<ImageSource?> showImageSourceSheet(BuildContext context) {
             label: 'Pilih dari Galeri',
             onTap: () => Navigator.pop(context, ImageSource.gallery),
           ),
-          _ImageSourceTile(
-            icon: Icons.photo_camera_outlined,
-            label: 'Ambil Foto',
-            onTap: () => Navigator.pop(context, ImageSource.camera),
-          ),
+          // G7: kamera image_picker tidak didukung di desktop.
+          if (!isDesktopPlatform)
+            _ImageSourceTile(
+              icon: Icons.photo_camera_outlined,
+              label: 'Ambil Foto',
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
         ],
       ),
     ),

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
 import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/utils/action_debouncer.dart';
@@ -103,13 +104,13 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
     _ => 'application/octet-stream',
   };
 
-  Future<String?> _pickTemplateFormat() => showModalBottomSheet<String>(
+  Future<String?> _pickTemplateFormat() => AdaptiveSheet.show<String>(
     context: context,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (ctx) => SafeArea(
+    builder: (ctx, _) => SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -397,14 +398,14 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
     const maxVisibleErrors = 5;
     final errorTextColor = Color.lerp(kDangerColor, Colors.black, 0.25)!;
 
-    return showModalBottomSheet<bool>(
+    return AdaptiveSheet.show<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetContext) => DraggableScrollableSheet(
+      builder: (sheetContext, _) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.75,
         maxChildSize: 0.92,
@@ -510,7 +511,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
             Expanded(
               child: ListView.separated(
                 controller: scrollController,
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 4, 20, 8)),
                 itemCount: questions.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (context, i) {

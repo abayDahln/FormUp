@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/utils/form_zoom.dart';
 import 'package:form_up/core/theme.dart';
@@ -186,11 +187,11 @@ class _InlineQuizNav extends StatelessWidget {
   static const _markYellow = Color(0xFFFACC15);
 
   void _showJumpPicker(BuildContext context) {
-    showModalBottomSheet<void>(
+    AdaptiveSheet.show<void>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => SafeArea(
+      builder: (ctx, _) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
           child: Column(
@@ -213,7 +214,8 @@ class _InlineQuizNav extends StatelessWidget {
               GridView.builder(
                 shrinkWrap: true,
                 itemCount: total,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 5, crossAxisSpacing: 8, mainAxisSpacing: 8, childAspectRatio: 1.2),
+                // G4: 5 kolom phone (identik), 6 tablet, 8 expanded.
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: isExpanded(ctx) ? 8 : isTablet(ctx) ? 6 : 5, crossAxisSpacing: 8, mainAxisSpacing: 8, childAspectRatio: 1.2),
                 itemBuilder: (c, i) {
                   final selected = i == current;
                   final answered = store.isAnswered(questions[i]);

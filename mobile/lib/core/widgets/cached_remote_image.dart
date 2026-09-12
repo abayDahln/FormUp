@@ -1,6 +1,48 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/responsive.dart';
+
+/// Provider gambar jaringan aman lintas platform: desktop (Windows/macOS/
+/// Linux) memakai [NetworkImage] karena cache sqflite tidak punya
+/// implementasi desktop; mobile tetap cached.
+ImageProvider adaptiveNetworkImage(String url) =>
+    isDesktopPlatform ? NetworkImage(url) : CachedNetworkImageProvider(url);
+
+/// Widget gambar jaringan adaptif — pengganti pemakaian [CachedNetworkImage]
+/// langsung di layar (banner template dkk).
+Widget adaptiveCachedImage({
+  required String url,
+  BoxFit fit = BoxFit.cover,
+  double? width,
+  double? height,
+  int? memCacheWidth,
+  Widget? placeholder,
+  Widget? errorWidget,
+}) {
+  if (isDesktopPlatform) {
+    return Image.network(
+      url,
+      fit: fit,
+      width: width,
+      height: height,
+      // cacheWidth meniru memCacheWidth agar hemat memori di desktop.
+      cacheWidth: memCacheWidth,
+      loadingBuilder: (_, child, progress) =>
+          progress == null ? child : (placeholder ?? const AppLoadingOverlay()),
+      errorBuilder: (_, _, _) => errorWidget ?? const SizedBox.shrink(),
+    );
+  }
+  return CachedNetworkImage(
+    imageUrl: url,
+    fit: fit,
+    width: width,
+    height: height,
+    memCacheWidth: memCacheWidth,
+    placeholder: (_, __) => placeholder ?? const AppLoadingOverlay(),
+    errorWidget: (_, __, ___) => errorWidget ?? const SizedBox.shrink(),
+  );
+}
 
 class CachedRemoteImage extends StatelessWidget {
   final String url;
@@ -24,15 +66,13 @@ class CachedRemoteImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final image = CachedNetworkImage(
-      imageUrl: url,
+    final image = adaptiveCachedImage(
+      url: url,
       fit: fit,
       width: width,
       height: height,
-      placeholder: (_, __) =>
-          placeholder ?? const AppLoadingOverlay(),
-      errorWidget: (_, __, ___) =>
-          errorWidget ?? const SizedBox.shrink(),
+      placeholder: placeholder,
+      errorWidget: errorWidget,
     );
 
     final radius = borderRadius;
@@ -68,8 +108,10 @@ class CachedRemoteCircleAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: radius,
       backgroundColor: backgroundColor,
-      backgroundImage: CachedNetworkImageProvider(url!),
-      onBackgroundImageError: (_, __) {},
+      // foregroundImage (bukan backgroundImage) agar foto menutup huruf
+      // inisial saat berhasil dimuat; huruf tetap tampil saat loading/gagal.
+      foregroundImage: adaptiveNetworkImage(url!),
+      onForegroundImageError: (_, __) {},
       child: fallback,
     );
   }

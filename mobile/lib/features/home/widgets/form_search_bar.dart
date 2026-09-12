@@ -10,6 +10,7 @@ class FormSearchBar extends StatelessWidget {
   final VoidCallback onOpenFilter;
   final String? historyKey;
   final ValueChanged<String>? onSubmitted;
+  final bool inlineFilter;
 
   const FormSearchBar({
     super.key,
@@ -20,6 +21,7 @@ class FormSearchBar extends StatelessWidget {
     required this.onOpenFilter,
     this.historyKey,
     this.onSubmitted,
+    this.inlineFilter = true,
   });
 
   @override
@@ -32,6 +34,7 @@ class FormSearchBar extends StatelessWidget {
       historyKey: historyKey ?? 'search_history_form',
       filterActive: filterActive,
       onOpenFilter: onOpenFilter,
+      inlineFilter: inlineFilter,
     );
   }
 }

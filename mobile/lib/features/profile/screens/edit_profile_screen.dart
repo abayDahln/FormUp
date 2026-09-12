@@ -4,6 +4,7 @@ import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/form_service.dart' show exceedsUploadLimit;
 import 'package:form_up/core/services/user_service.dart';
 import 'package:form_up/core/router/app_router.dart';
@@ -215,7 +216,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: AuthBackground(plain: true,
                 child: SafeArea(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
+                  padding: centerPad(context, base: const EdgeInsets.fromLTRB(22, 8, 22, 24)),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [

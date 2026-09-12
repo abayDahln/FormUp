@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/answer_fields.dart';
@@ -158,7 +159,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
                       children: [
                         Expanded(
                           child: ListView(
-                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                            padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 20)),
                             children: [
                               _buildHeader(zoom),
                               const SizedBox(height: 16),

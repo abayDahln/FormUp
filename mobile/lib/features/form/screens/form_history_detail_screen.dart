@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/public_form_service.dart';
@@ -89,7 +90,7 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
 
   Widget _buildContent(PublicFormResult result) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

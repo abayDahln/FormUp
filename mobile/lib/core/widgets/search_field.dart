@@ -14,6 +14,9 @@ class AppSearchField extends StatefulWidget {
   final bool filterActive;
   final VoidCallback? onOpenFilter;
   final String? historyKey;
+  /// False = sembunyikan ikon filter di dalam field (desktop memakai tombol
+  /// filter terpisah di sebelah field). Default true (phone identik).
+  final bool inlineFilter;
 
   const AppSearchField({
     super.key,
@@ -24,6 +27,7 @@ class AppSearchField extends StatefulWidget {
     this.filterActive = false,
     this.onOpenFilter,
     this.historyKey,
+    this.inlineFilter = true,
   });
 
   @override
@@ -181,7 +185,7 @@ class _AppSearchFieldState extends State<AppSearchField> {
                     tooltip: 'Hapus',
                     onPressed: _clear,
                   ),
-                if (widget.onOpenFilter != null)
+                if (widget.onOpenFilter != null && widget.inlineFilter)
                   Container(
                     margin: const EdgeInsets.only(right: 4),
                     decoration: BoxDecoration(

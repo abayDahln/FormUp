@@ -16,7 +16,12 @@ import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/services/public_form_service.dart';
+import 'package:form_up/core/services/user_service.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/widgets/onboarding_tour.dart';
+import 'package:form_up/core/widgets/responsive.dart';
+import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/form_card.dart';
 import 'package:form_up/features/home/widgets/user_guide_sheet.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -36,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<FormData> _myForms = [];
   List<MyResponseItem> _myResponses = [];
+  String? _avatarPath;
   bool _loading = true;
   final _codeController = TextEditingController();
   bool _validatingCode = false;
@@ -181,11 +187,16 @@ class _HomeScreenState extends State<HomeScreen> {
       final results = await Future.wait([
         FormService.getMyForms(),
         FormService.getMyResponses(),
+        // Foto profil untuk tombol akun sidebar (best-effort).
+        UserService.getProfile()
+            .then((p) => p.profileImage ?? '')
+            .catchError((_) => ''),
       ]);
       if (!mounted) return;
       setState(() {
         _myForms = results[0] as List<FormData>;
         _myResponses = results[1] as List<MyResponseItem>;
+        _avatarPath = results[2] as String;
       });
       _maybeAutoTour();
     } catch (e) {
@@ -271,13 +282,153 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Widget _driveSectionTitle(String title, {VoidCallback? onSeeAll}) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: cs.onSurface,
+          ),
+        ),
+        const Spacer(),
+        if (onSeeAll != null)
+          TextButton(
+            onPressed: onSeeAll,
+            child: const Text('Lihat semua'),
+          ),
+      ],
+    );
+  }
+
+  /// Beranda gaya Drive (desktop ≥1200 saja): Masuk Form paling atas, grid
+  /// Form Terbaru (2→4, 3→6, 4→8 item), lalu Aktivitas clear tanpa card.
+  /// Tablet/phone memakai _buildHomeTab dan tidak tersentuh.
+  Widget _buildDriveHomeTab() {
+    final cs = Theme.of(context).colorScheme;
+    return AppRefreshIndicator(
+      onRefresh: _load,
+      indicatorColor: cs.primary,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(32, 28, 32, 32),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1400),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Samakan ambang ResponsiveGrid: grid Terbaru = kolom × 2
+                // (4/6/8), aktivitas secukupnya mengikuti kolom (2/3/4).
+                final w = constraints.maxWidth;
+                final cols = w >= kWideBreakpoint
+                    ? 4
+                    : w >= kExpandedBreakpoint
+                    ? 3
+                    : 2;
+                final formCount = cols * 2;
+                final activityCount = cols;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Halo, ${widget.username}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: kFontBold,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Apa yang ingin Anda lakukan hari ini?',
+                      textAlign: TextAlign.center,
+                      style:
+                          TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 24),
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 720),
+                        // Tanpa judul section (label sudah ada di dalam card).
+                        child: HomeKerjakanCard(
+                          key: _kerjakanKey,
+                          codeController: _codeController,
+                          onStart: _start,
+                          onOpenScanner: _openScanner,
+                          loading: _validatingCode,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    _driveSectionTitle(
+                      'Form Terbaru',
+                      onSeeAll: () => _selectTab(1),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_loading && _myForms.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 30),
+                        child: AppLoadingOverlay(),
+                      )
+                    else if (_myForms.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Text(
+                          'Belum ada form. Tekan + Baru untuk membuat.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 13, color: cs.onSurfaceVariant),
+                        ),
+                      )
+                    else
+                      ResponsiveGrid(
+                        children: [
+                          for (final form in _myForms.take(formCount))
+                            FormCard(
+                              form: form,
+                              onTap: () => AppRouter.of(context)
+                                  .push(AppPage.formDetail, {
+                                'formId': form.id,
+                                'form': form,
+                              }),
+                            ),
+                        ],
+                      ),
+                    const SizedBox(height: 28),
+                    _driveSectionTitle('Aktivitas Respon Terbaru'),
+                    const SizedBox(height: 12),
+                    HomeRecentActivity(
+                      loading: _loading,
+                      responses: _myResponses,
+                      onOpenResponse: _openResponse,
+                      limit: activityCount,
+                      bare: true,
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildHomeTab() {
+    // Satu kolom phone/tablet seperti semula (desktop memakai Drive).
     return AppRefreshIndicator(
       onRefresh: _load,
       indicatorColor: Theme.of(context).colorScheme.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+        padding: centerPad(context, base: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -357,24 +508,260 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _selectTab(int index) {
+    if (index == _currentIndex) return;
+    setState(() {
+      _visitedTabs.add(index);
+      _currentIndex = index;
+    });
+  }
+
+  IndexedStack _buildTabs({bool drive = false}) {
+    return IndexedStack(
+      index: _currentIndex,
+      children: [
+        drive ? _buildDriveHomeTab() : _buildHomeTab(),
+        if (_visitedTabs.contains(1)) const FormScreen() else const SizedBox.shrink(),
+        if (_visitedTabs.contains(2)) const AiChatScreen(embedded: true) else const SizedBox.shrink(),
+        if (_visitedTabs.contains(3)) const ResponseScreen() else const SizedBox.shrink(),
+        if (_visitedTabs.contains(4))
+          ProfileScreen(username: widget.username)
+        else
+          const SizedBox.shrink(),
+      ],
+    );
+  }
+
+  List<NavigationDestination> _barDestinations(ColorScheme cs) => [
+        NavigationDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home, color: cs.primary),
+          label: 'Beranda',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.description_outlined),
+          selectedIcon: Icon(Icons.description, color: cs.primary),
+          label: 'Form',
+        ),
+        NavigationDestination(
+          icon: AiChatIcon(color: cs.onSurfaceVariant, size: 24, filled: false),
+          selectedIcon: AiChatIcon(color: cs.primary, size: 24, filled: true),
+          label: 'AI Chat',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.bar_chart_outlined),
+          selectedIcon: Icon(Icons.bar_chart, color: cs.primary),
+          label: 'Respon',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.person_outline),
+          selectedIcon: Icon(Icons.person, color: cs.primary),
+          label: 'Profil',
+        ),
+      ];
+
+  List<NavigationRailDestination> _railDestinations(ColorScheme cs) => [
+        NavigationRailDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home, color: cs.primary),
+          label: Text('Beranda'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.description_outlined),
+          selectedIcon: Icon(Icons.description, color: cs.primary),
+          label: Text('Form'),
+        ),
+        NavigationRailDestination(
+          icon: AiChatIcon(color: cs.onSurfaceVariant, size: 24, filled: false),
+          selectedIcon: AiChatIcon(color: cs.primary, size: 24, filled: true),
+          label: Text('AI Chat'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.bar_chart_outlined),
+          selectedIcon: Icon(Icons.bar_chart, color: cs.primary),
+          label: Text('Respon'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.person_outline),
+          selectedIcon: Icon(Icons.person, color: cs.primary),
+          label: Text('Profil'),
+        ),
+      ];
+
+  /// Sidebar ala Drive (M3 NavigationDrawer): logo + nav; tombol profil
+  /// berfoto di-pin paling bawah (tanpa tab Profil & tanpa tombol Baru —
+  /// buat form lewat header tab Form Saya).
+  Widget _buildDriveSidebar(ColorScheme cs) {
+    // Card navigasi: drawer transparan di dalam container tonal, footer
+    // profil di-pin paling bawah di dalam card yang sama.
+    return Container(
+      width: 320,
+      margin: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: Column(
+        children: [
+          Expanded(
+            child: NavigationDrawer(
+              // Drawer hanya berisi 4 destinasi (tanpa Profil).
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              selectedIndex: _currentIndex <= 3 ? _currentIndex : null,
+              onDestinationSelected: _selectTab,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: cs.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(Icons.description_outlined,
+                            color: cs.primary, size: 22),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'FormUp',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: kFontBold,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ..._drawerDestinations(cs),
+              ],
+            ),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+            // Material sendiri agar ink splash ListTile tidak tertutup
+            // DecoratedBox card sidebar.
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              child: ListTile(
+              leading: CachedRemoteCircleAvatar(
+                url: (_avatarPath ?? '').isEmpty
+                    ? null
+                    : profileImageUrl(_avatarPath),
+                radius: 20,
+                backgroundColor: cs.primaryContainer,
+                fallback: Text(
+                  widget.username.trim().isNotEmpty
+                      ? widget.username.trim()[0].toUpperCase()
+                      : 'U',
+                  style: TextStyle(
+                      color: cs.primary, fontWeight: FontWeight.bold),
+                ),
+              ),
+              title: Text(
+                widget.username,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13),
+              ),
+              subtitle: Text(
+                'Lihat profil',
+                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+              ),
+              trailing: const Icon(Icons.chevron_right,
+                  color: Colors.grey, size: 18),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              onTap: () => _selectTab(4),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<NavigationDrawerDestination> _drawerDestinations(ColorScheme cs) => [
+        NavigationDrawerDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home, color: cs.primary),
+          label: Text('Beranda'),
+        ),
+        NavigationDrawerDestination(
+          icon: Icon(Icons.description_outlined),
+          selectedIcon: Icon(Icons.description, color: cs.primary),
+          label: Text('Form'),
+        ),
+        NavigationDrawerDestination(
+          icon: AiChatIcon(color: cs.onSurfaceVariant, size: 24, filled: false),
+          selectedIcon: AiChatIcon(color: cs.primary, size: 24, filled: true),
+          label: Text('AI Chat'),
+        ),
+        NavigationDrawerDestination(
+          icon: Icon(Icons.bar_chart_outlined),
+          selectedIcon: Icon(Icons.bar_chart, color: cs.primary),
+          label: Text('Respon'),
+        ),
+      ];
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // Drive desktop ≥1200: sidebar M3 + konten di background polos tanpa
+    // panel pembungkus (semua tab); 840–1200 rail; phone bottom bar.
+    // Cabang tablet/phone di bawah tidak berubah.
+    if (isDesktopWidth(context)) {
+      return Scaffold(
+        body: SafeArea(
+          child: Row(
+            children: [
+              _buildDriveSidebar(cs),
+              Expanded(child: _buildTabs(drive: true)),
+            ],
+          ),
+        ),
+      );
+    }
+    // G2: layar lebar (≥840) memakai NavigationRail kiri; phone identik.
+    if (isExpanded(context)) {
+      return Scaffold(
+        body: SafeArea(
+          child: Row(
+            children: [
+              NavigationRail(
+                selectedIndex: _currentIndex,
+                onDestinationSelected: _selectTab,
+                // 1920: rail extended (label di samping ikon) di ≥1200.
+                // extended mewajibkan labelType none (assert framework).
+                extended: isDesktopWidth(context),
+                labelType: isDesktopWidth(context)
+                    ? NavigationRailLabelType.none
+                    : NavigationRailLabelType.all,
+                backgroundColor: cs.surface,
+                indicatorColor: kPrimary.withValues(alpha: 0.15),
+                selectedIconTheme: IconThemeData(color: cs.primary),
+                destinations: _railDestinations(cs),
+              ),
+              VerticalDivider(width: 1, thickness: 1, color: cs.outlineVariant),
+              Expanded(child: _buildTabs()),
+            ],
+          ),
+        ),
+        floatingActionButton: _railFab(),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      );
+    }
     return Scaffold(
       body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: [
-            _buildHomeTab(),
-            if (_visitedTabs.contains(1)) const FormScreen() else const SizedBox.shrink(),
-            if (_visitedTabs.contains(2)) const AiChatScreen(embedded: true) else const SizedBox.shrink(),
-            if (_visitedTabs.contains(3)) const ResponseScreen() else const SizedBox.shrink(),
-            if (_visitedTabs.contains(4))
-              ProfileScreen(username: widget.username)
-            else
-              const SizedBox.shrink(),
-          ],
-        ),
+        child: _buildTabs(),
       ),
       bottomNavigationBar: Container(
         decoration:  BoxDecoration(
@@ -384,66 +771,40 @@ class _HomeScreenState extends State<HomeScreen> {
         child: NavigationBar(
           height: 62,
           selectedIndex: _currentIndex,
-          onDestinationSelected: (index) {
-            if (index == _currentIndex) return;
-            setState(() {
-              _visitedTabs.add(index);
-              _currentIndex = index;
-            });
-          },
+          onDestinationSelected: _selectTab,
           backgroundColor: cs.surface,
           indicatorColor: kPrimary.withValues(alpha: 0.15),
           elevation: 0,
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: [
-           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home, color: cs.primary),
-            label: 'Beranda',
-          ),
-           NavigationDestination(
-            icon: Icon(Icons.description_outlined),
-            selectedIcon: Icon(Icons.description, color: cs.primary),
-            label: 'Form',
-          ),
-          NavigationDestination(
-            icon:  AiChatIcon(color: cs.onSurfaceVariant, size: 24, filled: false),
-            selectedIcon:  AiChatIcon(color: cs.primary, size: 24, filled: true),
-            label: 'AI Chat',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart, color: cs.primary),
-            label: 'Respon',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person, color: cs.primary),
-            label: 'Profil',
-          ),
-        ],
+        destinations: _barDestinations(cs),
         ),
       ),
       // FAB tambah form: hanya tampil di tab Form Saya, melayang kanan bawah
       // (endFloat = punya lapisan klik sendiri, tidak menembus widget di belakang)
-      floatingActionButton: _currentIndex == 1
-          ? SizedBox(
-              width: 68,
-              height: 68,
-              child: FloatingActionButton(
-                key: _fabKey,
-                onPressed: () {
-                  AppRouter.of(context).push(AppPage.formTemplateChooser);
-                },
-                backgroundColor: kPrimary,
-                foregroundColor: Colors.white,
-                elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                child: const Icon(Icons.add, size: 32),
-              ),
-            )
-          : null,
+      floatingActionButton: _railFab(),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  /// FAB tambah form — dipakai phone maupun rail agar satu definisi.
+  /// Desktop (≥1200): disembunyikan karena tombol ada di header Form Saya.
+  Widget? _railFab() {
+    if (_currentIndex != 1) return null;
+    if (isDesktopWidth(context)) return null;
+    return SizedBox(
+      width: 68,
+      height: 68,
+      child: FloatingActionButton(
+        key: _fabKey,
+        onPressed: () {
+          AppRouter.of(context).push(AppPage.formTemplateChooser);
+        },
+        backgroundColor: kPrimary,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: const Icon(Icons.add, size: 32),
+      ),
     );
   }
 

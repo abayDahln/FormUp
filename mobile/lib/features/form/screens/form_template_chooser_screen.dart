@@ -1,5 +1,6 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/router/app_router.dart';
@@ -349,7 +350,8 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
           child: CustomScrollView(
             slivers: [
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                // G4: konten galeri terpusat (maks 1100) di tablet/desktop.
+                padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 8), maxWidth: 1100, wideMaxWidth: 1400),
                 sliver: SliverToBoxAdapter(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Buat Form Baru', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: cs.onSurface)),
@@ -367,7 +369,7 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
                 ),
               ),
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 0), maxWidth: 1100, wideMaxWidth: 1400),
                 sliver: SliverToBoxAdapter(
                   child: _EmptyFormCard(
                     onTap: _cloningId != null ? null : () => AppRouter.of(context).push(AppPage.formMaker),
@@ -375,7 +377,7 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
                 ),
               ),
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 12), maxWidth: 1100, wideMaxWidth: 1400),
                 sliver: SliverToBoxAdapter(
                   child: Row(children: [
                     const Text('Galeri Template', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
@@ -386,10 +388,10 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
               ),
               if (filtered.isEmpty)
                 SliverPadding(
-                  padding: const EdgeInsets.all(20),
+                  padding: centerPad(context, base: const EdgeInsets.all(20), maxWidth: 1100, wideMaxWidth: 1400),
                   sliver: SliverToBoxAdapter(child: Center(child: Text('Tidak ada template untuk "$_query"', style:  TextStyle(color: cs.onSurfaceVariant)))),
                 )
-              else
+              else if (!isTablet(context))
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                   sliver: SliverList.separated(
@@ -400,6 +402,29 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
                       final cloning = _cloningId == tpl.id;
                       return _TemplateCard(template: tpl, cloning: cloning, busy: _cloningId != null, onUse: () => _useTemplate(tpl));
                     },
+                  ),
+                )
+              // 1920: galeri 2/3/4 kolom terpusat (maks 1400).
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  sliver: SliverToBoxAdapter(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1400),
+                        child: ResponsiveGrid(
+                          children: [
+                            for (var i = 0; i < filtered.length; i++)
+                              _TemplateCard(
+                                template: filtered[i],
+                                cloning: _cloningId == filtered[i].id,
+                                busy: _cloningId != null,
+                                onUse: () => _useTemplate(filtered[i]),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
             ],
@@ -455,13 +480,12 @@ class _TemplateCard extends StatelessWidget {
           width: double.infinity,
           child: Stack(fit: StackFit.expand, children: [
             _isAllowedBannerUrl(template.bannerImage)
-                ? CachedNetworkImage(
-                    imageUrl: template.bannerImage,
+                ? adaptiveCachedImage(
+                    url: template.bannerImage,
                     fit: BoxFit.cover,
                     memCacheWidth: 800,
-                    maxWidthDiskCache: 800,
-                    placeholder: (_, _) => Container(color: template.iconBg, child: const Center(child: SizedBox(width: 20, height: 20, child: AppLoadingIndicator.inline()))),
-                    errorWidget: (_, _, _) => Container(color: template.iconBg, child: Icon(template.icon, color: template.iconColor.withValues(alpha: 0.5))),
+                    placeholder: Container(color: template.iconBg, child: const Center(child: SizedBox(width: 20, height: 20, child: AppLoadingIndicator.inline()))),
+                    errorWidget: Container(color: template.iconBg, child: Icon(template.icon, color: template.iconColor.withValues(alpha: 0.5))),
                   )
                 : Container(color: template.iconBg, child: Icon(template.icon, color: template.iconColor.withValues(alpha: 0.5))),
             Container(decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Color(0x99000000)]))),

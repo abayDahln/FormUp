@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
@@ -226,7 +227,7 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
               indicatorColor: cs.primary,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                padding: centerPad(context, base: const EdgeInsets.fromLTRB(16, 12, 16, 24), wideMaxWidth: 1000),
                 children: [
                   if (data != null) ...[
                     _SummaryGrid(data: data),
@@ -245,7 +246,7 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
                         child: Text(
                           'Diperbarui '
                               '${_lastUpdated!.toLocal().toString().substring(11, 16)}'
-                              ' • otomatis tiap 5 detik',
+                              ' • otomatis tiap 15 detik',
                           style:  TextStyle(
                               fontSize: 10.5, color: cs.onSurfaceVariant),
                         ),
@@ -325,59 +326,68 @@ class _SummaryGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final examActive = data.isExamMode == true || data.detectTabSwitch == true;
+    final cards = <Widget>[
+      _SummaryCard(
+        label: 'Mode Ujian',
+        value: examActive ? 'Aktif' : 'Nonaktif',
+        icon: Icons.shield_outlined,
+        iconColor: examActive ? cs.primary : cs.onSurfaceVariant,
+        valueColor: examActive ? cs.primary : cs.onSurfaceVariant,
+        subtitle: data.autoSubmitOnTabSwitch == true
+            ? 'Auto-submit maks ${data.maxTabSwitch ?? 3}x pindah tab'
+            : (examActive ? 'Pencatatan pelanggaran aktif' : 'Belum aktif'),
+      ),
+      _SummaryCard(
+        label: 'Online',
+        value: '${data.onlineCount}',
+        icon: Icons.wifi_rounded,
+        iconColor: cs.tertiary,
+        valueColor: cs.tertiary,
+        subtitle: 'Aktif 90 detik terakhir',
+      ),
+      _SummaryCard(
+        label: 'Mengerjakan',
+        value: '${data.inProgressCount}',
+        icon: Icons.edit_note_outlined,
+        iconColor: cs.secondary,
+        valueColor: cs.secondary,
+        subtitle: 'Belum mengirim jawaban',
+      ),
+      _SummaryCard(
+        label: 'Terkumpul',
+        value: '${data.submittedCount}',
+        icon: Icons.check_circle_outline,
+        iconColor: cs.primary,
+        valueColor: cs.primary,
+        subtitle: 'Jawaban tersimpan',
+      ),
+    ];
+    // G7: 4 sejajar di expanded, 2x2 di phone (identik).
+    if (isExpanded(context)) {
+      return Row(
+        children: [
+          for (var i = 0; i < cards.length; i++) ...[
+            Expanded(child: cards[i]),
+            if (i != cards.length - 1) const SizedBox(width: 10),
+          ],
+        ],
+      );
+    }
     return Column(
       children: [
         Row(
           children: [
-            Expanded(
-              child: _SummaryCard(
-                label: 'Mode Ujian',
-                value: examActive ? 'Aktif' : 'Nonaktif',
-                icon: Icons.shield_outlined,
-                iconColor: examActive ? cs.primary : cs.onSurfaceVariant,
-                valueColor: examActive ? cs.primary : cs.onSurfaceVariant,
-                subtitle: data.autoSubmitOnTabSwitch == true
-                    ? 'Auto-submit maks ${data.maxTabSwitch ?? 3}x pindah tab'
-                    : (examActive ? 'Pencatatan pelanggaran aktif' : 'Belum aktif'),
-              ),
-            ),
+            Expanded(child: cards[0]),
             const SizedBox(width: 10),
-            Expanded(
-              child: _SummaryCard(
-                label: 'Online',
-                value: '${data.onlineCount}',
-                icon: Icons.wifi_rounded,
-                iconColor: cs.tertiary,
-                valueColor: cs.tertiary,
-                subtitle: 'Aktif 90 detik terakhir',
-              ),
-            ),
+            Expanded(child: cards[1]),
           ],
         ),
         const SizedBox(height: 10),
         Row(
           children: [
-            Expanded(
-              child: _SummaryCard(
-                label: 'Mengerjakan',
-                value: '${data.inProgressCount}',
-                icon: Icons.edit_note_outlined,
-                iconColor: cs.secondary,
-                valueColor: cs.secondary,
-                subtitle: 'Belum mengirim jawaban',
-              ),
-            ),
+            Expanded(child: cards[2]),
             const SizedBox(width: 10),
-            Expanded(
-              child: _SummaryCard(
-                label: 'Terkumpul',
-                value: '${data.submittedCount}',
-                icon: Icons.check_circle_outline,
-                iconColor: cs.primary,
-                valueColor: cs.primary,
-                subtitle: 'Jawaban tersimpan',
-              ),
-            ),
+            Expanded(child: cards[3]),
           ],
         ),
       ],

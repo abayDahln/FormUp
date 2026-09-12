@@ -86,12 +86,14 @@ mobile/
 | `flutter_secure_storage` | Penyimpanan token sesi (terenkripsi) |
 | `shared_preferences` | Preferensi & cache disk non-sensitif |
 | `flutter_quill` | Editor rich text (delta JSON) untuk deskripsi & soal |
-| `image_picker`, `file_picker` | Upload gambar/file |
-| `mobile_scanner` | Scan QR code |
+| `image_picker`, `file_picker` | Upload gambar/file (kamera `image_picker` hanya mobile; desktop pakai galeri) |
+| `mobile_scanner` | Scan QR code realtime (mobile saja; desktop pakai `camera` + `zxing2`) |
+| `camera`, `camera_windows`, `zxing2` | QR desktop: preview + foto lalu decode (fallback: pilih file gambar) |
+| `window_manager` | Ukuran minimum + judul window desktop |
 | `audioplayers` | Pemutar audio pada soal |
 | `share_plus` | Berbagi link form |
 | `flutter_math_fork` | Render rumus matematika |
-| `cached_network_image` | Cache gambar remote |
+| `cached_network_image` | Cache gambar remote (mobile; desktop otomatis pakai `Image.network` via `adaptiveCachedImage`) |
 | `custom_refresh_indicator`, `material3_expressive_loading_indicator` | UI pull-to-refresh & loading |
 
 ### API & Sumber Daya
@@ -177,7 +179,19 @@ flutter run -d emulator-5554     # Android emulator
 flutter build apk --release         # Android APK
 flutter build appbundle             # Android App Bundle (Play Store)
 flutter build ipa                   # iOS (butuh macOS + Xcode)
+flutter build windows --release     # Windows .exe portable (isi folder build/windows/x64/runner/Release dizip)
 ```
+
+### Catatan Windows Desktop
+
+- Butuh Visual Studio Build Tools + komponen **"C++ ATL for latest v143 build tools"**
+  (tanpa ini build gagal di `flutter_secure_storage_windows`: `atlstr.h` tidak ditemukan).
+- UI adaptif: breakpoint 600/840/1200/1400 (`core/widgets/responsive.dart`) — kartu auth terpusat,
+  `NavigationRail` di ≥840 (extended di ≥1200), bottom-sheet menjadi dialog, AI chat two-pane,
+  grid 1/2/3/4 kolom, home dua kolom + galeri template 4 kolom di 1920×1080.
+  Layout phone (<600px) tidak berubah.
+- Keterbatasan desktop: tanpa kamera `image_picker` (opsi "Ambil Foto" disembunyikan),
+  QR via layar khusus kamera+`zxing2` (bukan `mobile_scanner`), gambar remote tanpa cache disk.
 
 ### Catatan Android
 

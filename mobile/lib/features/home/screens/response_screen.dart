@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -142,13 +143,13 @@ class _ResponseScreenState extends State<ResponseScreen> {
 
   // ── Filter sheet riwayat ──────────────────────────────
   Future<void> _openHistoryFilterSheet() async {
-    await showModalBottomSheet<void>(
+    await AdaptiveSheet.show<void>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (sheetContext) => SafeArea(
+      builder: (sheetContext, _) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -236,13 +237,13 @@ class _ResponseScreenState extends State<ResponseScreen> {
 
   // ── Filter sheet responden ─────────────────────────────
   Future<void> _openAnalyticsFilterSheet() async {
-    await showModalBottomSheet<void>(
+    await AdaptiveSheet.show<void>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (sheetContext) => SafeArea(
+      builder: (sheetContext, _) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -489,15 +490,38 @@ class _ResponseScreenState extends State<ResponseScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: AppSearchField(
-            controller: _historySearchController,
-            onChanged: _onHistorySearchChanged,
-            onSubmitted: _onHistorySearchImmediate,
-            hint: 'Cari riwayat...',
-            historyKey: 'search_history_response_history',
-            filterActive: filterActive,
-            onOpenFilter: _openHistoryFilterSheet,
-          ),
+          child: isDesktopWidth(context)
+              ? Row(
+                  children: [
+                    Expanded(
+                      child: AppSearchField(
+                        controller: _historySearchController,
+                        onChanged: _onHistorySearchChanged,
+                        onSubmitted: _onHistorySearchImmediate,
+                        hint: 'Cari riwayat...',
+                        historyKey: 'search_history_response_history',
+                        filterActive: filterActive,
+                        onOpenFilter: _openHistoryFilterSheet,
+                        inlineFilter: false,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    FilledButton.tonalIcon(
+                      onPressed: _openHistoryFilterSheet,
+                      icon: const Icon(Icons.tune, size: 18),
+                      label: Text(filterActive ? 'Filter aktif' : 'Filter'),
+                    ),
+                  ],
+                )
+              : AppSearchField(
+                  controller: _historySearchController,
+                  onChanged: _onHistorySearchChanged,
+                  onSubmitted: _onHistorySearchImmediate,
+                  hint: 'Cari riwayat...',
+                  historyKey: 'search_history_response_history',
+                  filterActive: filterActive,
+                  onOpenFilter: _openHistoryFilterSheet,
+                ),
         ),
         const SizedBox(height: 12),
         Expanded(child: _buildHistoryList(groups)),
@@ -512,15 +536,38 @@ class _ResponseScreenState extends State<ResponseScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: AppSearchField(
-            controller: _analyticsSearchController,
-            onChanged: _onAnalyticsSearchChanged,
-            onSubmitted: _onAnalyticsSearchImmediate,
-            hint: 'Cari form untuk responden...',
-            historyKey: 'search_history_response_analytics',
-            filterActive: filterActive,
-            onOpenFilter: _openAnalyticsFilterSheet,
-          ),
+          child: isDesktopWidth(context)
+              ? Row(
+                  children: [
+                    Expanded(
+                      child: AppSearchField(
+                        controller: _analyticsSearchController,
+                        onChanged: _onAnalyticsSearchChanged,
+                        onSubmitted: _onAnalyticsSearchImmediate,
+                        hint: 'Cari form untuk responden...',
+                        historyKey: 'search_history_response_analytics',
+                        filterActive: filterActive,
+                        onOpenFilter: _openAnalyticsFilterSheet,
+                        inlineFilter: false,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    FilledButton.tonalIcon(
+                      onPressed: _openAnalyticsFilterSheet,
+                      icon: const Icon(Icons.tune, size: 18),
+                      label: Text(filterActive ? 'Filter aktif' : 'Filter'),
+                    ),
+                  ],
+                )
+              : AppSearchField(
+                  controller: _analyticsSearchController,
+                  onChanged: _onAnalyticsSearchChanged,
+                  onSubmitted: _onAnalyticsSearchImmediate,
+                  hint: 'Cari form untuk responden...',
+                  historyKey: 'search_history_response_analytics',
+                  filterActive: filterActive,
+                  onOpenFilter: _openAnalyticsFilterSheet,
+                ),
         ),
         const SizedBox(height: 12),
         Expanded(child: _buildAnalyticsList(forms)),
@@ -565,6 +612,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
       indicatorColor: Theme.of(context).colorScheme.primary,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
+        // 1 kolom full-width (tanpa cap 720) di semua lebar.
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
         children: [
           Container(
@@ -633,6 +681,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
       indicatorColor: Theme.of(context).colorScheme.primary,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
+        // 1 kolom full-width (tanpa cap 720) di semua lebar.
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
         children: [
           Container(

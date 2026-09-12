@@ -4,6 +4,7 @@ import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
@@ -259,11 +260,14 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
                           final toolbarVisible = active != null;
                           return SingleChildScrollView(
                             controller: _scrollController,
-                            padding: EdgeInsets.fromLTRB(
-                              22,
-                              4,
-                              22,
-                              toolbarVisible ? 110 : 24,
+                            padding: centerPad(
+                              context,
+                              base: EdgeInsets.fromLTRB(
+                                22,
+                                4,
+                                22,
+                                toolbarVisible ? 110 : 24,
+                              ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,

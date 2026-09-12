@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/widgets/form_card.dart';
 import 'package:form_up/features/home/widgets/home_empty_card.dart';
@@ -31,15 +32,28 @@ class HomeRecentForms extends StatelessWidget {
         message: 'Belum ada form. Ketuk + untuk membuat.',
       );
     }
-    return Column(
+    // G4: 1 kolom di phone (identik), 2/3 kolom di tablet/desktop.
+    if (!isTablet(context)) {
+      return Column(
+        children: [
+          for (final form in forms.take(3)) ...[
+            FormCard(
+              form: form,
+              onTap: () => onOpenForm(form),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ],
+      );
+    }
+    return ResponsiveGrid(
+      compact: true,
       children: [
-        for (final form in forms.take(3)) ...[
+        for (final form in forms.take(3))
           FormCard(
             form: form,
             onTap: () => onOpenForm(form),
           ),
-          const SizedBox(height: 12),
-        ],
       ],
     );
   }

@@ -506,12 +506,12 @@ extension _AiChatHistoryOps on _AiChatScreenState {
   Future<void> showMessageMenu(ChatMessage m) async {
     _dismissKeyboard();
     if (m.role != 'user') return;
-    final choice = await showModalBottomSheet<String>(
+    final choice = await AdaptiveSheet.show<String>(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (ctx) => SafeArea(
+      builder: (ctx, _) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

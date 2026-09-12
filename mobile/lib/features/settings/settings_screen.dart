@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/theme_controller.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -78,7 +79,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: AuthBackground(plain: true,
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
+            padding: centerPad(context, base: const EdgeInsets.fromLTRB(22, 8, 22, 24)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/widgets/answer_fields.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -23,7 +24,7 @@ class RunnerResultView extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

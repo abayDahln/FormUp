@@ -32,6 +32,8 @@ import 'package:form_up/features/form/screens/form_question_edit_screen.dart';
 import 'package:form_up/features/form/screens/form_feedbacks_screen.dart';
 import 'package:form_up/features/form_runner/screens/form_start_screen.dart';
 import 'package:form_up/features/home/screens/qrcode_scanner_screen.dart';
+import 'package:form_up/features/home/screens/desktop_qrcode_scanner_screen.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/features/ai_chat/screens/ai_chat_screen.dart';
@@ -360,6 +362,8 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
       case AppPage.formStart:
         return FormStartScreen(formLink: route.args['formLink'] as String? ?? '');
       case AppPage.qrcodeScanner:
+        // G7: mobile_scanner tak didukung desktop → layar kamera+zxing2.
+        if (isDesktopPlatform) return const DesktopQrcodeScannerScreen();
         return const QrcodeScannerScreen();
       case AppPage.formDetail:
         return FormDetailScreen(

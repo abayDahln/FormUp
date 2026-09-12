@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/admin_service.dart';
@@ -170,7 +171,7 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
       body: AbsorbPointer(
         absorbing: _busy,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
           children: [
             // Pesan feedback
             Container(

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
 import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
@@ -135,11 +136,11 @@ class _FormResponScreenState extends State<FormResponScreen>
     });
   }
 
-  Future<String?> _pickExportFormat() => showModalBottomSheet<String>(
+  Future<String?> _pickExportFormat() => AdaptiveSheet.show<String>(
         context: context,
         backgroundColor: Theme.of(context).colorScheme.surface,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        builder: (ctx) => SafeArea(
+        builder: (ctx, _) => SafeArea(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const SizedBox(height: 12),
             Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(2))),
@@ -314,7 +315,7 @@ class _FormResponScreenState extends State<FormResponScreen>
                               _listContext = listCtx;
                               return ListView.separated(
                               physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                              padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 24)),
                               itemCount: _responses.length + 1,
                               separatorBuilder: (_, _) =>
                                   const SizedBox(height: 12),

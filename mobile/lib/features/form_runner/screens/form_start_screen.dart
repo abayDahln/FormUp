@@ -3,6 +3,7 @@ import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/theme/form_theme.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/public_form_service.dart';
@@ -292,7 +293,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
 
     final info = _formInfo!;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

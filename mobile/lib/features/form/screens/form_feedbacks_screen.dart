@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
@@ -101,11 +102,11 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
   Future<void> _openFilterSheet() async {
     if (_filterOpen) return;
     _filterOpen = true;
-    await showModalBottomSheet<void>(
+    await AdaptiveSheet.show<void>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (sheetContext) {
+      builder: (sheetContext, _) {
         final cs = Theme.of(sheetContext).colorScheme;
         return SafeArea(
         child: Padding(
@@ -285,7 +286,7 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
                                   onRefresh: _load,
                                   indicatorColor: cs.primary,
                                   child: ListView.separated(
-                                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                                    padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24)),
                                     itemCount: _filtered.length,
                                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                                     itemBuilder: (context, index) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/services/form_service.dart';
@@ -14,11 +15,11 @@ const feedbackReasons = <String>[
 
 /// Buka bottom sheet feedback; mengembalikan true bila terkirim.
 Future<bool?> showFeedbackSheet(BuildContext context, {required int formId}) {
-  return showModalBottomSheet<bool>(
+  return AdaptiveSheet.show<bool>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (context) => FeedbackSheet(formId: formId),
+    builder: (context, _) => FeedbackSheet(formId: formId),
   );
 }
 

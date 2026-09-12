@@ -8,19 +8,39 @@ import 'package:form_up/core/services/gemini_service.dart';
 import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/theme_controller.dart';
+import 'package:form_up/core/widgets/responsive.dart';
+import 'package:window_manager/window_manager.dart';
+
+/// Konfigurasi window desktop (Windows/macOS/Linux): ukuran minimum agar
+/// layout tablet tidak gepeng + judul window. No-op di mobile/web karena
+/// di-guard [isDesktopPlatform].
+Future<void> _configureDesktopWindow() async {
+  if (!isDesktopPlatform) return;
+  await windowManager.ensureInitialized();
+  const options = WindowOptions(
+    size: Size(1280, 800),
+    minimumSize: Size(1024, 640),
+    title: 'FormUp',
+  );
+  await windowManager.waitUntilReadyToShow(options, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _configureDesktopWindow();
   await dotenv.load(fileName: '.env', isOptional: true);
   await GeminiService.init();
   await ThemeController.instance.load();
   NetworkStatus.configure(apiBaseUrl);
   await NetworkStatus.refresh();
   NetworkStatus.startMonitoring();
-  
+
   bool isLoggedIn = false;
   AuthResult? session;
-  
+
   try {
     session = await AuthService.restoreSession();
     if (session != null) {
@@ -41,9 +61,11 @@ void main() async {
   debugPrint('[Auth] isLoggedIn=$isLoggedIn, initialPage=$initialPage');
 
   final delegate = AppRouterDelegate(initial: initialPage);
-  
+
   if (isLoggedIn && session != null) {
-    final name = session.fullname.isNotEmpty ? session.fullname : session.username;
+    final name = session.fullname.isNotEmpty
+        ? session.fullname
+        : session.username;
     delegate.setUsername(name);
   }
 
@@ -72,7 +94,8 @@ class MyApp extends StatelessWidget {
           themeMode: choice.mode,
           routerDelegate: delegate,
           routeInformationParser: AppRouteParser(),
-          localizationsDelegates: FlutterQuillLocalizations.localizationsDelegates,
+          localizationsDelegates:
+              FlutterQuillLocalizations.localizationsDelegates,
         ),
       ),
     );

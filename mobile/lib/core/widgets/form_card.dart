@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart'
     show kRadius, kFontBold, formStatusStyle, elevationShadow, ShadowLevel, showAuthToast;
 import 'package:form_up/core/widgets/form_share_sheet.dart';
@@ -146,14 +147,14 @@ Future<void> showFormQuickActions(
   _quickActionsOpen = true;
   final style = formStatusStyle(form.status);
   try {
-    await showModalBottomSheet<void>(
+    await AdaptiveSheet.show<void>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
       elevation: 0,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (sheetContext) {
+      builder: (sheetContext, _) {
         final cs = Theme.of(sheetContext).colorScheme;
         return SafeArea(
         child: Container(

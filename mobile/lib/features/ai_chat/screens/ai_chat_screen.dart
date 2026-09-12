@@ -10,6 +10,7 @@ import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/gemini_service.dart';
 import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/features/ai_chat/controllers/mention_highlight_controller.dart';
 import 'package:form_up/features/ai_chat/controllers/typing_stream.dart';
 import 'package:form_up/features/ai_chat/models/chat_message.dart';
@@ -125,6 +126,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   // FAB scroll-to-bottom: muncul jika user sudah scroll ke atas > 1 layar & belum di paling bawah
   bool _showFab = false;
+
+  // 2: panel riwayat collapsible di desktop (hemat ruang horizontal).
+  bool _historyOpen = true;
 
   // Settle-scroll: setelah lompat ke dasar, maxScrollExtent bisa masih
   // estimasi (SliverList lazy — bubble bawah belum dibangun) sehingga
@@ -296,6 +300,38 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
   }
 
+  /// G6: drawer sesi dipakai ulang sebagai panel permanen di layar lebar.
+  AiChatDrawer _buildSessionDrawer(BuildContext context) {
+    return AiChatDrawer(
+      sessions: _sessions,
+      currentSessionId: _currentSessionId,
+      modelDisplay: GeminiService.selectedModelDisplay,
+      onNewSession: newSession,
+      onSelectSession: switchSession,
+      onDeleteSession: deleteSession,
+      onClearAll: clearAllSessions,
+      onOpenSettings: () => AppRouter.of(context).push(AppPage.aiSettings),
+    );
+  }
+
+  /// G6/2: phone = chat full-bleed seperti sekarang; expanded (≥840) = panel
+  /// sesi + chat, dengan panel bisa di-toggle (hemat ruang di desktop).
+  /// Tidak menyentuh isi Stack chat.
+  Widget _adaptiveChatBody(Widget chat) {
+    if (!isExpanded(context)) return chat;
+    final cs = Theme.of(context).colorScheme;
+    if (!_historyOpen) return chat;
+    return Row(
+      children: [
+        SizedBox(
+            width: isWide(context) ? 360 : 320,
+            child: _buildSessionDrawer(context)),
+        VerticalDivider(width: 1, thickness: 1, color: cs.outlineVariant),
+        Expanded(child: chat),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -319,18 +355,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
       onDrawerChanged: (open) {
         if (open) _dismissKeyboard();
       },
-      drawer: AiChatDrawer(
-        sessions: _sessions,
-        currentSessionId: _currentSessionId,
-        modelDisplay: GeminiService.selectedModelDisplay,
-        onNewSession: newSession,
-        onSelectSession: switchSession,
-        onDeleteSession: deleteSession,
-        onClearAll: clearAllSessions,
-        onOpenSettings: () =>
-            AppRouter.of(context).push(AppPage.aiSettings),
-      ),
-      body: Stack(
+      // G6: panel permanen di expanded, drawer overlay di phone.
+      drawer: isExpanded(context) ? null : _buildSessionDrawer(context),
+      body: _adaptiveChatBody(Stack(
         children: [
           // --- 3. Chat list extends behind header & input ---
           Positioned.fill(
@@ -359,11 +386,16 @@ class _AiChatScreenState extends State<AiChatScreen> {
                     // Padding bawah mengikuti tinggi input bar + gap kecil,
                     // agar bubble terakhir tetap terlihat di atas field
                     // saat field membesar (multiline). Default: 80 + 36 = 116.
-                    padding: EdgeInsets.fromLTRB(
-                      16,
-                      topInset + 96,
-                      16,
-                      _inputBarHeight + 36,
+                    // G6: gelembung terpusat (maks 860) di layar lebar.
+                    padding: centerPad(
+                      context,
+                      base: EdgeInsets.fromLTRB(
+                        16,
+                        topInset + 96,
+                        16,
+                        _inputBarHeight + 36,
+                      ),
+                      maxWidth: 860,
                     ),
                     itemCount: _messages.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
@@ -425,9 +457,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
           // --- 3. Bottom action cluster: float PALING DEPAN, di atas gradient.
           Align(
             alignment: Alignment.bottomCenter,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+            // 2: cluster input dibatasi 860 agar sejajar gelembung di desktop
+            // (phone: 860 > layar sehingga identik).
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 860),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 // Bar persetujuan aksi AI (Terima/Tolak) + input prompt
                 // dibungkus satu Column berkunci agar tinggi KEDUANYA
                 // terukur — FAB & padding list ikut menyesuaikan.
@@ -467,6 +503,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   ],
                 ),
               ],
+              ),
             ),
           ),
           // FAB scroll-to-bottom (lapis 4): menempel tepat di atas input bar
@@ -513,13 +550,25 @@ class _AiChatScreenState extends State<AiChatScreen> {
               padding: EdgeInsets.fromLTRB(8, topInset + 6, 8, 28),
               child: Row(
                 children: [
+                  // 2: embedded → tombol menu selalu ada: toggle panel di
+                  // desktop, drawer overlay di phone/tablet.
                   if (widget.embedded)
                     IconButton(
-                      icon:  Icon(Icons.menu, color: cs.onSurface),
-                      onPressed: () =>
-                          _scaffoldKey.currentState?.openDrawer(),
+                      icon: Icon(
+                        _historyOpen && isExpanded(context)
+                            ? Icons.menu_open
+                            : Icons.menu,
+                        color: cs.onSurface,
+                      ),
+                      onPressed: () {
+                        if (isExpanded(context)) {
+                          setState(() => _historyOpen = !_historyOpen);
+                        } else {
+                          _scaffoldKey.currentState?.openDrawer();
+                        }
+                      },
                     )
-                  else
+                  else if (!widget.embedded)
                     IconButton(
                       icon:  Icon(
                         Icons.arrow_back,
@@ -547,6 +596,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }

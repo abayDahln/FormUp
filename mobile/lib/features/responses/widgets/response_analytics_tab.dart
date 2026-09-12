@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
@@ -92,7 +93,7 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
       final text = Theme.of(context).textTheme;
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(20),
+        padding: centerPad(context, base: const EdgeInsets.all(20)),
         children: [
           Card(
             child: Padding(
@@ -131,7 +132,7 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
       color: cs.primary,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        padding: centerPad(context, base: const EdgeInsets.fromLTRB(16, 12, 16, 24)),
         children: [
           _summaryStrip(data),
           const SizedBox(height: 12),

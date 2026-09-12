@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/features/form_runner/widgets/countdown_badge.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/features/form/widgets/form_zoom_controls.dart';
 
 /// Shell layar kerjakan form: AppBar dengan countdown timer + background.
@@ -51,8 +52,9 @@ class RunnerScreenShell extends StatelessWidget {
             ),
         ],
       ),
+      // G3: konten runner terpusat (720, 900 di 1920); phone identik.
       body: AuthBackground(plain: true,
-        child: SafeArea(child: child),
+        child: SafeArea(child: ResponsiveCenter(maxWidth: 720, wideMaxWidth: 900, child: child)),
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/router/app_router.dart';
 
@@ -37,11 +38,19 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     // A3: guard argumen wajib — deep-link/navigasi parsial (email/otp kosong)
     // atau OTP tidak 6 digit ditolak di client, bukan 400 di server.
     if (widget.email.trim().isEmpty || widget.otp.trim().isEmpty) {
-      showAuthToast(context, "Data reset tidak lengkap. Ulangi dari awal.", isError: true);
+      showAuthToast(
+        context,
+        "Data reset tidak lengkap. Ulangi dari awal.",
+        isError: true,
+      );
       return;
     }
     if (widget.otp.trim().length < 6) {
-      showAuthToast(context, "Kode OTP tidak valid. Ulangi dari awal.", isError: true);
+      showAuthToast(
+        context,
+        "Kode OTP tidak valid. Ulangi dari awal.",
+        isError: true,
+      );
       return;
     }
     final newPassword = _newPasswordController.text;
@@ -52,7 +61,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       return;
     }
     if (newPassword != confirmPassword) {
-      showAuthToast(context, "Konfirmasi kata sandi tidak cocok", isError: true);
+      showAuthToast(
+        context,
+        "Konfirmasi kata sandi tidak cocok",
+        isError: true,
+      );
       return;
     }
 
@@ -84,88 +97,92 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         child: AuthBackground(
           child: SafeArea(
             child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         AuthCard(
-                           child: Column(
-                             crossAxisAlignment: CrossAxisAlignment.stretch,
-                             children: [
-                               const AuthTitle(
-                                 title: "Atur Ulang Kata Sandi",
-                                 subtitle:
-                                     "Buat kata sandi baru untuk akun Anda.\nMinimal 8 karakter.",
-                               ),
-                               const SizedBox(height: 24),
-                               AuthTextField(
-                                controller: _newPasswordController,
-                                hint: "Kata Sandi Baru",
-                                label: "Kata Sandi Baru",
-                                icon: Icons.lock_outline,
-                                obscure: true,
-                              ),
-                              const SizedBox(height: 17),
-                              AuthTextField(
-                                controller: _confirmPasswordController,
-                                hint: "Konfirmasi Kata Sandi",
-                                label: "Konfirmasi Kata Sandi",
-                                icon: Icons.lock_outline,
-                                obscure: true,
-                              ),
-                              const SizedBox(height: 14),
-                               Row(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ResponsiveCenter(
+                            maxWidth: 480,
+                            child: AuthCard(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  Icon(
-                                    Icons.info_outline,
-                                    size: 16,
-                                    color: cs.onSurfaceVariant,
+                                  const AuthTitle(
+                                    title: "Atur Ulang Kata Sandi",
+                                    subtitle:
+                                        "Buat kata sandi baru untuk akun Anda.\nMinimal 8 karakter.",
                                   ),
-                                  SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      "Kata sandi minimal 8 karakter.",
-                                      style: TextStyle(
+                                  const SizedBox(height: 24),
+                                  AuthTextField(
+                                    controller: _newPasswordController,
+                                    hint: "Kata Sandi Baru",
+                                    label: "Kata Sandi Baru",
+                                    icon: Icons.lock_outline,
+                                    obscure: true,
+                                  ),
+                                  const SizedBox(height: 17),
+                                  AuthTextField(
+                                    controller: _confirmPasswordController,
+                                    hint: "Konfirmasi Kata Sandi",
+                                    label: "Konfirmasi Kata Sandi",
+                                    icon: Icons.lock_outline,
+                                    obscure: true,
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.info_outline,
+                                        size: 16,
                                         color: cs.onSurfaceVariant,
-                                        fontSize: 12,
                                       ),
-                                    ),
+                                      SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          "Kata sandi minimal 8 karakter.",
+                                          style: TextStyle(
+                                            color: cs.onSurfaceVariant,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  AuthPrimaryButton(
+                                    label: "Atur Ulang Kata Sandi",
+                                    pill: true,
+                                    loading: _loading,
+                                    onPressed: _resetPassword,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  AuthInlineLink(
+                                    link: "Kembali ke Masuk",
+                                    onTap: () =>
+                                        AppRouter.of(context).resetToLogin(),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 16),
-                              AuthPrimaryButton(
-                                label: "Atur Ulang Kata Sandi",
-                                pill: true,
-                                loading: _loading,
-                                onPressed: _resetPassword,
-                              ),
-                              const SizedBox(height: 20),
-                              AuthInlineLink(
-                                link: "Kembali ke Masuk",
-                                onTap: () =>
-                                    AppRouter.of(context).resetToLogin(),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
-      ),
       ),
     );
   }
 }
-
