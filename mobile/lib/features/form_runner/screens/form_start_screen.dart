@@ -179,7 +179,8 @@ class _FormStartScreenState extends State<FormStartScreen> {
   void _showConfirmDialog() {
     showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => ResponsiveDialog(
+        child: AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title:  Text(
           "Mulai Mengerjakan?",
@@ -220,6 +221,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
             child: const Text("Ya, Mulai"),
           ),
         ],
+        ),
       ),
     );
   }
@@ -293,13 +295,17 @@ class _FormStartScreenState extends State<FormStartScreen> {
 
     final info = _formInfo!;
     return SingleChildScrollView(
-      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24)),
+      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24), wideMaxWidth: 1000),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Banner - hanya ditampilkan jika banner terisi
+          // Banner - hanya ditampilkan jika banner terisi (tinggi dibatasi
+          // agar tidak raksasa di desktop).
           if (info.bannerImage != null && info.bannerImage!.trim().isNotEmpty) ...[
-            FormStartBannerCard(bannerImage: info.bannerImage!),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 320),
+              child: FormStartBannerCard(bannerImage: info.bannerImage!),
+            ),
             const SizedBox(height: 16),
           ],
 
@@ -406,7 +412,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
                   ],
                 ),
               )
-            else
+            else if (!isDesktopWidth(context))
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -444,6 +450,61 @@ class _FormStartScreenState extends State<FormStartScreen> {
                         child: _submittingFeedback
                             ?  SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.surface))
                             : const Text("Kirim Umpan Balik", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            // Desktop: alasan kiri, deskripsi + tombol kanan.
+            else
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0x1FBDC9C8)),
+                  boxShadow: softShadow(),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Alasan Umpan Balik", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+                          const SizedBox(height: 6),
+                          DropdownButtonFormField<String>(
+                            initialValue: _feedbackReason,
+                            decoration: formUpInputDecoration(hintText: 'Pilih alasan umpan balik'),
+                            items: [for (final r in _feedbackReasons) DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(fontSize: 13)))],
+                            onChanged: _submittingFeedback ? null : (v) { if (v != null) setState(() => _feedbackReason = v); },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text("Deskripsi Umpan Balik", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: _feedbackController,
+                            maxLines: 3,
+                            enabled: !_submittingFeedback,
+                            decoration: formUpInputDecoration(hintText: 'Jelaskan umpan balik atau masalah...'),
+                          ),
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            onPressed: _submittingFeedback ? null : _submitFeedback,
+                            style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), padding: const EdgeInsets.symmetric(vertical: 14)),
+                            child: _submittingFeedback
+                                ?  SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.surface))
+                                : const Text("Kirim Umpan Balik", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
+                          ),
+                        ],
                       ),
                     ),
                   ],

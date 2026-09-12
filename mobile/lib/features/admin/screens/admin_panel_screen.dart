@@ -37,7 +37,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
              Padding(
-              padding: EdgeInsets.fromLTRB(20, 15, 20, 0),
+              padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 15, 20, 0), maxWidth: 1100, wideMaxWidth: 1400),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -64,7 +64,10 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
               color: cs.surface,
               border: Border(bottom: BorderSide(color: cs.outlineVariant)),
             ),
-            child:  TabBar(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1100),
+                child:  TabBar(
               labelColor: cs.primary,
               unselectedLabelColor: Colors.grey,
               indicatorColor: cs.primary,
@@ -76,6 +79,8 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                 Tab(text: 'Form'),
                 Tab(text: 'Feedback'),
               ],
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 14),

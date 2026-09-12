@@ -149,25 +149,55 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
               indicatorColor: cs.primary,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24)),
+                padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24), wideMaxWidth: 960),
                 children: [
                   FormDetailHeader(form: form),
                   const SizedBox(height: 16),
-                FormDetailActions(
-                    form: form,
-                    onPush: _push,
-                    onShare: _openShare,
-                    showExamMonitoring: _showExamMonitoring,
-                    examMonitoringEnabled: _settings != null &&
-                        form.status == 'published' &&
-                        _isExamType,
-                    examMonitoringDisabledHint: _settings == null
-                        ? 'Memuat pengaturan form…'
-                        : form.status != 'published'
-                            ? 'Terbitkan form dulu untuk memantau ujian'
-                            : 'Pantau ujian hanya untuk form tipe Ujian'),
-                  const SizedBox(height: 16),
-                  FormDetailPublishCard(form: form, onToggle: _togglePublish),
+                  if (!isExpanded(context)) ...[
+                    FormDetailActions(
+                      form: form,
+                      onPush: _push,
+                      onShare: _openShare,
+                      showExamMonitoring: _showExamMonitoring,
+                      examMonitoringEnabled: _settings != null &&
+                          form.status == 'published' &&
+                          _isExamType,
+                      examMonitoringDisabledHint: _settings == null
+                          ? 'Memuat pengaturan form…'
+                          : form.status != 'published'
+                              ? 'Terbitkan form dulu untuk memantau ujian'
+                              : 'Pantau ujian hanya untuk form tipe Ujian',
+                    ),
+                    const SizedBox(height: 16),
+                    FormDetailPublishCard(form: form, onToggle: _togglePublish),
+                    // Tablet/desktop: aksi + publish berdampingan.
+                  ] else
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: FormDetailActions(
+                            form: form,
+                            onPush: _push,
+                            onShare: _openShare,
+                            showExamMonitoring: _showExamMonitoring,
+                            examMonitoringEnabled: _settings != null &&
+                                form.status == 'published' &&
+                                _isExamType,
+                            examMonitoringDisabledHint: _settings == null
+                                ? 'Memuat pengaturan form…'
+                                : form.status != 'published'
+                                    ? 'Terbitkan form dulu untuk memantau ujian'
+                                    : 'Pantau ujian hanya untuk form tipe Ujian',
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: FormDetailPublishCard(
+                              form: form, onToggle: _togglePublish),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),

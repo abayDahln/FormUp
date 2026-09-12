@@ -130,6 +130,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
   // 2: panel riwayat collapsible di desktop (hemat ruang horizontal).
   bool _historyOpen = true;
 
+  /// Inset kanan FAB agar menempel kolom chat 860 di desktop.
+  /// Phone/tablet sempit: tetap 16.
+  double _fabRightInset(BuildContext context) {
+    if (!isDesktopWidth(context)) return 16;
+    final w = MediaQuery.sizeOf(context).width;
+    var chatW = w;
+    if (isExpanded(context) && _historyOpen) {
+      chatW -= (isWide(context) ? 360 : 320) + 1;
+    }
+    final inset = (chatW - 860) / 2 + 16;
+    return inset < 16 ? 16 : inset;
+  }
+
   // Settle-scroll: setelah lompat ke dasar, maxScrollExtent bisa masih
   // estimasi (SliverList lazy — bubble bawah belum dibangun) sehingga
   // satu lompatan mendarat di tengah. Loop ini mengoreksi beberapa frame
@@ -510,7 +523,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
           // mengikuti tinggi input bar saat field membesar (multiline),
           // 1x klik langsung ke chat terbaru sampai FAB hilang.
           Positioned(
-            right: 16,
+            // Jangkar FAB ke kolom chat 860 di desktop (bukan tepi layar).
+            right: _fabRightInset(context),
             bottom: _inputBarHeight + 10,
             child: IgnorePointer(
               ignoring: !_showFab,
@@ -548,8 +562,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 ),
               ),
               padding: EdgeInsets.fromLTRB(8, topInset + 6, 8, 28),
-              child: Row(
-                children: [
+              // Isi header disejajarkan kolom chat 860 di desktop.
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 860),
+                  child: Row(
+                    children: [
                   // 2: embedded → tombol menu selalu ada: toggle panel di
                   // desktop, drawer overlay di phone/tablet.
                   if (widget.embedded)
@@ -591,7 +609,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   ),
                   // Top-right sengaja dikosongkan (tanpa action buttons).
                   const Spacer(),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

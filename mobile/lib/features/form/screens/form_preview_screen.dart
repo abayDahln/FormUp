@@ -159,7 +159,7 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
                       children: [
                         Expanded(
                           child: ListView(
-                            padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 20)),
+                            padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 20), wideMaxWidth: 860),
                             children: [
                               _buildHeader(zoom),
                               const SizedBox(height: 16),

@@ -211,6 +211,94 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
     });
   }
 
+  /// Grup isi kartu editor: phone 1 kolom identik; ≥840 dua kolom
+  /// (kiri: teks + jawaban, kanan: pengaturan + media).
+  Widget _buildWideGroups(
+      BuildContext context, ColorScheme cs, QuestionDraft q) {
+    Widget sectionTitle(IconData icon, String text) => Row(
+          children: [
+            Icon(icon, size: 18, color: cs.primary),
+            SizedBox(width: 8),
+            Text(
+              text,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                fontFamily: kFontBold,
+                color: cs.onSurface,
+              ),
+            ),
+          ],
+        );
+    final textAndAnswer = [
+      QuestionTextSection(
+        questionFieldKey: _questionFieldKey,
+        draft: q,
+        preview: _preview,
+        onPreviewChanged: (v) => setState(() => _preview = v),
+        onTypeChanged: _onTypeChanged,
+      ),
+      const Divider(height: 32),
+      sectionTitle(Icons.rule, 'Jawaban'),
+      const SizedBox(height: 14),
+      QuestionAnswerSection(
+        optionsKey: _answerSectionKey,
+        draft: q,
+        onChanged: () => setState(() {}),
+      ),
+    ];
+    final settingsAndMedia = [
+      sectionTitle(Icons.tune, 'Pengaturan'),
+      const SizedBox(height: 14),
+      QuestionRequiredSwitch(
+        value: q.isRequired,
+        onChanged: (v) => setState(() {
+          // Samakan web: isRequired independen dari
+          // isScorable/kunci/poin. Jangan hapus kunci.
+          q.isRequired = v;
+        }),
+      ),
+      const Divider(height: 32),
+      sectionTitle(Icons.attach_file, 'Media'),
+      const SizedBox(height: 14),
+      QuestionMediaSection(
+        draft: q,
+        uploading: _uploading,
+        onPickImage: _pickQuestionImage,
+        onPickAudio: _pickQuestionAudio,
+        onChanged: () => setState(() {}),
+      ),
+    ];
+    if (!isExpanded(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ...textAndAnswer,
+          const SizedBox(height: 18),
+          ...settingsAndMedia,
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: textAndAnswer,
+          ),
+        ),
+        const SizedBox(width: 20),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: settingsAndMedia,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -268,6 +356,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                         22,
                         toolbarVisible ? 110 : 24,
                       ),
+                      wideMaxWidth: 900,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -279,83 +368,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: cs.outlineVariant),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              QuestionTextSection(
-                                questionFieldKey: _questionFieldKey,
-                                draft: q,
-                                preview: _preview,
-                                onPreviewChanged: (v) => setState(() => _preview = v),
-                                onTypeChanged: _onTypeChanged,
-                              ),
-                              const Divider(height: 32),
-                              Row(
-                                children:  [
-                                  Icon(Icons.tune, size: 18, color: cs.primary),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Pengaturan',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      fontFamily: kFontBold,
-                                      color: cs.onSurface,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                              QuestionRequiredSwitch(
-                                value: q.isRequired,
-                                onChanged: (v) => setState(() {
-                                  // Samakan web: isRequired independen dari
-                                  // isScorable/kunci/poin. Jangan hapus kunci.
-                                  q.isRequired = v;
-                                }),
-                              ),
-                              const SizedBox(height: 18),
-                              Row(
-                                children:  [
-                                  Icon(Icons.rule, size: 18, color: cs.primary),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Jawaban',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      fontFamily: kFontBold,
-                                      color: cs.onSurface,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                              QuestionAnswerSection(
-                                optionsKey: _answerSectionKey,
-                                draft: q,
-                                onChanged: () => setState(() {}),
-                              ),
-                              const Divider(height: 32),
-                              Row(
-                                children:  [
-                                  Icon(Icons.attach_file, size: 18, color: cs.primary),
-                                  SizedBox(width: 8),
-                                  Text('Media',
-                                      style: TextStyle(
-                                          fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: cs.onSurface)),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                              QuestionMediaSection(
-                                draft: q,
-                                uploading: _uploading,
-                                onPickImage: _pickQuestionImage,
-                                onPickAudio: _pickQuestionAudio,
-                                onChanged: () => setState(() {}),
-                              ),
-                            ],
-                          ),
+                          child: _buildWideGroups(context, cs, q),
                         ),
                         const SizedBox(height: 24),
                         AuthPrimaryButton(

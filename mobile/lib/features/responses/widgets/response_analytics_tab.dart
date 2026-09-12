@@ -136,13 +136,34 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
         children: [
           _summaryStrip(data),
           const SizedBox(height: 12),
-          _gradeCard(grades),
-          const SizedBox(height: 12),
-          _passCard(pass),
-          const SizedBox(height: 12),
-          _accuracyCard(accuracy),
-          const SizedBox(height: 12),
-          _rankingCard(data),
+          if (!isDesktopWidth(context)) ...[
+            _gradeCard(grades),
+            const SizedBox(height: 12),
+            _passCard(pass),
+            const SizedBox(height: 12),
+            _accuracyCard(accuracy),
+            const SizedBox(height: 12),
+            _rankingCard(data),
+            // Desktop: kartu berpasangan sebaris.
+          ] else ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _gradeCard(grades)),
+                const SizedBox(width: 12),
+                Expanded(child: _passCard(pass)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _accuracyCard(accuracy)),
+                const SizedBox(width: 12),
+                Expanded(child: _rankingCard(data)),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -296,27 +317,44 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
   // ---- Kartu-kartu ----
 
   Widget _summaryStrip(FormAnalytics d) {
+    final cells = [
+      _summaryCell('Total Respon', '${d.totalResponses}'),
+      _summaryCell('Pengguna Unik', '${d.totalDistinctUsers}'),
+      _summaryCell('Total Soal', '${d.totalQuestions}'),
+      _summaryCell(
+        'Rata-rata Nilai',
+        d.averageScore != null ? d.averageScore!.toStringAsFixed(1) : '-',
+      ),
+    ];
+    // Tablet/desktop: 4 sel sebaris; phone 2x2 identik.
+    if (isExpanded(context)) {
+      return _card(
+        child: Row(
+          children: [
+            for (var i = 0; i < cells.length; i++) ...[
+              cells[i],
+              if (i != cells.length - 1) _verticalDivider(),
+            ],
+          ],
+        ),
+      );
+    }
     return _card(
       child: Column(
         children: [
           Row(
             children: [
-              _summaryCell('Total Respon', '${d.totalResponses}'),
+              cells[0],
               _verticalDivider(),
-              _summaryCell('Pengguna Unik', '${d.totalDistinctUsers}'),
+              cells[1],
             ],
           ),
           const Divider(height: 24),
           Row(
             children: [
-              _summaryCell('Total Soal', '${d.totalQuestions}'),
+              cells[2],
               _verticalDivider(),
-              _summaryCell(
-                'Rata-rata Nilai',
-                d.averageScore != null
-                    ? d.averageScore!.toStringAsFixed(1)
-                    : '-',
-              ),
+              cells[3],
             ],
           ),
         ],

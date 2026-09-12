@@ -45,7 +45,8 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
   Future<bool?> _confirm(String title, String content, String action) {
     return showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => ResponsiveDialog(
+        child: AlertDialog(
         title: Text(title, style: const TextStyle(fontFamily: kFontBold)),
         content: Text(content),
         actions: [
@@ -58,6 +59,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
             child: Text(action, style:  TextStyle(color: Theme.of(context).colorScheme.primary)),
           ),
         ],
+        ),
       ),
     );
   }
@@ -130,118 +132,154 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
               : AbsorbPointer(
                   absorbing: _busy,
                   child: ListView(
-                    padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: cs.surface,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: softShadow(),
-                        ),
-                        child: Column(
-                          children: [
-                            CircleAvatar(
-                              radius: 34,
-                              backgroundColor: cs.primaryContainer,
-                              backgroundImage: (u.profileImage ?? '').isNotEmpty
-                                  ? adaptiveNetworkImage(
-                                      profileImageUrl(u.profileImage))
-                                  : null,
-                              child: (u.profileImage ?? '').isEmpty
-                                  ? Text(
-                                      u.fullname.isNotEmpty
-                                          ? u.fullname[0].toUpperCase()
-                                          : '?',
-                                      style:  TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                        fontFamily: kFontBold,
-                                        color: cs.primary,
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              u.fullname,
-                              textAlign: TextAlign.center,
-                              style:  TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: kFontBold,
-                                color: cs.onSurface,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '@${u.username ?? '-'}',
-                              style:  TextStyle(
-                                  fontSize: 13, color: cs.onSurfaceVariant),
-                            ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 6,
-                              children: [
-                                if (isAdmin)
-                                  const _DetailBadge(
-                                      'Admin', Color(0xFF6A1B9A)),
-                                _DetailBadge(
-                                  u.isActive ? 'Aktif' : 'Banned',
-                                  u.isActive
-                                      ? kSuccessColor
-                                      : kDangerColor,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _infoCard([
-                        _infoRow(Icons.email_outlined, 'Email', u.email),
-                        _infoRow(Icons.cake_outlined, 'Tanggal Lahir',
-                            u.birthdate ?? '—'),
-                        _infoRow(Icons.description_outlined, 'Jumlah Form',
-                            '${u.formCount}'),
-                        _infoRow(
-                            Icons.people_outline, 'Jumlah Respon',
-                            '${u.responseCount}'),
-                        _infoRow(Icons.calendar_today_outlined,
-                            'Tanggal Gabung', _formatDate(u.createdAt)),
-                        if (u.deletedAt != null)
-                          _infoRow(Icons.delete_outline, 'Dihapus',
-                              _formatDate(u.deletedAt)),
-                      ]),
-                      if (!isAdmin) ...[
-                        const SizedBox(height: 20),
-                        if (u.isActive)
-                          OutlinedButton(
-                            onPressed: _ban,
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: kWarningColor),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(kRadius)),
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: const Text('Ban User',
-                                style: TextStyle(
-                                    color: kWarningColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontFamily: kFontBold)),
-                          )
-                        else
-                          AuthPrimaryButton(
-                            label: 'Aktifkan User',
-                            pill: true,
-                            onPressed: _activate,
-                          ),
-                      ],
-                    ],
+                    padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 960),
+                    children: _userColumns(context, cs, u, isAdmin),
                   ),
                 ),
     );
+  }
+
+  /// Kolom detail user: phone 1 kolom identik; desktop ≥1200 profil + info
+  /// berdampingan, tombol tetap full-width di bawah.
+  List<Widget> _userColumns(BuildContext context, ColorScheme cs,
+      AdminUserDetail u, bool isAdmin) {
+    final profileCard = Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: softShadow(),
+      ),
+      child: Column(
+        children: [
+          CircleAvatar(
+            radius: 34,
+            backgroundColor: cs.primaryContainer,
+            backgroundImage: (u.profileImage ?? '').isNotEmpty
+                ? adaptiveNetworkImage(profileImageUrl(u.profileImage))
+                : null,
+            child: (u.profileImage ?? '').isEmpty
+                ? Text(
+                    u.fullname.isNotEmpty
+                        ? u.fullname[0].toUpperCase()
+                        : '?',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: kFontBold,
+                      color: cs.primary,
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            u.fullname,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              fontFamily: kFontBold,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '@${u.username ?? '-'}',
+            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            children: [
+              if (isAdmin)
+                const _DetailBadge('Admin', Color(0xFF6A1B9A)),
+              _DetailBadge(
+                u.isActive ? 'Aktif' : 'Banned',
+                u.isActive ? kSuccessColor : kDangerColor,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    final info = _infoCard([
+      _infoRow(Icons.email_outlined, 'Email', u.email),
+      _infoRow(Icons.cake_outlined, 'Tanggal Lahir', u.birthdate ?? '—'),
+      _infoRow(
+          Icons.description_outlined, 'Jumlah Form', '${u.formCount}'),
+      _infoRow(Icons.people_outline, 'Jumlah Respon', '${u.responseCount}'),
+      _infoRow(Icons.calendar_today_outlined, 'Tanggal Gabung',
+          _formatDate(u.createdAt)),
+      if (u.deletedAt != null)
+        _infoRow(
+            Icons.delete_outline, 'Dihapus', _formatDate(u.deletedAt)),
+    ]);
+    if (!isDesktopWidth(context)) {
+      return [
+        profileCard,
+        const SizedBox(height: 16),
+        info,
+        if (!isAdmin) ...[
+          const SizedBox(height: 20),
+          if (u.isActive)
+            OutlinedButton(
+              onPressed: _ban,
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: kWarningColor),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(kRadius)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: const Text('Ban User',
+                  style: TextStyle(
+                      color: kWarningColor,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: kFontBold)),
+            )
+          else
+            AuthPrimaryButton(
+              label: 'Aktifkan User',
+              pill: true,
+              onPressed: _activate,
+            ),
+        ],
+      ];
+    }
+    return [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: profileCard),
+          const SizedBox(width: 16),
+          Expanded(child: info),
+        ],
+      ),
+      if (!isAdmin) ...[
+        const SizedBox(height: 20),
+        if (u.isActive)
+          OutlinedButton(
+            onPressed: _ban,
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: kWarningColor),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(kRadius)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            child: const Text('Ban User',
+                style: TextStyle(
+                    color: kWarningColor,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: kFontBold)),
+          )
+        else
+          AuthPrimaryButton(
+            label: 'Aktifkan User',
+            pill: true,
+            onPressed: _activate,
+          ),
+      ],
+    ];
   }
 
   Widget _infoCard(List<Widget> rows) {

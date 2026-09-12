@@ -50,7 +50,8 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
       {bool danger = false}) {
     return showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => ResponsiveDialog(
+        child: AlertDialog(
         title: Text(title, style: const TextStyle(fontFamily: kFontBold)),
         content: Text(content),
         actions: [
@@ -65,6 +66,7 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
                     color: danger ? kDangerColor : Theme.of(context).colorScheme.primary)),
           ),
         ],
+        ),
       ),
     );
   }
@@ -112,7 +114,8 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
   void _dismiss() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => ResponsiveDialog(
+        child: AlertDialog(
         title:
             const Text('Hapus Feedback', style: TextStyle(fontFamily: kFontBold)),
         content: const Text('Feedback ini akan dihapus permanen. Lanjutkan?'),
@@ -127,6 +130,7 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
                 const Text('Hapus', style: TextStyle(color: kDangerColor)),
           ),
         ],
+        ),
       ),
     );
     if (ok != true || !mounted) return;
@@ -171,10 +175,46 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
       body: AbsorbPointer(
         absorbing: _busy,
         child: ListView(
-          padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
-          children: [
-            // Pesan feedback
-            Container(
+          padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 960),
+          children: _feedbackColumns(context, cs, fb, takenDown),
+        ),
+      ),
+    );
+  }
+
+  /// Kolom detail feedback: phone 1 kolom identik; ≥840 pesan + form
+  /// berdampingan, aksi full-width di bawah.
+  List<Widget> _feedbackColumns(
+      BuildContext context, ColorScheme cs, AdminFeedbackItem fb, bool takenDown) {
+    final message = _messageCard(cs, fb);
+    final form = _formCard(cs, fb);
+    final actions = _actionsCard(cs, takenDown);
+    if (!isExpanded(context)) {
+      return [
+        message,
+        const SizedBox(height: 16),
+        form,
+        const SizedBox(height: 16),
+        actions,
+      ];
+    }
+    return [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: message),
+          const SizedBox(width: 16),
+          Expanded(child: form),
+        ],
+      ),
+      const SizedBox(height: 16),
+      actions,
+    ];
+  }
+
+  /// Kartu pesan feedback.
+  Widget _messageCard(ColorScheme cs, AdminFeedbackItem fb) {
+    return Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: cs.surface,
@@ -241,12 +281,12 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
                   ],
                 ],
               ),
-            ),
+            );
+  }
 
-            const SizedBox(height: 16),
-
-            // Info form terkait
-            Container(
+  /// Kartu info form terkait.
+  Widget _formCard(ColorScheme cs, AdminFeedbackItem fb) {
+    return Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: cs.surface,
@@ -324,12 +364,12 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
                         ),
                       ],
                     ),
-            ),
+            );
+  }
 
-            const SizedBox(height: 16),
-
-            // Aksi
-            Container(
+  /// Kartu aksi (takedown/restore + hapus).
+  Widget _actionsCard(ColorScheme cs, bool takenDown) {
+    return Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: cs.surface,
@@ -365,11 +405,7 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
-    );
+            );
   }
 
   String _statusLabel(String status) {

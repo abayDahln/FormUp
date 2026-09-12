@@ -24,7 +24,7 @@ class RunnerResultView extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
-      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
+      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 1000),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -55,7 +55,7 @@ class RunnerResultView extends StatelessWidget {
                 style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
               ),
             )
-          else
+          else if (!isDesktopWidth(context))
             for (var i = 0; i < result.answers.length; i++) ...[
               _ResultCard(
                 index: i,
@@ -63,7 +63,20 @@ class RunnerResultView extends StatelessWidget {
                 showScore: result.showScore,
               ),
               const SizedBox(height: 12),
-            ],
+            ]
+          // Desktop ≥1200: pembahasan 2 kolom; phone 1 kolom identik.
+          else
+            ResponsiveGrid(
+              columnCountFor: (_) => 2,
+              children: [
+                for (var i = 0; i < result.answers.length; i++)
+                  _ResultCard(
+                    index: i,
+                    answer: result.answers[i],
+                    showScore: result.showScore,
+                  ),
+              ],
+            ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: onReset,

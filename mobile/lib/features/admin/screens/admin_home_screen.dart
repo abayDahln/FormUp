@@ -300,7 +300,7 @@ class _AdminBerandaTabState extends State<_AdminBerandaTab> {
       indicatorColor: cs.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: centerPad(context, base: const EdgeInsets.symmetric(horizontal: 20, vertical: 8)),
+        padding: centerPad(context, base: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), wideMaxWidth: 1000),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -391,26 +391,51 @@ class _AdminBerandaTabState extends State<_AdminBerandaTab> {
               ),
             ),
             const SizedBox(height: 12),
-            _QuickActionTile(
-              icon: Icons.people_outline,
-              title: 'Kelola User',
-              subtitle: 'Lihat, ban, dan aktifkan user terdaftar',
-              onTap: () => widget.onOpenManageTab(0),
-            ),
-            const SizedBox(height: 12),
-            _QuickActionTile(
-              icon: Icons.description_outlined,
-              title: 'Kelola Form',
-              subtitle: 'Takedown dan restore form',
-              onTap: () => widget.onOpenManageTab(1),
-            ),
-            const SizedBox(height: 12),
-            _QuickActionTile(
-              icon: Icons.forum_outlined,
-              title: 'Feedback Masuk',
-              subtitle: 'Tinjau laporan dari pengguna',
-              onTap: () => widget.onOpenManageTab(2),
-            ),
+            if (!isExpanded(context)) ...[
+              _QuickActionTile(
+                icon: Icons.people_outline,
+                title: 'Kelola User',
+                subtitle: 'Lihat, ban, dan aktifkan user terdaftar',
+                onTap: () => widget.onOpenManageTab(0),
+              ),
+              const SizedBox(height: 12),
+              _QuickActionTile(
+                icon: Icons.description_outlined,
+                title: 'Kelola Form',
+                subtitle: 'Takedown dan restore form',
+                onTap: () => widget.onOpenManageTab(1),
+              ),
+              const SizedBox(height: 12),
+              _QuickActionTile(
+                icon: Icons.forum_outlined,
+                title: 'Feedback Masuk',
+                subtitle: 'Tinjau laporan dari pengguna',
+                onTap: () => widget.onOpenManageTab(2),
+              ),
+              // Tablet/desktop: aksi cepat 2-3 kolom.
+            ] else
+              ResponsiveGrid(
+                children: [
+                  _QuickActionTile(
+                    icon: Icons.people_outline,
+                    title: 'Kelola User',
+                    subtitle: 'Lihat, ban, dan aktifkan user terdaftar',
+                    onTap: () => widget.onOpenManageTab(0),
+                  ),
+                  _QuickActionTile(
+                    icon: Icons.description_outlined,
+                    title: 'Kelola Form',
+                    subtitle: 'Takedown dan restore form',
+                    onTap: () => widget.onOpenManageTab(1),
+                  ),
+                  _QuickActionTile(
+                    icon: Icons.forum_outlined,
+                    title: 'Feedback Masuk',
+                    subtitle: 'Tinjau laporan dari pengguna',
+                    onTap: () => widget.onOpenManageTab(2),
+                  ),
+                ],
+              ),
             const SizedBox(height: 30),
           ],
         ),
@@ -602,7 +627,7 @@ class _AdminProfileTabState extends State<_AdminProfileTab> {
     final stats = _stats ?? const UserStats();
 
     return SingleChildScrollView(
-      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 15, 20, 24)),
+      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 15, 20, 24), wideMaxWidth: 1000),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

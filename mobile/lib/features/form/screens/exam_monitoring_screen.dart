@@ -304,6 +304,8 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
         ),
       ];
     }
+    // Lazy ListView dipertahankan (sesi ujian bisa ratusan); hanya cap
+    // lebar yang menyesuaikan. Grid upfront akan jank pada list panjang.
     return [
       for (final s in sessions) ...[
         _SessionCard(session: s, maxTabSwitch: data.maxTabSwitch ?? 3, formId: widget.formId, onChanged: () => _fetch(silent: true)),
@@ -510,50 +512,100 @@ class _FilterBar extends StatelessWidget {
       margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              height: 36,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
+        // Desktop: chips + pencarian sebaris; phone/tablet stacked identik.
+        child: isDesktopWidth(context)
+            ? Row(
                 children: [
-                  for (final (id, label, icon) in filters)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(icon, size: 15),
-                            const SizedBox(width: 5),
-                            Text(label),
-                          ],
-                        ),
-                        selected: filter == id,
-                        onSelected: (_) => onFilter(id),
-                        labelStyle: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        showCheckmark: false,
+                  Expanded(
+                    child: SizedBox(
+                      height: 36,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          for (final (id, label, icon) in filters)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(icon, size: 15),
+                                    const SizedBox(width: 5),
+                                    Text(label),
+                                  ],
+                                ),
+                                selected: filter == id,
+                                onSelected: (_) => onFilter(id),
+                                labelStyle: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                showCheckmark: false,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
+                  ),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 320,
+                    child: AppSearchField(
+                      controller: searchController,
+                      onChanged: onSearch,
+                      hint: 'Cari nama peserta...',
+                      historyKey: 'search_history_exam_monitoring',
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: 36,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        for (final (id, label, icon) in filters)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(icon, size: 15),
+                                  const SizedBox(width: 5),
+                                  Text(label),
+                                ],
+                              ),
+                              selected: filter == id,
+                              onSelected: (_) => onFilter(id),
+                              labelStyle: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              showCheckmark: false,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  AppSearchField(
+                    controller: searchController,
+                    onChanged: onSearch,
+                    hint: 'Cari nama peserta...',
+                    historyKey: 'search_history_exam_monitoring',
+                  ),
                 ],
               ),
-            ),
-            const SizedBox(height: 10),
-            AppSearchField(
-              controller: searchController,
-              onChanged: onSearch,
-              hint: 'Cari nama peserta...',
-              historyKey: 'search_history_exam_monitoring',
-            ),
-          ],
-        ),
       ),
     );
   }

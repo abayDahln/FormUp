@@ -268,6 +268,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
                                 22,
                                 toolbarVisible ? 110 : 24,
                               ),
+                              wideMaxWidth: 960,
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,

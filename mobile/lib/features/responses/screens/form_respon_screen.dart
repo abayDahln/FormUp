@@ -179,7 +179,8 @@ class _FormResponScreenState extends State<FormResponScreen>
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => ResponsiveDialog(
+        child: AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title:  Row(children: [Icon(Icons.check_circle, color: Theme.of(ctx).colorScheme.primary), SizedBox(width: 8), Text('Ekspor Selesai', style: TextStyle(fontFamily: kFontBold))]),
         content: Text('File "$fileName" berhasil dibuat (${(bytes.length / 1024).toStringAsFixed(1)} KB).', style:  TextStyle(fontSize: 13, color: Theme.of(ctx).colorScheme.onSurface)),
@@ -187,6 +188,7 @@ class _FormResponScreenState extends State<FormResponScreen>
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup')),
           FilledButton.icon(onPressed: () async { Navigator.pop(ctx); await _shareExport(bytes, fileName, mime, format); }, icon: const Icon(Icons.share_outlined, size: 18), label: const Text('Bagikan')),
         ],
+        ),
       ),
     );
   }
@@ -257,12 +259,19 @@ class _FormResponScreenState extends State<FormResponScreen>
                   ),
           ),
         ],
-        bottom: _MintTabBar(controller: _tabController),
       ),
       body: NestedScrollView(
         // Tab bar ikut tergulung bersama konten (bukan fixed di appbar).
-        headerSliverBuilder: (context, _) =>
-            [SliverToBoxAdapter(child: _MintTabBar(controller: _tabController))],
+        headerSliverBuilder: (context, _) => [
+              SliverToBoxAdapter(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1200),
+                    child: _MintTabBar(controller: _tabController),
+                  ),
+                ),
+              ),
+            ],
         body: TabBarView(
         controller: _tabController,
         children: [
@@ -336,8 +345,12 @@ class _FormResponScreenState extends State<FormResponScreen>
                                   final totalPages = (_total / _pageSize).ceil().clamp(1, 999);
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 4),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    // Pagination dipusatkan (maks 480) agar tak melar.
+                                    child: Center(
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(maxWidth: 480),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
                                         IconButton.filledTonal(
                                           visualDensity: VisualDensity.compact,
@@ -350,8 +363,10 @@ class _FormResponScreenState extends State<FormResponScreen>
                                           onPressed: _page < totalPages && !_loading ? () => _loadPage(_page + 1) : null,
                                           icon: const Icon(Icons.chevron_right, size: 22),
                                         ),
-                                      ],
-                                    ),
+                                          ],
+                                        ),
+                                        ),
+                                      ),
                                   );
                                 }
                                 return ResponseListCard(

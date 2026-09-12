@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/ai_chat_history_service.dart';
 import 'package:form_up/core/services/gemini_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -15,7 +16,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     final isUserKey = GeminiService.isUserKey;
     await showDialog<void>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
+      builder: (ctx) => ResponsiveDialog(
+        child: StatefulBuilder(
         builder: (ctx, setSt) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Text('Atur Gemini API Key', style: TextStyle(fontFamily: kFontBold)),
@@ -76,6 +78,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             ),
           ],
         ),
+        ),
       ),
     );
     if (mounted) setState(() {});
@@ -92,7 +95,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         title:  Text('Pengaturan AI', style: TextStyle(fontFamily: kFontBold, fontSize: 18, color: cs.onSurface)),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        padding: centerPad(context, base: const EdgeInsets.fromLTRB(16, 12, 16, 24)),
         children: [
           // API Key card
           Container(
@@ -127,7 +130,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                 subtitle:  Text('Semua chat akan hilang permanen', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
                 trailing:  Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
                 onTap: () async {
-                  final c = await showDialog<bool>(context: context, builder: (d) => AlertDialog(title: const Text('Hapus semua?'), content: const Text('Semua riwayat chat akan hilang.'), actions: [TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Batal')), FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Hapus'))]));
+                  final c = await showDialog<bool>(context: context, builder: (d) => ResponsiveDialog(child: AlertDialog(title: const Text('Hapus semua?'), content: const Text('Semua riwayat chat akan hilang.'), actions: [TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Batal')), FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Hapus'))])));
                   if (c == true) {
                     await AiChatHistoryService.clearAll();
                     if (mounted) {

@@ -1079,7 +1079,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                       Expanded(
                         child: _questions.isEmpty
                             ? SingleChildScrollView(
-                                padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
+                                padding: centerPad(context, base: const EdgeInsets.fromLTRB(22, 12, 22, 24), wideMaxWidth: 900),
                                 child: const Column(
                                   crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
@@ -1091,7 +1091,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                             : Stack(
                                 children: [
                                   ReorderableListView.builder(
-                                    padding: const EdgeInsets.fromLTRB(22, 4, 22, 96),
+                                    padding: centerPad(context, base: const EdgeInsets.fromLTRB(22, 4, 22, 96), wideMaxWidth: 900),
                                     itemCount: _questions.length,
                                     onReorder: _onReorder,
                                     buildDefaultDragHandles: false,

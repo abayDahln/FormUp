@@ -119,56 +119,90 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
           : AuthBackground(plain: true,
               child: SafeArea(
                 child: ListView(
-                  padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
+                  padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 1000),
                   children: [
                     if (_attempts.length > 1) ...[
                       _buildAttemptSelector(),
                       const SizedBox(height: 16),
                     ],
-                    _buildSummaryCard(),
-                    const SizedBox(height: 16),
-                    Text(
-                      _result?.showScore == true
-                          ? "Pembahasan Jawaban"
-                          : "Jawaban Responden",
-                      style:  TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: kFontBold,
-                        color: cs.onSurface,
+                    if (!isDesktopWidth(context)) ...[
+                      _buildSummaryCard(),
+                      const SizedBox(height: 16),
+                      _answersTitle(cs),
+                      const SizedBox(height: 12),
+                      _answersList(),
+                      // Desktop: ringkasan 360 kiri + jawaban kanan.
+                    ] else
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 360,
+                            child: _buildSummaryCard(),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _answersTitle(cs),
+                                const SizedBox(height: 12),
+                                _answersList(),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (_result == null || _result!.answers.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: cs.surface,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child:  Text(
-                          "Belum ada jawaban.",
-                          style:
-                              TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
-                        ),
-                      )
-                    else
-                      for (var i = 0; i < _result!.answers.length; i++) ...[
-                        HistoryAnswerCard(
-                          index: i,
-                          answer: _result!.answers[i],
-                          showScore: _result!.showScore,
-                          responseId: _selectedResponseId,
-                          formId: widget.formId,
-                          onScoreUpdated: _load,
-                        ),
-                        const SizedBox(height: 12),
-                      ],
                   ],
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _answersTitle(ColorScheme cs) {
+    return Text(
+      _result?.showScore == true ? "Pembahasan Jawaban" : "Jawaban Responden",
+      style: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+        fontFamily: kFontBold,
+        color: cs.onSurface,
+      ),
+    );
+  }
+
+  Widget _answersList() {
+    if (_result == null || _result!.answers.isEmpty) {
+      final cs = Theme.of(context).colorScheme;
+      return Container(
+        padding: const EdgeInsets.all(24),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          "Belum ada jawaban.",
+          style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < _result!.answers.length; i++) ...[
+          HistoryAnswerCard(
+            index: i,
+            answer: _result!.answers[i],
+            showScore: _result!.showScore,
+            responseId: _selectedResponseId,
+            formId: widget.formId,
+            onScoreUpdated: _load,
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
     );
   }
 

@@ -232,7 +232,7 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
                 child: Column(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 8), wideMaxWidth: 1000),
                       child: AppSearchField(
                         controller: _searchController,
                         onChanged: _onSearchChanged,
@@ -286,7 +286,7 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
                                   onRefresh: _load,
                                   indicatorColor: cs.primary,
                                   child: ListView.separated(
-                                    padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24)),
+                                    padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24), wideMaxWidth: 1000),
                                     itemCount: _filtered.length,
                                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                                     itemBuilder: (context, index) {

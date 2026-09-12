@@ -19,7 +19,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _confirmLogout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => ResponsiveDialog(
+        child: AlertDialog(
         title: const Text('Keluar', style: TextStyle(fontFamily: kFontBold)),
         content: const Text('Anda yakin ingin keluar dari akun ini?'),
         actions: [
@@ -32,6 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const Text('Keluar', style: TextStyle(color: kDangerColor)),
           ),
         ],
+        ),
       ),
     );
     if (confirmed != true || !context.mounted) return;
@@ -79,7 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: AuthBackground(plain: true,
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: centerPad(context, base: const EdgeInsets.fromLTRB(22, 8, 22, 24)),
+            padding: centerPad(context, base: const EdgeInsets.fromLTRB(22, 8, 22, 24), wideMaxWidth: 860),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

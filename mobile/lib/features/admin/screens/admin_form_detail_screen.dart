@@ -292,8 +292,13 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
             color: cs.onSurface,
           ),
         ),
+        // isScrollable di tablet/desktop agar tab tak meregang selebar
+        // layar; phone tetap stretch seperti semula.
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: isTablet(context),
+          tabAlignment:
+              isTablet(context) ? TabAlignment.start : TabAlignment.fill,
           labelColor: cs.primary,
           unselectedLabelColor: Colors.grey,
           indicatorColor: cs.primary,
@@ -438,7 +443,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 8), maxWidth: 1100),
           child: AppSearchField(
             controller: _qSearchCtrl,
             onChanged: _onQSearch,
@@ -463,7 +468,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
                       ),
                     )
                   : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 16), maxWidth: 1100),
                       itemCount: _questions.length + (_qTotalPages > 1 ? 1 : 0),
                       separatorBuilder: (_, _) => const SizedBox(height: 12),
                       itemBuilder: (context, i) {
@@ -487,7 +492,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 8), maxWidth: 1100),
           child: AppSearchField(
             controller: _rSearchCtrl,
             onChanged: _onRSearch,
@@ -512,7 +517,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
                       ),
                     )
                   : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 16), maxWidth: 1100),
                       itemCount: _responses.length + (_rTotalPages > 1 ? 1 : 0),
                       separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (context, i) {
@@ -565,7 +570,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 8), maxWidth: 1100),
           child: AppSearchField(
             controller: _fSearchCtrl,
             onChanged: _onFSearch,
@@ -590,7 +595,7 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
                       ),
                     )
                   : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 16), maxWidth: 1100),
                       itemCount: _feedbacks.length + (_fTotalPages > 1 ? 1 : 0),
                       separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (context, i) {

@@ -56,12 +56,12 @@ class RunnerFillStep extends StatelessWidget {
   Widget build(BuildContext context) {
     return AbsorbPointer(
       absorbing: submitting,
-      child: isMultiPage ? _buildMultiPage() : _buildSinglePage(),
+      child: isMultiPage ? _buildMultiPage(context) : _buildSinglePage(context),
     );
   }
 
-  /// Mode Single Page
-  Widget _buildSinglePage() {
+  /// Mode Single Page (desktop ≥1200: kartu 2 kolom, phone 1 kolom identik)
+  Widget _buildSinglePage(BuildContext context) {
     return SingleChildScrollView(
       physics: physics ?? const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
@@ -70,10 +70,19 @@ class RunnerFillStep extends StatelessWidget {
         children: [
           RunnerFormHeaderCard(info: info, questionCount: questions.length),
           const SizedBox(height: 16),
-          for (var i = 0; i < questions.length; i++) ...[
-            _buildQuestionCard(i),
-            const SizedBox(height: 12),
-          ],
+          if (!isDesktopWidth(context))
+            for (var i = 0; i < questions.length; i++) ...[
+              _buildQuestionCard(i),
+              const SizedBox(height: 12),
+            ]
+          else
+            ResponsiveGrid(
+              columnCountFor: (_) => 2,
+              children: [
+                for (var i = 0; i < questions.length; i++)
+                  _buildQuestionCard(i),
+              ],
+            ),
           const SizedBox(height: 4),
           AuthPrimaryButton(
             label: submitting ? "Mengirim..." : "Kirim Jawaban",
@@ -87,12 +96,12 @@ class RunnerFillStep extends StatelessWidget {
   }
 
   /// Mode Multi Page - quiz: inline nav <- 1/10 -> , tanpa footer, tap label untuk jump
-  Widget _buildMultiPage() {
+  Widget _buildMultiPage(BuildContext context) {
     final isLast = currentQuestion == questions.length - 1;
     final canGoBack = currentQuestion > 0;
     return ListView(
       physics: physics ?? const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 20), wideMaxWidth: 800),
       children: [
         _buildQuestionCard(currentQuestion),
         const SizedBox(height: 16),
@@ -214,8 +223,9 @@ class _InlineQuizNav extends StatelessWidget {
               GridView.builder(
                 shrinkWrap: true,
                 itemCount: total,
-                // G4: 5 kolom phone (identik), 6 tablet, 8 expanded.
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: isExpanded(ctx) ? 8 : isTablet(ctx) ? 6 : 5, crossAxisSpacing: 8, mainAxisSpacing: 8, childAspectRatio: 1.2),
+                // Jump picker selalu dalam sheet/dialog sempit: 5 kolom tetap
+                // (8 kolom membuat sel sesak di dialog 560).
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 5, crossAxisSpacing: 8, mainAxisSpacing: 8, childAspectRatio: 1.2),
                 itemBuilder: (c, i) {
                   final selected = i == current;
                   final answered = store.isAnswered(questions[i]);

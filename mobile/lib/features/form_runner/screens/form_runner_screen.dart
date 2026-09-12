@@ -6,6 +6,7 @@ import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/theme/form_theme.dart';
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/exam_lock_service.dart';
 import 'package:form_up/core/services/exam_warning_sound.dart';
@@ -427,7 +428,8 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => FormThemeScope(
+      builder: (ctx) => ResponsiveDialog(
+        child: FormThemeScope(
         theme: _formTheme,
         child: AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -465,6 +467,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
             child: const Text('Kirim'),
           ),
         ],
+        ),
         ),
       ),
     );
@@ -598,7 +601,8 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => violationLimit
+      builder: (ctx) => ResponsiveDialog(
+        child: violationLimit
           ? _ViolationDoneDialog(onClose: () => Navigator.pop(ctx))
           : FormThemeScope(
               theme: _formTheme,
@@ -627,6 +631,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
                     child: const Text("Tutup"),
                   ),
                 ],
+              ),
               ),
             ),
     );
@@ -735,7 +740,8 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
         await showDialog<void>(
           context: context,
           barrierDismissible: false,
-          builder: (ctx) => FormThemeScope(
+          builder: (ctx) => ResponsiveDialog(
+            child: FormThemeScope(
             theme: _formTheme,
             child: AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -748,6 +754,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
                   child: const Text("Tutup"),
                 ),
               ],
+            ),
             ),
           ),
         );
@@ -799,18 +806,23 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     // Info belum ada (mis. load gagal lalu state basi): jangan paksa `!`,
     // tampilkan layar error yang bisa kembali.
     if (_step == _RunnerStep.fill && info == null) {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline, size: 48),
-          const SizedBox(height: 12),
-          const Text('Data form tidak tersedia.'),
-          const SizedBox(height: 12),
-          FilledButton(
-            onPressed: () => AppRouter.of(context).pop(),
-            child: const Text('Kembali'),
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48),
+              const SizedBox(height: 12),
+              const Text('Data form tidak tersedia.'),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () => AppRouter.of(context).pop(),
+                child: const Text('Kembali'),
+              ),
+            ],
           ),
-        ],
+        ),
       );
     }
     Widget fillWidget = const SizedBox.shrink();
@@ -962,7 +974,8 @@ class _ViolationDoneDialogState extends State<_ViolationDoneDialog> {
     return PopScope(
       // Tombol back HP juga dikunci selama hitungan mundur.
       canPop: unlocked,
-      child: AlertDialog(
+      child: ResponsiveDialog(
+        child: AlertDialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(color: red, width: 2),
@@ -1002,6 +1015,7 @@ class _ViolationDoneDialogState extends State<_ViolationDoneDialog> {
                 : "Tutup ($_remaining)"),
           ),
         ],
+        ),
       ),
     );
   }

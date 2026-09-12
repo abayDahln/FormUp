@@ -113,7 +113,7 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
                   onRefresh: _load,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
+                    padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 1000),
                     children: [
                       _buildInfoCard(),
                       const SizedBox(height: 16),

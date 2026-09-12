@@ -162,7 +162,11 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
             left: 24,
             right: 24,
             bottom: 40,
-            child: Container(
+            // Hint dibatasi 480 agar tidak melar saat jendela dimaksimalkan.
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: cs.onSurfaceVariant,
@@ -172,8 +176,10 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
                 'Arahkan kamera ke QR code berisi link form\nformat: https://formup.my.id/f/{kode}',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white, fontSize: 13),
+                ),
               ),
-            ),
+                ),
+              ),
           ),
           if (_isProcessing)
             Container(

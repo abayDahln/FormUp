@@ -90,7 +90,7 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
 
   Widget _buildContent(PublicFormResult result) {
     return SingleChildScrollView(
-      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
+      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 1000),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

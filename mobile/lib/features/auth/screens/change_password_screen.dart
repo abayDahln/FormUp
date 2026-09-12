@@ -107,14 +107,21 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         child: AuthBackground(
           plain: true,
           child: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
-              // G1: kartu terpusat (maks 480) di tablet/desktop; phone identik.
-              child: ResponsiveCenter(
-                maxWidth: 480,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+            // Samakan OTP/reset: vertical-centering di layar tinggi.
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
+                    // G1: kartu terpusat (maks 480) di tablet/desktop; phone identik.
+                    child: ResponsiveCenter(
+                      maxWidth: 480,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                     AuthCard(
                       padding: const EdgeInsets.all(24),
                       child: Column(
@@ -185,8 +192,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
               ),
             ),
-          ),
-        ),
+          );
+        },
+      ),
+    ),
+  ),
       ),
     );
   }

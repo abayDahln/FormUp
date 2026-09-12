@@ -295,32 +295,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     });
   }
 
-  Future<void> _openSortMenu() async {
-    if (_exporting) return;
-    final cs = Theme.of(context).colorScheme;
-    final box = context.findRenderObject() as RenderBox?;
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
-    final offset = box != null && overlay != null ? box.localToGlobal(Offset.zero, ancestor: overlay) : Offset.zero;
-    final result = await showMenu<_RespondentSort>(
-      context: context,
-      position: RelativeRect.fromLTRB(offset.dx + 200, offset.dy + 280, 16, 0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      items: [
-        for (final s in _RespondentSort.values)
-          PopupMenuItem<_RespondentSort>(
-            value: s,
-            child: Row(
-              children: [
-                Icon(s.icon, size: 18, color: _sort == s ? cs.primary : cs.onSurfaceVariant),
-                const SizedBox(width: 10),
-                Text(s.label, style: TextStyle(fontSize: 14, color: _sort == s ? cs.primary : cs.onSurface, fontWeight: _sort == s ? FontWeight.bold : FontWeight.normal)),
-              ],
-            ),
-          ),
-      ],
-    );
-    if (result != null && mounted) setState(() => _sort = result);
-  }
+  /// Controller menu urut (M3 MenuAnchor): posisi otomatis mengikuti field
+  /// pencarian — pengganti showMenu berposisi hardcoded yang nyasar di 1920.
+  final _sortMenuController = MenuController();
 
   Future<String?> _pickExportFormat() => AdaptiveSheet.show<String>(
         context: context,
@@ -370,7 +347,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       barrierDismissible: false,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
-        return AlertDialog(
+        return ResponsiveDialog(
+        child: AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(children: [Icon(Icons.check_circle, color: cs.primary), const SizedBox(width: 8), const Text('Ekspor Selesai', style: TextStyle(fontFamily: kFontBold))]),
         content: Text('File "$fileName" berhasil dibuat (${(bytes.length / 1024).toStringAsFixed(1)} KB).', style: TextStyle(fontSize: 13, color: cs.onSurface)),
@@ -378,6 +356,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup')),
           FilledButton.icon(onPressed: () async { Navigator.pop(ctx); await _shareExport(bytes, fileName, mime, format); }, icon: const Icon(Icons.share_outlined, size: 18), label: const Text('Bagikan')),
         ],
+        ),
       );
       },
     );
@@ -526,7 +505,7 @@ Berikan analisis yang mencakup:
             },
             child: ListView(
               controller: _responScrollController,
-              padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24)),
+              padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24), wideMaxWidth: 1100),
               children: [
                 if (_exporting)
                   const progress.ProgressIndicator.linear(
@@ -554,14 +533,41 @@ Berikan analisis yang mencakup:
                     if (_analytics != null)
                       AnalyticsSummaryRow(analytics: _analytics!),
                     const SizedBox(height: 16),
-                    AppSearchField(
-                      controller: _searchController,
-                      onChanged: _onSearchChanged,
-                      onSubmitted: _onSearchImmediate,
-                      hint: 'Cari responden...',
-                      historyKey: 'search_history_analytics',
-                      filterActive: _sort != _RespondentSort.newest,
-                      onOpenFilter: _openSortMenu,
+                    MenuAnchor(
+                      controller: _sortMenuController,
+                      menuChildren: [
+                        for (final s in _RespondentSort.values)
+                          MenuItemButton(
+                            leadingIcon: Icon(s.icon,
+                                size: 18,
+                                color: _sort == s
+                                    ? cs.primary
+                                    : cs.onSurfaceVariant),
+                            onPressed: () =>
+                                setState(() => _sort = s),
+                            child: Text(s.label,
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    color: _sort == s
+                                        ? cs.primary
+                                        : cs.onSurface,
+                                    fontWeight: _sort == s
+                                        ? FontWeight.bold
+                                        : FontWeight.normal)),
+                          ),
+                      ],
+                      child: AppSearchField(
+                        controller: _searchController,
+                        onChanged: _onSearchChanged,
+                        onSubmitted: _onSearchImmediate,
+                        hint: 'Cari responden...',
+                        historyKey: 'search_history_analytics',
+                        filterActive: _sort != _RespondentSort.newest,
+                        onOpenFilter: () {
+                          if (_exporting) return;
+                          _sortMenuController.open();
+                        },
+                      ),
                     ),
                     const SizedBox(height: 16),
                     const Text(
@@ -591,7 +597,7 @@ Berikan analisis yang mencakup:
                           ],
                         ),
                       )
-                    else ...[
+                    else if (!isExpanded(context)) ...[
                       for (var i = 0; i < _visibleRespondents.length; i++) ...[
                         AnalyticsRespondentCard(
                           index: i,
@@ -601,6 +607,21 @@ Berikan analisis yang mencakup:
                         ),
                         const SizedBox(height: 12),
                       ],
+                      // Tablet/desktop: responden 2 kolom.
+                    ] else ...[
+                      ResponsiveGrid(
+                        columnCountFor: (_) => 2,
+                        children: [
+                          for (var i = 0; i < _visibleRespondents.length; i++)
+                            AnalyticsRespondentCard(
+                              index: i,
+                              respondent: _visibleRespondents[i],
+                              attemptCount: _attemptCountOf(_visibleRespondents[i], _attemptCounts),
+                              onTap: () =>
+                                  _openRespondent(_visibleRespondents[i]),
+                            ),
+                        ],
+                      ),
                       if (_loadingMore)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 12),
@@ -610,8 +631,14 @@ Berikan analisis yang mencakup:
                       if (_showPagination)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          // Pagination dipusatkan (maks 480) agar tak melar.
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints:
+                                  const BoxConstraints(maxWidth: 480),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                             children: [
                               IconButton.filledTonal(
                                 visualDensity: VisualDensity.compact,
@@ -624,9 +651,11 @@ Berikan analisis yang mencakup:
                                 onPressed: _page < _totalPages && !_loading && !_loadingMore ? () => _goToPage(_page + 1) : null,
                                 icon: const Icon(Icons.chevron_right, size: 22),
                               ),
-                            ],
+                                ],
+                              ),
+                            ),
+                            ),
                           ),
-                        ),
                     ],
                   ],
                 ),
