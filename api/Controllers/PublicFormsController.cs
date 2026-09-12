@@ -71,6 +71,7 @@ public class PublicFormsController : ControllerBase
             RandomizeQuestions = form.FormSetting?.RandomizeQuestions,
             OpenFormTime = form.FormSetting?.OpenFormTime,
             CloseFormTime = form.FormSetting?.CloseFormTime,
+            ServerNow = DateTime.UtcNow,
             IsExamMode = form.FormSetting?.IsExamMode,
             DisableCopyPaste = form.FormSetting?.DisableCopyPaste,
             DetectTabSwitch = form.FormSetting?.DetectTabSwitch,

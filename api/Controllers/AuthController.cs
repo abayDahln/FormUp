@@ -207,6 +207,32 @@ public class AuthController : ControllerBase
         return Ok(new ApiResponse<object>(200, "OTP has been sent to your email"));
     }
 
+    // A1: verifikasi OTP forgot-password tanpa mengonsumsi token,
+    // agar mobile bisa gagal-cepat sebelum user mengisi password baru.
+    // Endpoint baru yang opt-in (aditif, tanpa mengubah kontrak lama).
+    [HttpPost("verify-reset-otp")]
+    public async Task<ActionResult<ApiResponse<object>>> VerifyResetOtp([FromBody] VerifyResetOtpRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Otp))
+            return BadRequest(new ApiResponse<object>(400, "Email and OTP are required"));
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+        if (user == null)
+            return BadRequest(new ApiResponse<object>(400, "Invalid or expired OTP"));
+
+        var token = await _db.PasswordResetTokens
+            .FirstOrDefaultAsync(t =>
+                t.UserId == user.Id &&
+                t.Otp == request.Otp &&
+                !t.IsUsed &&
+                t.ExpiresAt > DateTime.UtcNow);
+
+        if (token == null)
+            return BadRequest(new ApiResponse<object>(400, "Invalid or expired OTP"));
+
+        return Ok(new ApiResponse<object>(200, "OTP is valid"));
+    }
+
     [HttpPost("reset-password")]
     public async Task<ActionResult<ApiResponse<object>>> ResetPassword([FromBody] ResetPasswordRequest request)
     {

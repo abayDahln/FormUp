@@ -27,6 +27,12 @@ public class ResetPasswordRequest
     public string NewPassword { get; set; } = null!;
 }
 
+public class VerifyResetOtpRequest
+{
+    public string Email { get; set; } = null!;
+    public string Otp { get; set; } = null!;
+}
+
 public class VerifyRegistrationRequest
 {
     public string Fullname { get; set; } = null!;

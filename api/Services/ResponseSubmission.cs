@@ -55,9 +55,20 @@ public static class ResponseSubmission
         if (form.StatusId != publishedStatusId)
             return Unavailable(FormAccess.NotFound, form);
 
-        // Validasi hanya di awal (saat ambil soal) – jika user sudah mulai
-        // mengerjakan dan form tiba-tiba ditutup, tetap boleh submit.
-        // Cek open/close di sini dihapus, hanya di PublicFormsController.GetQuestions.
+        // C8: submit telat ditolak berbasis jam server (closeFormTime).
+        // Sebelumnya submit kapan pun diterima (201) sehingga timer klien
+        // murni hiasan dan bisa di-bypass. Auto-submit (waktu habis di
+        // klien) diberi masa tenggang 120 detik untuk latensi jaringan;
+        // submit manual yang telat selalu ditolak.
+        var now = DateTime.UtcNow;
+        if (form.FormSetting?.CloseFormTime != null && form.FormSetting.CloseFormTime < now)
+        {
+            var lateBy = now - form.FormSetting.CloseFormTime.Value;
+            if (!body.IsAutoSubmit || lateBy > TimeSpan.FromSeconds(120))
+                return Unavailable(FormAccess.Closed, form);
+        }
+        if (form.FormSetting?.OpenFormTime != null && form.FormSetting.OpenFormTime > now)
+            return Unavailable(FormAccess.NotOpen, form);
 
         var isAuthenticated = user.Identity?.IsAuthenticated == true;
 

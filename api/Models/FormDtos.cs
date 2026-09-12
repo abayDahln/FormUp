@@ -116,6 +116,9 @@ public class PublicFormDetails
         public bool? RandomizeQuestions { get; set; }
         public DateTime? OpenFormTime { get; set; }
         public DateTime? CloseFormTime { get; set; }
+        // C8: jam server (UTC) agar klien menjangkarkan countdown ke jam
+        // server, bukan jam perangkat yang bisa dimundurkan. Aditif.
+        public DateTime ServerNow { get; set; }
         // FEAT-6 & FEAT-9 exposed to public runner
         public bool? IsExamMode { get; set; }
         public bool? DisableCopyPaste { get; set; }

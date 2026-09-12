@@ -41,6 +41,8 @@ public static class PasswordHelper
     private const int HashSize = 32;
     private const int Iterations = 100_000;
 
+
+
     public static string Hash(string password)
     {
         var salt = RandomNumberGenerator.GetBytes(SaltSize);
