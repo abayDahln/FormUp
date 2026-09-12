@@ -150,16 +150,6 @@ export default function Topbar({
                         </button>
                     </div>
 
-                    {/* PANDUAN PENGGUNA BUTTON (DESKTOP) */}
-                    <button
-                        type="button"
-                        onClick={() => setGuideModalOpen(true)}
-                        className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer border border-slate-200/80 dark:border-slate-700/80"
-                        title="Buka Panduan Pengguna"
-                    >
-                        <HelpCircle size={15} className="text-[#00897B] dark:text-teal-400" />
-                        <span>Panduan</span>
-                    </button>
 
                     {/* USER PROFILE */}
                     <button

@@ -20,6 +20,33 @@ export const getToken = () => {
     return null;
 };
 
+// Upload gambar untuk opsi jawaban tertentu
+export const uploadOptionImage = (formId, questionId, optionId, file, onProgress) => {
+    return new Promise((resolve) => {
+        const token = getToken();
+        const form = new FormData();
+        form.append('file', file);
+        const xhr = new XMLHttpRequest();
+        if (typeof onProgress === 'function') {
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+            });
+        }
+        xhr.onload = () => {
+            try {
+                const data = JSON.parse(xhr.responseText);
+                resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data: data?.data ?? data, message: data?.message });
+            } catch {
+                resolve({ ok: false, status: xhr.status, message: 'Response parse error' });
+            }
+        };
+        xhr.onerror = () => resolve({ ok: false, status: 0, message: 'Network error' });
+        xhr.open('POST', `${API_BASE_URL}/api/forms/${formId}/questions/${questionId}/options/${optionId}/upload-image`);
+        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.send(form);
+    });
+};
+
 const authHeaders = () => {
     const headers = { 'Content-Type': 'application/json' };
     const token = getToken();
@@ -319,42 +346,173 @@ export const updateResponseStatus = async (responseId, statusId) => {
     return parseResponse(res);
 };
 
-export const exportUrl = (formId, format = 'csv') => {
+// Helper: Resolve answer key per question according to specification
+export const resolveAnswerKey = (q) => {
+    if (!q) return '';
+    const typeId = q.typeId ?? q.type_id;
+    const typeName = String(q.type || q.questionType?.type || '').toLowerCase();
+
+    // Untuk tipe soal Essay atau Benar-Salah: ambil dari q.CorrectAnswer
+    if (typeId === 1 || typeId === 5 || typeName.includes('essay') || typeName.includes('benar') || typeName.includes('true') || typeName.includes('false')) {
+        return q.correctAnswer || q.CorrectAnswer || '';
+    }
+
+    // Untuk tipe soal PG atau Checkbox: gabungkan teks opsi yang IsCorrect == true, dipisah "; "
+    const options = q.options || q.optionQuestions || q.OptionQuestions || [];
+    if (Array.isArray(options) && options.length > 0) {
+        const correctOpts = options
+            .filter(o => o.isCorrect === true || o.IsCorrect === true)
+            .map(o => o.optionText || o.OptionText || '')
+            .filter(Boolean);
+        if (correctOpts.length > 0) {
+            return correctOpts.join('; ');
+        }
+    }
+
+    return q.correctAnswer || q.CorrectAnswer || '';
+};
+export const ResolveAnswerKey = resolveAnswerKey;
+
+// Helper: Bersihkan notasi KaTeX/LaTeX jadi teks/unicode biasa (A5)
+export const stripMathNotation = (text) => {
+    if (text === null || text === undefined) return '';
+    let str = String(text);
+
+    // Iterative replacement for fractions: \frac{a}{b} -> a/b
+    for (let i = 0; i < 5; i++) {
+        const next = str.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '$1/$2');
+        if (next === str) break;
+        str = next;
+    }
+
+    // Square roots: \sqrt[n]{x} -> n√(x), \sqrt{x} -> √(x)
+    str = str.replace(/\\sqrt\[([^\]]+)\]\{([^{}]+)\}/g, '$1√($2)');
+    str = str.replace(/\\sqrt\{([^{}]+)\}/g, '√($1)');
+
+    // Common LaTeX math symbols to unicode
+    const mathReplacements = [
+        [/\\times\b/g, '×'],
+        [/\\div\b/g, '÷'],
+        [/\\pm\b/g, '±'],
+        [/\\mp\b/g, '∓'],
+        [/\\le(q)?\b/g, '≤'],
+        [/\\ge(q)?\b/g, '≥'],
+        [/\\ne(q)?\b/g, '≠'],
+        [/\\approx\b/g, '≈'],
+        [/\\sim\b/g, '~'],
+        [/\\infty\b/g, '∞'],
+        [/\\cdot\b/g, '·'],
+        [/\\bullet\b/g, '•'],
+        [/\\circ\b/g, '°'],
+        [/\\degree\b/g, '°'],
+        [/\\alpha\b/g, 'α'],
+        [/\\beta\b/g, 'β'],
+        [/\\gamma\b/g, 'γ'],
+        [/\\delta\b/g, 'δ'],
+        [/\\Delta\b/g, 'Δ'],
+        [/\\pi\b/g, 'π'],
+        [/\\theta\b/g, 'θ'],
+        [/\\lambda\b/g, 'λ'],
+        [/\\sigma\b/g, 'σ'],
+        [/\\omega\b/g, 'ω'],
+        [/\\sum\b/g, 'Σ'],
+        [/\\prod\b/g, '∏'],
+        [/\\rightarrow\b/g, '→'],
+        [/\\leftarrow\b/g, '←'],
+        [/\\leftrightarrow\b/g, '↔'],
+    ];
+
+    for (const [pattern, replacement] of mathReplacements) {
+        str = str.replace(pattern, replacement);
+    }
+
+    // Text wrappers: \text{...}, \mathrm{...}, etc.
+    str = str.replace(/\\(?:text|mathrm|mathbf|mathit|textbf|textit)\{([^{}]+)\}/g, '$1');
+
+    // Remove $ and $$ delimiters
+    str = str.replace(/\$\$([\s\S]*?)\$\$/g, '$1');
+    str = str.replace(/\$([^$]+)\$/g, '$1');
+
+    // Remove remaining escaped braces: \{ -> {, \} -> }
+    str = str.replace(/\\([{}])/g, '$1');
+
+    // Clean up residual backslashes before alpha words
+    str = str.replace(/\\[a-zA-Z]+/g, '');
+
+    // Strip html tags
+    str = str.replace(/<[^>]*>/g, '');
+
+    return str.trim();
+};
+
+export const exportUrl = (formId, format = 'csv', includeAnswerKey = true) => {
     const token = getToken();
     const params = new URLSearchParams();
     if (format) params.set('format', format);
+    if (includeAnswerKey !== undefined) params.set('includeAnswerKey', includeAnswerKey);
     if (token) params.set('token', token);
     const qs = params.toString() ? `?${params}` : '';
     return `${API_BASE_URL}/api/forms/${formId}/responses/export${qs}`;
 };
 
-export const exportFormResponses = async (formId, format = 'csv') => {
+export const exportFormResponses = async (formId, format = 'csv', includeAnswerKey = true) => {
     const token = getToken();
     const fmt = (format || 'csv').toLowerCase();
-    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/responses/export?format=${encodeURIComponent(fmt)}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-
-    if (!res.ok) {
-        let msg = 'Gagal mengekspor data respons';
-        try {
-            const err = await res.json();
-            msg = err.message || msg;
-        } catch {}
-        return { ok: false, message: msg };
+    const params = new URLSearchParams();
+    params.set('format', fmt);
+    if (includeAnswerKey !== undefined) {
+        params.set('includeAnswerKey', includeAnswerKey);
     }
 
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const ext = fmt === 'xlsx' ? 'xlsx' : fmt === 'pdf' ? 'pdf' : 'csv';
-    a.download = `responses-form-${formId}.${ext}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
-    return { ok: true };
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/responses/export?${params.toString()}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        if (!res.ok) {
+            let msg = 'Gagal mengekspor data respons';
+            let errDetail = '';
+            try {
+                const err = await res.json();
+                msg = err.message || msg;
+                errDetail = JSON.stringify(err);
+            } catch {
+                try {
+                    errDetail = await res.text();
+                } catch {}
+            }
+
+            if (fmt === 'pdf' && res.status === 500) {
+                // TODO: Backend PDF generator (ResponsesController.ExportPdf using QuestPDF / DinkToPdf)
+                // throws 500 when question text or answer text contains raw math notation (KaTeX/LaTeX).
+                // Backend requires math sanitization before PDF layout compilation.
+                console.error('[Export PDF 500 Error] Server failed generating PDF:', res.status, errDetail);
+                msg = 'Export PDF gagal, kemungkinan karena konten matematika pada soal. Coba export CSV/Excel sementara, atau hubungi admin.';
+            }
+
+            return { ok: false, message: msg };
+        }
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const ext = fmt === 'xlsx' ? 'xlsx' : fmt === 'pdf' ? 'pdf' : 'csv';
+        a.download = `responses-form-${formId}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        return { ok: true };
+    } catch (networkErr) {
+        console.error('[Export Responses Network Error]:', networkErr);
+        return {
+            ok: false,
+            message: fmt === 'pdf'
+                ? 'Export PDF gagal, kemungkinan karena konten matematika pada soal. Coba export CSV/Excel sementara, atau hubungi admin.'
+                : 'Terjadi kesalahan jaringan saat mengekspor data respons.'
+        };
+    }
 };
 
 // ── Feedback Endpoints ────────────────────────────────────────────────────────
@@ -432,6 +590,40 @@ export const postExamEvent = async (formLink, eventData) => {
 export const getExamMonitoring = async (formId) => {
     const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/exam-monitoring`, {
         headers: authHeaders(),
+    });
+    return parseResponse(res);
+};
+
+export const ExamProctorActions = {
+    ForceSubmitByProctor: 'FORCE_SUBMIT_BY_PROCTOR',
+};
+
+// Backend: [HttpPost("api/forms/{formId}/exam-monitoring/sessions/{sessionId}/force-submit")]
+export const forceSubmitExamSession = async (formId, sessionId) => {
+    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/exam-monitoring/sessions/${encodeURIComponent(sessionId)}/force-submit`, {
+        method: 'POST',
+        headers: authHeaders(),
+    });
+    return parseResponse(res);
+};
+
+// Backend: [HttpPost("api/forms/{formId}/exam-monitoring/sessions/{sessionId}/reset")]
+export const resetExamSession = async (formId, sessionId) => {
+    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/exam-monitoring/sessions/${encodeURIComponent(sessionId)}/reset`, {
+        method: 'POST',
+        headers: authHeaders(),
+    });
+    return parseResponse(res);
+};
+
+// Backend: [HttpPost("api/public/forms/{formLink}/exam-sessions/{sessionId}/sync-answers")]
+export const syncExamAnswers = async (formLink, sessionId, { answers, respondentName }) => {
+    const res = await fetch(`${API_BASE_URL}/api/public/forms/${encodeURIComponent(formLink)}/exam-sessions/${encodeURIComponent(sessionId)}/sync-answers`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ answers, respondentName }),
     });
     return parseResponse(res);
 };

@@ -48,6 +48,7 @@ export default function FormAnalyticsPage() {
     const [selectedRespondent, setSelectedRespondent] = useState(null);
     const [exportingFormat, setExportingFormat] = useState(null);
     const [exportError, setExportError] = useState(null);
+    const [includeAnswerKey, setIncludeAnswerKey] = useState(true);
 
     // AI-3: AI Analysis state
     const [aiAnalyzing, setAiAnalyzing] = useState(false);
@@ -60,7 +61,7 @@ export default function FormAnalyticsPage() {
         setExportError(null);
 
         try {
-            const res = await exportFormResponses(id, format);
+            const res = await exportFormResponses(id, format, includeAnswerKey);
             if (!res.ok) {
                 setExportError(res.message || `Gagal mengekspor data ke format ${format.toUpperCase()}`);
                 setTimeout(() => setExportError(null), 4000);
@@ -200,7 +201,7 @@ Format respons dalam paragraf yang terstruktur, maksimal 400 kata.`;
     // ── Analytical Calculations for Diagrams ─────────────────────────────────
     const gradeDistribution = useMemo(() => {
         const counts = { A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 };
-        respondents.forEach(r => {
+        (respondents || []).forEach(r => {
             if (r.score == null) return;
             counts.total++;
             if (r.score >= 90) counts.A++;
@@ -215,7 +216,7 @@ Format respons dalam paragraf yang terstruktur, maksimal 400 kata.`;
     const passRateMetrics = useMemo(() => {
         let passed = 0;
         let failed = 0;
-        respondents.forEach(r => {
+        (respondents || []).forEach(r => {
             if (r.score == null) return;
             if (r.score >= 70) passed++;
             else failed++;
@@ -232,7 +233,7 @@ Format respons dalam paragraf yang terstruktur, maksimal 400 kata.`;
 
     const questionAccuracyMap = useMemo(() => {
         const qMap = {};
-        respondents.forEach(r => {
+        (respondents || []).forEach(r => {
             (r.answers || []).forEach(a => {
                 if (!a.questionId) return;
                 if (!qMap[a.questionId]) {
@@ -345,6 +346,17 @@ Format respons dalam paragraf yang terstruktur, maksimal 400 kata.`;
                             <Sparkles size={14} />
                             <span>{aiAnalyzing ? 'Menganalisis...' : 'Analisis AI'}</span>
                         </button>
+
+                        <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 select-none cursor-pointer font-medium px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+                            <input
+                                type="checkbox"
+                                checked={includeAnswerKey}
+                                onChange={e => setIncludeAnswerKey(e.target.checked)}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                            <span>Kunci Jawaban</span>
+                        </label>
+
                         <button
                             onClick={() => handleExport('xlsx')}
                             disabled={exportingFormat !== null}
@@ -545,9 +557,9 @@ Format respons dalam paragraf yang terstruktur, maksimal 400 kata.`;
                             </div>
 
                             <div className="space-y-4">
-                                {questionAccuracyMap.map((q, idx) => {
+                                {(questionAccuracyMap || []).map((q, idx) => {
                                     const isHardest = idx === 0 && q.accuracy < 60;
-                                    const isEasiest = idx === questionAccuracyMap.length - 1 && q.accuracy > 80;
+                                    const isEasiest = idx === (questionAccuracyMap || []).length - 1 && q.accuracy > 80;
 
                                     return (
                                         <div key={q.questionId} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/70 dark:border-slate-700/60 space-y-2">
@@ -604,7 +616,7 @@ Format respons dalam paragraf yang terstruktur, maksimal 400 kata.`;
                                         </thead>
 
                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                            {respondents.map((r, i) => (
+                                            {(respondents || []).map((r, i) => (
                                                 <tr
                                                     key={r.responseId}
                                                     className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
@@ -762,7 +774,7 @@ Format respons dalam paragraf yang terstruktur, maksimal 400 kata.`;
                             </div>
 
                             <div className="space-y-3">
-                                {selectedRespondent.answers?.map((a, i) => {
+                                {(selectedRespondent?.answers || []).map((a, i) => {
                                     const status = getAnswerStatus(a);
 
                                     return (

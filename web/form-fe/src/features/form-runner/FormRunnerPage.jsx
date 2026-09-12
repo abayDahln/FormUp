@@ -9,7 +9,8 @@ import {
 import {
     getPublicFormByLink, getPublicFormQuestions, submitPublicFormResponse,
     submitFeedback, clearSession, assetUrl, getLocalUser,
-    getFormById, getQuestions, getMyForms, postExamEvent
+    getFormById, getQuestions, getMyForms, postExamEvent,
+    syncExamAnswers
 } from '../../services/apiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
 import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
@@ -136,6 +137,37 @@ export default function FormRunnerPage() {
         return () => { root.style.removeProperty('--form-primary'); root.style.removeProperty('--form-bg'); };
     }, [form]);
 
+    const [isForceSubmitted, setIsForceSubmitted] = useState(false);
+    const isForceSubmittedRef = useRef(false);
+
+    // B12 Proctoring: Handle proctor force submit / session termination
+    const handleForceSubmitTermination = useCallback((responseId = null) => {
+        if (isForceSubmittedRef.current) return;
+        isForceSubmittedRef.current = true;
+        isSubmittingRef.current = true;
+
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
+
+        try {
+            localStorage.removeItem(`formup_cache_${formLink}`);
+            localStorage.removeItem(`formup_timer_deadline_${formLink}`);
+            localStorage.removeItem(`formup_token_${formLink}`);
+            if (responseId) {
+                localStorage.setItem(`formup_submitted_${formLink}`, String(responseId));
+            }
+            sessionStorage.removeItem(`formup_exam_session_${formLink}`);
+            sessionStorage.removeItem(`formup_violations_${formLink}`);
+        } catch {}
+
+        setIsForceSubmitted(true);
+        if (responseId) {
+            navigate(`/f/${formLink}/result/${responseId}`);
+        }
+    }, [formLink, navigate]);
+
     // Send incremental exam event to server in background.
     // BUG-5 FIX: respondentName is read from respondentNameRef (not captured in
     // closure) so this callback is NOT recreated on every keystroke. That prevents
@@ -145,7 +177,7 @@ export default function FormRunnerPage() {
         if (!form || isPreviewMode || form.isOwner) return;
         const isExam = form.isExamMode || form.detectTabSwitch;
         if (!isExam && !form.disableCopyPaste) return;
-        if (isSubmittingRef.current) return;
+        if (isSubmittingRef.current || isForceSubmittedRef.current) return;
 
         try {
             const sid = examSessionIdRef.current || getStoredSessionId();
@@ -156,6 +188,21 @@ export default function FormRunnerPage() {
                 occurredAt: new Date().toISOString(),
             };
             const res = await postExamEvent(formLink, payload);
+
+            // Check if proctor force-submitted / terminated the session
+            // Status 410 (Gone), 409 (Conflict), or flag isSubmitted/status:'submitted'
+            // TODO: Ensure backend endpoint returns 410/409 on subsequent exam-events/heartbeats when session is force-submitted.
+            const isTerminated = res.status === 410 || res.status === 409 ||
+                res.data?.isForceSubmitted || res.data?.isSubmitted ||
+                res.data?.status === 'submitted' || res.data?.status === 'force-submitted' ||
+                res.data?.status === 'terminated';
+
+            if (isTerminated) {
+                const respId = res.data?.responseId || res.data?.id;
+                handleForceSubmitTermination(respId);
+                return;
+            }
+
             if (res.ok && res.data) {
                 if (res.data.sessionId) {
                     examSessionIdRef.current = res.data.sessionId;
@@ -179,7 +226,7 @@ export default function FormRunnerPage() {
             console.warn('[ExamEvent] Background event report failed:', eventType, err);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [form, formLink, isPreviewMode, currentUser]);
+    }, [form, formLink, isPreviewMode, currentUser, handleForceSubmitTermination]);
 
     // Exam mode session presence: session_start and periodic heartbeat
     useEffect(() => {
@@ -203,19 +250,17 @@ export default function FormRunnerPage() {
     // Exam mode violation detection (Real-time incremental report, anti double-count)
     // BUG-2 FIX: Guard with tokenUnlocked so the visibilitychange / copy / paste
     // listeners are only attached AFTER the user has passed the token screen and
-    // is actually on the question page. Previously the effect ran as soon as `form`
-    // was loaded, meaning a tab-switch on the token entry screen was counted as a
-    // violation before the exam had even started.
+    // is actually on the question page.
     useEffect(() => {
-        if (!form || isPreviewMode || form.isOwner) return;
+        if (!form || isPreviewMode || form.isOwner || isForceSubmitted) return;
         // Do NOT attach violation listeners until the exam has actually started
-        // (i.e. token unlocked, or no token required).
         if (form.requiresToken && !tokenUnlocked) return;
 
         const isExam = form.isExamMode || form.detectTabSwitch;
         const disableCopy = form.disableCopyPaste || isExam;
 
         const handleVisibilityChange = () => {
+            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
             // Anti-double-count: ONLY report on hidden (leaving), never on visible (return)
             if (document.hidden && isExam) {
                 sendExamEvent('tab_switch');
@@ -223,6 +268,7 @@ export default function FormRunnerPage() {
         };
 
         const handleCopy = (e) => {
+            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
             if (disableCopy) {
                 e.preventDefault();
                 sendExamEvent('copy_attempt');
@@ -230,6 +276,7 @@ export default function FormRunnerPage() {
         };
 
         const handlePaste = (e) => {
+            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
             if (disableCopy) {
                 e.preventDefault();
                 sendExamEvent('paste_attempt');
@@ -237,6 +284,7 @@ export default function FormRunnerPage() {
         };
 
         const handleContextMenu = (e) => {
+            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
             if (disableCopy) {
                 e.preventDefault();
                 sendExamEvent('context_menu');
@@ -264,12 +312,126 @@ export default function FormRunnerPage() {
                 document.removeEventListener('contextmenu', handleContextMenu);
             }
         };
-    }, [form, isPreviewMode, tokenUnlocked, sendExamEvent]);
+    }, [form, isPreviewMode, tokenUnlocked, sendExamEvent, isForceSubmitted]);
 
     const answersRef = useRef(answers);
     const questionsRef = useRef(questions);
     useEffect(() => { answersRef.current = answers; }, [answers]);
     useEffect(() => { questionsRef.current = questions; }, [questions]);
+
+    // B12 Proctoring: Continuous background sync of draft answers for exam mode
+    const syncInProgressRef = useRef(false);
+    const lastSyncedHashRef = useRef('');
+
+    const syncDraftAnswers = useCallback(async (customAnswers = null, forceCheck = false) => {
+    if (!form || isPreviewMode || form.isOwner || isForceSubmittedRef.current) return;
+    const isExam = form.isExamMode || form.detectTabSwitch;
+    if (!isExam) return;
+    if (form.requiresToken && !tokenUnlocked) return;
+    if (isSubmittingRef.current || syncInProgressRef.current) return;
+
+    const sid = examSessionIdRef.current || getStoredSessionId();
+    if (!sid) return;
+
+    const curAns = customAnswers || answersRef.current || {};
+    const curQs = questionsRef.current?.length ? questionsRef.current : questions;
+
+    // FIX (Force Submit tidak menghentikan responden): dulu fungsi ini
+    // langsung berhenti kalau belum ada jawaban sama sekali, atau kalau
+    // jawaban tidak berubah sejak sync terakhir. Akibatnya, responden yang
+    // sedang diam/belum menjawab tidak pernah mengirim request apa pun ke
+    // server, sehingga force-submit dari owner tidak pernah terdeteksi.
+    // forceCheck=true (dipakai polling status berkala) melewati guard ini
+    // supaya tetap ping server murni untuk mengecek status sesi — backend
+    // tetap mengembalikan 400 "Sesi sudah disubmit" walau payload kosong,
+    // karena pengecekan itu dilakukan SEBELUM backend mengecek isi jawaban.
+    if (!forceCheck && (!curQs.length || Object.keys(curAns).length === 0)) return;
+
+    const formattedAnswers = Object.entries(curAns).map(([questionId, value]) => {
+        const q = curQs.find(item => item.id === parseInt(questionId, 10));
+        if (!q) return null;
+        if (q.typeId === 2) {
+            const p = parseInt(value, 10);
+            return (!isNaN(p) && p > 0) ? { questionId: q.id, optionId: p } : null;
+        }
+        if (q.typeId === 3) {
+            const ids = Array.isArray(value) ? value.map(v => parseInt(v, 10)).filter(id => !isNaN(id) && id > 0) : [];
+            return ids.length ? ids.map(id => ({ questionId: q.id, optionId: id })) : null;
+        }
+        if (q.typeId === 5) {
+            const s = String(value || '').trim();
+            return s ? { questionId: q.id, answerValue: (s.toLowerCase() === 'benar' || s.toLowerCase() === 'true') ? 'Benar' : 'Salah' } : null;
+        }
+        const t = String(value || '').trim();
+        return t ? { questionId: q.id, answerValue: t } : null;
+    }).flat().filter(Boolean);
+
+    if (!forceCheck && formattedAnswers.length === 0) return;
+
+    const payloadHash = JSON.stringify(formattedAnswers);
+    if (!forceCheck && payloadHash === lastSyncedHashRef.current) return;
+
+    syncInProgressRef.current = true;
+    try {
+        const res = await syncExamAnswers(formLink, sid, {
+            answers: formattedAnswers,
+            respondentName: (respondentNameRef.current || '').trim() || currentUser?.fullname || 'Anonim',
+        });
+
+        // FIX: backend membalikan 400 (bukan 410/409) dengan pesan
+        // "Sesi sudah disubmit" saat sesi sudah di-force-submit — tambahkan
+        // pengecekan itu, karena kondisi sebelumnya tidak pernah cocok.
+        const isTerminated = res.status === 410 || res.status === 409 ||
+            (res.status === 400 && /disubmit/i.test(res.message || '')) ||
+            res.data?.isForceSubmitted || res.data?.isSubmitted ||
+            res.data?.status === 'submitted' || res.data?.status === 'force-submitted' ||
+            res.data?.status === 'terminated';
+
+        if (isTerminated) {
+            const respId = res.data?.responseId || res.data?.id;
+            handleForceSubmitTermination(respId);
+            return;
+        }
+
+        if (res.ok) {
+            lastSyncedHashRef.current = payloadHash;
+        }
+    } catch (err) {
+        console.warn('[SyncAnswers] Background answer sync failed:', err);
+    } finally {
+        syncInProgressRef.current = false;
+    }
+}, [form, isPreviewMode, tokenUnlocked, formLink, currentUser, getStoredSessionId, questions, handleForceSubmitTermination]);
+
+    // Debounced sync answers on answer changes
+    useEffect(() => {
+    if (!form || isPreviewMode || form.isOwner) return;
+    if (!form.isExamMode && !form.detectTabSwitch) return;
+    if (form.requiresToken && !tokenUnlocked) return;
+
+    const interval = setInterval(() => {
+        if (!isSubmittingRef.current) {
+            syncDraftAnswers(null, true);
+        }
+    }, 10000);
+
+    return () => clearInterval(interval);
+}, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers]);
+
+    // Periodic sync answers every 30 seconds
+    useEffect(() => {
+        if (!form || isPreviewMode || form.isOwner) return;
+        if (!form.isExamMode && !form.detectTabSwitch) return;
+        if (form.requiresToken && !tokenUnlocked) return;
+
+        const interval = setInterval(() => {
+            if (!isSubmittingRef.current) {
+                syncDraftAnswers();
+            }
+        }, 30000);
+
+        return () => clearInterval(interval);
+    }, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers]);
 
     const loadQuestionsInternal = async (token) => {
         const res = await getPublicFormQuestions(formLink, { token, name: '' });
@@ -570,6 +732,35 @@ export default function FormRunnerPage() {
             </div>
         </div>
     );
+
+    if (isForceSubmitted) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-[#F4F8F7] dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-5 shadow-xl">
+                    <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
+                        <Lock size={32} />
+                    </div>
+                    <div className="space-y-2">
+                        <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">
+                            Sesi Ujian Selesai
+                        </h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                            Sesi ujian Anda telah diselesaikan dan dikunci oleh pengawas. Semua jawaban draf Anda telah tersimpan dengan aman di sistem.
+                        </p>
+                    </div>
+                    <div className="pt-2">
+                        <button
+                            type="button"
+                            onClick={() => navigate('/')}
+                            className="w-full py-3 bg-[#00897B] hover:bg-[#00796B] text-white font-bold rounded-xl text-xs shadow-sm transition-all cursor-pointer"
+                        >
+                            Kembali ke Beranda
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     // A-5: skip locked screen in preview
     const localSubmittedId = typeof window !== 'undefined' ? localStorage.getItem(`formup_submitted_${formLink}`) : null;
@@ -1014,11 +1205,21 @@ function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange,
         <div className="space-y-2.5">
             {(q.options || []).map(opt => {
                 const isSelected = String(val) === String(opt.id);
+                const optImg = opt.optionImage || opt.image || opt.imageUrl;
                 return (
-                    <label key={opt.id} className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${isSelected ? 'font-bold' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50'}`}
+                    <label key={opt.id} className={`flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${isSelected ? 'font-bold' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50'}`}
                         style={isSelected ? { borderColor: primaryColor, backgroundColor: `${primaryColor}18`, color: primaryColor } : {}}>
-                        <input type="radio" name={`q_${q.id}`} value={opt.id} checked={isSelected} onChange={() => handleAnswerChange(q.id, opt.id)} className="w-4 h-4 cursor-pointer" style={{ accentColor: primaryColor }} />
-                        <div className="text-xs sm:text-sm leading-relaxed flex-1"><RichContentRenderer content={opt.optionText} /></div>
+                        <input type="radio" name={`q_${q.id}`} value={opt.id} checked={isSelected} onChange={() => handleAnswerChange(q.id, opt.id)} className="w-4 h-4 cursor-pointer mt-0.5" style={{ accentColor: primaryColor }} />
+                        <div className="text-xs sm:text-sm leading-relaxed flex-1 space-y-2">
+                            {optImg && (
+                                <img
+                                    src={assetUrl(optImg)}
+                                    alt={opt.optionText || 'Gambar Opsi'}
+                                    className="max-h-48 max-w-full rounded-xl object-contain border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-1"
+                                />
+                            )}
+                            <RichContentRenderer content={opt.optionText} />
+                        </div>
                     </label>
                 );
             })}
@@ -1031,11 +1232,21 @@ function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange,
             <div className="space-y-2.5">
                 {(q.options || []).map(opt => {
                     const isChecked = selectedArr.includes(opt.id);
+                    const optImg = opt.optionImage || opt.image || opt.imageUrl;
                     return (
-                        <label key={opt.id} className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${isChecked ? 'font-bold' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50'}`}
+                        <label key={opt.id} className={`flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${isChecked ? 'font-bold' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50'}`}
                             style={isChecked ? { borderColor: primaryColor, backgroundColor: `${primaryColor}18`, color: primaryColor } : {}}>
-                            <input type="checkbox" checked={isChecked} onChange={e => handleCheckboxChange(q.id, opt.id, e.target.checked)} className="w-4 h-4 rounded cursor-pointer" style={{ accentColor: primaryColor }} />
-                            <div className="text-xs sm:text-sm leading-relaxed flex-1"><RichContentRenderer content={opt.optionText} /></div>
+                            <input type="checkbox" checked={isChecked} onChange={e => handleCheckboxChange(q.id, opt.id, e.target.checked)} className="w-4 h-4 rounded cursor-pointer mt-0.5" style={{ accentColor: primaryColor }} />
+                            <div className="text-xs sm:text-sm leading-relaxed flex-1 space-y-2">
+                                {optImg && (
+                                    <img
+                                        src={assetUrl(optImg)}
+                                        alt={opt.optionText || 'Gambar Opsi'}
+                                        className="max-h-48 max-w-full rounded-xl object-contain border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-1"
+                                    />
+                                )}
+                                <RichContentRenderer content={opt.optionText} />
+                            </div>
                         </label>
                     );
                 })}

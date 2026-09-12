@@ -16,6 +16,7 @@ import {
     togglePublishForm, updateFormSettings, getFormShare,
     uploadFormBanner, clearSession, assetUrl,
     deleteQuestion, importQuestions, uploadQuestionImage, uploadQuestionAudio,
+    uploadOptionImage,
     templateDownloadUrl, createForm
 } from '../../services/apiService';
 import { getGeminiApiKey, AVAILABLE_MODELS } from '../../services/aiService';
@@ -50,12 +51,55 @@ const newQuestion = (order) => ({
     isScorable: true,
     points: null,
     correctAnswer: '',
-    options: [{ optionText: '', isCorrect: false }, { optionText: '', isCorrect: false }],
+    options: [
+        { optionText: '', isCorrect: false, optionImage: null },
+        { optionText: '', isCorrect: false, optionImage: null }
+    ],
     questionImage: null,
     questionAudio: null,
 });
 
 const needsOptions = (typeId) => [2, 3].includes(typeId);
+
+// Helper: Normalize imported or loaded option (strips [BENAR] or * marker, preserves optionImage)
+const normalizeImportedOption = (o) => {
+    let text = (o.optionText || o.OptionText || '').trim();
+    let isCorrect = o.isCorrect === true || o.IsCorrect === true;
+
+    if (text.startsWith('[BENAR]')) {
+        isCorrect = true;
+        text = text.replace(/^\[BENAR\]\s*/i, '').trim();
+    } else if (text.startsWith('*')) {
+        isCorrect = true;
+        text = text.replace(/^\*\s*/, '').trim();
+    }
+
+    return {
+        ...o,
+        optionText: text,
+        isCorrect,
+        optionImage: o.optionImage || o.image || o.imageUrl || null,
+    };
+};
+
+const normalizeQuestionOptions = (q) => {
+    const rawOptions = q.options || q.optionQuestions || [];
+    let opts = rawOptions.map(normalizeImportedOption);
+
+    // If PG (typeId 2) or Checkbox (typeId 3) and no option is marked correct, but correctAnswer matches
+    const isChoice = q.typeId === 2 || q.typeId === 3 || q.type_id === 2 || q.type_id === 3;
+    if (isChoice && q.correctAnswer && !opts.some(o => o.isCorrect)) {
+        const caList = String(q.correctAnswer).split(/[,;|]/).map(s => s.trim().toLowerCase());
+        opts = opts.map(o => {
+            if (caList.includes(o.optionText.trim().toLowerCase())) {
+                return { ...o, isCorrect: true };
+            }
+            return o;
+        });
+    }
+
+    return opts.length > 0 ? opts : [{ optionText: '', isCorrect: false, optionImage: null }];
+};
 
 export default function FormBuilder() {
     const { id } = useParams();
@@ -220,6 +264,7 @@ export default function FormBuilder() {
             options: (q.options || []).map(o => ({
                 optionText: (o.optionText || '').trim(),
                 isCorrect: !!o.isCorrect,
+                optionImage: o.optionImage || o.image || o.imageUrl || null,
             })),
         })));
     }, []);
@@ -465,7 +510,8 @@ export default function FormBuilder() {
             let loadedQuestions = [];
             if (qRes.ok && Array.isArray(qRes.data) && qRes.data.length > 0) {
                 loadedQuestions = qRes.data.map((q) => {
-                    const hasCorrectOption = (q.options || []).some(o => o.isCorrect === true);
+                    const normalizedOptions = normalizeQuestionOptions(q);
+                    const hasCorrectOption = normalizedOptions.some(o => o.isCorrect === true);
                     const hasCorrectAnswer = !!(q.correctAnswer && q.correctAnswer.trim());
                     const isScorable = q.isScorable !== undefined ? q.isScorable : (hasCorrectOption || hasCorrectAnswer);
 
@@ -473,7 +519,7 @@ export default function FormBuilder() {
                         ...q,
                         _id: `q_${q.id}`,
                         isScorable: isScorable,
-                        options: q.options || [],
+                        options: normalizedOptions,
                     };
                 });
             } else {
@@ -520,6 +566,7 @@ export default function FormBuilder() {
                 options: (q.options || []).map(opt => ({
                     optionText: opt.optionText || '',
                     isCorrect: scorable ? !!opt.isCorrect : false,
+                    optionImage: opt.optionImage || opt.image || opt.imageUrl || null,
                 })),
             };
         });
@@ -535,13 +582,16 @@ export default function FormBuilder() {
                 if (qRes.data.length === 0) {
                     freshQuestions = [];
                 } else {
-                    freshQuestions = qRes.data.map((q, i) => ({
-                        ...q,
-                        _id: questions[i]?._id || `q_${q.id}`,
-                        isScorable: questions[i]?.isScorable ?? ((q.options || []).some(o => o.isCorrect === true) || !!(q.correctAnswer && q.correctAnswer.trim())),
-                        points: q.points ?? null,
-                        options: q.options || [],
-                    }));
+                    freshQuestions = qRes.data.map((q, i) => {
+                        const normalizedOptions = normalizeQuestionOptions(q);
+                        return {
+                            ...q,
+                            _id: questions[i]?._id || `q_${q.id}`,
+                            isScorable: questions[i]?.isScorable ?? (normalizedOptions.some(o => o.isCorrect === true) || !!(q.correctAnswer && q.correctAnswer.trim())),
+                            points: q.points ?? null,
+                            options: normalizedOptions,
+                        };
+                    });
                 }
                 setQuestions(freshQuestions);
                 // Jika form kehabisan soal, status otomatis kembali draft
@@ -728,18 +778,23 @@ export default function FormBuilder() {
             showToast(`Berhasil mengimpor ${res.data?.totalImported ?? 0} soal!`);
             const qRes = await getQuestions(id);
             if (qRes.ok && Array.isArray(qRes.data)) {
-                setQuestions(qRes.data.map((q, i) => ({
-                    ...q,
-                    _id: `q_${q.id}`,
-                    question: q.question || '',
-                    typeId: q.typeId || 2,
-                    questionOrder: q.questionOrder ?? i + 1,
-                    isRequired: q.isRequired ?? false,
-                    correctAnswer: q.correctAnswer ?? '',
-                    questionImage: q.questionImage ?? null,
-                    questionAudio: q.questionAudio ?? null,
-                    options: q.options?.length > 0 ? q.options : [{ optionText: '', isCorrect: false }],
-                })));
+                const fresh = qRes.data.map((q, i) => {
+                    const normalizedOptions = normalizeQuestionOptions(q);
+                    return {
+                        ...q,
+                        _id: `q_${q.id}`,
+                        question: q.question || '',
+                        typeId: q.typeId || 2,
+                        questionOrder: q.questionOrder ?? i + 1,
+                        isRequired: q.isRequired ?? false,
+                        correctAnswer: q.correctAnswer ?? '',
+                        questionImage: q.questionImage ?? null,
+                        questionAudio: q.questionAudio ?? null,
+                        options: normalizedOptions,
+                    };
+                });
+                setQuestions(fresh);
+                pushHistory(questions);
             }
         } else {
             showToast(res.message || 'Gagal mengimpor berkas', 'error');
@@ -783,14 +838,18 @@ export default function FormBuilder() {
             ['question', 'type_id', 'order', 'is_required', 'correct_answer', 'options']
         ];
         questions.forEach((q, i) => {
-            const optionsStr = (q.options || []).map(o => (o.isCorrect ? `*${o.optionText}` : o.optionText)).join('|');
+            const isChoice = q.typeId === 2 || q.typeId === 3;
+            const optionsStr = (q.options || []).map(o => (o.isCorrect ? `[BENAR] ${o.optionText}` : o.optionText)).join('|');
             const cleanQ = (q.question || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+            const correctCa = isChoice
+                ? (q.options || []).filter(o => o.isCorrect).map(o => o.optionText).join(',')
+                : (q.correctAnswer || '');
             rows.push([
                 `"${cleanQ.replace(/"/g, '""')}"`,
                 q.typeId || 2,
                 i + 1,
                 q.isRequired ? 'true' : 'false',
-                `"${(q.correctAnswer || '').replace(/"/g, '""')}"`,
+                `"${(correctCa || '').replace(/"/g, '""')}"`,
                 `"${optionsStr.replace(/"/g, '""')}"`,
             ]);
         });
@@ -919,6 +978,27 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
         }
         return currentQ.id;
     };
+
+    // Pastikan soal DAN opsi sudah punya id asli dari backend sebelum upload gambar opsi
+const ensureOptionSaved = async (idx, oIdx) => {
+    const currentOpt = questions[idx]?.options?.[oIdx];
+    if (questions[idx]?.id && currentOpt?.id) {
+        return { questionId: questions[idx].id, optionId: currentOpt.id };
+    }
+    // Simpan dulu supaya backend assign id untuk soal & opsinya
+    const success = await handleSaveQuestions();
+    if (!success) return null;
+
+    const updatedList = await getQuestions(id);
+    if (updatedList.ok && Array.isArray(updatedList.data)) {
+        const freshQ = updatedList.data[idx];
+        const freshOpt = freshQ?.options?.[oIdx] ?? freshQ?.optionQuestions?.[oIdx];
+        if (freshQ?.id && freshOpt?.id) {
+            return { questionId: freshQ.id, optionId: freshOpt.id };
+        }
+    }
+    return null;
+};
 
         const handleUploadQuestionImage = async (idx, file) => {
         // A1 FIX: Snapshot taken BEFORE await so it reflects pre-upload state
@@ -1677,33 +1757,41 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                                                     <Code size={14} />
                                                                 </button>
                                                                 {/* FEAT-7: Image upload per option */}
+
                                                                 <label
-                                                                    className="p-1 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 rounded cursor-pointer"
-                                                                    title="Tambah Gambar Opsi (maks 500KB)"
-                                                                >
-                                                                    <Image size={14} />
-                                                                    <input
-                                                                        type="file"
-                                                                        accept="image/*"
-                                                                        className="hidden"
-                                                                        onChange={e => {
-                                                                            const file = e.target.files?.[0];
-                                                                            if (!file) return;
-                                                                            if (file.size > 500 * 1024) {
-                                                                                showToast('Gambar opsi terlalu besar (maks 500KB).', 'error');
-                                                                                return;
-                                                                            }
-                                                                            const reader = new FileReader();
-                                                                            reader.onload = (ev) => {
-                                                                                const current = opt.optionText || '';
-                                                                                const imgTag = `<img src="${ev.target.result}" style="max-height:80px;display:inline-block;vertical-align:middle;" alt="opsi" />`;
-                                                                                updateOption(idx, oIdx, 'optionText', current + (current ? ' ' : '') + imgTag);
-                                                                            };
-                                                                            reader.readAsDataURL(file);
+                                                                className="p-1 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 rounded cursor-pointer"
+                                                                title="Tambah Gambar Opsi (maks 500KB)"
+                                                            >
+                                                                <Image size={14} />
+                                                                <input
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    className="hidden"
+                                                                    onChange={async e => {
+                                                                        const file = e.target.files?.[0];
+                                                                        if (!file) return;
+                                                                        if (file.size > 500 * 1024) {
+                                                                            showToast('Gambar opsi terlalu besar (maks 500KB).', 'error');
+                                                                            return;
+                                                                        }
+                                                                        const ids = await ensureOptionSaved(idx, oIdx);
+                                                                        if (!ids) {
+                                                                            showToast('Gagal memproses opsi sebelum mengunggah gambar', 'error');
                                                                             e.target.value = '';
-                                                                        }}
-                                                                    />
-                                                                </label>
+                                                                            return;
+                                                                        }
+                                                                        const res = await uploadOptionImage(id, ids.questionId, ids.optionId, file);
+                                                                        if (res.ok) {
+                                                                            pushHistory(questions);
+                                                                            updateOption(idx, oIdx, 'optionImage', res.data?.optionImage ?? res.data?.url ?? null);
+                                                                            showToast('Gambar opsi berhasil diunggah!');
+                                                                        } else {
+                                                                            showToast(res.message || 'Gagal mengunggah gambar opsi', 'error');
+                                                                        }
+                                                                        e.target.value = '';
+                                                                    }}
+                                                                />
+                                                            </label>
                                                             </div>
 
                                                             <button onClick={() => removeOption(idx, oIdx)} className="text-red-400 hover:text-red-600 p-1 shrink-0 cursor-pointer">
@@ -1711,10 +1799,30 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                                             </button>
                                                         </div>
 
-                                                        {/* Option Rich Content Preview if formula/code/image inserted */}
-                                                        {(opt.optionText?.includes('$') || opt.optionText?.includes('<pre') || opt.optionText?.includes('<code') || opt.optionText?.includes('<img')) && (
+                                                        {/* Preview formula/code (bukan image, karena image sekarang di field terpisah) */}
+                                                        {(opt.optionText?.includes('$') || opt.optionText?.includes('<pre') || opt.optionText?.includes('<code')) && (
                                                             <div className="ml-6 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-lg text-xs border border-slate-200/60 dark:border-slate-700">
                                                                 <RichContentRenderer content={opt.optionText} format="text" className="text-xs" />
+                                                            </div>
+                                                        )}
+
+                                                        {/* Preview gambar opsi */}
+                                                        {opt.optionImage && (
+                                                        <div className="ml-6 flex items-center gap-2 mt-1">
+                                                            <img
+                                                                src={assetUrl(opt.optionImage)}
+                                                                alt="Gambar opsi"
+                                                                className="max-h-16 rounded-lg border border-slate-200 dark:border-slate-700 cursor-zoom-in"
+                                                                onClick={() => setLightboxImage({ src: assetUrl(opt.optionImage), alt: 'Gambar Opsi' })}
+                                                            />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => updateOption(idx, oIdx, 'optionImage', null)}
+                                                                    className="text-red-400 hover:text-red-600 p-1"
+                                                                    title="Hapus gambar opsi"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
                                                             </div>
                                                         )}
                                                     </div>

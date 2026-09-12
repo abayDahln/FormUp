@@ -6,14 +6,17 @@ import {
     MinusCircle, ChevronLeft, ChevronRight, TrendingUp, Calendar, Maximize2,
     Sliders, Edit2, RotateCcw, Check, Save, Sparkles,
     ShieldAlert, ShieldCheck, Activity, Radio, RefreshCw, ChevronDown, ChevronUp,
-    Search, Filter, AlertCircle, ArrowRight as ArrowRightIcon
+    Search, Filter, AlertCircle, ArrowRight as ArrowRightIcon, Share2
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
+import ConfirmModal from '../../components/ui/ConfirmModal';
 import {
     getFormById, getFormResponses, getFormAnalytics,
     getResponseResult, getQuestions,
     updateResponseStatus, clearSession, exportFormResponses, getFormFeedbacks, assetUrl,
-    overrideAnswerScore, bulkOverrideAnswerScores, getExamMonitoring
+    overrideAnswerScore, bulkOverrideAnswerScores, getExamMonitoring,
+    forceSubmitExamSession, resetExamSession, resolveAnswerKey, ResolveAnswerKey, ExamProctorActions,
+    stripMathNotation
 } from '../../services/apiService';
 import { getGeminiApiKey } from '../../services/aiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
@@ -28,21 +31,8 @@ const STATUS_OPTIONS = [
 
 const PAGE_SIZE = 25;
 
-export const resolveQuestionKey = (qDef) => {
-    if (!qDef) return '';
-    if (qDef.typeId === 2 || qDef.typeId === 5) {
-        // Multiple choice / True-False
-        const correctOpt = (qDef.options || []).find(o => o.isCorrect === true);
-        return correctOpt?.optionText || qDef.correctAnswer || '';
-    }
-    if (qDef.typeId === 3) {
-        // Checkbox (can have multiple correct)
-        const correctOpts = (qDef.options || []).filter(o => o.isCorrect === true).map(o => o.optionText);
-        if (correctOpts.length > 0) return correctOpts.join(', ');
-        return qDef.correctAnswer || '';
-    }
-    return qDef.correctAnswer || '';
-};
+export { resolveAnswerKey, ResolveAnswerKey };
+export const resolveQuestionKey = (qDef) => resolveAnswerKey(qDef);
 
 export const resolveBaseIsCorrect = (answer, qDef) => {
     if (!qDef) return null;
@@ -234,6 +224,75 @@ export default function FormResponsesPage() {
     const [expandedSessions, setExpandedSessions] = useState(new Set());
     const [autoRefresh, setAutoRefresh] = useState(true);
     const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+    const [includeAnswerKey, setIncludeAnswerKey] = useState(true);
+
+    // Proctoring action modal state
+    const [proctorModal, setProctorModal] = useState({
+        isOpen: false,
+        type: null, // 'force_submit' | 'reset'
+        sessionId: null,
+        respondentName: '',
+        loading: false,
+    });
+
+    const handleOpenForceSubmit = (session) => {
+        setProctorModal({
+            isOpen: true,
+            type: 'force_submit',
+            sessionId: session.sessionId,
+            respondentName: session.respondentName || 'Anonim',
+            loading: false,
+        });
+    };
+
+    const handleOpenResetSession = (session) => {
+        setProctorModal({
+            isOpen: true,
+            type: 'reset',
+            sessionId: session.sessionId,
+            respondentName: session.respondentName || 'Anonim',
+            loading: false,
+        });
+    };
+
+    const handleConfirmProctorAction = async () => {
+        const { type, sessionId } = proctorModal;
+        if (!sessionId) return;
+        setProctorModal(prev => ({ ...prev, loading: true }));
+        try {
+            if (type === 'force_submit') {
+                const res = await forceSubmitExamSession(id, sessionId);
+                if (res.ok) {
+                    showToast(res.message || 'Sesi ujian berhasil diselesaikan paksa.');
+                    setProctorModal({ isOpen: false, type: null, sessionId: null, respondentName: '', loading: false });
+                    fetchExamMonitoring(true);
+                    getFormResponses(id, { page: 1, pageSize: PAGE_SIZE }).then(respRes => {
+                        if (respRes.ok && respRes.data) setResponses(respRes.data.responses || respRes.data || []);
+                    }).catch(() => {});
+                } else {
+                    showToast(res.message || 'Gagal menyelesaikan paksa sesi ujian.', 'error');
+                    setProctorModal(prev => ({ ...prev, loading: false }));
+                }
+            } else if (type === 'reset') {
+                const res = await resetExamSession(id, sessionId);
+                if (res.ok) {
+                    showToast(res.message || 'Sesi peserta berhasil di-reset.');
+                    setProctorModal({ isOpen: false, type: null, sessionId: null, respondentName: '', loading: false });
+                    fetchExamMonitoring(true);
+                    getFormResponses(id, { page: 1, pageSize: PAGE_SIZE }).then(respRes => {
+                        if (respRes.ok && respRes.data) setResponses(respRes.data.responses || respRes.data || []);
+                    }).catch(() => {});
+                } else {
+                    showToast(res.message || 'Gagal me-reset sesi ujian peserta.', 'error');
+                    setProctorModal(prev => ({ ...prev, loading: false }));
+                }
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('Terjadi kesalahan saat memproses aksi proctoring.', 'error');
+            setProctorModal(prev => ({ ...prev, loading: false }));
+        }
+    };
 
     const toggleSessionExpand = (sessionId) => {
         setExpandedSessions(prev => {
@@ -279,21 +338,21 @@ export default function FormResponsesPage() {
     }, [activeTab, autoRefresh, fetchExamMonitoring]);
 
     const filteredSessions = useMemo(() => {
-        const list = monitoringData?.sessions || [];
-        const maxSw = monitoringData?.maxTabSwitch || 3;
-        return list.filter(s => {
-            if (monitoringSearch) {
-                const term = monitoringSearch.toLowerCase();
-                const name = (s.respondentName || 'Anonim').toLowerCase();
-                if (!name.includes(term)) return false;
-            }
-            if (monitoringFilter === 'in_progress') return s.status === 'in_progress';
-            if (monitoringFilter === 'submitted') return s.status === 'submitted';
-            if (monitoringFilter === 'violations') return s.violationCount > 0;
-            if (monitoringFilter === 'high_violations') return s.violationCount >= maxSw || s.tabSwitchCount >= maxSw;
-            return true;
-        });
-    }, [monitoringData, monitoringFilter, monitoringSearch]);
+    const list = monitoringData?.sessions || [];
+    const maxSw = monitoringData?.maxTabSwitch || 3;
+    return list.filter(s => {
+        if (monitoringSearch) {
+            const term = monitoringSearch.toLowerCase();
+            const name = (s.respondentName || 'Anonim').toLowerCase();
+            if (!name.includes(term)) return false;
+        }
+        if (monitoringFilter === 'in_progress') return s.status === 'in_progress';
+        if (monitoringFilter === 'submitted') return s.status === 'submitted';
+        if (monitoringFilter === 'violations') return getGenuineViolationCount(s) > 0;
+        if (monitoringFilter === 'high_violations') return getGenuineViolationCount(s) >= maxSw || s.tabSwitchCount >= maxSw;
+        return true;
+    });
+}, [monitoringData, monitoringFilter, monitoringSearch]);
 
     const getViolationInfo = (type) => {
         switch (type) {
@@ -332,6 +391,14 @@ export default function FormResponsesPage() {
                     color: 'text-slate-600 dark:text-slate-400',
                     bg: 'bg-slate-100 dark:bg-slate-800',
                 };
+            case 'FORCE_SUBMIT_BY_PROCTOR':
+            case 'force_submit_by_proctor':
+                return {
+                    label: 'Diselesaikan Paksa oleh Pengawas (Force Submit)',
+                    icon: <ShieldAlert size={13} />,
+                    color: 'text-red-700 dark:text-red-300',
+                    bg: 'bg-red-100 dark:bg-red-950/80',
+                };
             default:
                 return {
                     label: `Pelanggaran: ${type}`,
@@ -341,6 +408,12 @@ export default function FormResponsesPage() {
                 };
         }
     };
+
+    const isProctorActionType = (type) =>
+    (type || '').toLowerCase() === ExamProctorActions.ForceSubmitByProctor.toLowerCase();
+
+const getGenuineViolationCount = (session) =>
+    (session.violations || []).filter(v => !isProctorActionType(v.type)).length;
 
     const formatDateWithTime = (d) => d
         ? new Date(d).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -481,13 +554,29 @@ export default function FormResponsesPage() {
         }));
     }, [analytics, responses]);
 
-    const handleExport = (formId) => {
+    const handleExport = async (formId, format = 'csv') => {
         if (!formId || exporting) return;
         setExporting(true);
         try {
+            // For Excel / PDF, use server-side export endpoint
+            if (format === 'xlsx' || format === 'pdf') {
+                const res = await exportFormResponses(formId, format, includeAnswerKey);
+                if (!res.ok) {
+                    showToast(res.message || `Gagal mengekspor ${format.toUpperCase()}`, 'error');
+                } else {
+                    showToast(`File ${format.toUpperCase()} berhasil diunduh!`);
+                }
+                return;
+            }
+
+            // For CSV: If no local responses list, fallback to server-side CSV
             if (!respondentsList || respondentsList.length === 0) {
-                showToast('Belum ada data respons untuk diekspor.', 'error');
-                setExporting(false);
+                const res = await exportFormResponses(formId, 'csv', includeAnswerKey);
+                if (!res.ok) {
+                    showToast(res.message || 'Belum ada data respons untuk diekspor.', 'error');
+                } else {
+                    showToast('File CSV berhasil diunduh!');
+                }
                 return;
             }
 
@@ -505,6 +594,17 @@ export default function FormResponsesPage() {
                 });
             });
 
+            // Also ensure any loaded questions are included
+            (formQuestions || []).forEach(q => {
+                if (q.id && !questionMap.has(q.id)) {
+                    const cleanTitle = (q.question || q.question1 || `Soal #${q.id}`)
+                        .replace(/<[^>]*>/g, '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                    questionMap.set(q.id, cleanTitle);
+                }
+            });
+
             const escapeCsv = (val) => {
                 if (val === null || val === undefined) return '""';
                 const str = String(val)
@@ -515,35 +615,42 @@ export default function FormResponsesPage() {
             };
 
             const headerRow = [
-                'ID Respons',
-                'Nama Responden',
-                'Waktu Submit',
-                'Status',
-                'Soal Dijawab',
-                'Benar',
-                'Salah',
-                'Skor Akhir (%)',
-                ...Array.from(questionMap.values())
+                'Response ID',
+                'Submitted At',
+                'Respondent',
+                ...Array.from(questionMap.values()).map(stripMathNotation)
             ];
 
-            const rows = respondentsList.map(r => {
+            let rows = [];
+
+            // A5 Spec:
+            // "Format CSV: tambahkan baris ke-2 berisi KUNCI,JAWABAN,-,<kunci per soal>, tepat di bawah header. Hapus kolom Kunci_* versi lama."
+            // "Parameter ?includeAnswerKey=false harus tetap bisa mematikan baris kunci jawaban."
+            if (includeAnswerKey) {
+                const answerKeyRow = [
+                    'KUNCI',
+                    'JAWABAN',
+                    '-',
+                    ...Array.from(questionMap.keys()).map(qId => {
+                        const qDef = (formQuestions || []).find(q => q.id === qId);
+                        return stripMathNotation(resolveAnswerKey(qDef));
+                    })
+                ];
+                rows.push(answerKeyRow.map(escapeCsv).join(','));
+            }
+
+            const dataRows = (respondentsList || []).map(r => {
                 const answerByQ = new Map((r.answers || []).map(a => [a.questionId, a.answerText || a.answerValue || a.optionText || '']));
-                const scorable = r.scorableQuestions ?? 0;
-                const correct = r.correctCount ?? 0;
-                const wrong = r.wrongCount != null ? r.wrongCount : Math.max(scorable - correct, 0);
 
                 return [
                     r.responseId,
+                    r.submittedAt ? formatDate(r.submittedAt) : '-',
                     r.respondentName || 'Anonim',
-                    formatDate(r.submittedAt),
-                    r.status || 'new',
-                    `${r.answeredCount ?? 0}/${r.totalQuestions ?? 0}`,
-                    correct,
-                    wrong,
-                    r.score != null ? `${r.score}%` : 'N/A',
-                    ...Array.from(questionMap.keys()).map(qId => answerByQ.get(qId) || '')
+                    ...Array.from(questionMap.keys()).map(qId => stripMathNotation(answerByQ.get(qId) || ''))
                 ].map(escapeCsv).join(',');
             });
+
+            rows.push(...dataRows);
 
             const csvContent = '\uFEFF' + [headerRow.map(escapeCsv).join(','), ...rows].join('\r\n');
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -556,10 +663,10 @@ export default function FormResponsesPage() {
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
 
-            showToast('File CSV (lengkap dengan pembaruan nilai) berhasil diunduh!');
+            showToast('File CSV berhasil diunduh!');
         } catch (err) {
             console.error(err);
-            showToast('Terjadi kesalahan saat mengekspor CSV.', 'error');
+            showToast('Terjadi kesalahan saat mengekspor.', 'error');
         } finally {
             setExporting(false);
         }
@@ -1214,14 +1321,48 @@ Panduan penilaian:
                         >
                             <BarChart2 size={14} /> Analisis
                         </button>
+
+                        <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 select-none cursor-pointer font-medium px-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+                            <input
+                                type="checkbox"
+                                checked={includeAnswerKey}
+                                onChange={e => setIncludeAnswerKey(e.target.checked)}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                            <span>Kunci Jawaban</span>
+                        </label>
+
                         <button
                             type="button"
-                            onClick={() => handleExport(id)}
+                            onClick={() => handleExport(id, 'csv')}
                             disabled={exporting}
-                            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs disabled:opacity-60 cursor-pointer"
+                            className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs disabled:opacity-60 cursor-pointer"
+                            title="Unduh format CSV"
                         >
-                            {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                            <span>{exporting ? 'Mengekspor...' : 'Unduh CSV'}</span>
+                            {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                            <span>CSV</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => handleExport(id, 'xlsx')}
+                            disabled={exporting}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs disabled:opacity-60 cursor-pointer"
+                            title="Unduh format Excel (.xlsx)"
+                        >
+                            <Download size={13} />
+                            <span>Excel</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => handleExport(id, 'pdf')}
+                            disabled={exporting}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs disabled:opacity-60 cursor-pointer"
+                            title="Unduh format PDF (.pdf)"
+                        >
+                            <Download size={13} />
+                            <span>PDF</span>
                         </button>
                     </div>
                 </div>
@@ -1372,11 +1513,11 @@ Panduan penilaian:
                                             Formulir ini belum menerima kiriman jawaban dari audiens. Bagikan tautan formulir Anda agar responden dapat mulai mengisi.
                                         </p>
                                     </div>
-                                    {formData?.formLink && (
+                                    {form?.formLink && (
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                const url = `${window.location.origin}/f/${formData.formLink}`;
+                                                const url = `${window.location.origin}/f/${form.formLink}`;
                                                 navigator.clipboard.writeText(url);
                                                 showToast('Tautan formulir berhasil disalin ke clipboard!');
                                             }}
@@ -1716,14 +1857,15 @@ Panduan penilaian:
                                                     <th className="py-3 px-4">Pindah Tab</th>
                                                     <th className="py-3 px-4">Total Pelanggaran</th>
                                                     <th className="py-3 px-4">Aktivitas Terakhir</th>
-                                                    <th className="py-3 px-4 text-right">Rincian Log</th>
+                                                    <th className="py-3 px-4 text-right">Aksi & Log</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                                                 {filteredSessions.map((session, idx) => {
                                                     const isExpanded = expandedSessions.has(session.sessionId || `session-${idx}`);
                                                     const maxSw = monitoringData?.maxTabSwitch || 3;
-                                                    const isHighViolation = session.violationCount >= maxSw || session.tabSwitchCount >= maxSw;
+                                                    const genuineViolationCount = getGenuineViolationCount(session);
+                                                    const isHighViolation = genuineViolationCount >= maxSw || session.tabSwitchCount >= maxSw;
 
                                                     return (
                                                         <Fragment key={session.sessionId || `session-${idx}`}>
@@ -1783,21 +1925,21 @@ Panduan penilaian:
                                                                 </td>
 
                                                                 <td className="py-3.5 px-4">
-                                                                    {session.violationCount === 0 ? (
-                                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                                                                            ✓ Bersih (0)
-                                                                        </span>
-                                                                    ) : isHighViolation ? (
-                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-red-100 text-red-700 dark:bg-red-950/70 dark:text-red-300 border border-red-300 dark:border-red-800 animate-pulse">
-                                                                            <AlertTriangle size={12} />
-                                                                            {session.violationCount} Pelanggaran (Tinggi)
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-                                                                            ⚠️ {session.violationCount} Pelanggaran
-                                                                        </span>
-                                                                    )}
-                                                                </td>
+    {genuineViolationCount === 0 ? (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+            ✓ Bersih (0)
+        </span>
+    ) : isHighViolation ? (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-red-100 text-red-700 dark:bg-red-950/70 dark:text-red-300 border border-red-300 dark:border-red-800 animate-pulse">
+            <AlertTriangle size={12} />
+            {genuineViolationCount} Pelanggaran (Tinggi)
+        </span>
+    ) : (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+            ⚠️ {genuineViolationCount} Pelanggaran
+        </span>
+    )}
+</td>
 
                                                                 <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 text-[11px]">
                                                                     <div>{formatDate(session.lastSeenAt || session.startedAt)}</div>
@@ -1807,14 +1949,38 @@ Panduan penilaian:
                                                                 </td>
 
                                                                 <td className="py-3.5 px-4 text-right">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => toggleSessionExpand(session.sessionId || `session-${idx}`)}
-                                                                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 rounded-lg transition-all cursor-pointer"
-                                                                    >
-                                                                        <span>Log ({session.violations?.length || 0})</span>
-                                                                        {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                                                                    </button>
+                                                                    <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                                                        {session.sessionId && session.status === 'in_progress' && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleOpenForceSubmit(session)}
+                                                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 rounded-lg transition-all cursor-pointer"
+                                                                                title="Selesaikan paksa sesi ujian peserta ini"
+                                                                            >
+                                                                                <ShieldAlert size={12} />
+                                                                                <span>Force Submit</span>
+                                                                            </button>
+                                                                        )}
+                                                                        {session.sessionId && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleOpenResetSession(session)}
+                                                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 rounded-lg transition-all cursor-pointer"
+                                                                                title="Reset sesi ujian agar peserta dapat memulai dari awal"
+                                                                            >
+                                                                                <RotateCcw size={12} />
+                                                                                <span>Reset Sesi</span>
+                                                                            </button>
+                                                                        )}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => toggleSessionExpand(session.sessionId || `session-${idx}`)}
+                                                                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 rounded-lg transition-all cursor-pointer"
+                                                                        >
+                                                                            <span>Log ({session.violations?.length || 0})</span>
+                                                                            {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                                                        </button>
+                                                                    </div>
                                                                 </td>
                                                             </tr>
 
@@ -2574,6 +2740,23 @@ Panduan penilaian:
                     </div>
                 </div>
             )}
+
+            {/* Proctor Action Confirmation Modal */}
+            <ConfirmModal
+                isOpen={proctorModal.isOpen}
+                onClose={() => !proctorModal.loading && setProctorModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={handleConfirmProctorAction}
+                isLoading={proctorModal.loading}
+                variant={proctorModal.type === 'force_submit' ? 'warning' : 'danger'}
+                title={proctorModal.type === 'force_submit' ? 'Selesaikan Paksa Sesi Ujian?' : 'Reset Sesi Ujian Peserta?'}
+                message={
+                    proctorModal.type === 'force_submit'
+                        ? `Apakah Anda yakin ingin menyelesaikan paksa sesi ujian untuk peserta "${proctorModal.respondentName}"? Draft jawaban yang tersinkronisasi akan disimpan dan status sesi akan diubah menjadi submitted.`
+                        : `Apakah Anda yakin ingin me-reset sesi ujian untuk peserta "${proctorModal.respondentName}"? Sesi ini akan dihapus agar peserta dapat mulai baru di halaman ujian.`
+                }
+                confirmText={proctorModal.type === 'force_submit' ? 'Ya, Selesaikan Paksa' : 'Ya, Reset Sesi'}
+                cancelText="Batal"
+            />
 
             {/* Lightbox Modal */}
             <ImageLightboxModal

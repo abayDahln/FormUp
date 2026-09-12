@@ -8,7 +8,6 @@ import {
     Filter, ChevronRight, X, AlertTriangle, UserCheck, ShieldAlert
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
-import Topbar from '../../components/layout/Topbar';
 import RichContentRenderer from '../../utils/RichContentRenderer';
 import {
     getGeminiApiKey,
@@ -402,27 +401,34 @@ Gagal memuat detail mendalam: ${err.message}.
         }
 
         // ── INTENT 2: OUT-OF-SCOPE REDIRECTS (FORM BUILDER / EDIT / CREATE) ──
-        const isEditQuestion = (lowerQuery.includes('edit soal') || lowerQuery.includes('ubah soal') || lowerQuery.includes('tambah opsi') || lowerQuery.includes('revisi soal')) && (activeTargetForm || userForms.length > 0);
-        const isCreateNewFormIntent = lowerQuery.includes('buat form') || lowerQuery.includes('bikin form') || lowerQuery.includes('buat kuis') || lowerQuery.includes('bikin kuis');
+        const mentionsQuestion = /(soal|pertanyaan)/i.test(lowerQuery);
+        const mentionsCreateOrRevise = /(buat|buatkan|bikin|bikinkan|tambah|tambahkan|revisi|ubah|ganti|perbaiki|edit|hapus)/i.test(lowerQuery);
+        const mentionsThisForm = lowerQuery.includes('form ini') || lowerQuery.includes('formulir ini') || !!activeTargetForm;
 
-        if (isEditQuestion) {
+        const isQuestionIntent = mentionsQuestion && mentionsCreateOrRevise && (mentionsThisForm || userForms.length > 0);
+
+        const isCreateNewFormIntent = !mentionsQuestion && mentionsCreateOrRevise && /(form|formulir|kuis)/i.test(lowerQuery);
+
+        if (isQuestionIntent) {
             const target = activeTargetForm || userForms[0];
-            setMessages(prev => [
-                ...prev,
-                {
-                    id: Date.now() + 1,
-                    sender: 'bot',
-                    text: `Untuk merevisi atau menambah butir soal pada formulir **"${target.title}"**, Anda dapat langsung membukanya di **Form Builder** visual:`,
-                    redirectAction: {
-                        label: `Buka Form Builder: ${target.title}`,
-                        path: `/forms/${target.id}/edit`,
-                        icon: 'edit'
-                    },
-                    timestamp: new Date().toISOString()
-                }
-            ]);
-            setLoading(false);
-            return;
+            if (target) {
+                setMessages(prev => [
+                    ...prev,
+                    {
+                        id: Date.now() + 1,
+                        sender: 'bot',
+                        text: `Untuk membuat atau merevisi butir soal pada formulir **"${target.title}"**, silakan buka **Form Builder** dibawah ini dan klik bagian **Generate Soal AI**:`,
+                        redirectAction: {
+                            label: `Buka Form Builder: ${target.title}`,
+                            path: `/forms/${target.id}/edit`,
+                            icon: 'edit'
+                        },
+                        timestamp: new Date().toISOString()
+                    }
+                ]);
+                setLoading(false);
+                return;
+            }
         }
 
         if (isCreateNewFormIntent && !lowerQuery.includes('rekomendasi') && !lowerQuery.includes('ide') && !lowerQuery.includes('contoh')) {
@@ -431,9 +437,9 @@ Gagal memuat detail mendalam: ${err.message}.
                 {
                     id: Date.now() + 1,
                     sender: 'bot',
-                    text: `Anda dapat membuat formulir baru secara manual atau otomatis menggunakan generator cerdas AI. Silakan pilih opsi:`,
+                    text: `Untuk membuat formulir baru, silakan klik tombol di bawah ini:`,
                     redirectAction: {
-                        label: 'Buka Dashboard FormUp',
+                        label: 'Buat Formulir Baru',
                         path: '/dashboard',
                         icon: 'plus'
                     },
@@ -572,7 +578,6 @@ ${deepContext}
             <Sidebar />
 
             <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-                <Topbar />
 
                 <main className="flex-1 flex flex-col min-h-0 w-full overflow-hidden p-3 sm:p-6">
                     {/* Header bar */}
