@@ -595,6 +595,9 @@ public class QuestionsController : ControllerBase
                 optionsCount = r.Options.Count,
                 // Teks tiap opsi agar client bisa menampilkan & memverifikasinya
                 options = r.Options,
+                // Kunci jawaban mentah agar client bisa menandai opsi benar
+                // pada draf lokal (mobile menyimpan via PUT, bukan POST /import)
+                correctAnswer = r.CorrectAnswer,
                 hasCorrectAnswer = !string.IsNullOrEmpty(r.CorrectAnswer),
                 hasImage = r.ImageBytes != null,
                 // Gambar langsung dalam bentuk data URI base64 agar client
