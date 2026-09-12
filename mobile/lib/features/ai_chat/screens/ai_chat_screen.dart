@@ -391,29 +391,43 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   ),
                 ),
           ),
-          // --- 2. Bottom gradient TINGGI + Gemini pill input ---
-          // Zona fade 110px (transparan -> solid) + bodi solid Theme.of(context).scaffoldBackgroundColor
-          // di belakang pill, agar chat memudar mulus jauh sebelum input.
+          // --- 2. Bottom fade gradient: POSISI FIX jangkar bawah layar,
+          // selalu di BELAKANG cluster aksi (pending bar + input).
+          // Dulu gradient tertanam di kolom bawah yang tingginya berubah
+          // saat kartu konfirmasi muncul/hilang — sehingga gradient ikut
+          // berpindah dan menimpa kartu. Kini fix + di belakang.
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              child: Container(
+                height: 170,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Theme.of(context)
+                          .scaffoldBackgroundColor
+                          .withValues(alpha: 0),
+                      Theme.of(context)
+                          .scaffoldBackgroundColor
+                          .withValues(alpha: 0.50),
+                      Theme.of(context).scaffoldBackgroundColor,
+                    ],
+                    stops: const [0.0, 0.55, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // --- 3. Bottom action cluster: float PALING DEPAN, di atas gradient.
           Align(
             alignment: Alignment.bottomCenter,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  height: 30,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0),
-                        Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.50),
-                        Theme.of(context).scaffoldBackgroundColor,
-                      ],
-                      stops: const [0.0, 0.55, 1.0],
-                    ),
-                  ),
-                ),
                 // Bar persetujuan aksi AI (Terima/Tolak) + input prompt
                 // dibungkus satu Column berkunci agar tinggi KEDUANYA
                 // terukur — FAB & padding list ikut menyesuaikan.
@@ -455,7 +469,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
               ],
             ),
           ),
-          // FAB scroll-to-bottom: menempel tepat di atas input bar (kanan),
+          // FAB scroll-to-bottom (lapis 4): menempel tepat di atas input bar
           // mengikuti tinggi input bar saat field membesar (multiline),
           // 1x klik langsung ke chat terbaru sampai FAB hilang.
           Positioned(
@@ -477,7 +491,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
               ),
             ),
           ),
-          // --- 1. Top header overlay: solid -> transparent, right side empty ---
+          // --- 5. Top header overlay: solid -> transparent, right side empty ---
           Positioned(
             top: 0,
             left: 0,
