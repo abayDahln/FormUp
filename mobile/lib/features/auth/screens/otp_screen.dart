@@ -93,6 +93,13 @@ class _OtpScreenState extends State<OtpScreen> {
             : result.fullname;
         AppRouter.of(context).goHome(displayName);
       } else {
+        // A1: verifikasi OTP forgot-password ke server dulu sebelum pindah
+        // layar — OTP salah/kedaluwarsa ditolak di sini, bukan setelah
+        // user mengisi password baru.
+        await AuthService.verifyResetOtp(
+          email: widget.email.trim(),
+          otp: otp,
+        );
         if (!mounted) return;
         AppRouter.of(context).push(
           AppPage.resetPassword,

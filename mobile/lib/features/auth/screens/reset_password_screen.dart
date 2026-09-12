@@ -34,6 +34,16 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   Future<void> _resetPassword() async {
     if (!AppDebouncer.tryAcquire('auth:reset')) return;
     if (_loading) return;
+    // A3: guard argumen wajib — deep-link/navigasi parsial (email/otp kosong)
+    // atau OTP tidak 6 digit ditolak di client, bukan 400 di server.
+    if (widget.email.trim().isEmpty || widget.otp.trim().isEmpty) {
+      showAuthToast(context, "Data reset tidak lengkap. Ulangi dari awal.", isError: true);
+      return;
+    }
+    if (widget.otp.trim().length < 6) {
+      showAuthToast(context, "Kode OTP tidak valid. Ulangi dari awal.", isError: true);
+      return;
+    }
     final newPassword = _newPasswordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
@@ -120,7 +130,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                   SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
-                                      "Kata sandi minimal 8 karakter, kombinasi huruf dan angka.",
+                                      "Kata sandi minimal 8 karakter.",
                                       style: TextStyle(
                                         color: cs.onSurfaceVariant,
                                         fontSize: 12,

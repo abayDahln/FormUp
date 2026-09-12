@@ -59,9 +59,25 @@ class _FormRunnerScreenState extends State<FormRunnerScreen> {
   void _onInfoLoaded(PublicFormInfo info) {
     if (mounted) {
       setState(() {
-        _timerSeconds = info.timerDuration;
+        // C8: timer dijangkarkan ke jam tutup server — masuk ulang tidak
+        // me-reset full, dan form tanpa durasi tapi ada jam tutup tetap
+        // punya countdown. Server tetap penegak final (tolak submit telat).
+        _timerSeconds = _effectiveTimerSeconds(info);
       });
     }
+  }
+
+  /// Sisa waktu efektif (detik): durasi timer dibatasi sisa hingga
+  /// closeFormTime berdasar jam server. Null = tanpa batas.
+  static int? _effectiveTimerSeconds(PublicFormInfo info) {
+    final duration = info.timerDuration;
+    final close = info.closeFormTime;
+    if (close == null) return duration;
+    final anchor = info.serverNow ?? DateTime.now();
+    var remaining = close.difference(anchor).inSeconds;
+    if (remaining < 0) remaining = 0;
+    if (duration == null || duration <= 0) return remaining;
+    return remaining < duration ? remaining : duration;
   }
 
   void _onTimerExpired() {

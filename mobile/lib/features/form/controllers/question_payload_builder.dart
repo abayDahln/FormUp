@@ -11,16 +11,18 @@ List<Map<String, dynamic>> buildQuestionsPayload(List<QuestionDraft> questions) 
   return [
     for (var i = 0; i < questions.length; i++)
       {
+        // B6: tipe 4 (tanggal & waktu) tidak pernah dinilai — paksa
+        // non-scorable di payload walau toggle lolos (defense in depth).
         if (questions[i].id != null) 'id': questions[i].id,
         'typeId': questions[i].typeId,
         'question': encodeRichText(questions[i].question),
         'questionOrder': i + 1,
         'isRequired': questions[i].isRequired,
         'randomizeOptions': questions[i].randomizeOptions,
-        'points': questions[i].isScorable ? questions[i].points : null,
+        'points': _effectiveScorable(questions[i]) ? questions[i].points : null,
         // Kirim eksplisit null bila dinilai tapi kunci kosong (ala web:
         // `correctAnswer: scorable ? (q.correctAnswer || null) : null`).
-        'correctAnswer': questions[i].isScorable
+        'correctAnswer': _effectiveScorable(questions[i])
             ? (questions[i].correctAnswer.text.trim().isEmpty
                 ? null
                 : questions[i].correctAnswer.text.trim())
@@ -32,7 +34,7 @@ List<Map<String, dynamic>> buildQuestionsPayload(List<QuestionDraft> questions) 
             for (final o in questions[i].options)
               {
                 'optionText': encodeRichText(o.text).isEmpty ? o.text.document.toPlainText().trim() : encodeRichText(o.text),
-                'isCorrect': questions[i].isScorable ? o.isCorrect : false,
+                'isCorrect': _effectiveScorable(questions[i]) ? o.isCorrect : false,
                 if (o.optionImage != null && o.optionImage!.isNotEmpty)
                   'optionImage': o.optionImage,
               },
@@ -40,3 +42,6 @@ List<Map<String, dynamic>> buildQuestionsPayload(List<QuestionDraft> questions) 
       },
   ];
 }
+
+/// B6: scorable efektif — tipe tanggal & waktu selalu false.
+bool _effectiveScorable(QuestionDraft q) => q.isScorable && q.typeId != 4;

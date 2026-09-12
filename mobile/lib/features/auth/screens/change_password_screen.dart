@@ -141,7 +141,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                             SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                "Kata sandi baru minimal 8 karakter, kombinasi huruf dan angka.",
+                                "Kata sandi baru minimal 8 karakter.",
                                 style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
                               ),
                             ),

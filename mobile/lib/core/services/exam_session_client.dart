@@ -86,6 +86,10 @@ class ExamSessionClient {
           type: sessionId == null ? 'session_start' : 'heartbeat',
         );
         if (res.sessionId.isNotEmpty) sessionId = res.sessionId;
+        // C9: jalur retry samakan 4 field seperti jalur utama —
+        // sebelumnya limit/badge/pantau telat 30 dtk.
+        violationCount = res.violationCount;
+        tabSwitchCount = res.tabSwitchCount;
         shouldAutoSubmit = res.shouldAutoSubmit;
       } catch (_) {}
     } finally {
@@ -157,6 +161,11 @@ class ExamSessionClient {
       shouldAutoSubmit = res.shouldAutoSubmit;
       return res.shouldAutoSubmit;
     } catch (_) {
+      // C3: offline = pelanggaran hilang. Naikkan counter lokal (belum
+      // tersinkron) seperti reportTabSwitch — diselaraskan ulang dari
+      // server saat event berikutnya berhasil terkirim.
+      tabSwitchCount++;
+      violationCount++;
       return false;
     }
   }

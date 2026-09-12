@@ -4,6 +4,7 @@ import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/services/form_service.dart' show exceedsUploadLimit;
 import 'package:form_up/core/services/user_service.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/profile/widgets/birthdate_field.dart';
@@ -80,6 +81,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (picked == null) return;
       final bytes = await picked.readAsBytes();
       if (!mounted) return;
+      // D6: tolak file raksasa di client (cegah OOM/timeout).
+      if (exceedsUploadLimit(bytes)) {
+        showAuthToast(context, "Foto profil maksimal 10 MB", isError: true);
+        return;
+      }
       setState(() => _newImage = bytes);
     } catch (e) {
       if (!mounted) return;

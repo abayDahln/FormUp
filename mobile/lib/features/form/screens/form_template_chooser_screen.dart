@@ -7,6 +7,7 @@ import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/features/form/widgets/form_confirm_dialogs.dart';
 
 /// Poin 12 hardening: whitelist host gambar banner template — cegah load URL sembarang.
 bool _isAllowedBannerUrl(String url) {
@@ -264,8 +265,11 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
       return true;
     }());
     setState(() => _cloningId = tpl.id);
+    // B5: lacak form hasil clone agar bisa dibersihkan bila gagal di tengah.
+    int? createdFormId;
     try {
       final formId = await FormService.createForm(title: tpl.title, description: tpl.description);
+      createdFormId = formId;
       if (tpl.settings.isNotEmpty) {
         await FormService.updateSettings(formId, tpl.settings);
       }
@@ -306,7 +310,26 @@ class _FormTemplateChooserScreenState extends State<FormTemplateChooserScreen> {
       showAuthToast(context, 'Form dari template "${tpl.title}" berhasil dibuat');
     } catch (e) {
       if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      // B5: clone gagal di tengah = draf yatim — tawarkan hapus atau lanjutkan.
+      final orphanId = createdFormId;
+      if (orphanId != null) {
+        final choice = await showOrphanFormDialog(context, e);
+        if (!mounted) return;
+        if (choice == 'delete') {
+          try {
+            await FormService.deleteForm(orphanId);
+            if (!mounted) return;
+            showAuthToast(context, "Draf kosong dihapus");
+          } catch (_) {
+            if (!mounted) return;
+            showAuthToast(context, "Draf tersimpan (id $orphanId), lanjutkan nanti", isError: true);
+          }
+        } else {
+          showAuthToast(context, "Draf tersimpan, lanjutkan nanti dari daftar form", isError: true);
+        }
+      } else {
+        showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _cloningId = null);
     }

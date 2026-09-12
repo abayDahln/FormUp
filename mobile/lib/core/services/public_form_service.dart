@@ -19,12 +19,17 @@ class PublicFormInfo {
   final bool? randomizeQuestions;
   final DateTime? openFormTime;
   final DateTime? closeFormTime;
+  // C8: jam server saat info diambil (UTC→lokal) untuk penjangkaran timer.
+  final DateTime? serverNow;
   // FEAT-6: exam mode
   final bool? isExamMode;
   final bool? disableCopyPaste;
   final bool? detectTabSwitch;
   final bool? autoSubmitOnTabSwitch;
   final int? maxTabSwitch;
+  // C2: server sudah menghitung status sudah-pernah-isi untuk oneResponse.
+  final bool alreadySubmitted;
+  final int? previousResponseId;
   // FEAT-9: theme
   final String? themePrimaryColor;
   final String? themeBackgroundColor;
@@ -46,11 +51,14 @@ class PublicFormInfo {
     this.randomizeQuestions,
     this.openFormTime,
     this.closeFormTime,
+    this.serverNow,
     this.isExamMode,
     this.disableCopyPaste,
     this.detectTabSwitch,
     this.autoSubmitOnTabSwitch,
     this.maxTabSwitch,
+    this.alreadySubmitted = false,
+    this.previousResponseId,
     this.themePrimaryColor,
     this.themeBackgroundColor,
     this.themeConfig,
@@ -72,11 +80,14 @@ class PublicFormInfo {
     randomizeQuestions: json['randomizeQuestions'] as bool?,
     openFormTime: _parseDate(json['openFormTime']),
     closeFormTime: _parseDate(json['closeFormTime']),
+    serverNow: _parseDate(json['serverNow']),
     isExamMode: json['isExamMode'] as bool?,
     disableCopyPaste: json['disableCopyPaste'] as bool?,
     detectTabSwitch: json['detectTabSwitch'] as bool?,
     autoSubmitOnTabSwitch: json['autoSubmitOnTabSwitch'] as bool?,
     maxTabSwitch: json['maxTabSwitch'] as int?,
+    alreadySubmitted: json['alreadySubmitted'] as bool? ?? false,
+    previousResponseId: json['previousResponseId'] as int?,
     themePrimaryColor: json['themePrimaryColor'] as String?,
     themeBackgroundColor: json['themeBackgroundColor'] as String?,
     themeConfig: json['themeConfig'] as String?,

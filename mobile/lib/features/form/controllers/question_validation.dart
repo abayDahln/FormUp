@@ -8,6 +8,10 @@ String? validateQuestionDraft(QuestionDraft q) {
   if (questionText.isEmpty) {
     return "Teks pertanyaan tidak boleh kosong";
   }
+  // B6: tipe tanggal & waktu tidak dapat dinilai — blokir, bukan diam.
+  if (q.typeId == 4 && q.isScorable) {
+    return "Soal tanggal & waktu tidak dapat dinilai";
+  }
   if (q.hasOptions) {
     if (q.options.isEmpty) {
       return "Tambahkan opsi pada pertanyaan pilihan";
@@ -25,11 +29,25 @@ String? validateQuestionDraft(QuestionDraft q) {
         return 'Opsi "$text" duplikat';
       }
     }
+    // B6: PG (pilihan tunggal) yang dinilai wajib tepat 1 kunci jawaban.
+    if (q.typeId == 2 && q.isScorable) {
+      final correct = q.options.where((o) => o.isCorrect).length;
+      if (correct != 1) {
+        return "Pilihan ganda bernilai wajib tepat 1 opsi benar";
+      }
+    }
     if (q.typeId == 3 && q.isScorable) {
       final correct = q.options.where((o) => o.isCorrect).length;
       if (correct == 0) {
         return "Tandai minimal 1 opsi benar untuk soal bernilai";
       }
+    }
+  }
+  // B6: Benar/Salah yang dinilai hanya menerima kunci 'Benar'/'Salah'.
+  if (q.typeId == 5 && q.isScorable) {
+    final key = q.correctAnswer.text.trim();
+    if (key != 'Benar' && key != 'Salah') {
+      return "Soal benar/salah bernilai wajib kunci Benar atau Salah";
     }
   }
   if ((q.points ?? 0) < 0) {

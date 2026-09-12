@@ -230,8 +230,7 @@ class AuthService {
       await _send('GET', '/auth/verify', null, auth: true);
       return true;
     } on ApiException catch (e) {
-      if (e.message.contains('Sesi Anda telah berakhir') || 
-          e.message.contains('unauthorized')) {
+      if (isSessionExpiredMessage(e.message)) {
         return false;
       }
       // Error lain (network), anggap token masih valid jangan logout
@@ -306,14 +305,39 @@ class AuthService {
   static bool isValidEmail(String email) =>
       RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(email);
 
+
+
   static const _serverDownMessage =
       'Terjadi gangguan pada layanan. Silakan coba lagi nanti.';
   static const _connectionMessage =
       'Gagal terhubung. Periksa koneksi internet kamu dan coba lagi.';
   static const _invalidResponseMessage =
       'Terjadi kesalahan, coba lagi nanti.';
+  static const _rateLimitMessage =
+      'Terlalu banyak permintaan. Coba lagi nanti.';
+
+  /// C10: jam UTC sampai kapan klien harus menahan diri (dari header
+  /// `Retry-After` respons 429 server). Polling wajib menghormatinya.
+  static DateTime? retryAfterUtc;
+
+  static void _noteRetryAfter(http.Response response) {
+    if (response.statusCode != 429) return;
+    final raw = response.headers['retry-after'];
+    final secs = int.tryParse(raw ?? '');
+    retryAfterUtc = DateTime.now().toUtc().add(
+      Duration(seconds: secs != null && secs > 0 ? secs : 30),
+    );
+  }
+
+  /// true bila server sedang meminta backoff (dipakai polling).
+  static bool get isRateLimited =>
+      retryAfterUtc != null && DateTime.now().toUtc().isBefore(retryAfterUtc!);
 
   static Map<String, dynamic> _decode(http.Response response) {
+    if (response.statusCode == 429) {
+      _noteRetryAfter(response);
+      throw const ApiException(_rateLimitMessage);
+    }
     final Map<String, dynamic> json;
     try {
       json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -411,13 +435,26 @@ class AuthService {
     return _decode(response);
   }
 
+  /// D5: pesan sesi-basi dikenali longgar (case-insensitive, contains),
+  /// bukan cek persis 'unauthorized' saja. Varian server seperti
+  /// 'Token expired', 'Invalid token', 'Sesi Anda telah berakhir' ikut tertangkap.
+  static bool isSessionExpiredMessage(String message) {
+    final m = message.toLowerCase();
+    return m.contains('unauthorized') ||
+        m.contains('token expired') ||
+        m.contains('invalid token') ||
+        m.contains('token is invalid') ||
+        m.contains('token') && m.contains('expired') ||
+        m.contains('sesi') && m.contains('berakhir');
+  }
+
   /// Deteksi 401 JWT
   static bool _isAuthRejected(http.Response response) {
     if (response.headers['token-expired']?.toLowerCase() == 'true') return true;
     try {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       final message = (json['message'] ?? json['Message'] ?? '') as String;
-      return message.toLowerCase() == 'unauthorized';
+      return isSessionExpiredMessage(message);
     } catch (_) {
       return false;
     }
@@ -500,6 +537,20 @@ class AuthService {
     _RateLimiter.check('/auth/forgot-password');
     final json = await _send('POST', '/auth/forgot-password', {'email': email});
     return json['message'] as String? ?? 'OTP telah dikirim';
+  }
+
+  /// A1: verifikasi OTP forgot-password ke server SEBELUM user mengisi
+  /// password baru. Gagal-cepat di layar OTP, bukan di ujung alur reset.
+  static Future<String> verifyResetOtp({
+    required String email,
+    required String otp,
+  }) async {
+    _RateLimiter.check('/auth/verify-reset-otp');
+    final json = await _send('POST', '/auth/verify-reset-otp', {
+      'email': email,
+      'otp': otp,
+    });
+    return json['message'] as String? ?? 'OTP valid';
   }
 
   static Future<String> resetPassword({

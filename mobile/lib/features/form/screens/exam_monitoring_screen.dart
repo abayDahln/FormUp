@@ -50,12 +50,35 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
   bool _fetchBusy = false;
   int _silentFailStreak = 0;
 
+  // C10: polling 15 dtk (dokumen 15–30 dtk), bukan 5 dtk (~240 req/mnt
+  // per 20 owner ke endpoint berat). Timer dijadwal-ulang tiap siklus
+  // agar bisa backoff saat 429/gagal beruntun + hormati Retry-After server.
+  static const _basePoll = Duration(seconds: 15);
+  static const _maxPoll = Duration(seconds: 60);
+
   @override
   void initState() {
     super.initState();
     _fetch();
-    _poller = Timer.periodic(
-        const Duration(seconds: 5), (_) => _fetch(silent: true));
+  }
+
+  void _scheduleNext() {
+    if (!mounted) return;
+    var delay = _basePoll;
+    // Backoff eksponensial saat gagal sunyi beruntun.
+    for (var i = 0; i < _silentFailStreak && delay < _maxPoll; i++) {
+      delay *= 2;
+    }
+    if (delay > _maxPoll) delay = _maxPoll;
+    // Hormati Retry-After server bila masih berlaku.
+    final retryAt = AuthService.retryAfterUtc;
+    if (retryAt != null) {
+      final wait = retryAt.difference(DateTime.now().toUtc()) +
+          const Duration(seconds: 1);
+      if (wait > delay) delay = wait;
+    }
+    _poller?.cancel();
+    _poller = Timer(delay, () => _fetch(silent: true));
   }
 
   @override
@@ -94,6 +117,7 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
       }
     } finally {
       _fetchBusy = false;
+      _scheduleNext();
     }
   }
 

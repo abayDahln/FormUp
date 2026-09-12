@@ -72,7 +72,10 @@ class ApiCache {
   // disajikan basi berhari-hari dari disk saat offline/stale.
   static bool _isSensitiveKey(String key) {
     final k = key.toLowerCase();
-    return k.contains('responses') || k.contains('analytics') || k.contains('attempts') || k.contains('response') || k.contains('admin') || k.contains('users:me') || k.contains('monitoring') || k.contains('result');
+    // D6: key berbentuk 'http:get:<scope>:/users/me' — cocokkan '/users/me'
+    // (bentuk 'users:me' lama tak pernah cocok sehingga profil ikut
+    // dipersist ke disk dan disajikan basi).
+    return k.contains('responses') || k.contains('analytics') || k.contains('attempts') || k.contains('response') || k.contains('admin') || k.contains('/users/me') || k.contains('monitoring') || k.contains('result');
   }
 
   static Future<void> _persistValue(
@@ -224,6 +227,24 @@ class ApiCache {
     _cache.removeWhere((key, _) => key.startsWith(prefix));
     _pending.removeWhere((key, _) => key.startsWith(prefix));
     unawaited(_removePrefixFromDisk(prefix));
+  }
+
+  /// D6: invalidate semua entri yang mengandung substring (mis. '/users/me'),
+  /// tanpa tahu scope akun persisnya.
+  static void invalidateContaining(String substring) {
+    final sub = substring.toLowerCase();
+    _cache.removeWhere((key, _) => key.toLowerCase().contains(sub));
+    _pending.removeWhere((key, _) => key.toLowerCase().contains(sub));
+    unawaited(_removeContainingFromDisk(sub));
+  }
+
+  static Future<void> _removeContainingFromDisk(String substring) async {
+    final store = await _readDiskStore();
+    final before = store.length;
+    store.removeWhere((key, _) => key.toLowerCase().contains(substring));
+    if (store.length != before) {
+      await _writeDiskStore(store);
+    }
   }
 
   static Future<void> _removeFromDisk(String key) async {

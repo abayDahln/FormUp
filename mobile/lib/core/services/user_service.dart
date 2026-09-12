@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:form_up/core/cache/api_cache.dart';
 import 'auth_service.dart';
 
 /// Profil user
@@ -86,6 +87,8 @@ class UserService {
     }
     if (body.isEmpty) throw const ApiException('Tidak ada perubahan untuk disimpan');
     final json = await AuthService.put('/users/me', body);
+    // D6: profil berubah — jangan sajikan cache basi.
+    ApiCache.invalidateContaining('/users/me');
     return UserProfile.fromJson(json['data'] as Map<String, dynamic>);
   }
 
@@ -96,12 +99,15 @@ class UserService {
   ) async {
     final uri = Uri.parse('$apiBaseUrl/users/me/profile-image');
     var response = await _upload(uri, bytes, filename);
-    if (response.statusCode == 401 &&
-        response.headers['token-expired'] == 'true' &&
-        await AuthService.refreshToken()) {
+    // D5/D6: satu pintu refresh — 401 apapun coba refresh sekali,
+    // bukan hanya bila header token-expired == 'true'.
+    if (response.statusCode == 401 && await AuthService.refreshToken()) {
       response = await _upload(uri, bytes, filename);
     }
-    return _profileImageOf(response);
+    final path = _profileImageOf(response);
+    // D6: avatar baru tidak boleh tertutup cache profil 30 menit.
+    ApiCache.invalidateContaining('/users/me');
+    return path;
   }
 
   static Future<http.Response> _upload(

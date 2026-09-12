@@ -197,10 +197,29 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// A6: normalisasi kode form — tempelan URL penuh
+  /// (mis. https://.../f/ABC123?x=1) diekstrak menjadi kode murni agar
+  /// tidak menjadi `GET /public/forms/https://...` → 404.
+  static String _extractFormLink(String raw) {
+    final input = raw.trim();
+    if (input.isEmpty) return input;
+    final uri = Uri.tryParse(input);
+    final segs = uri?.pathSegments
+            .where((s) => s.trim().isNotEmpty)
+            .toList() ??
+        const [];
+    if (segs.isNotEmpty) return segs.last.trim();
+    final slash = input.lastIndexOf('/');
+    if (slash >= 0 && slash < input.length - 1) {
+      return input.substring(slash + 1).split('?').first.trim();
+    }
+    return input.split('?').first.trim();
+  }
+
   void _start() async {
     if (!AppDebouncer.tryAcquire('home:start')) return;
     if (_validatingCode) return;
-    final code = _codeController.text.trim();
+    final code = _extractFormLink(_codeController.text);
     if (code.isEmpty) {
       showAuthToast(context, "Masukkan kode form terlebih dahulu", isError: true);
       return;
@@ -211,6 +230,25 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       if (info.isOwner) {
         showAuthToast(context, "Anda tidak dapat mengisi form yang Anda buat sendiri", isError: true);
+        return;
+      }
+      // A6: gagal-cepat di home memakai PublicFormInfo — jangan biarkan
+      // user jalan sampai runner baru gagal 401/403/409 di ujung.
+      final now = DateTime.now();
+      if (info.openFormTime != null && now.isBefore(info.openFormTime!)) {
+        showAuthToast(context, "Form belum dibuka", isError: true);
+        return;
+      }
+      if (info.closeFormTime != null && now.isAfter(info.closeFormTime!)) {
+        showAuthToast(context, "Form sudah ditutup", isError: true);
+        return;
+      }
+      if (info.requiresLogin && AuthService.token == null) {
+        showAuthToast(context, "Form ini membutuhkan login", isError: true);
+        return;
+      }
+      if (info.oneResponse && info.alreadySubmitted) {
+        showAuthToast(context, "Anda sudah mengerjakan form ini", isError: true);
         return;
       }
       AppRouter.of(context).push(AppPage.formStart, {'formLink': code});

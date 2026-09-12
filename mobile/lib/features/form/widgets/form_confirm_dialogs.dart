@@ -37,3 +37,35 @@ Future<String?> showFormExitConfirmDialog(BuildContext context) {
     ),
   );
 }
+
+/// B5: dialog draf yatim — penyimpanan bertahap gagal di tengah sehingga
+/// form kosong tertinggal di server. Mengembalikan 'delete' | 'keep' | null.
+Future<String?> showOrphanFormDialog(BuildContext context, Object error) {
+  return showDialog<String>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => AlertDialog(
+      title: const Text(
+        'Penyimpanan Belum Selesai',
+        style: TextStyle(fontFamily: kFontBold),
+      ),
+      content: Text(
+        'Form dibuat tetapi langkah lanjutan gagal ($error). '
+        'Hapus draf kosong ini atau biarkan untuk dilanjutkan nanti?',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, 'keep'),
+          child: const Text('Lanjutkan Nanti'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, 'delete'),
+          child: const Text(
+            'Hapus Draf',
+            style: TextStyle(color: Color(0xFFC0392B)),
+          ),
+        ),
+      ],
+    ),
+  );
+}

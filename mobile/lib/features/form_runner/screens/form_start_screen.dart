@@ -137,6 +137,12 @@ class _FormStartScreenState extends State<FormStartScreen> {
   Future<void> _startForm() async {
     final info = _formInfo!;
 
+    // C2: pengaman ganda bila tombol terkunci terlewat (mis. state balapan).
+    if (info.oneResponse && (info.alreadySubmitted || _myAttempts.isNotEmpty)) {
+      showAuthToast(context, "Anda sudah mengerjakan form ini", isError: true);
+      return;
+    }
+
     // Validasi token jika diperlukan
     if (info.requiresToken) {
       final token = _tokenController.text.trim();
@@ -333,12 +339,24 @@ class _FormStartScreenState extends State<FormStartScreen> {
             const SizedBox(height: 12),
           ],
 
-          // Tombol Mulai / Kerjakan Ulang
-          AuthPrimaryButton(
-            label: _myAttempts.isNotEmpty ? "Kerjakan Ulang" : "Mulai Mengerjakan",
-            loading: _validatingToken,
-            onPressed: _validatingToken ? null : _startForm,
-          ),
+          // C2: oneResponse + sudah submit (sinyal server alreadySubmitted
+          // atau riwayat attempts) → tombol dikunci dengan label jujur,
+          // bukan lolos lalu 400 di ujung.
+          Builder(builder: (context) {
+            final submitted =
+                info.oneResponse && (info.alreadySubmitted || _myAttempts.isNotEmpty);
+            if (submitted) {
+              return AuthPrimaryButton(
+                label: "Sudah Mengerjakan",
+                onPressed: null,
+              );
+            }
+            return AuthPrimaryButton(
+              label: _myAttempts.isNotEmpty ? "Kerjakan Ulang" : "Mulai Mengerjakan",
+              loading: _validatingToken,
+              onPressed: _validatingToken ? null : _startForm,
+            );
+          }),
 
           // Umpan balik — hanya jika sudah pernah mengerjakan, 1x per user
           if (_myAttempts.isNotEmpty) ...[

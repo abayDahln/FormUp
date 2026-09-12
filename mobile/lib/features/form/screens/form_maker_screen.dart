@@ -120,6 +120,9 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
       if (mounted) setState(() => _progress = p);
     }
 
+    // B5: lacak form baru agar bisa dibersihkan bila langkah lanjutan gagal
+    // (tanpa ini retry = duplikat, DB = draf yatim).
+    int? createdFormId;
     try {
       final customLink = sanitizeFormLink(_form.customLinkController.text);
       final int formId;
@@ -136,6 +139,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
           title: _form.titleController.text.trim(),
           description: encodeRichText(_form.descController),
         );
+        createdFormId = formId;
         if (customLink.isNotEmpty) {
           await FormService.updateForm(formId, formLink: customLink);
         }
@@ -171,7 +175,27 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      // B5: form baru + gagal di settings/banner/link = draf yatim.
+      // Tawarkan hapus (dengan konfirmasi) atau lanjutkan nanti.
+      final orphanId = (!_isEdit) ? createdFormId : null;
+      if (orphanId != null) {
+        final choice = await showOrphanFormDialog(context, e);
+        if (!mounted) return;
+        if (choice == 'delete') {
+          try {
+            await FormService.deleteForm(orphanId);
+            if (!mounted) return;
+            showAuthToast(context, "Draf kosong dihapus");
+          } catch (_) {
+            if (!mounted) return;
+            showAuthToast(context, "Draf tersimpan (id $orphanId), lanjutkan nanti", isError: true);
+          }
+        } else {
+          showAuthToast(context, "Draf tersimpan, lanjutkan nanti dari daftar form", isError: true);
+        }
+      } else {
+        showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      }
     } finally {
       if (mounted) {
         setState(() {

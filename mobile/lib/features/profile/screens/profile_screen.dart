@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
+import 'package:form_up/core/services/form_service.dart' show exceedsUploadLimit;
 import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/services/user_service.dart';
 import 'package:form_up/core/router/app_router.dart';
@@ -81,6 +82,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (picked == null) return;
       final Uint8List bytes = await picked.readAsBytes();
       if (!mounted) return;
+      // D6: tolak file raksasa di client (cegah OOM/timeout upload 20MB+).
+      if (exceedsUploadLimit(bytes)) {
+        showAuthToast(context, "Foto profil maksimal 10 MB", isError: true);
+        return;
+      }
       // Loading overlay
       showDialog(
         context: context,
