@@ -519,6 +519,8 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                   final options = (q['options'] as List<dynamic>? ?? [])
                       .whereType<String>()
                       .toList();
+                  final previewCa =
+                      (q['correctAnswer'] as String?)?.trim() ?? '';
                   return Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
@@ -558,22 +560,50 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                             ),
                           ),
                         ],
-                        // Teks opsi jawaban hasil parse
+                        // Teks opsi jawaban hasil parse (centang = kunci terdeteksi)
                         if (options.isNotEmpty) ...[
                           const SizedBox(height: 6),
-                          for (final opt in options)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                "• $opt",
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style:  TextStyle(
-                                  fontSize: 11,
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          for (var oi = 0; oi < options.length; oi++)
+                            Builder(builder: (context) {
+                              final isKey = previewCa.isNotEmpty &&
+                                  _resolveImportCorrect(
+                                      options[oi], oi, previewCa);
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Row(
+                                  children: [
+                                    if (isKey)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(right: 4),
+                                        child: Icon(
+                                          Icons.check_circle,
+                                          size: 13,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                        ),
+                                      ),
+                                    Expanded(
+                                      child: Text(
+                                        "• ${options[oi]}",
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: isKey
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ),
+                              );
+                            }),
                         ],
                         const SizedBox(height: 6),
                         Wrap(
@@ -806,6 +836,9 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
         setProgress(0.85);
       }
 
+      // Gagal upload media JANGAN pop: pending dipertahankan agar bisa
+      // dicoba lagi via Simpan, dan user diberi tahu jumlahnya.
+      var mediaFailed = 0;
       for (var i = 0; i < uploads.length; i++) {
         final (q, bytes, name, isImage) = uploads[i];
         try {
@@ -829,7 +862,8 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
           q.pendingAudioBytes = null;
           q.pendingAudioName = null;
         } catch (e) {
-          // Media gagal upload — soal tetap tersimpan, media dibatalkan.
+          // Pending SENGAJA tidak dibersihkan → coba lagi next Simpan.
+          mediaFailed++;
           showAuthToast(
             context,
             "Gagal upload media (${AuthService.errorMessage(e)})",
@@ -876,20 +910,30 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
               bytes,
               o.pendingImageName ?? 'option.jpg',
             );
+            o.pendingImageBytes = null;
+            o.pendingImageName = null;
           } catch (e) {
+            // Pending dipertahankan untuk coba lagi (jangan finally-clear).
+            mediaFailed++;
             showAuthToast(
               context,
               'Gagal upload gambar opsi (${AuthService.errorMessage(e)})',
               isError: true,
             );
-          } finally {
-            o.pendingImageBytes = null;
-            o.pendingImageName = null;
           }
           if (!mounted) return;
         }
       }
       if (!mounted) return;
+      if (mediaFailed > 0) {
+        // Soal sudah tersimpan; tetap di layar agar media bisa dicoba lagi.
+        showAuthToast(
+          context,
+          'Soal tersimpan, tetapi $mediaFailed media gagal diupload. Tekan Simpan lagi untuk mencoba ulang.',
+          isError: true,
+        );
+        return;
+      }
       setProgress(1.0);
       await Future<void>.delayed(const Duration(milliseconds: 120));
       AppRouter.of(context).pop(formId);
@@ -1130,10 +1174,73 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
     );
   }
 
+  /// Samakan logika server (QuestionsController Import baris ~699-718):
+  /// cocok teks persis → prefix "A. teks" → huruf A-E → angka 1-based →
+  /// fallback strip prefix. Mendukung multi-kunci "A,C" / "1|3".
+  bool _resolveImportCorrect(String optionText, int index, String rawCa) {
+    final cleanOpt = optionText.trim();
+    if (cleanOpt.isEmpty) return false;
+    const stripChars = ['*', '`', '\$', '"', "'"];
+    String stripEdge(String s) {
+      var r = s.trim();
+      bool changed = true;
+      while (changed && r.isNotEmpty) {
+        changed = false;
+        for (final c in stripChars) {
+          if (r.startsWith(c)) {
+            r = r.substring(1).trim();
+            changed = true;
+          }
+          if (r.endsWith(c)) {
+            r = r.substring(0, r.length - 1).trim();
+            changed = true;
+          }
+        }
+      }
+      return r;
+    }
+
+    final parts = rawCa
+        .split(RegExp(r'[,|]'))
+        .map(stripEdge)
+        .where((p) => p.isNotEmpty)
+        .toList();
+    for (final p in parts) {
+      if (cleanOpt.toLowerCase() == p.toLowerCase()) return true;
+      if (cleanOpt.length > 3 &&
+          (cleanOpt[1] == '.' || cleanOpt[1] == ')' || cleanOpt[1] == ':') &&
+          cleanOpt.substring(2).trim().toLowerCase() == p.toLowerCase()) {
+        return true;
+      }
+      if (p.length == 1) {
+        final c = p.toUpperCase().codeUnitAt(0);
+        if (c >= 65 && c <= 69 && c - 65 == index) return true;
+      }
+      final num = int.tryParse(p);
+      if (num != null && num == index + 1) return true;
+      final strippedOpt = cleanOpt.length > 2 &&
+              (cleanOpt[1] == '.' || cleanOpt[1] == ')')
+          ? cleanOpt.substring(2).trim()
+          : cleanOpt;
+      if (strippedOpt.toLowerCase() == p.toLowerCase()) return true;
+    }
+    return false;
+  }
+
   QuestionDraft _draftFromImportItem(Map<String, dynamic> item) {
     final rawCorrect = (item['correctAnswer'] as String?)?.trim() ?? '';
-    final opts = (item['options'] as List<dynamic>? ?? []).whereType<Map<String, dynamic>>().toList();
-    final hasCorrectOption = opts.any((o) => o['isCorrect'] == true);
+    // Server kirim options sebagai List<String>; tetap terima Map
+    // (tahan format lain) agar opsi tak hilang.
+    final optTexts = <String>[
+      for (final o in (item['options'] as List<dynamic>? ?? []))
+        if (o is String)
+          o
+        else if (o is Map)
+          (o['optionText'] as String? ?? ''),
+    ];
+    final hasCorrectOption = rawCorrect.isNotEmpty &&
+        optTexts.indexed.any(
+            (e) => _resolveImportCorrect(e.$2, e.$1, rawCorrect));
     final draft = QuestionDraft(
       item['typeId'] as int? ?? 1,
       question: item['question'] as String? ?? '',
@@ -1149,13 +1256,12 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
       questionAudio: item['audio'] as String? ?? item['questionAudio'] as String?,
     );
 
-    final options = (item['options'] as List<dynamic>? ?? [])
-        .whereType<Map<String, dynamic>>();
-    for (final opt in options) {
+    for (var i = 0; i < optTexts.length; i++) {
       draft.options.add(
         OptionDraft(
-          text: opt['optionText'] as String? ?? '',
-          isCorrect: opt['isCorrect'] == true,
+          text: optTexts[i],
+          isCorrect: rawCorrect.isNotEmpty &&
+              _resolveImportCorrect(optTexts[i], i, rawCorrect),
         ),
       );
     }

@@ -306,6 +306,13 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
 
 
   Widget _build(AppRoute route) {
+    // D3: halaman admin hanya untuk ADMIN (deep-link/push langsung ditolak
+    // di UI, bukan menunggu 403 server).
+    if (_RouteGuardScreen.isAdminPage(route.page) &&
+        AuthService.role != 'ADMIN') {
+      return const _RouteGuardScreen(
+          message: 'Halaman ini khusus admin.');
+    }
     switch (route.page) {
       case AppPage.login:
         return const LoginScreen();
@@ -336,9 +343,14 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
           isNew: route.args['isNew'] == true,
         );
       case AppPage.formQuestionEdit:
+        final editDraft = route.args['draft'];
+        if (editDraft is! QuestionDraft) {
+          return const _RouteGuardScreen(
+              message: 'Data soal tidak valid.');
+        }
         return FormQuestionEditScreen(
           formId: route.args['formId'] as int?,
-          draft: route.args['draft'] as QuestionDraft,
+          draft: editDraft,
         );
       case AppPage.formRunner:
         return FormRunnerScreen(
@@ -383,9 +395,15 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
           title: route.args['title'] as String? ?? '',
         );
       case AppPage.formFeedbacks:
+        final fbId = route.args['formId'];
+        final fbTitle = route.args['formTitle'];
+        if (fbId is! int || fbTitle is! String) {
+          return const _RouteGuardScreen(
+              message: 'Data feedback tidak valid.');
+        }
         return FormFeedbacksScreen(
-          formId: route.args['formId'] as int,
-          formTitle: route.args['formTitle'] as String,
+          formId: fbId,
+          formTitle: fbTitle,
         );
       case AppPage.examMonitoring:
         return ExamMonitoringScreen(
@@ -410,9 +428,12 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
           formId: route.args['formId'] as int? ?? 0,
         );
       case AppPage.adminFeedbackDetail:
-        return AdminFeedbackDetailScreen(
-          feedback: route.args['feedback'] as AdminFeedbackItem,
-        );
+        final fb = route.args['feedback'];
+        if (fb is! AdminFeedbackItem) {
+          return const _RouteGuardScreen(
+              message: 'Data feedback tidak valid.');
+        }
+        return AdminFeedbackDetailScreen(feedback: fb);
       case AppPage.settings:
         return const SettingsScreen();
       case AppPage.aiChat:
@@ -527,6 +548,50 @@ class AppRouter extends InheritedWidget {
 
   @override
   bool updateShouldNotify(AppRouter oldWidget) => delegate != oldWidget.delegate;
+}
+
+/// Halaman pengganti aman bila rute dibuka tanpa argumen wajib
+/// (deep-link parsial) atau tanpa hak akses.
+class _RouteGuardScreen extends StatelessWidget {
+  final String message;
+
+  const _RouteGuardScreen({required this.message});
+
+  static bool isAdminPage(AppPage page) =>
+      page == AppPage.adminPanel ||
+      page == AppPage.adminUserDetail ||
+      page == AppPage.adminFormDetail ||
+      page == AppPage.adminFeedbackDetail;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => AppRouter.of(context).pop(),
+        ),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.block_outlined, size: 48, color: cs.onSurfaceVariant),
+              const SizedBox(height: 12),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 

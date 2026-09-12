@@ -678,7 +678,8 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   Future<bool> _submitInternal({
     required bool returnToStartScreen,
   }) async {
-    if (!_tryAcquireSubmit()) return false;
+    // Validasi dulu TANPA lock: semua return di bawah tak perlu release,
+    // kunci tak akan bocor apapun yang berubah saat dialog terbuka.
     final firstUnanswered = _c.store.firstUnansweredIndex(_c.questions);
     if (firstUnanswered != null) {
       setState(() {
@@ -701,6 +702,7 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
       return false;
     }
 
+    if (!_tryAcquireSubmit()) return false;
     setState(() => _submitting = true);
     try {
       await _c.submitAnswers(

@@ -61,6 +61,10 @@ class _OtpScreenState extends State<OtpScreen> {
   Future<void> _verify() async {
     if (!AppDebouncer.tryAcquire('auth:verify')) return;
     if (_loading) return;
+    if (widget.email.trim().isEmpty) {
+      showAuthToast(context, "Email tidak valid. Ulangi dari awal.", isError: true);
+      return;
+    }
     final otp = _otpController.text.trim();
     if (otp.isEmpty || otp.length < 6) {
       showAuthToast(context, "Masukkan kode OTP 6 digit", isError: true);
@@ -70,10 +74,17 @@ class _OtpScreenState extends State<OtpScreen> {
     setState(() => _loading = true);
     try {
       if (widget.isRegister) {
+        final fullname = widget.fullname;
+        final password = widget.password;
+        if (fullname == null || password == null) {
+          if (!mounted) return;
+          showAuthToast(context, "Data pendaftaran tidak lengkap. Ulangi dari awal.", isError: true);
+          return;
+        }
         final result = await AuthService.verifyRegistration(
-          fullname: widget.fullname!,
+          fullname: fullname,
           email: widget.email,
-          password: widget.password!,
+          password: password,
           otp: otp,
         );
         if (!mounted) return;
@@ -101,12 +112,23 @@ class _OtpScreenState extends State<OtpScreen> {
       showAuthToast(context, "Tunggu $_cooldown detik untuk mengirim ulang", isError: true);
       return;
     }
+    if (widget.email.trim().isEmpty) {
+      showAuthToast(context, "Email tidak valid. Ulangi dari awal.", isError: true);
+      return;
+    }
     try {
       if (widget.isRegister) {
+        final fullname = widget.fullname;
+        final password = widget.password;
+        if (fullname == null || password == null) {
+          if (!mounted) return;
+          showAuthToast(context, "Data pendaftaran tidak lengkap. Ulangi dari awal.", isError: true);
+          return;
+        }
         await AuthService.register(
-          fullname: widget.fullname!,
+          fullname: fullname,
           email: widget.email,
-          password: widget.password!,
+          password: password,
         );
       } else {
         await AuthService.forgotPassword(widget.email);

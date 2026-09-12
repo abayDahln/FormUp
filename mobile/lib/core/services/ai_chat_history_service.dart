@@ -56,20 +56,60 @@ class ChatHistoryMessage {
         'undoSnapshot': undoSnapshot,
         'actionUndone': actionUndone,
       };
-  factory ChatHistoryMessage.fromJson(Map<String, dynamic> j) =>
-      ChatHistoryMessage(
-        role: j['role'] as String,
-        text: j['text'] as String,
-        actionJson: j['actionJson'] as Map<String, dynamic>?,
-        actionStatus: j['actionStatus'] as String?,
-        actionResult: j['actionResult'] as String?,
-        actionFormId: j['actionFormId'] as int?,
-        actionExecuted: j['actionExecuted'] as bool?,
-        isError: j['isError'] as bool?,
-        isTruncated: j['isTruncated'] as bool?,
-        undoSnapshot: j['undoSnapshot'] as Map<String, dynamic>?,
-        actionUndone: j['actionUndone'] as bool?,
-      );
+  /// Parse toleran: nilai bertipe salah (mis. int tersimpan sebagai
+  /// String karena versi lama/disk korup) dikonversi bila mungkin,
+  /// bukan melempar — pemanggil melewati pesan yang tetap tak valid.
+  factory ChatHistoryMessage.fromJson(Map<String, dynamic> j) {
+    int? asInt(Object? v) {
+      if (v == null) return null;
+      if (v is int) return v;
+      return int.tryParse(v.toString());
+    }
+
+    bool? asBool(Object? v) {
+      if (v == null) return null;
+      if (v is bool) return v;
+      final s = v.toString().toLowerCase();
+      if (s == 'true' || s == '1') return true;
+      if (s == 'false' || s == '0') return false;
+      return null;
+    }
+
+    Map<String, dynamic>? asMap(Object? v) {
+      if (v == null) return null;
+      if (v is Map<String, dynamic>) return v;
+      if (v is Map) return Map<String, dynamic>.from(v);
+      return null;
+    }
+
+    return ChatHistoryMessage(
+      role: j['role'] as String? ?? 'model',
+      text: j['text']?.toString() ?? '',
+      actionJson: asMap(j['actionJson']),
+      actionStatus: j['actionStatus']?.toString(),
+      actionResult: j['actionResult']?.toString(),
+      actionFormId: asInt(j['actionFormId']),
+      actionExecuted: asBool(j['actionExecuted']),
+      isError: asBool(j['isError']),
+      isTruncated: asBool(j['isTruncated']),
+      undoSnapshot: asMap(j['undoSnapshot']),
+      actionUndone: asBool(j['actionUndone']),
+    );
+  }
+
+  /// Null bila pesan tak bisa dipakai sama sekali (bukan Map).
+  /// Dipakai loadAll agar 1 bubble rusak tak menghapus seluruh riwayat.
+  static ChatHistoryMessage? tryFromJson(Object? e) {
+    if (e is! Map) return null;
+    try {
+      final m = e is Map<String, dynamic> ? e : Map<String, dynamic>.from(e);
+      // Syarat minimal: role & text masih bisa dibaca.
+      if (m['role'] == null && m['text'] == null) return null;
+      return ChatHistoryMessage.fromJson(m);
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 class ChatSession {
@@ -103,22 +143,35 @@ class ChatSession {
         'formContext': formContext,
         'activeFormId': activeFormId,
       };
-  factory ChatSession.fromJson(Map<String, dynamic> j) => ChatSession(
-        id: j['id'] as String,
-        title: j['title'] as String? ?? 'Chat',
-        messages: (j['messages'] as List<dynamic>? ?? [])
-            .map((e) => ChatHistoryMessage.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        updatedAt: j['updatedAt'] != null
-            ? DateTime.tryParse(j['updatedAt'] as String) ?? DateTime.now()
-            : DateTime.now(),
-        formContext: j['formContext'] as String?,
-        activeFormId: j['activeFormId'] as int?,
-      );
+  factory ChatSession.fromJson(Map<String, dynamic> j) {
+    // Pesan rusak dilewati satu per satu — JANGAN gagalkan seluruh sesi.
+    final messages = <ChatHistoryMessage>[];
+    for (final e in (j['messages'] as List<dynamic>? ?? [])) {
+      final m = ChatHistoryMessage.tryFromJson(e);
+      if (m != null) messages.add(m);
+    }
+    final rawActive = j['activeFormId'];
+    return ChatSession(
+      id: j['id']?.toString() ?? '',
+      title: j['title'] as String? ?? 'Chat',
+      messages: messages,
+      updatedAt: j['updatedAt'] != null
+          ? DateTime.tryParse(j['updatedAt'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      formContext: j['formContext']?.toString(),
+      activeFormId:
+          rawActive is int ? rawActive : int.tryParse('${rawActive ?? ''}'),
+    );
+  }
 }
 
 class AiChatHistoryService {
   static const _legacyKey = 'ai_chat_history_v1';
+
+  /// Penanda migrasi legacy sudah pernah diputuskan (sekali per perangkat).
+  /// Tanpa ini, data global lama bisa "diadopsi" akun yang salah bila
+  /// akun pertama login setelah update dan akun lain memakai perangkat.
+  static const _migratedFlag = 'ai_chat_history_migrated_v1';
 
   /// Key penyimpanan per-akun agar chat tidak bocor lintas akun.
   /// Tanpa accountId (belum login) → key legacy bersama.
@@ -128,15 +181,26 @@ class AiChatHistoryService {
     return '$_legacyKey::$id';
   }
 
-  /// Pindahkan data key global lama ke key akun saat ini (sekali saja).
+  /// Pindahkan data key global lama ke key akun saat ini — tepat SEKALI
+  /// per perangkat. Bila akun sudah punya data sendiri, atau keputusan
+  /// migrasi sudah pernah diambil, legacy TIDAK disentuh (bukan milik
+  /// akun ini — kemungkinan sisa versi lama).
   static Future<void> _migrateLegacy(String key) async {
     if (key == _legacyKey) return;
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.getString(key) != null) return;
+    if (prefs.getBool(_migratedFlag) == true) return;
+    if (prefs.getString(key) != null) {
+      await prefs.setBool(_migratedFlag, true);
+      return;
+    }
     final legacy = prefs.getString(_legacyKey);
-    if (legacy == null || legacy.isEmpty) return;
+    if (legacy == null || legacy.isEmpty) {
+      await prefs.setBool(_migratedFlag, true);
+      return;
+    }
     await prefs.setString(key, legacy);
     await prefs.remove(_legacyKey);
+    await prefs.setBool(_migratedFlag, true);
   }
 
   static Future<List<ChatSession>> loadAll({String? accountId}) async {
@@ -147,8 +211,21 @@ class AiChatHistoryService {
     if (raw == null || raw.isEmpty) return [];
     try {
       final list = jsonDecode(raw) as List<dynamic>;
-      return list.map((e) => ChatSession.fromJson(e as Map<String, dynamic>)).toList()
-        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      final sessions = <ChatSession>[];
+      for (final e in list) {
+        try {
+          if (e is! Map) continue;
+          final m = e is Map<String, dynamic>
+              ? e
+              : Map<String, dynamic>.from(e);
+          // Sesi tanpa id valid dilewati (bukan gagalkan semua).
+          if ((m['id']?.toString() ?? '').isEmpty) continue;
+          sessions.add(ChatSession.fromJson(m));
+        } catch (_) {
+          // 1 sesi rusak → lewati, riwayat lain tetap selamat.
+        }
+      }
+      return sessions..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     } catch (_) {
       return [];
     }

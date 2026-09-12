@@ -277,21 +277,32 @@ class AdminService {
   /// Cache in-memory khusus daftar admin (30 detik): pindah tab tidak
   /// fetch ulang, tapi aksi moderasi selalu bust agar status segar.
   /// (AuthService.get tidak dipakai agar tidak kena cache 30 menit.)
+  /// Kunci mencakup scope akun (email|role) agar data admin A tak pernah
+  /// terbaca oleh akun B di perangkat yang sama.
   static final Map<String, _AdminCacheEntry> _listCache = {};
   static const _listTtl = Duration(seconds: 30);
 
   static Future<Map<String, dynamic>> _cachedGet(String path,
       {bool refresh = false}) async {
+    _pruneStale();
+    final key = '${AuthService.cacheScope}::$path';
     if (!refresh) {
-      final hit = _listCache[path];
+      final hit = _listCache[key];
       if (hit != null &&
           DateTime.now().difference(hit.at) < _listTtl) {
         return hit.json;
       }
     }
     final json = await AuthService.get(path, useCache: false);
-    _listCache[path] = _AdminCacheEntry(json);
+    _listCache[key] = _AdminCacheEntry(json);
     return json;
+  }
+
+  /// Buang entri kedaluwarsa agar ganti akun berkali-kali tak menumpuk.
+  /// (Scope berbeda tak akan ke-hit; prune cegah map tumbuh tanpa batas.)
+  static void _pruneStale() {
+    final now = DateTime.now();
+    _listCache.removeWhere((_, e) => now.difference(e.at) >= _listTtl);
   }
 
   static void _bustList() {
