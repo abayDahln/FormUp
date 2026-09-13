@@ -97,9 +97,11 @@ class _ChatInputBarState extends State<ChatInputBar> {
           const SizedBox(height: 6),
           Row(children: [
             InkWell(onTap: (widget.streaming || widget.sending) ? null : widget.onPickFiles, borderRadius: BorderRadius.circular(20), child: Container(width: 36, height: 36, alignment: Alignment.center, child: Icon(Icons.add, size: 22, color: cs.onSurfaceVariant))),
-            const SizedBox(width: 8),
-            Flexible(child: Align(alignment: Alignment.centerRight, child: _FlashPickerCompact(onChanged: widget.onModelChanged))),
-            const SizedBox(width: 4),
+            const Spacer(),
+            // Mobile sangat sempit: pemilihan model di kiri atas, bukan di field
+            if (MediaQuery.sizeOf(context).width >= 600)
+              Flexible(child: Align(alignment: Alignment.centerRight, child: _FlashPickerCompact(onChanged: widget.onModelChanged))),
+            if (MediaQuery.sizeOf(context).width >= 600) const SizedBox(width: 4),
             IconButton(onPressed: (widget.streaming || widget.sending) ? null : widget.onMicPressed, tooltip: widget.isListening ? 'Berhenti merekam' : 'Dikte suara', visualDensity: VisualDensity.compact, icon: Icon(widget.isListening ? Icons.mic : Icons.mic_none_outlined, size: 20, color: widget.isListening ? Colors.red : cs.onSurfaceVariant)),
             const SizedBox(width: 4),
             if (widget.streaming) IconButton(onPressed: widget.onStop, tooltip: 'Stop', style: IconButton.styleFrom(backgroundColor: cs.surfaceContainerHigh), icon: Icon(Icons.stop_rounded, size: 20, color: cs.primary))

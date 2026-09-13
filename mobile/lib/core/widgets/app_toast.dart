@@ -160,38 +160,46 @@ class _TopToastEntryState extends State<_TopToastEntry>
     final cs = Theme.of(context).colorScheme;
     final v = widget.variant;
     final topPadding = MediaQuery.of(context).viewPadding.top + 12;
-    // Tablet/desktop: toast fixed seperti mobile (±400) dan di tengah horizontal,
-    // bukan full-width dari ujung ke ujung.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Tablet/desktop: toast fixed seperti mobile (±400) dan di tengah window
+    // horizontal, bukan full-width. FIX Windows AXTree 72: bungkus Semantics.
     return Positioned(
       top: topPadding,
       left: 0,
       right: 0,
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SlideTransition(
-              position: _offset,
-              child: FadeTransition(
-                opacity: _opacity,
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
-                    decoration: BoxDecoration(
-                      color: Color.alphaBlend(v.color.withValues(alpha: 0.14), cs.surface),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: v.color.withValues(alpha: 0.55)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.18),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
+      child: Semantics(
+        liveRegion: true,
+        container: true,
+        label: '${widget.title ?? v.defaultTitle}: ${widget.message}',
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SlideTransition(
+                position: _offset,
+                child: FadeTransition(
+                  opacity: _opacity,
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                      decoration: BoxDecoration(
+                        // Kontras lebih tinggi: alpha lebih besar + base surfaceContainerHigh
+                        color: Color.alphaBlend(
+                          v.color.withValues(alpha: isDark ? 0.28 : 0.16),
+                          isDark ? cs.surfaceContainerHigh : cs.surface,
                         ),
-                      ],
-                    ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: v.color.withValues(alpha: isDark ? 0.90 : 0.65), width: 1.2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.18),
+                            blurRadius: 20,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -218,7 +226,9 @@ class _TopToastEntryState extends State<_TopToastEntry>
                                   widget.message,
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: v.color,
+                                    color: isDark
+                                        ? Color.lerp(v.color, Colors.white, 0.35)!
+                                        : v.color,
                                     height: 1.35,
                                     decoration: TextDecoration.none,
                                   ),
@@ -249,6 +259,7 @@ class _TopToastEntryState extends State<_TopToastEntry>
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }

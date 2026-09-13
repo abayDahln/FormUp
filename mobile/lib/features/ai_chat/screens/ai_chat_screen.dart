@@ -238,7 +238,17 @@ class _AiChatScreenState extends State<AiChatScreen> {
         },
       );
       if (!available) {
-        if (mounted) showAuthToast(context, 'Dikte tidak tersedia di perangkat ini', isError: true);
+        if (mounted) {
+          if (isDesktopPlatform) {
+            showAuthToast(
+              context,
+              'Dikte Windows belum aktif. Aktifkan di Pengaturan Windows > Waktu & Bahasa > Ucapan, instal paket Indonesia, lalu coba lagi.',
+              isError: true,
+            );
+          } else {
+            showAuthToast(context, 'Dikte tidak tersedia di perangkat ini', isError: true);
+          }
+        }
         return;
       }
       setState(() => _isListening = true);
@@ -484,8 +494,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
               icon: Icon(Icons.arrow_back, color: cs.onSurface),
               onPressed: () => AppRouter.of(context).pop(),
             ),
-          // Pemilihan model di header hanya untuk mobile; desktop dipindah ke dalam field
-          if (!isExpanded(context))
+          // Mobile (<600) : pemilihan model di kiri atas; tablet/desktop di dalam field
+          if (!isTablet(context))
             Flexible(
               child: AiModelPicker(onChanged: () {
                 _dismissKeyboard();

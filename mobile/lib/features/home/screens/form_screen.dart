@@ -171,7 +171,12 @@ class _FormScreenState extends State<FormScreen> {
       indicatorColor: cs.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(32, 28, 32, 32),
+        padding: isDesktopWidth(context)
+            ? const EdgeInsets.fromLTRB(32, 28, 32, 32)
+            : centerPad(
+                context,
+                base: const EdgeInsets.fromLTRB(20, 28, 20, 32),
+              ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -272,11 +277,11 @@ class _FormScreenState extends State<FormScreen> {
               )
             else if (all.isEmpty)
               FormEmptyState(hasFilter: hasFilter)
-            // Desktop: 2/3/4 kolom dinamis (minimal 2).
+            // Mobile 1 kolom, tablet/desktop 2/3/4 (min 2, max 4).
             else
               ResponsiveGrid(
                 columnCountFor: (w) =>
-                    w >= 1400 ? 4 : w >= 840 ? 3 : 2,
+                    w >= 1400 ? 4 : w >= 840 ? 3 : w >= 600 ? 2 : 1,
                 children: [
                   for (final form in all) _buildFormCard(form),
                 ],
