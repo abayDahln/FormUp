@@ -186,7 +186,7 @@ class _DesktopQrcodeScannerScreenState
       _errorMessage = null;
     });
     try {
-      final info = await PublicFormService.getFormInfo(formLink);
+      final info = await PublicFormService.getFormInfo(formLink, refresh: true);
       if (!mounted) return;
       if (info.isOwner) {
         _fail('Anda tidak dapat mengisi form yang Anda buat sendiri.');

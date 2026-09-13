@@ -315,9 +315,16 @@ class PublicFormService {
   static String get _scope => AuthService.cacheScope;
 
   /// GET /public/forms/{formLink}
-  static Future<PublicFormInfo> getFormInfo(String formLink) async {
+  /// [refresh]=true melewati cache (dipakai saat masuk via kode agar tidak
+  /// menyajikan info basi walau form baru saja di-update pemilik).
+  static Future<PublicFormInfo> getFormInfo(
+    String formLink, {
+    bool refresh = false,
+  }) async {
+    final cacheKey = 'publicForms:info:$_scope:$formLink';
+    if (refresh) ApiCache.invalidate(cacheKey);
     return ApiCache.get(
-      'publicForms:info:$_scope:$formLink',
+      cacheKey,
       const Duration(seconds: 45),
       () async {
         final json = await AuthService.get('/public/forms/$formLink');

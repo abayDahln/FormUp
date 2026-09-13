@@ -63,7 +63,7 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
       // tetap ditampilkan agar riwayat tidak hilang.
       PublicFormInfo? info;
       try {
-        info = await PublicFormService.getFormInfo(widget.formLink);
+        info = await PublicFormService.getFormInfo(widget.formLink, refresh: true);
       } catch (_) {}
       if (!mounted) return;
       attempts.sort((a, b) {

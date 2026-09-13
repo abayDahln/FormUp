@@ -68,7 +68,8 @@ class _FormStartScreenState extends State<FormStartScreen> {
     });
 
     try {
-      final info = await PublicFormService.getFormInfo(widget.formLink);
+      // Masuk info form = selalu fresh agar update pemilik langsung terlihat.
+      final info = await PublicFormService.getFormInfo(widget.formLink, refresh: true);
 
       // Cek apakah pemilik
       if (info.isOwner && mounted) {

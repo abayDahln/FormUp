@@ -28,10 +28,11 @@ class FormRunnerController {
     nameController.dispose();
   }
 
-  /// Ambil info form berdasarkan kode.
+  /// Ambil info form berdasarkan kode — selalu fresh agar update pemilik
+  /// langsung terlihat saat masuk via kode (bukan cache 45 detik).
   /// Mengembalikan null bila user adalah pemilik form (tidak boleh mengisi).
   Future<PublicFormInfo?> fetchInfo(String code) async {
-    final fetched = await PublicFormService.getFormInfo(code);
+    final fetched = await PublicFormService.getFormInfo(code, refresh: true);
     if (fetched.isOwner) {
       formLink = null;
       info = null;
@@ -47,9 +48,11 @@ class FormRunnerController {
     if (link == null || link.isEmpty) {
       throw const ApiException('Form belum dimuat. Kembali lalu buka ulang.');
     }
+    // Mulai mengerjakan = selalu ambil soal terbaru (abaikan cache 120 detik).
     final questions = await PublicFormService.getQuestions(
       link,
       token: token.trim().isEmpty ? null : token.trim(),
+      refresh: true,
     );
     store.init(questions);
     this.questions = questions;

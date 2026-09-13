@@ -255,9 +255,11 @@ class FormMakerController {
       if (base == null || base.detectTabSwitch != detectTabSwitch) 'detectTabSwitch': detectTabSwitch,
       if (base == null || base.autoSubmitOnTabSwitch != autoSubmitOnTabSwitch) 'autoSubmitOnTabSwitch': autoSubmitOnTabSwitch,
       if (base == null || base.maxTabSwitch != maxTabSwitch) 'maxTabSwitch': maxTabSwitch,
-      // FEAT-9: theme
-      if (base == null || base.themePrimaryColor != themePrimaryColor) 'themePrimaryColor': themePrimaryColor,
-      if (base == null || base.themeBackgroundColor != themeBackgroundColor) 'themeBackgroundColor': themeBackgroundColor,
+      // FEAT-9: theme — backend tidak bisa bedakan JSON null vs key absen
+      // (keduanya deserialize jadi null lalu di-skip), jadi reset/default
+      // dikirim sebagai string kosong yang backend artikan sebagai clear.
+      if (base == null || base.themePrimaryColor != themePrimaryColor) 'themePrimaryColor': themePrimaryColor ?? '',
+      if (base == null || base.themeBackgroundColor != themeBackgroundColor) 'themeBackgroundColor': themeBackgroundColor ?? '',
       if (base == null || base.themeConfig != themeConfig) 'themeConfig': themeConfig,
     };
     // Token: kirim hanya jika berubah agar bisa menghapus (kirim null) atau menambah.

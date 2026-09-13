@@ -237,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     setState(() => _validatingCode = true);
     try {
-      final info = await PublicFormService.getFormInfo(code);
+      final info = await PublicFormService.getFormInfo(code, refresh: true);
       if (!mounted) return;
       if (info.isOwner) {
         showAuthToast(context, "Anda tidak dapat mengisi form yang Anda buat sendiri", isError: true);

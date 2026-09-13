@@ -93,7 +93,7 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      final info = await PublicFormService.getFormInfo(formLink);
+      final info = await PublicFormService.getFormInfo(formLink, refresh: true);
       if (!mounted) return;
 
       if (info.isOwner) {
