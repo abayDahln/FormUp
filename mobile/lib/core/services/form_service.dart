@@ -573,19 +573,23 @@ class FormService {
       'forms:detail:v2:$_scope:$id',
       const Duration(seconds: 30),
       () async {
-        final json = await AuthService.get('/forms/$id');
+        // Single-cache: outer satu-satunya cache (tanpa double-cache 30 mnt).
+        final json = await AuthService.get('/forms/$id', useCache: false);
         return json['data'] as Map<String, dynamic>;
       },
     );
   }
 
-  /// GET /forms
-  static Future<List<FormData>> getMyForms() async {
+  /// GET /forms — [refresh]=true melewati cache (dipakai swipe-refresh).
+  static Future<List<FormData>> getMyForms({bool refresh = false}) async {
+    if (refresh) {
+      ApiCache.invalidate('forms:list:$_scope:${formsVersion.value}');
+    }
     return ApiCache.get(
       'forms:list:$_scope:${formsVersion.value}',
       const Duration(seconds: 20),
       () async {
-        final json = await AuthService.get('/forms');
+        final json = await AuthService.get('/forms', useCache: false);
         return [
           for (final f in json['data'] as List<dynamic>? ?? [])
             FormData.fromJson(f as Map<String, dynamic>),
@@ -617,12 +621,14 @@ class FormService {
     _invalidateCaches();
   }
 
-  /// GET /forms/{id}/questions — paginated, search support
+  /// GET /forms/{id}/questions — paginated, search support.
+  /// [refresh]=true melewati cache (dipakai swipe-refresh).
   static Future<PagedResult<QuestionData>> getQuestionsPaged(
     int formId, {
     int? page,
     int? pageSize,
     String? search,
+    bool refresh = false,
   }) async {
     final params = <String>[
       if (page != null && pageSize != null) 'page=$page',
@@ -631,11 +637,14 @@ class FormService {
         'search=${Uri.encodeQueryComponent(search.trim())}',
     ];
     final query = params.isEmpty ? '' : '?${params.join('&')}';
+    if (refresh) {
+      ApiCache.invalidate('forms:questions:$_scope:$formId:$query:${formsVersion.value}');
+    }
     return ApiCache.get(
       'forms:questions:$_scope:$formId:$query:${formsVersion.value}',
       const Duration(seconds: 60),
       () async {
-        final json = await AuthService.get('/forms/$formId/questions$query');
+        final json = await AuthService.get('/forms/$formId/questions$query', useCache: false);
         final data = json['data'];
         if (data is List) {
           final items = [
@@ -655,9 +664,10 @@ class FormService {
     );
   }
 
-  /// GET /forms/{id}/questions — legacy tanpa pagination (dipakai form builder)
-  static Future<List<QuestionData>> getQuestions(int formId) async {
-    final paged = await getQuestionsPaged(formId);
+  /// GET /forms/{id}/questions — legacy tanpa pagination (dipakai form builder).
+  /// [refresh]=true melewati cache (dipakai swipe-refresh).
+  static Future<List<QuestionData>> getQuestions(int formId, {bool refresh = false}) async {
+    final paged = await getQuestionsPaged(formId, refresh: refresh);
     return paged.items;
   }
 
@@ -718,13 +728,16 @@ class FormService {
     _invalidateCaches();
   }
 
-  /// GET /users/me/responses
-  static Future<List<MyResponseItem>> getMyResponses() async {
+  /// GET /users/me/responses — [refresh]=true melewati cache.
+  static Future<List<MyResponseItem>> getMyResponses({bool refresh = false}) async {
+    if (refresh) {
+      ApiCache.invalidate('forms:myResponses:$_scope:${formsVersion.value}');
+    }
     return ApiCache.get(
       'forms:myResponses:$_scope:${formsVersion.value}',
       const Duration(seconds: 20),
       () async {
-        final json = await AuthService.get('/users/me/responses');
+        final json = await AuthService.get('/users/me/responses', useCache: false);
         return [
           for (final r in json['data'] as List<dynamic>? ?? [])
             MyResponseItem.fromJson(r as Map<String, dynamic>),
@@ -733,12 +746,14 @@ class FormService {
     );
   }
 
-  /// GET /forms/{id}/responses — paginated + search
+  /// GET /forms/{id}/responses — paginated + search.
+  /// [refresh]=true melewati cache (dipakai swipe-refresh).
   static Future<PagedResult<ResponseListItemData>> getResponses(
     int formId, {
     int? page,
     int? pageSize,
     String? search,
+    bool refresh = false,
   }) async {
     final params = <String>[
       if (page != null && pageSize != null) 'page=$page',
@@ -748,11 +763,14 @@ class FormService {
     ];
     final query = params.isEmpty ? '' : '?${params.join('&')}';
     final path = '/forms/$formId/responses$query';
+    if (refresh) {
+      ApiCache.invalidate('forms:responses:$_scope:$formId:$path');
+    }
     return ApiCache.get(
       'forms:responses:$_scope:$formId:$path',
       const Duration(seconds: 15),
       () async {
-        final json = await AuthService.get(path);
+        final json = await AuthService.get(path, useCache: false);
         final data = json['data'];
 
         // Backward-compat: tanpa param server mengembalikan array polos.
@@ -777,16 +795,20 @@ class FormService {
     );
   }
 
-  /// GET /forms/{id}/responses/{responseId}
+  /// GET /forms/{id}/responses/{responseId} — [refresh]=true melewati cache.
   static Future<ResponseDetailData> getResponseDetail(
     int formId,
-    int responseId,
-  ) async {
+    int responseId, {
+    bool refresh = false,
+  }) async {
+    if (refresh) {
+      ApiCache.invalidate('forms:responseDetail:$_scope:$formId:$responseId');
+    }
     return ApiCache.get(
       'forms:responseDetail:$_scope:$formId:$responseId',
       const Duration(seconds: 30),
       () async {
-        final json = await AuthService.get('/forms/$formId/responses/$responseId');
+        final json = await AuthService.get('/forms/$formId/responses/$responseId', useCache: false);
         return ResponseDetailData.fromJson(
           json['data'] as Map<String, dynamic>,
         );
@@ -794,9 +816,12 @@ class FormService {
     );
   }
 
-  /// PUT /responses/{id}/status
-  static Future<void> updateResponseStatus(int responseId, int statusId) =>
-      AuthService.put('/responses/$responseId/status', {'statusId': statusId});
+  /// PUT /responses/{id}/status — bust cache agar daftar/detail/analytics
+  /// langsung menampilkan status baru (seperti updateAnswerScore).
+  static Future<void> updateResponseStatus(int responseId, int statusId) async {
+    await AuthService.put('/responses/$responseId/status', {'statusId': statusId});
+    ApiCache.invalidatePrefix('forms:');
+  }
 
   /// PUT /responses/{id}/answers/{answerId}/score - AI-4 manual grading essay
   static Future<void> updateAnswerScore(
@@ -888,12 +913,13 @@ class FormService {
     return paged.items;
   }
 
-  /// GET /forms/{id}/analytics
+  /// GET /forms/{id}/analytics — [refresh]=true melewati cache.
   static Future<FormAnalytics> getAnalytics(
     int formId, {
     int? page,
     int? pageSize,
     String? search,
+    bool refresh = false,
   }) async {
     final params = <String>[
       if (page != null && pageSize != null) 'page=$page',
@@ -902,6 +928,9 @@ class FormService {
         'search=${Uri.encodeQueryComponent(search.trim())}',
     ];
     final query = params.isEmpty ? '' : '?${params.join('&')}';
+    if (refresh) {
+      ApiCache.invalidate('forms:analytics:$_scope:$formId:$query');
+    }
     // analytics agregasi berat -> timeout lebih panjang, bypass cache ganda (pakai timeout khusus)
     return ApiCache.get(
       'forms:analytics:$_scope:$formId:$query',
@@ -923,10 +952,15 @@ class FormService {
 
   /// GET /forms/{formId}/responses/{responseId}/result
   /// Hasil lengkap satu respon (skor + kunci jawaban) untuk pemilik form.
+  /// [refresh]=true melewati cache (mis. setelah grading ulang).
   static Future<PublicFormResult> getResponseResult(
     int formId,
-    int responseId,
-  ) async {
+    int responseId, {
+    bool refresh = false,
+  }) async {
+    if (refresh) {
+      ApiCache.invalidate('forms:responseResult:$_scope:$formId:$responseId');
+    }
     return ApiCache.get(
       'forms:responseResult:$_scope:$formId:$responseId',
       const Duration(seconds: 30),
@@ -944,10 +978,15 @@ class FormService {
 
   /// GET /forms/{formId}/responses/{responseId}/attempts
   /// Semua attempt responden yang sama pada form yang sama.
+  /// [refresh]=true melewati cache.
   static Future<List<MyAttempt>> getRespondentAttempts(
     int formId,
-    int responseId,
-  ) async {
+    int responseId, {
+    bool refresh = false,
+  }) async {
+    if (refresh) {
+      ApiCache.invalidate('forms:attempts:$_scope:$formId:$responseId');
+    }
     return ApiCache.get(
       'forms:attempts:$_scope:$formId:$responseId',
       const Duration(seconds: 30),

@@ -114,12 +114,12 @@ class _ResponseScreenState extends State<ResponseScreen> {
     });
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool refresh = false}) async {
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
-        FormService.getMyResponses(),
-        FormService.getMyForms(),
+        FormService.getMyResponses(refresh: refresh),
+        FormService.getMyForms(refresh: refresh),
       ]);
       if (!mounted) return;
       setState(() {
@@ -578,7 +578,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
   Widget _buildHistoryList(List<ResponseHistoryGroup> groups) {
     if (groups.isEmpty) {
       return AppRefreshIndicator(
-        onRefresh: _load,
+        onRefresh: () => _load(refresh: true),
         indicatorColor: Theme.of(context).colorScheme.primary,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -647,7 +647,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
   Widget _buildAnalyticsList(List<FormData> forms) {
     if (forms.isEmpty) {
       return AppRefreshIndicator(
-        onRefresh: _load,
+        onRefresh: () => _load(refresh: true),
         indicatorColor: Theme.of(context).colorScheme.primary,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),

@@ -426,10 +426,15 @@ class PublicFormService {
     final data = json['data'] as Map<String, dynamic>?;
     return (data?['saved'] as int?) ?? 0;
   }
+  /// [refresh]=true melewati cache (mis. setelah grading ulang owner).
   static Future<PublicFormResult> getResult(
     String formLink,
-    int responseId,
-  ) async {
+    int responseId, {
+    bool refresh = false,
+  }) async {
+    if (refresh) {
+      ApiCache.invalidate('publicForms:result:$_scope:$formLink:$responseId');
+    }
     return ApiCache.get(
       'publicForms:result:$_scope:$formLink:$responseId',
       const Duration(seconds: 30),
@@ -444,8 +449,12 @@ class PublicFormService {
   }
 
   /// GET .../my-responses — semua attempt user pada satu form
-  /// Diurutkan terlama -> terbaru agar Percobaan #1 = paling lama
-  static Future<List<MyAttempt>> getMyAttempts(String formLink) async {
+  /// Diurutkan terlama -> terbaru agar Percobaan #1 = paling lama.
+  /// [refresh]=true melewati cache (mis. setelah kembali dari mengerjakan).
+  static Future<List<MyAttempt>> getMyAttempts(String formLink, {bool refresh = false}) async {
+    if (refresh) {
+      ApiCache.invalidate('publicForms:attempts:$_scope:$formLink');
+    }
     return ApiCache.get(
       'publicForms:attempts:$_scope:$formLink',
       const Duration(seconds: 20),

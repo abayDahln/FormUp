@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -43,12 +44,12 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool refresh = false}) async {
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
-        FormService.getResponseResult(widget.formId, _selectedResponseId),
-        FormService.getRespondentAttempts(widget.formId, widget.responseId),
+        FormService.getResponseResult(widget.formId, _selectedResponseId, refresh: refresh),
+        FormService.getRespondentAttempts(widget.formId, widget.responseId, refresh: refresh),
       ]);
       if (!mounted) return;
       setState(() {
@@ -118,8 +119,10 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
           ? const AppLoadingOverlay()
           : AuthBackground(plain: true,
               child: SafeArea(
-                child: ListView(
-                  padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 1000),
+                child: AppRefreshIndicator(
+                  onRefresh: () => _load(refresh: true),
+                  child: ListView(
+                    padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 1000),
                   children: [
                     if (_attempts.length > 1) ...[
                       _buildAttemptSelector(),
@@ -154,6 +157,7 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
                         ],
                       ),
                   ],
+                ),
                 ),
               ),
             ),

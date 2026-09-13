@@ -110,7 +110,9 @@ class _FormStartScreenState extends State<FormStartScreen> {
     }
 
     try {
-      final attempts = await PublicFormService.getMyAttempts(widget.formLink);
+      // Selalu fresh: setelah kembali dari mengerjakan, status submit
+      // harus langsung terlihat (bukan cache 20 detik).
+      final attempts = await PublicFormService.getMyAttempts(widget.formLink, refresh: true);
       if (!mounted) return;
       setState(() => _myAttempts = attempts);
     } catch (_) {

@@ -58,15 +58,16 @@ class UserStats {
 }
 
 class UserService {
-  /// GET /users/me
+  /// GET /users/me — tanpa cache 30 menit: profil selalu fresh
+  /// (network-first; layar pemanggil mengatur pull-to-refresh sendiri).
   static Future<UserProfile> getProfile() async {
-    final json = await AuthService.get('/users/me');
+    final json = await AuthService.get('/users/me', useCache: false);
     return UserProfile.fromJson(json['data'] as Map<String, dynamic>);
   }
 
-  /// GET /users/me/stats
+  /// GET /users/me/stats — tanpa cache 30 menit (alasan sama).
   static Future<UserStats> getStats() async {
-    final json = await AuthService.get('/users/me/stats');
+    final json = await AuthService.get('/users/me/stats', useCache: false);
     return UserStats.fromJson(json['data'] as Map<String, dynamic>);
   }
 

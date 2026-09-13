@@ -33,12 +33,13 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool refresh = false}) async {
     setState(() => _loading = true);
     try {
       final result = await PublicFormService.getResult(
         widget.formLink,
         widget.responseId,
+        refresh: refresh,
       );
       if (!mounted) return;
       setState(() => _result = result);

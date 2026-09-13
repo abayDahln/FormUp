@@ -73,9 +73,9 @@ class _FormResponScreenState extends State<FormResponScreen>
     }
   }
 
-  Future<void> _load() async => _loadPage(1);
+  Future<void> _load({bool refresh = false}) => _loadPage(1, refresh: refresh);
 
-  Future<void> _loadPage(int page) async {
+  Future<void> _loadPage(int page, {bool refresh = false}) async {
     setState(() {
       _loading = true;
       _page = page;
@@ -86,6 +86,7 @@ class _FormResponScreenState extends State<FormResponScreen>
         widget.formId,
         page: page,
         pageSize: _pageSize,
+        refresh: refresh,
       );
       if (!mounted) return;
       setState(() {
@@ -318,7 +319,7 @@ class _FormResponScreenState extends State<FormResponScreen>
                             ),
                           )
                         : AppRefreshIndicator(
-                            onRefresh: _load,
+                            onRefresh: () => _load(refresh: true),
                             indicatorColor: cs.primary,
                             child: Builder(builder: (listCtx) {
                               _listContext = listCtx;

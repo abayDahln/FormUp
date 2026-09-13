@@ -64,11 +64,11 @@ class _FormScreenState extends State<FormScreen> {
     await _refreshMyForms();
   }
 
-  /// Muat ulang (tanpa debounce)
-  Future<void> _refreshMyForms() async {
+  /// Muat ulang (tanpa debounce) — [refresh]=true melewati cache.
+  Future<void> _refreshMyForms({bool refresh = false}) async {
     setState(() => _loadingForms = true);
     try {
-      final forms = await FormService.getMyForms();
+      final forms = await FormService.getMyForms(refresh: refresh);
       if (!mounted) return;
       setState(() => _myForms = forms);
     } catch (e) {
@@ -167,7 +167,7 @@ class _FormScreenState extends State<FormScreen> {
         _sort != FormSort.newest;
 
     return AppRefreshIndicator(
-      onRefresh: _loadMyForms,
+      onRefresh: () => _refreshMyForms(refresh: true),
       indicatorColor: cs.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),

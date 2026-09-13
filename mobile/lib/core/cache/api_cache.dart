@@ -25,10 +25,17 @@ class _ApiCacheEntry<T> {
   bool get isExpired => DateTime.now().isAfter(expiresAt);
 }
 
-/// Cache in-memory ringan untuk hasil request yang sering dibaca ulang.
+/// Cache ringan untuk hasil request yang sering dibaca ulang.
 ///
-/// Dipakai untuk mengurangi fetch berulang saat user bolak-balik screen,
-/// tanpa menambah storage permanen atau membuat data terlalu lama basi.
+/// Strategi network-first + fallback:
+/// 1. Memory masih fresh (dalam TTL) → langsung sajikan (hemat request,
+///    dedup tab bolak-balik).
+/// 2. Selain itu selalu coba API dulu.
+/// 3. API gagal (rate-limit 429 / 5xx / timeout / offline) → fallback ke
+///    memory basi bila ada.
+/// 4. Offline → boleh sajikan disk (boleh stale, agar aplikasi tetap
+///    usable); online → TIDAK PERNAH sajikan disk basi, error
+///    diteruskan agar data basi tidak tampil diam-diam.
 class ApiCache {
   static final Map<String, _ApiCacheEntry<Object?>> _cache = {};
   static final Map<String, Completer<Object?>> _pending = {};
@@ -116,6 +123,39 @@ class ApiCache {
     completer.future.catchError((_) => null);
   }
 
+  static Future<T> _loadAndCache<T>(
+    String key,
+    Duration ttl,
+    Future<T> Function() loader,
+  ) async {
+    final value = await loader();
+    _cache[key] = _ApiCacheEntry<Object?>(
+      value: value,
+      expiresAt: _now().add(ttl),
+    );
+    await _persistValue(key, value, ttl);
+    NetworkStatus.markOnline();
+    return value;
+  }
+
+  /// Baca satu entri disk (sudah diputuskan boleh dipakai oleh pemanggil).
+  /// Mengembalikan null bila tidak ada / tidak bisa di-decode.
+  static Future<T?> _readDisk<T>(String key, Duration ttl) async {
+    final store = await _readDiskStore();
+    final entry = store[key];
+    if (entry is Map<String, dynamic>) {
+      final value = _decodeDiskValue(entry);
+      if (value != null) {
+        _cache[key] = _ApiCacheEntry<Object?>(
+          value: value,
+          expiresAt: _now().add(ttl),
+        );
+        return value as T;
+      }
+    }
+    return null;
+  }
+
   static Future<T> get<T>(
     String key,
     Duration ttl,
@@ -125,31 +165,24 @@ class ApiCache {
     if (cached != null && !cached.isExpired) {
       return cached.value as T;
     }
+    final expiredMemory = cached?.value;
 
+    // Offline sejak awal: sajikan disk (boleh stale) tanpa hit API,
+    // lalu memory basi; terakhir coba sekali siapa tahu sudah online.
     if (NetworkStatus.isOffline) {
       await NetworkStatus.refresh();
       if (NetworkStatus.isOffline) {
-        final store = await _readDiskStore();
-        final entry = store[key];
-        if (entry is Map<String, dynamic>) {
-          final value = _decodeDiskValue(entry);
-          if (value != null) {
-            _cache[key] = _ApiCacheEntry<Object?>(
-              value: value,
-              expiresAt: DateTime.now().add(ttl),
-            );
-            return value as T;
-          }
+        final diskValue = await _readDisk<T>(key, ttl);
+        if (diskValue != null) return diskValue;
+        if (expiredMemory != null) {
+          _cache[key] = _ApiCacheEntry<Object?>(
+            value: expiredMemory,
+            expiresAt: _now().add(ttl),
+          );
+          return expiredMemory as T;
         }
         try {
-          final attempted = await loader();
-          NetworkStatus.markOnline();
-          _cache[key] = _ApiCacheEntry<Object?>(
-            value: attempted,
-            expiresAt: DateTime.now().add(ttl),
-          );
-          await _persistValue(key, attempted, ttl);
-          return attempted;
+          return await _loadAndCache<T>(key, ttl, loader);
         } catch (_) {
           throw const OfflineCacheException(
             'Kamu sedang offline. Periksa koneksi internet dan coba lagi.',
@@ -166,43 +199,31 @@ class ApiCache {
     final completer = Completer<Object?>();
     _pending[key] = completer;
     try {
-      final value = await loader();
-      _cache[key] = _ApiCacheEntry<Object?>(
-        value: value,
-        expiresAt: DateTime.now().add(ttl),
-      );
-      await _persistValue(key, value, ttl);
-      NetworkStatus.markOnline();
+      // Network-first: selalu coba API bila memory tidak fresh.
+      final value = await _loadAndCache<T>(key, ttl, loader);
       completer.complete(value);
       return value;
     } catch (e, st) {
-      // Fallback ke disk stale saat loader gagal (server down padahal NetworkStatus masih online)
-      // – sebelumnya hanya fallback saat isOffline, sehingga data tidak muncul saat server offline.
-      final store = await _readDiskStore();
-      final entry = store[key];
-      if (entry is Map<String, dynamic>) {
-        final rawEntry = entry;
-        final value = _decodeDiskValue(rawEntry);
-        // Jika online tapi expired, _decodeDiskValue return null – coba ambil stale tanpa cek expired
-        dynamic stale = value;
-        if (stale == null && rawEntry['value'] != null) {
-          stale = rawEntry['value'];
-        }
-        if (stale != null) {
-          _cache[key] = _ApiCacheEntry<Object?>(
-            value: stale,
-            expiresAt: DateTime.now().add(ttl),
-          );
-          if (!completer.isCompleted) completer.complete(stale);
-          // Tandai bahwa kita sedang dalam mode offline-stale
-          return stale as T;
-        }
+      // API gagal (rate-limit/offline/5xx/timeout): fallback memory basi.
+      if (expiredMemory != null) {
+        _cache[key] = _ApiCacheEntry<Object?>(
+          value: expiredMemory,
+          expiresAt: _now().add(ttl),
+        );
+        if (!completer.isCompleted) completer.complete(expiredMemory);
+        return expiredMemory as T;
       }
-      // Coba refresh status jaringan sekali – jika ternyata offline, lempar OfflineCacheException yang ramah
+      // Tanpa memory: cek benar-benar offline → boleh sajikan disk stale.
+      // Online → JANGAN sajikan disk basi; teruskan error aslinya.
       try {
         await NetworkStatus.refresh();
       } catch (_) {}
       if (NetworkStatus.isOffline) {
+        final diskValue = await _readDisk<T>(key, ttl);
+        if (diskValue != null) {
+          if (!completer.isCompleted) completer.complete(diskValue);
+          return diskValue;
+        }
         _completeErrorSafe(
           completer,
           const OfflineCacheException('Kamu sedang offline. Periksa koneksi internet dan coba lagi.'),

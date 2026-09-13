@@ -8,6 +8,7 @@ import 'package:form_up/core/widgets/loading_indicator.dart';
 import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/models/question_draft.dart';
@@ -205,10 +206,12 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
     return false;
   }
 
-  Future<void> _loadQuestions() async {
+  /// [refresh]=true melewati cache (dipakai swipe-refresh agar edit dari
+  /// web/perangkat lain langsung terlihat).
+  Future<void> _loadQuestions({bool refresh = false}) async {
     setState(() => _loading = true);
     try {
-      final questions = await FormService.getQuestions(widget.formId!);
+      final questions = await FormService.getQuestions(widget.formId!, refresh: refresh);
       if (!mounted) return;
       setState(() {
         _questions
@@ -1090,7 +1093,10 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                               )
                             : Stack(
                                 children: [
-                                  ReorderableListView.builder(
+                                  AppRefreshIndicator(
+                                    onRefresh: () => _loadQuestions(refresh: true),
+                                    indicatorColor: Theme.of(context).colorScheme.primary,
+                                    child: ReorderableListView.builder(
                                     padding: centerPad(context, base: const EdgeInsets.fromLTRB(22, 16, 22, 96), wideMaxWidth: 900),
                                     itemCount: _questions.length,
                                     onReorder: _onReorder,
@@ -1127,6 +1133,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                                             ),
                                           ),
                                         ),
+                                    ),
                                   ),
                                 ],
                               ),

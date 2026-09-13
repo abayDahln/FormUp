@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'dart:typed_data';
 
@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:form_up/core/widgets/ai_chat_icon.dart';
-import 'package:form_up/core/widgets/loading_indicator.dart';import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
+import 'package:form_up/core/widgets/loading_indicator.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
+import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
@@ -19,7 +21,7 @@ import 'package:form_up/features/form/widgets/analytics_respondent_card.dart';
 import 'package:form_up/features/form/widgets/analytics_summary_row.dart';
 import 'package:form_up/features/responses/widgets/response_analytics_tab.dart';
 
-/// Analisis respons form — 2 tab: Analisis (diagram persen seperti web)
+/// Analisis respons form â€” 2 tab: Analisis (diagram persen seperti web)
 /// dan Respon (daftar responden).
 class AnalyticsScreen extends StatefulWidget {
   final int formId;
@@ -122,7 +124,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     });
   }
 
-  /// Controller list tab Respon — untuk kembali ke atas saat ganti halaman.
+  /// Controller list tab Respon â€” untuk kembali ke atas saat ganti halaman.
   final _responScrollController = ScrollController();
 
   void _scrollListToTop() {
@@ -131,7 +133,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     }
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool refresh = false}) async {
     if (widget.formId == 0) {
       if (mounted) setState(() => _loading = false);
       return;
@@ -147,6 +149,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         page: 1,
         pageSize: _pageSize,
         search: _query,
+        refresh: refresh,
       );
       if (!mounted) return;
       setState(() {
@@ -261,7 +264,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     return list;
   }
 
-  /// Jumlah percobaan per responden (berdasar nama lower-case) — dipakai
+  /// Jumlah percobaan per responden (berdasar nama lower-case) â€” dipakai
   /// badge "Nx percobaan" tanpa menggabungkan baris, supaya urutan
   /// Terbaru/Terlama tetap per-respon (sama seperti web & backend).
   Map<String, int> get _attemptCounts {
@@ -296,7 +299,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   /// Controller menu urut (M3 MenuAnchor): posisi otomatis mengikuti field
-  /// pencarian — pengganti showMenu berposisi hardcoded yang nyasar di 1920.
+  /// pencarian â€” pengganti showMenu berposisi hardcoded yang nyasar di 1920.
   final _sortMenuController = MenuController();
 
   Future<String?> _pickExportFormat() => AdaptiveSheet.show<String>(
@@ -382,7 +385,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   /// Buka AI chat dengan form ini di-mention + prompt analisis siap kirim
-  /// (seperti Analisis AI di web — user yang menekan kirim sendiri).
+  /// (seperti Analisis AI di web â€” user yang menekan kirim sendiri).
   void _openAiAnalysis() {
     if (_exporting || widget.formId == 0) return;
     AppRouter.of(context).push(AppPage.aiChat, {
@@ -391,7 +394,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     });
   }
 
-  /// Prompt analisis hasil form — ringkasan data + instruksi analisis
+  /// Prompt analisis hasil form â€” ringkasan data + instruksi analisis
   /// (mengikuti prompt Analisis AI di web).
   String _buildAiPrompt() {
     final a = _analytics;
@@ -472,9 +475,9 @@ Berikan analisis yang mencakup:
         body: TabBarView(
         controller: _tabController,
         children: [
-          // ── Tab Analisis: diagram persen & analisis mendetail ──
+          // â”€â”€ Tab Analisis: diagram persen & analisis mendetail â”€â”€
           ResponseAnalyticsTab(formId: widget.formId, title: widget.title),
-          // ── Tab Respon: daftar responden (isi lama screen ini) ──
+          // â”€â”€ Tab Respon: daftar responden (isi lama screen ini) â”€â”€
           _buildResponTab(),
         ],
       ),
@@ -503,9 +506,12 @@ Berikan analisis yang mencakup:
               }
               return false;
             },
-            child: ListView(
-              controller: _responScrollController,
-              padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 1100),
+            child: AppRefreshIndicator(
+              onRefresh: () => _load(refresh: true),
+              indicatorColor: cs.primary,
+              child: ListView(
+                controller: _responScrollController,
+                padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 1100),
               children: [
                 if (_exporting)
                   const progress.ProgressIndicator.linear(
@@ -659,6 +665,7 @@ Berikan analisis yang mencakup:
                     ],
                   ],
                 ),
+              ),
               ),
             ),
           ),

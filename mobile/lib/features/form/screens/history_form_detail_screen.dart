@@ -55,10 +55,10 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool refresh = false}) async {
     setState(() => _loading = true);
     try {
-      final attempts = await PublicFormService.getMyAttempts(widget.formLink);
+      final attempts = await PublicFormService.getMyAttempts(widget.formLink, refresh: refresh);
       // Info form bisa gagal (mis. form sudah tidak published) — attempts
       // tetap ditampilkan agar riwayat tidak hilang.
       PublicFormInfo? info;
@@ -110,7 +110,7 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
               child: SafeArea(
                 child: AppRefreshIndicator(
                   indicatorColor: cs.primary,
-                  onRefresh: _load,
+                  onRefresh: () => _load(refresh: true),
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 1000),
