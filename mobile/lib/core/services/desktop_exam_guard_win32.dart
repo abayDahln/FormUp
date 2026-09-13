@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
 
@@ -7,7 +8,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'desktop_exam_guard_stub.dart' show DesktopGuardState;
 
-// ---- user32.dll bindings (minimal, tanpa package tambahan) ----
+// ---- user32.dll bindings (minimal, hanya untuk melepas) ----
 
 typedef _GetForegroundWindowNative = IntPtr Function();
 typedef _GetForegroundWindowDart = int Function();
@@ -17,66 +18,108 @@ typedef _GetWindowTextWNative = Int32 Function(
 typedef _GetWindowTextWDart = int Function(
     int hwnd, Pointer<Utf16> text, int maxCount);
 
+typedef _FindWindowWNative = IntPtr Function(Pointer<Utf16> className, Pointer<Utf16> windowName);
+typedef _FindWindowWDart = int Function(Pointer<Utf16> className, Pointer<Utf16> windowName);
+
 typedef _SetDisplayAffinityNative = Int32 Function(IntPtr hwnd, Uint32 affinity);
 typedef _SetDisplayAffinityDart = int Function(int hwnd, int affinity);
 
-/// WDA_EXCLUDEFROMCAPTURE: konten jendela hitam di screenshot / Snipping
-/// Tool / Game Bar / perekam layar. WDA_MONITOR: perilaku normal.
-const int _wdaExcludeFromCapture = 0x11;
-const int _wdaMonitor = 0x1;
+typedef _GetDisplayAffinityNative = Int32 Function(IntPtr hwnd, Pointer<Uint32> affinity);
+typedef _GetDisplayAffinityDart = int Function(int hwnd, Pointer<Uint32> affinity);
 
-/// Judul window aplikasi (diset window_manager di main.dart).
-const String _appWindowTitle = 'FormUp';
+/// WDA_NONE: perilaku normal (konten terlihat di screenshot / capture, tidak hitam).
+const int _wdaNone = 0x0;
+
+/// Judul window aplikasi.
+const List<String> _appWindowTitles = ['FormUp', 'form_up', 'Form Up'];
 
 /// Implementasi exam desktop: window_manager (fullscreen, always-on-top,
-/// prevent-close) + FFI user32 (SetWindowDisplayAffinity anti-screenshot).
-/// Semua best-effort: gagal = false, tidak pernah melempar.
+/// prevent-close). Screenshot TIDAK diblokir — hanya dicatat sebagai
+/// pelanggaran lewat WindowListener di form runner bila fokus hilang
+/// cukup lama. Semua best-effort: gagal = false, tidak pernah melempar.
 class DesktopExamGuardImpl {
-  static DynamicLibrary? _user32;
-  static _GetForegroundWindowDart? _getForegroundWindow;
-  static _GetWindowTextWDart? _getWindowText;
-  static _SetDisplayAffinityDart? _setDisplayAffinity;
-
-  static bool _bindUser32() {
-    if (!Platform.isWindows) return false;
-    try {
-      if (_setDisplayAffinity != null) return true;
-      _user32 ??= DynamicLibrary.open('user32.dll');
-      final lib = _user32!;
-      _getForegroundWindow = lib.lookupFunction<_GetForegroundWindowNative,
-          _GetForegroundWindowDart>('GetForegroundWindow');
-      _getWindowText = lib
-          .lookupFunction<_GetWindowTextWNative, _GetWindowTextWDart>(
-              'GetWindowTextW');
-      _setDisplayAffinity = lib.lookupFunction<_SetDisplayAffinityNative,
-          _SetDisplayAffinityDart>('SetWindowDisplayAffinity');
-      return true;
-    } catch (e) {
-      if (kDebugMode) debugPrint('[DesktopGuard] bind user32 gagal: $e');
-      return false;
+  /// Penyembuh satu arah: kembalikan affinity window ke normal (WDA_NONE = 0x0)
+  /// bila masih membawa setelan hitam dari build lama.
+  /// TIDAK PERNAH memasang blokir — hanya melepas. Status dibaca balik
+  /// via GetWindowDisplayAffinity dan dicatat ke console ([DesktopGuard])
+  /// agar mudah didiagnosis.
+  static Future<void> _clearStaleAffinity() async {
+    if (!Platform.isWindows) return;
+    // Coba beberapa kali: saat startup judul window kadang belum siap.
+    for (var attempt = 0; attempt < 6; attempt++) {
+      if (await _clearStaleAffinityOnce()) return;
+      await Future.delayed(const Duration(milliseconds: 500));
     }
+    debugPrint('[DesktopGuard] healer: window tak ditemukan setelah 6x coba');
   }
 
-  /// Terapkan affinity pada window aplikasi sendiri. Window diverifikasi
-  /// lewat judul agar tidak salah sasaran bila fokus sudah pindah.
-  static bool _applyAffinity(bool exclude) {
+  static Future<bool> _clearStaleAffinityOnce() async {
     try {
-      if (!_bindUser32()) return false;
-      final hwnd = _getForegroundWindow!.call();
-      if (hwnd == 0) return false;
-      final buf = calloc<Uint16>(256).cast<Utf16>();
-      try {
-        final len = _getWindowText!.call(hwnd, buf, 256);
-        if (len <= 0) return false;
-        if (buf.toDartString(length: len) != _appWindowTitle) return false;
-        final ok = _setDisplayAffinity!.call(
-            hwnd, exclude ? _wdaExcludeFromCapture : _wdaMonitor);
-        return ok != 0;
-      } finally {
-        calloc.free(buf);
+      final user32 = DynamicLibrary.open('user32.dll');
+      final getForeground = user32.lookupFunction<_GetForegroundWindowNative,
+          _GetForegroundWindowDart>('GetForegroundWindow');
+      final getText = user32.lookupFunction<_GetWindowTextWNative,
+          _GetWindowTextWDart>('GetWindowTextW');
+      final findWindow = user32.lookupFunction<_FindWindowWNative,
+          _FindWindowWDart>('FindWindowW');
+      final setAffinity = user32.lookupFunction<_SetDisplayAffinityNative,
+          _SetDisplayAffinityDart>('SetWindowDisplayAffinity');
+      final getAffinity = user32.lookupFunction<_GetDisplayAffinityNative,
+          _GetDisplayAffinityDart>('GetWindowDisplayAffinity');
+
+      bool titleOk(int hwnd) {
+        final buf = calloc<Uint16>(256).cast<Utf16>();
+        try {
+          final len = getText(hwnd, buf, 256);
+          if (len <= 0) return false;
+          final title = buf.toDartString(length: len);
+          return _appWindowTitles.contains(title);
+        } finally {
+          calloc.free(buf);
+        }
       }
+
+      int readAffinity(int hwnd) {
+        final out = calloc<Uint32>();
+        try {
+          final ok = getAffinity(hwnd, out);
+          return ok != 0 ? out.value : -1;
+        } finally {
+          calloc.free(out);
+        }
+      }
+
+      int hwnd = getForeground();
+      if (hwnd == 0 || !titleOk(hwnd)) {
+        hwnd = 0;
+        for (final titleStr in _appWindowTitles) {
+          final titlePtr = titleStr.toNativeUtf16();
+          try {
+            final classPtr = 'FLUTTER_RUNNER_WIN32_WINDOW'.toNativeUtf16();
+            try {
+              hwnd = findWindow(classPtr, titlePtr);
+            } finally {
+              calloc.free(classPtr);
+            }
+            if (hwnd == 0) hwnd = findWindow(nullptr, titlePtr);
+          } finally {
+            calloc.free(titlePtr);
+          }
+          if (hwnd != 0 && titleOk(hwnd)) break;
+        }
+        if (hwnd == 0 || !titleOk(hwnd)) return false;
+      }
+      final before = readAffinity(hwnd);
+      if (before == _wdaNone) {
+        debugPrint('[DesktopGuard] healer: affinity sudah normal (WDA_NONE, hwnd=$hwnd)');
+        return true;
+      }
+      final ok = setAffinity(hwnd, _wdaNone);
+      final after = readAffinity(hwnd);
+      debugPrint('[DesktopGuard] healer: $before -> $after (ok=$ok, hwnd=$hwnd)');
+      return ok != 0 && after == _wdaNone;
     } catch (e) {
-      if (kDebugMode) debugPrint('[DesktopGuard] affinity gagal: $e');
+      debugPrint('[DesktopGuard] healer gagal: $e');
       return false;
     }
   }
@@ -94,17 +137,15 @@ class DesktopExamGuardImpl {
   }
 
   static Future<DesktopGuardState> enterExamWindow() async {
+    // Pastikan tidak ada sisa blokir dari build lama sebelum ujian mulai.
+    await _clearStaleAffinity();
     final fullscreen = await _setFullscreen(true);
-    // Affinity setelah fullscreen: window pasti foreground milik sendiri.
-    // Non-Windows: _bindUser32 gagal → affinity false (lapor jujur).
-    final affinity = _applyAffinity(true);
-    return DesktopGuardState(fullscreen: fullscreen, affinity: affinity);
+    return DesktopGuardState(fullscreen: fullscreen);
   }
 
   static Future<void> exitExamWindow() async {
-    try {
-      _applyAffinity(false);
-    } catch (_) {}
+    // Dipanggil juga saat startup: menyembuhkan window yang stuck hitam.
+    await _clearStaleAffinity();
     try {
       await windowManager.setPreventClose(false);
     } catch (_) {}
@@ -116,12 +157,7 @@ class DesktopExamGuardImpl {
     } catch (_) {}
   }
 
-  /// Tegakkan ulang affinity saat window kembali fokus (murah & sunyi:
-  /// tanpa toast — kegagalan awal sudah dilaporkan saat ujian mulai).
-  static Future<void> reassertAffinity() async {
-    if (!Platform.isWindows) return;
-    try {
-      _applyAffinity(true);
-    } catch (_) {}
-  }
+  /// No-op (dulu menegakkan ulang anti-screenshot yang kini dihapus).
+  /// Dipertahankan agar pemanggil lama tidak rusak.
+  static Future<void> reassertAffinity() async {}
 }

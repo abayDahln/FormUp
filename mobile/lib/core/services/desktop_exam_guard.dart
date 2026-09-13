@@ -8,11 +8,12 @@ import 'desktop_exam_guard_stub.dart'
 /// Pengaman ujian desktop (Windows; no-op di mobile/web).
 ///
 /// - [enterExamWindow]: fullscreen + always-on-top + prevent-close
-///   (window_manager) + anti-screenshot `SetWindowDisplayAffinity`
-///   (FFI user32). Kembalikan status per-lapisan agar caller memberi tahu
-///   user bila ada yang gagal (jangan diam seolah terkunci penuh).
+///   (window_manager). Screenshot TIDAK diblokir; pelanggaran fokus
+///   dicatat via WindowListener di form runner. Kembalikan status
+///   per-lapisan agar caller memberi tahu user bila ada yang gagal
+///   (jangan diam seolah terkunci penuh).
 /// - [exitExamWindow]: kembalikan semuanya (wajib di semua jalur keluar).
-/// - [reassertAffinity]: tegakkan ulang anti-screenshot saat fokus kembali.
+/// - [reassertAffinity]: no-op (sisa kompatibilitas).
 /// Semua best-effort, tidak pernah melempar.
 class DesktopExamGuard {
   static Future<DesktopGuardState> enterExamWindow() =>

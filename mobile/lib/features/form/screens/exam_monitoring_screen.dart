@@ -621,7 +621,7 @@ String _violationLabel(String type) {
     case 'tab_switch':
       return 'Pindah tab / aplikasi';
     case 'window_blur':
-      return 'Keluar jendela';
+      return 'Beralih aplikasi / jendela';
     case 'copy_attempt':
       return 'Mencoba menyalin';
     case 'paste_attempt':

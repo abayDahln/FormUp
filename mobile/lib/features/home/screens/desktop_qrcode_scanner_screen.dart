@@ -210,25 +210,25 @@ class _DesktopQrcodeScannerScreenState
     showAppToast(context, message, type: ToastType.error, title: 'Gagal');
   }
 
-  Future<void> _captureAndDecode() async {
-    final camera = _camera;
-    if (camera == null || !camera.value.isInitialized || _busy) return;
-    setState(() {
-      _busy = true;
-      _errorMessage = null;
-    });
-    try {
-      final photo = await camera.takePicture();
-      final bytes = await photo.readAsBytes();
-      if (!mounted) return;
-      setState(() => _busy = false);
-      await _handleRawText(await _decodeQrBytes(bytes));
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      _fail('Gagal mengambil foto. Coba lagi atau pilih file gambar.');
-    }
-  }
+  // Future<void> _captureAndDecode() async {
+  //   final camera = _camera;
+  //   if (camera == null || !camera.value.isInitialized || _busy) return;
+  //   setState(() {
+  //     _busy = true;
+  //     _errorMessage = null;
+  //   });
+  //   try {
+  //     final photo = await camera.takePicture();
+  //     final bytes = await photo.readAsBytes();
+  //     if (!mounted) return;
+  //     setState(() => _busy = false);
+  //     await _handleRawText(await _decodeQrBytes(bytes));
+  //   } catch (_) {
+  //     if (!mounted) return;
+  //     setState(() => _busy = false);
+  //     _fail('Gagal mengambil foto. Coba lagi atau pilih file gambar.');
+  //   }
+  // }
 
   Future<void> _pickFileAndDecode() async {
     if (_busy) return;

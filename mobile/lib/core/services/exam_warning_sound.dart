@@ -5,13 +5,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:volume_controller/volume_controller.dart';
 
-/// Bunyi peringatan kecurangan mode ujian (`public/sound/exam-warning.mp3`).
+/// Bunyi peringatan mode ujian (`public/sound/exam-warning.mp3`).
+///
+/// Bunyi HANYA keluar saat pelanggaran mencapai limit ([playLimitWarning],
+/// tepat sebelum auto-submit) — tiap pelanggaran satuan hanya dicatat
+/// hening. Bunyi limit ber-loop dan TIDAK bisa dihentikan dengan cara
+/// apapun (kembali ke form, back, dsb.); ia berhenti saat dialog batas
+/// peringatan ditutup, yang tombolnya terkunci 5 detik.
 ///
 /// - [prime] dipanggil saat sesi ujian dimulai: player disiapkan + source
-///   di-load di awal agar bunyi langsung keluar saat dipicu (bahkan bila
-///   app sedang kehilangan fokus).
-/// - [playDeterrent] dipanggil SETIAP app kehilangan fokus saat ujian
-///   (cooldown 10 detik agar tidak spam).
+///   di-load di awal agar bunyi langsung keluar saat dipicu.
 /// - [playLimitWarning] dipanggil saat pelanggaran mencapai limit
 ///   (sekali per sesi, tepat sebelum auto-submit).
 /// Semua best-effort: kegagalan tidak boleh mengganggu alur ujian.
@@ -20,7 +23,6 @@ class ExamWarningSound {
   static const _asset = 'public/sound/exam-warning.mp3';
   static AudioPlayer? _player;
   static bool _limitPlayed = false;
-  static DateTime? _lastPlay;
   static Timer? _safetyTimer;
 
   /// Antrean serial play: dua pemicu bersamaan tak lagi membuat 2 player
@@ -30,10 +32,8 @@ class ExamWarningSound {
   static bool _looping = false;
 
   /// Pengaman: hentikan loop maksimal 3 menit agar tidak bunyi selamanya
-  /// bila user tak kunjung kembali (hemat baterai).
+  /// bila dialog tak kunjung ditutup (hemat baterai).
   static const _maxLoop = Duration(minutes: 3);
-
-  static const _deterrentCooldown = Duration(seconds: 10);
 
   /// Maksimalkan volume perangkat tanpa panel sistem.
   static Future<void> maxVolume() async {
@@ -114,7 +114,6 @@ class ExamWarningSound {
         return;
       }
       _looping = true;
-      _lastPlay = DateTime.now();
       _armSafetyTimer();
     } catch (e) {
       if (kDebugMode) debugPrint('[ExamWarning] play gagal: $e');
@@ -128,7 +127,9 @@ class ExamWarningSound {
     });
   }
 
-  /// Hentikan bunyi (kembali ke form / submit manual / keluar ujian).
+  /// Hentikan bunyi (dipanggil saat dialog batas peringatan ditutup,
+  /// submit manual/gagal, sesi baru, atau keluar ujian — BUKAN saat
+  /// kembali fokus ke form).
   static Future<void> stop() async {
     _playGen++; // batalkan play yang antre/berjalan
     _looping = false;
@@ -163,7 +164,6 @@ class ExamWarningSound {
         final bytes = await rootBundle.load(_asset);
         await player.play(BytesSource(bytes.buffer.asUint8List()));
       }
-      _lastPlay = DateTime.now();
       _armSafetyTimer();
       return null;
     } catch (e) {
@@ -174,31 +174,6 @@ class ExamWarningSound {
   /// True bila loop bunyi sedang berjalan (flag internal, bukan baca
   /// state sinkron yang tak andal).
   static bool get isPlaying => _looping && _player != null;
-
-  /// Pastikan alarm berbunyi (dipanggil berkala selama user di luar form).
-  /// Memulihkan bila OS menjeda audio (fokus audio direbut notifikasi
-  /// lain) — tanpa cooldown karena hanya jalan bila sedang sunyi.
-  static Future<void> ensureLooping() async {
-    if (_looping && _player != null) {
-      try {
-        await _player!.resume();
-      } catch (_) {}
-      return;
-    }
-    await maxVolume();
-    await ExamWarningSound._playNow();
-  }
-
-  /// Bunyi peringatan tiap kehilangan fokus (ada cooldown).
-  static Future<void> playDeterrent() async {
-    final last = _lastPlay;
-    if (last != null &&
-        DateTime.now().difference(last) < _deterrentCooldown) {
-      return;
-    }
-    await maxVolume();
-    await ExamWarningSound._playNow();
-  }
 
   /// Bunyi saat limit tercapai: selalu bunyi (sekali per sesi).
   static Future<void> playLimitWarning() async {
@@ -211,7 +186,6 @@ class ExamWarningSound {
   /// Reset untuk sesi ujian berikutnya.
   static void reset() {
     _limitPlayed = false;
-    _lastPlay = null;
   }
 
   static Future<void> dispose() async {

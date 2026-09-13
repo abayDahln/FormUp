@@ -54,6 +54,9 @@ class FormRunnerScreen extends StatefulWidget {
 
 enum _RunnerStep { code, fill }
 
+/// Penyebab window desktop ditinggalkan — untuk pesan spesifik.
+enum _DesktopLeaveCause { switched, minimized }
+
 class _FormRunnerScreenState extends State<FormRunnerScreen> {
   final GlobalKey<FormRunnerViewState> _viewKey =
       GlobalKey<FormRunnerViewState>();
@@ -137,11 +140,21 @@ class FormRunnerViewState extends State<FormRunnerView>
   // Desktop: waktu event fokus terakhir (dedup blur+minimize & echo lifecycle).
   DateTime? _lastDesktopSwitchAt;
   static const _desktopSwitchDedup = Duration(milliseconds: 1500);
-  // True bila auto-submit karena limit pelanggaran sudah jalan: bunyi
-  // alarm dibiarkan terus sampai dialog ditutup (dispose), tidak ikut
-  // berhenti saat resumed. True bila app sedang di luar (background).
-  bool _violationSubmitted = false;
+  // Maafkan gangguan sesaat: laporan pelanggaran baru dikirim bila fokus
+  // tak kembali dalam jendela ini (tap tombol Windows / overlay cepat
+  // yang langsung ditutup tidak dihitung).
+  Timer? _desktopReturnTimer;
+  _DesktopLeaveCause? _pendingDesktopCause;
+  static const _desktopForgiveWindow = Duration(seconds: 3);
+  // Grace setelah masuk ujian: abaikan event fokus 3 detik pertama (fullscreen memicu blur palsu)
+  DateTime? _suppressFocusUntil;
+  DateTime? _lastTabSwitchAt;
+  static const _tabSwitchCooldown = Duration(seconds: 2);
+  static const _graceAfterEnter = Duration(seconds: 3);
+  // True bila app sedang di luar (background).
   bool _appInBackground = false;
+  // Flag sudah release lock — cegah reassert setelah submit (race dialog)
+  bool _lockReleased = false;
 
   // ID soal wajib yang belum dijawab (untuk indikator merah saat submit gagal).
   final Set<int> _errorQuestionIds = {};
@@ -200,9 +213,20 @@ class FormRunnerViewState extends State<FormRunnerView>
     if (state == AppLifecycleState.paused) {
       _sawPaused = true;
       _appInBackground = true;
-      // Langsung bunyikan peringatan tiap keluar app saat ujian —
-      // tanpa menunggu limit tercapai.
-      unawaited(ExamWarningSound.playDeterrent());
+      // Desktop pakai WindowListener saja (hindari dobel dengan blur).
+      // Bunyi + laporan ditunda lewat timer maaf di _desktopFocusLost
+      // agar gangguan sesaat (tombol Windows, overlay cepat) tidak
+      // langsung dianggap pelanggaran.
+      if (isDesktopPlatform) {
+        if (_desktopReturnTimer == null && _pendingDesktopCause == null) {
+          _desktopFocusLost(_DesktopLeaveCause.switched);
+        }
+        return;
+      }
+      // Grace 3 detik setelah enter: abaikan
+      if (_suppressFocusUntil != null && DateTime.now().isBefore(_suppressFocusUntil!)) return;
+      // Bunyi hanya keluar saat limit tercapai — tiap keluar app di
+      // sini hanya dicatat sebagai pelanggaran (hening).
       if (!_detectSwitch) return;
       // Aturan counting server: 1 event per siklus, hanya saat pergi.
       _reportTabSwitch();
@@ -210,12 +234,6 @@ class FormRunnerViewState extends State<FormRunnerView>
     }
     if (state == AppLifecycleState.resumed) {
       _appInBackground = false;
-      // Kembali ke form: hentikan bunyi — KECUALI auto-submit karena
-      // limit sudah jalan (alarm terus sampai dialog ditutup), agar
-      // tidak terasa seperti ke-pause saat dialog muncul.
-      if (!_violationSubmitted) {
-        unawaited(ExamWarningSound.stop());
-      }
       // Kembali tanpa pernah pause = interupsi overlay/floating semata.
       // Desktop dikecualikan: WindowListener sudah melapor saat blur
       // (echo di sini hanya jadi hitungan ganda).
@@ -229,40 +247,60 @@ class FormRunnerViewState extends State<FormRunnerView>
   // ---- WindowListener (desktop): fokus/minimize/restore/close window ----
   // Terdaftar hanya saat pelacakan ujian; semua best-effort + guard state.
 
-  /// Fokus hilang (Alt+Tab, klik app lain): hitung 1 pelanggaran.
-  /// Dedup 1,5 dtk menelan pasangan blur+minimize; _lastWindowBlurAt
-  /// mengaktifkan cooldown 10 dtk agar echo lifecycle tidak dobel.
-  void _desktopFocusLost() {
+  /// Fokus hilang (Alt+Tab, klik app lain) / minimize: TIDAK langsung
+  /// dihitung — laporan ditunda 3 detik. Bila fokus kembali sebelum timer
+  /// matang (tap tombol Windows, overlay screenshot yang langsung
+  /// ditutup), kejadian dimaafkan tanpa pelanggaran. Dedup 1,5 dtk
+  /// menelan pasangan blur+minimize; bila pasangan datang saat timer
+  /// sudah jalan, penyebab cukup diperbarui ke yang terbaru.
+  void _desktopFocusLost(_DesktopLeaveCause cause) {
     if (!isDesktopPlatform) return;
     if (!_examTracking || _step != _RunnerStep.fill) return;
     final now = DateTime.now();
+    if (_suppressFocusUntil != null && now.isBefore(_suppressFocusUntil!)) return;
+    if (_desktopReturnTimer != null) {
+      _pendingDesktopCause = cause;
+      _lastDesktopSwitchAt = now;
+      return;
+    }
     if (_lastDesktopSwitchAt != null &&
         now.difference(_lastDesktopSwitchAt!) < _desktopSwitchDedup) {
       return;
     }
     _lastDesktopSwitchAt = now;
-    _lastWindowBlurAt = now;
     _appInBackground = true;
-    unawaited(ExamWarningSound.playDeterrent());
-    unawaited(_reportTabSwitch());
+    _pendingDesktopCause = cause;
+    _desktopReturnTimer?.cancel();
+    _desktopReturnTimer = Timer(_desktopForgiveWindow, () {
+      _desktopReturnTimer = null;
+      final c = _pendingDesktopCause;
+      _pendingDesktopCause = null;
+      if (!mounted || _lockReleased) return;
+      if (!_examTracking || _step != _RunnerStep.fill) return;
+      _lastWindowBlurAt = DateTime.now();
+      // Hening: bunyi hanya keluar saat limit tercapai (playLimitWarning).
+      unawaited(_reportTabSwitch(cause: c));
+    });
   }
 
   @override
-  void onWindowBlur() => _desktopFocusLost();
+  void onWindowBlur() => _desktopFocusLost(_DesktopLeaveCause.switched);
 
   @override
-  void onWindowMinimize() => _desktopFocusLost();
+  void onWindowMinimize() => _desktopFocusLost(_DesktopLeaveCause.minimized);
 
   @override
   void onWindowFocus() {
     if (!isDesktopPlatform) return;
+    if (_lockReleased) return;
     if (!_examTracking || _step != _RunnerStep.fill) return;
     _appInBackground = false;
-    if (!_violationSubmitted) {
-      unawaited(ExamWarningSound.stop());
-    }
-    if (_examActive) {
-      unawaited(DesktopExamGuard.reassertAffinity());
+    // Kembali sebelum timer matang = gangguan sesaat → dimaafkan,
+    // tidak ada laporan ke server.
+    if (_desktopReturnTimer != null) {
+      _desktopReturnTimer?.cancel();
+      _desktopReturnTimer = null;
+      _pendingDesktopCause = null;
     }
   }
 
@@ -288,7 +326,12 @@ class FormRunnerViewState extends State<FormRunnerView>
   }
 
   /// Lapor 1x keluar aplikasi ke server; auto-submit bila server meminta.
-  Future<void> _reportTabSwitch() async {
+  /// [cause] membedakan pesan: minimize vs beralih ke aplikasi lain.
+  Future<void> _reportTabSwitch({_DesktopLeaveCause? cause}) async {
+    final now = DateTime.now();
+    if (_suppressFocusUntil != null && now.isBefore(_suppressFocusUntil!)) return;
+    if (_lastTabSwitchAt != null && now.difference(_lastTabSwitchAt!) < _tabSwitchCooldown) return;
+    _lastTabSwitchAt = now;
     final exam = _exam;
     bool serverAutoSubmit = false;
     if (exam != null && _c.formLink != null) {
@@ -305,7 +348,6 @@ class FormRunnerViewState extends State<FormRunnerView>
             maxSwitch > 0 &&
             _tabSwitchCount >= maxSwitch &&
             autoSubmit)) {
-      _violationSubmitted = true;
       await _autoSubmit(violationLimit: true);
       if (mounted) {
         showAppToast(
@@ -317,9 +359,13 @@ class FormRunnerViewState extends State<FormRunnerView>
       return;
     }
     if (mounted) {
+      final counter =
+          '$_tabSwitchCount${maxSwitch != null && maxSwitch > 0 ? '/$maxSwitch' : ''}';
       showAppToast(
         context,
-        'Peringatan mode ujian: jangan keluar aplikasi ($_tabSwitchCount${maxSwitch != null && maxSwitch > 0 ? '/$maxSwitch' : ''})',
+        cause == _DesktopLeaveCause.minimized
+            ? 'Jangan minimize aplikasi ujian — kembali ke FormUp ($counter)'
+            : 'Terdeteksi beralih ke aplikasi/program lain — kembali ke FormUp ($counter)',
         type: ToastType.info,
       );
     }
@@ -332,14 +378,14 @@ class FormRunnerViewState extends State<FormRunnerView>
   /// cek ini floating app tak pernah memicu auto-submit.
   Future<void> _reportWindowBlur() async {
     if (!_examTracking || _step != _RunnerStep.fill) return;
-    // Bunyi dulu (deterrent), baru lapor — sama seperti keluar app.
-    unawaited(ExamWarningSound.playDeterrent());
     final now = DateTime.now();
+    if (_suppressFocusUntil != null && now.isBefore(_suppressFocusUntil!)) return;
     if (_lastWindowBlurAt != null &&
         now.difference(_lastWindowBlurAt!) < _windowBlurCooldown) {
       return;
     }
     _lastWindowBlurAt = now;
+    // Hening: bunyi hanya keluar saat limit tercapai (playLimitWarning).
     final exam = _exam;
     bool serverAutoSubmit = false;
     if (exam != null && _c.formLink != null) {
@@ -347,8 +393,8 @@ class FormRunnerViewState extends State<FormRunnerView>
       if (mounted) setState(() => _tabSwitchCount = exam.tabSwitchCount);
     }
     if (!mounted) return;
-    // Hitung SEMUA pelanggaran (termasuk window_blur) terhadap batas.
-    final totalViolations = exam?.violationCount ?? _tabSwitchCount;
+    // Samakan dengan server: hanya hitung tab_switch untuk ShouldAutoSubmit (info total tetap via violationCount tapi keputusan pakai tabSwitch)
+    final totalViolations = exam?.tabSwitchCount ?? _tabSwitchCount;
     final maxSwitch = _c.info?.maxTabSwitch;
     final autoSubmit = _c.info?.autoSubmitOnTabSwitch == true;
     if (serverAutoSubmit ||
@@ -356,7 +402,6 @@ class FormRunnerViewState extends State<FormRunnerView>
             maxSwitch > 0 &&
             totalViolations >= maxSwitch &&
             autoSubmit)) {
-      _violationSubmitted = true;
       await _autoSubmit(violationLimit: true);
       if (mounted) {
         showAppToast(
@@ -370,7 +415,7 @@ class FormRunnerViewState extends State<FormRunnerView>
     if (mounted) {
       showAppToast(
         context,
-        'Peringatan mode ujian: gangguan layar terdeteksi, kembali fokus ke aplikasi ($totalViolations${maxSwitch != null && maxSwitch > 0 ? '/$maxSwitch' : ''})',
+        'Terdeteksi overlay di atas aplikasi ujian — kembali fokus ke FormUp ($totalViolations${maxSwitch != null && maxSwitch > 0 ? '/$maxSwitch' : ''})',
         type: ToastType.info,
       );
     }
@@ -380,8 +425,8 @@ class FormRunnerViewState extends State<FormRunnerView>
   /// Anti-tumpuk: tick dilewati bila pengecekan sebelumnya belum selesai.
   /// Split-screen dilaporkan 1x sebagai window_blur sampai user keluar.
   /// Pin yang dilepas paksa dilaporkan 1x sebagai window_blur lalu pin
-  /// ulang otomatis. Merangkap watchdog bunyi: selama user di luar form,
-  /// pastikan alarm tetap berbunyi (pulihkan bila OS menjeda audio).
+  /// ulang otomatis. Hening: tidak ada bunyi per pelanggaran — bunyi
+  /// hanya keluar saat limit tercapai (playLimitWarning).
   /// Hanya aktif untuk mode ujian penuh (bukan detect-saja).
   bool _unpinFlagged = false;
   bool _guardBusy = false;
@@ -393,9 +438,6 @@ class FormRunnerViewState extends State<FormRunnerView>
       if (_guardBusy) return;
       _guardBusy = true;
       try {
-        if (_appInBackground) {
-          await ExamWarningSound.ensureLooping();
-        }
         bool inMulti = false;
         try {
           inMulti = await ExamLockService.isInMultiWindowMode();
@@ -408,8 +450,8 @@ class FormRunnerViewState extends State<FormRunnerView>
         } else if (!inMulti) {
           _multiWindowFlagged = false;
         }
-        // Pin dilepas paksa saat ujian → pelanggaran + pin ulang.
-        if (_examActive && !_appInBackground) {
+        // Pin hanya ada di Android — di desktop dimatikan total (hindari vonis palsu tiap 5 dtk)
+        if (_examActive && !_appInBackground && !isDesktopPlatform) {
           bool pinned = true;
           try {
             pinned = await ExamLockService.isPinned();
@@ -442,11 +484,16 @@ class FormRunnerViewState extends State<FormRunnerView>
   /// Lepas seluruh pengaman perangkat + hentikan guard. Wajib di semua
   /// jalur keluar ujian agar FLAG_SECURE/pin tidak bocor ke layar lain.
   Future<void> _releaseExamLock() async {
+    _lockReleased = true;
+    _desktopReturnTimer?.cancel();
+    _desktopReturnTimer = null;
+    _pendingDesktopCause = null;
     _examGuardTimer?.cancel();
     _examGuardTimer = null;
     _multiWindowFlagged = false;
     _unpinFlagged = false;
     _lastDesktopSwitchAt = null;
+    _suppressFocusUntil = null;
     if (isDesktopPlatform) {
       try {
         windowManager.removeListener(this);
@@ -624,14 +671,18 @@ class FormRunnerViewState extends State<FormRunnerView>
           answerProvider: () => _c.store.collectAutoAnswers(_c.questions),
         );
         _exam = exam;
-        // Sesi baru: matikan sisa bunyi sesi lama, reset flag.
+        // Sesi baru: matikan sisa bunyi sesi lama.
         await ExamWarningSound.stop();
         ExamWarningSound.reset();
-        _violationSubmitted = false;
         _appInBackground = false;
         unawaited(ExamWarningSound.prime());
         await exam.start();
         if (mounted) setState(() => _tabSwitchCount = exam.tabSwitchCount);
+        _lockReleased = false;
+        _suppressFocusUntil = DateTime.now().add(_graceAfterEnter);
+        _lastDesktopSwitchAt = null;
+        _lastWindowBlurAt = null;
+        _lastTabSwitchAt = null;
         // Desktop: dengarkan fokus window + kunci layar-penuh (khusus ujian).
         if (isDesktopPlatform) {
           try {
@@ -678,8 +729,7 @@ class FormRunnerViewState extends State<FormRunnerView>
       );
     } catch (e) {
       // Gagal: JANGAN tampilkan dialog selesai (menyesatkan) — lepas kunci
-      // agar user bisa kirim manual, matikan flag alarm + bunyinya.
-      _violationSubmitted = false;
+      // agar user bisa kirim manual + hentikan bunyi limit.
       _releaseSubmit();
       await ExamWarningSound.stop();
       if (!mounted) return;
@@ -729,6 +779,11 @@ class FormRunnerViewState extends State<FormRunnerView>
               ),
             ),
     );
+    if (violationLimit) {
+      // Bunyi limit berhenti di sini — satu-satunya jalan keluar adalah
+      // tombol Tutup dialog yang terkunci 5 detik (barrier + back dikunci).
+      await ExamWarningSound.stop();
+    }
     if (!mounted) return;
     AppRouter.of(context).pop();
   }
@@ -1021,10 +1076,10 @@ class FormRunnerViewState extends State<FormRunnerView>
   }
 }
 
-/// Dialog selesai karena ketahuan menyontek (batas pelanggaran tercapai):
-/// bernuansa merah peringatan, hanya ada tombol Tutup yang terkunci
-/// selama 5 detik (hitungan mundur). Bunyi alarm terus menyala sampai
-/// dialog ini ditutup.
+/// Dialog selesai karena batas peringatan tercapai (terlalu sering
+/// keluar dari aplikasi ujian): bernuansa merah peringatan, hanya ada
+/// tombol Tutup yang terkunci selama 5 detik (hitungan mundur). Bunyi
+/// alarm terus menyala sampai dialog ini ditutup.
 class _ViolationDoneDialog extends StatefulWidget {
   final VoidCallback onClose;
 
@@ -1080,7 +1135,7 @@ class _ViolationDoneDialogState extends State<_ViolationDoneDialog> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                "Ketahuan Menyontek!",
+                "Batas Peringatan Tercapai",
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontFamily: kFontBold,
@@ -1091,7 +1146,7 @@ class _ViolationDoneDialogState extends State<_ViolationDoneDialog> {
           ],
         ),
         content: Text(
-          "Batas pelanggaran tercapai. Jawaban telah dikirim otomatis.",
+          "Terlalu sering keluar dari aplikasi ujian. Jawaban telah dikirim otomatis.",
           style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
         ),
         actions: [

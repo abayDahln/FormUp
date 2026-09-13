@@ -2,16 +2,14 @@
 /// (mobile + web): semua panggilan aman dan mengembalikan kegagalan ringan.
 class DesktopGuardState {
   final bool fullscreen;
-  final bool affinity;
 
-  const DesktopGuardState({this.fullscreen = false, this.affinity = false});
+  const DesktopGuardState({this.fullscreen = false});
 
-  bool get ok => fullscreen && affinity;
+  bool get ok => fullscreen;
 
   List<String> get failedLayers {
     final out = <String>[];
     if (!fullscreen) out.add('layar-penuh');
-    if (!affinity) out.add('anti-screenshot');
     return out;
   }
 }

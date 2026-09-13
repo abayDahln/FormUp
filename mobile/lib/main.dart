@@ -9,6 +9,7 @@ import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/theme_controller.dart';
 import 'package:form_up/core/widgets/responsive.dart';
+import 'package:form_up/core/services/desktop_exam_guard.dart';
 import 'package:window_manager/window_manager.dart';
 
 /// Konfigurasi window desktop (Windows/macOS/Linux): ukuran minimum agar
@@ -31,6 +32,19 @@ Future<void> _configureDesktopWindow() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _configureDesktopWindow();
+  // Lepaskan kunci layar-penuh bila sesi sebelumnya gagal exit rapi +
+  // sembuhkan window yang masih hitam (sisa anti-screenshot build lama).
+  // Catatan: affinity menempel di window yang sama — bila menguji via
+  // hot-restart, lakukan full restart (stop + run) agar window baru.
+  if (isDesktopPlatform) {
+    try {
+      await Future.delayed(const Duration(milliseconds: 400), () async {
+        try {
+          await DesktopExamGuard.exitExamWindow();
+        } catch (_) {}
+      });
+    } catch (_) {}
+  }
   await dotenv.load(fileName: '.env', isOptional: true);
   await GeminiService.init();
   await ThemeController.instance.load();
