@@ -337,69 +337,82 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    // Gaya Gemini: ListView full-bleed di belakang header & input,
-    // dengan gradient fade di atas dan bawah agar scroll memudar mulus.
-    final topInset = MediaQuery.of(context).padding.top;
-    // Ukur tinggi input bar tiap frame; saat field membesar (multiline /
-    // hint mention), FAB & padding list ikut naik mengikuti.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final h = _inputBarKey.currentContext?.size?.height;
-      if (h != null &&
-          mounted &&
-          (h - _inputBarHeight).abs() > 0.5) {
-        setState(() => _inputBarHeight = h);
-      }
-    });
-    return Scaffold(
-      key: _scaffoldKey,
-      // Drawer dibuka → tutup keyboard dulu agar saat drawer ditutup
-      // fokus tidak me-restore ke field dan keyboard tidak terbuka sendiri.
-      onDrawerChanged: (open) {
-        if (open) _dismissKeyboard();
-      },
-      // G6: panel permanen di expanded, drawer overlay di phone.
-      drawer: isExpanded(context) ? null : _buildSessionDrawer(context),
-      body: _adaptiveChatBody(Stack(
+  Widget _buildHeader(ColorScheme cs, double topInset) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Theme.of(context).scaffoldBackgroundColor,
+            Theme.of(context).scaffoldBackgroundColor,
+            Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.85),
+            Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0),
+          ],
+          stops: const [0.0, 0.55, 0.8, 1.0],
+        ),
+      ),
+      padding: EdgeInsets.fromLTRB(8, topInset + 6, 8, 28),
+      child: Row(
         children: [
-          // --- 3. Chat list extends behind header & input ---
-          Positioned.fill(
-            child: _messages.isEmpty
-                ? ChatEmptyState(
-                    topPadding: topInset + 96,
-                    onQuickSend: (text) {
-                      _controller.text = text;
-                      send();
-                    },
-                  )
-                : NotificationListener<ScrollNotification>(
-                    onNotification: (n) {
-                      // User mulai drag sendiri → batalkan settle-scroll
-                      // agar magnet tidak merebut kembali posisinya.
-                      if ((n is ScrollStartNotification &&
-                              n.dragDetails != null) ||
-                          (n is ScrollUpdateNotification &&
-                              n.dragDetails != null)) {
-                        _settleActive = false;
-                      }
-                      return false;
-                    },
-                    child: ListView.separated(
+          if (widget.embedded && !isExpanded(context))
+            IconButton(
+              icon: Icon(Icons.menu, color: cs.onSurface),
+              onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+            )
+          else if (!widget.embedded)
+            IconButton(
+              icon: Icon(Icons.arrow_back, color: cs.onSurface),
+              onPressed: () => AppRouter.of(context).pop(),
+            ),
+          AiChatIcon(color: cs.primary, size: 20, filled: true),
+          const SizedBox(width: 8),
+          Flexible(
+            child: AiModelPicker(onChanged: () {
+              _dismissKeyboard();
+              setState(() {});
+            }),
+          ),
+          const Spacer(),
+          if (widget.embedded && isExpanded(context))
+            IconButton(
+              tooltip: _historyOpen ? 'Tutup panel riwayat' : 'Buka panel riwayat',
+              icon: Icon(
+                _historyOpen ? Icons.menu_open : Icons.menu,
+                color: cs.onSurface,
+              ),
+              onPressed: () => setState(() => _historyOpen = !_historyOpen),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChatStack(ColorScheme cs, double topInset) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: _messages.isEmpty
+              ? ChatEmptyState(
+                  topPadding: topInset + 96,
+                  onQuickSend: (text) {
+                    _controller.text = text;
+                    send();
+                  },
+                )
+              : NotificationListener<ScrollNotification>(
+                  onNotification: (n) {
+                    if ((n is ScrollStartNotification && n.dragDetails != null) ||
+                        (n is ScrollUpdateNotification && n.dragDetails != null)) {
+                      _settleActive = false;
+                    }
+                    return false;
+                  },
+                  child: ListView.separated(
                     controller: _scroll,
-                    // Padding bawah mengikuti tinggi input bar + gap kecil,
-                    // agar bubble terakhir tetap terlihat di atas field
-                    // saat field membesar (multiline). Default: 80 + 36 = 116.
-                    // G6: gelembung terpusat (maks 860) di layar lebar.
                     padding: centerPad(
                       context,
-                      base: EdgeInsets.fromLTRB(
-                        16,
-                        topInset + 96,
-                        16,
-                        _inputBarHeight + 36,
-                      ),
+                      base: EdgeInsets.fromLTRB(16, topInset + 96, 16, _inputBarHeight + 36),
                       maxWidth: 860,
                     ),
                     itemCount: _messages.length,
@@ -416,62 +429,44 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         onContinue: () => continueTruncated(m),
                         onUndo: () => undoActionChange(m),
                         onRedo: () => redoActionChange(m),
-                        onUserLongPress:
-                            isUser ? () => showMessageMenu(m) : null,
-                        onPromptRetry:
-                            isUser ? () => retryUserMessage(m) : null,
-                        onPromptEdit:
-                            isUser ? () => showEditMessageDialog(m) : null,
+                        onUserLongPress: isUser ? () => showMessageMenu(m) : null,
+                        onPromptRetry: isUser ? () => retryUserMessage(m) : null,
+                        onPromptEdit: isUser ? () => showEditMessageDialog(m) : null,
                         onPromptCopy: isUser ? () => copyUserMessage(m) : null,
                       );
                     },
                   ),
                 ),
-          ),
-          // --- 2. Bottom fade gradient: POSISI FIX jangkar bawah layar,
-          // selalu di BELAKANG cluster aksi (pending bar + input).
-          // Dulu gradient tertanam di kolom bawah yang tingginya berubah
-          // saat kartu konfirmasi muncul/hilang — sehingga gradient ikut
-          // berpindah dan menimpa kartu. Kini fix + di belakang.
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: IgnorePointer(
-              child: Container(
-                height: 170,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Theme.of(context)
-                          .scaffoldBackgroundColor
-                          .withValues(alpha: 0),
-                      Theme.of(context)
-                          .scaffoldBackgroundColor
-                          .withValues(alpha: 0.50),
-                      Theme.of(context).scaffoldBackgroundColor,
-                    ],
-                    stops: const [0.0, 0.55, 1.0],
-                  ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: IgnorePointer(
+            child: Container(
+              height: 170,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0),
+                    Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.50),
+                    Theme.of(context).scaffoldBackgroundColor,
+                  ],
+                  stops: const [0.0, 0.55, 1.0],
                 ),
               ),
             ),
           ),
-          // --- 3. Bottom action cluster: float PALING DEPAN, di atas gradient.
-          Align(
-            alignment: Alignment.bottomCenter,
-            // 2: cluster input dibatasi 860 agar sejajar gelembung di desktop
-            // (phone: 860 > layar sehingga identik).
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 860),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                // Bar persetujuan aksi AI (Terima/Tolak) + input prompt
-                // dibungkus satu Column berkunci agar tinggi KEDUANYA
-                // terukur — FAB & padding list ikut menyesuaikan.
+        ),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 860),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Column(
                   key: _inputBarKey,
                   mainAxisSize: MainAxisSize.min,
@@ -508,110 +503,57 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   ],
                 ),
               ],
-              ),
             ),
           ),
-          // FAB scroll-to-bottom (lapis 4): menempel tepat di atas input bar
-          // mengikuti tinggi input bar saat field membesar (multiline),
-          // 1x klik langsung ke chat terbaru sampai FAB hilang.
-          Positioned(
-            // Jangkar FAB ke kolom chat 860 di desktop (bukan tepi layar).
-            right: _fabRightInset(context),
-            bottom: _inputBarHeight + 10,
-            child: IgnorePointer(
-              ignoring: !_showFab,
-              child: AnimatedOpacity(
-                opacity: _showFab ? 1 : 0,
-                duration: const Duration(milliseconds: 150),
-                child: FloatingActionButton.small(
-                  heroTag: 'aiChatScrollToBottom',
-                  backgroundColor: cs.surface,
-                  foregroundColor: cs.primary,
-                  elevation: 3,
-                  onPressed: _jumpToBottom,
-                  child: const Icon(Icons.arrow_downward, size: 20),
-                ),
-              ),
-            ),
-          ),
-          // --- 5. Top header overlay: solid -> transparent, right side empty ---
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Theme.of(context).scaffoldBackgroundColor,
-                    Theme.of(context).scaffoldBackgroundColor,
-                    Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.85),
-                    Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0),
-                  ],
-                  stops: const [0.0, 0.55, 0.8, 1.0],
-                ),
-              ),
-              padding: EdgeInsets.fromLTRB(8, topInset + 6, 8, 28),
-              // Full-width: model di kiri, toggle panel di pojok kanan.
-              child: Row(
-                children: [
-                  // Phone/tablet: tombol menu membuka drawer overlay kiri.
-                  if (widget.embedded && !isExpanded(context))
-                    IconButton(
-                      icon: Icon(
-                        Icons.menu,
-                        color: cs.onSurface,
-                      ),
-                      onPressed: () {
-                        _scaffoldKey.currentState?.openDrawer();
-                      },
-                    )
-                  else if (!widget.embedded)
-                    IconButton(
-                      icon:  Icon(
-                        Icons.arrow_back,
-                        color: cs.onSurface,
-                      ),
-                      onPressed: () => AppRouter.of(context).pop(),
-                    ),
-                   AiChatIcon(
-                    color: cs.primary,
-                    size: 20,
-                    filled: true,
-                  ),
-                  const SizedBox(width: 8),
-                  // Title sekaligus pemilih model AI (ketuk untuk ganti).
-                  Flexible(
-                    child: AiModelPicker(onChanged: () {
-                      _dismissKeyboard();
-                      setState(() {});
-                    }),
-                  ),
-                  const Spacer(),
-                  // Desktop: toggle panel riwayat kanan (buka/tutup).
-                  if (widget.embedded && isExpanded(context))
-                    IconButton(
-                      tooltip: _historyOpen
-                          ? 'Tutup panel riwayat'
-                          : 'Buka panel riwayat',
-                      icon: Icon(
-                        _historyOpen
-                            ? Icons.menu_open
-                            : Icons.menu,
-                        color: cs.onSurface,
-                      ),
-                      onPressed: () {
-                        setState(() => _historyOpen = !_historyOpen);
-                      },
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
         ),
+        Positioned(
+          right: _fabRightInset(context),
+          bottom: _inputBarHeight + 10,
+          child: IgnorePointer(
+            ignoring: !_showFab,
+            child: AnimatedOpacity(
+              opacity: _showFab ? 1 : 0,
+              duration: const Duration(milliseconds: 150),
+              child: FloatingActionButton.small(
+                heroTag: 'aiChatScrollToBottom',
+                backgroundColor: cs.surface,
+                foregroundColor: cs.primary,
+                elevation: 3,
+                onPressed: _jumpToBottom,
+                child: const Icon(Icons.arrow_downward, size: 20),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final topInset = MediaQuery.of(context).padding.top;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final h = _inputBarKey.currentContext?.size?.height;
+      if (h != null && mounted && (h - _inputBarHeight).abs() > 0.5) {
+        setState(() => _inputBarHeight = h);
+      }
+    });
+    return Scaffold(
+      key: _scaffoldKey,
+      onDrawerChanged: (open) {
+        if (open) _dismissKeyboard();
+      },
+      drawer: isExpanded(context) ? null : _buildSessionDrawer(context),
+      body: Stack(
+        children: [
+          // Chat + panel di bawah header full-width, jadi tombol
+          // "Buka/Tutup panel riwayat" selalu di pojok kanan layar.
+          Positioned.fill(
+            child: _adaptiveChatBody(_buildChatStack(cs, topInset)),
+          ),
+          Positioned(top: 0, left: 0, right: 0, child: _buildHeader(cs, topInset)),
+        ],
       ),
     );
   }

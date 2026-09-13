@@ -211,10 +211,23 @@ class AdaptiveSheet {
     return showDialog<T>(
       context: context,
       barrierDismissible: isDismissible,
-      builder: (ctx) => ResponsiveDialog(
-        maxWidth: maxWidth,
-        child: builder(ctx, ScrollController()),
-      ),
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return Dialog(
+          backgroundColor: backgroundColor ?? cs.surface,
+          elevation: elevation,
+          shape: shape ??
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: SingleChildScrollView(
+              child: builder(ctx, ScrollController()),
+            ),
+          ),
+        );
+      },
     );
   }
 
