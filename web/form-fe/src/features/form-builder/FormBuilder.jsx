@@ -2020,6 +2020,13 @@ const ensureOptionSaved = async (idx, oIdx) => {
                                                         <option value="Benar">Benar</option>
                                                         <option value="Salah">Salah</option>
                                                     </select>
+                                                ) : q.typeId === 4 ? (
+                                                    <input
+                                                        type="datetime-local"
+                                                        value={q.correctAnswer || ''}
+                                                        onChange={e => updateQuestion(idx, 'correctAnswer', e.target.value)}
+                                                        className="w-full max-w-xs border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00897B]"
+                                                    />
                                                 ) : (
                                                     <input
                                                         placeholder="contoh: 4 atau Soekarno"

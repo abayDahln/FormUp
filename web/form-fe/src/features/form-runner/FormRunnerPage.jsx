@@ -1255,7 +1255,12 @@ function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange,
     }
 
     if (q.typeId === 4) return (
-        <input type="date" value={val || ''} onChange={e => handleAnswerChange(q.id, e.target.value)} className="w-full max-w-xs border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]" />
+        <input
+            type={q.includeTime ? "datetime-local" : "date"}
+            value={val || ''}
+            onChange={e => handleAnswerChange(q.id, e.target.value)}
+            className="w-full max-w-xs border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]"
+        />
     );
 
     if (q.typeId === 5) return (

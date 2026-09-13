@@ -233,17 +233,35 @@ export default function AiChatPage() {
         if (!targetForm) return '';
 
         try {
-            const [formDetail, questionsRes, responsesRes, monitoringRes, analyticsRes] = await Promise.all([
+            // A-4 Pagination Loop: Fetch all responses across all pages up to totalPages
+            let allResponses = [];
+            try {
+                let page = 1;
+                let totalPages = 1;
+                do {
+                    const res = await getFormResponses(targetForm.id, { page, pageSize: 100 }).catch(() => ({}));
+                    if (res?.ok) {
+                        const pageItems = Array.isArray(res.data) ? res.data : (res.data?.items || []);
+                        allResponses = [...allResponses, ...pageItems];
+                        const pg = res.pagination || res.data?.pagination;
+                        totalPages = pg?.totalPages || Math.ceil((pg?.totalCount || allResponses.length) / 100) || 1;
+                    } else {
+                        break;
+                    }
+                    page++;
+                } while (page <= totalPages && page <= 10);
+            } catch {}
+
+            const [formDetail, questionsRes, monitoringRes, analyticsRes] = await Promise.all([
                 getFormById(targetForm.id).catch(() => ({})),
                 getQuestions(targetForm.id).catch(() => ({})),
-                getFormResponses(targetForm.id, { pageSize: 100 }).catch(() => ({})),
                 getExamMonitoring(targetForm.id).catch(() => ({})),
                 getFormAnalytics(targetForm.id).catch(() => ({}))
             ]);
 
             const fData = formDetail.data || targetForm;
             const qList = Array.isArray(questionsRes.data) ? questionsRes.data : [];
-            const rList = Array.isArray(responsesRes.data) ? responsesRes.data : [];
+            const rList = allResponses;
             const mData = monitoringRes.data || {};
             const aData = analyticsRes.data || {};
 

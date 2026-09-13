@@ -133,13 +133,19 @@ export default function Sidebar({ onStartTour = null, isOpen = false, onClose = 
                     onClick={() => navigateWithConfirm('/ai-chat')}
                     className={`w-full flex items-center gap-3 px-4 py-3 font-bold text-sm rounded-xl transition-all cursor-pointer ${
                         isAiChatActive
-                            ? 'bg-gradient-to-r from-teal-500/40 to-emerald-500/40 text-white shadow-sm border border-teal-300/40'
-                            : 'text-teal-100 hover:bg-white/15 dark:hover:bg-slate-800/80 hover:text-white bg-white/10 dark:bg-slate-800/50 border border-white/10'
+                            ? 'bg-white/20 dark:bg-teal-600/30 text-white shadow-xs border border-white/20 dark:border-teal-500/40'
+                            : 'text-teal-100/80 dark:text-slate-300 hover:bg-white/10 dark:hover:bg-slate-800/80 hover:text-white'
                     }`}
                 >
-                    <Bot size={18} className={isAiChatActive ? 'text-teal-200' : 'text-teal-300'} />
-                    <span className="flex-1 text-left">AI Assistant</span>
-                    <Sparkles size={14} className="text-amber-300 animate-pulse" />
+                    <Bot
+                        size={18}
+                        className={
+                            isAiChatActive
+                                ? 'text-teal-200 dark:text-teal-300'
+                                : 'text-teal-200/70 dark:text-slate-400'
+                        }
+                    />
+                    <span>AI Assistant</span>
                 </button>
 
                 <button

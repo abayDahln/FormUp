@@ -19,11 +19,15 @@ import ForgotPasswordPage from './features/auth/ForgotPasswordPage';
 import LandingPage from './features/landing/LandingPage';
 import AiChatPage from './features/ai-chat/AiChatPage';
 import ProtectedRoute from './components/ui/ProtectedRoute';
+import ErrorBoundary from './components/ui/ErrorBoundary';
+import OfflineBanner from './components/ui/OfflineBanner';
 import { isAuthenticated } from './services/apiService';
 
 function App() {
   return (
-    <Routes>
+    <ErrorBoundary>
+      <OfflineBanner />
+      <Routes>
       <Route path="/" element={isAuthenticated() ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
 
       <Route path="/login" element={<Login />} />
@@ -48,6 +52,7 @@ function App() {
       <Route path="/ai-chat" element={<ProtectedRoute><AiChatPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
     </Routes>
+    </ErrorBoundary>
   );
 }
 

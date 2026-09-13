@@ -12,7 +12,7 @@ import Sidebar from '../../components/layout/Sidebar';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import {
     getFormById, getFormResponses, getFormAnalytics,
-    getResponseResult, getQuestions,
+    getResponseResult, getQuestions, getResponseDetail, getResponseAttempts,
     updateResponseStatus, clearSession, exportFormResponses, getFormFeedbacks, assetUrl,
     overrideAnswerScore, bulkOverrideAnswerScores, getExamMonitoring,
     forceSubmitExamSession, resetExamSession, resolveAnswerKey, ResolveAnswerKey, ExamProctorActions,

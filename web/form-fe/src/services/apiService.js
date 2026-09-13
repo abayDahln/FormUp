@@ -207,7 +207,7 @@ export const changePassword = async (currentPassword, newPassword) => {
 export const uploadProfileImage = async (file) => {
     const form = new FormData();
     form.append('file', file);
-    const res = authFetch(`${API_BASE_URL}/api/users/me/profile-image`, {
+    const res = await authFetch(`${API_BASE_URL}/api/users/me/profile-image`, {
         method: 'POST',
         body: form,
     });
@@ -274,7 +274,7 @@ export const getFormShare = async (id) => parseResponse(await authFetch(`${API_B
 export const uploadFormBanner = async (formId, file) => {
     const form = new FormData();
     form.append('file', file);
-    const res = authFetch(`${API_BASE_URL}/api/forms/${formId}/banner`, {
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${formId}/banner`, {
         method: 'POST',
         body: form,
     });
@@ -631,7 +631,7 @@ export const getPublicResponseResult = async (formLink, responseId, guestToken) 
     const url = guestToken
         ? `${API_BASE_URL}/api/public/forms/${formLink}/responses/${responseId}?token=${encodeURIComponent(guestToken)}`
         : `${API_BASE_URL}/api/public/forms/${formLink}/responses/${responseId}`;
-    const res = authFetch(url);
+    const res = await authFetch(url);
     return parseResponse(res);
 };
 
@@ -804,6 +804,12 @@ export const getLocalUser = () => {
 
 export const assetUrl = (path, fallback = '') => {
     if (!path) return fallback;
-    if (path.startsWith('http')) return path;
+    if (typeof path !== 'string') {
+        if (typeof window !== 'undefined' && path instanceof File) {
+            try { return URL.createObjectURL(path); } catch { return fallback; }
+        }
+        return fallback;
+    }
+    if (path.startsWith('http') || path.startsWith('blob:') || path.startsWith('data:')) return path;
     return `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
 };

@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Copy, Check, Code as CodeIcon } from 'lucide-react';
 
-export default function RichContentRenderer({ content, format = 'text', className = '' }) {
-    const [katexLoaded, setKatexLoaded] = useState(false);
+export default function RichContentRenderer({ content, className = '' }) {
+    const [, setKatexLoaded] = useState(() => typeof window !== 'undefined' && Boolean(window.katex));
 
     useEffect(() => {
-        if (window.katex) {
-            setKatexLoaded(true);
+        if (typeof window !== 'undefined' && window.katex) {
             return;
         }
 
@@ -266,7 +265,7 @@ function renderInlineMarkdownAndMath(text, keyPrefix) {
     if (!text) return null;
 
     // Split by Math ($$formula$$ or $formula$) and Inline Code (`code`)
-    const tokenRegex = /(\$\$[\s\S]+?\$\$|\$[^\$\n]+?\$|`[^`\n]+?`)/g;
+    const tokenRegex = /(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|`[^`\n]+?`)/g;
     const parts = text.split(tokenRegex);
 
     return parts.map((part, idx) => {
@@ -431,7 +430,7 @@ function renderKaTeXHtml(formula, block = false) {
                 displayMode: block,
                 throwOnError: false,
             });
-        } catch (e) {
+        } catch (_e) {
             // Fallback if KaTeX fails
         }
     }
@@ -439,7 +438,7 @@ function renderKaTeXHtml(formula, block = false) {
     return formatLaTeXFallback(trimmed, block);
 }
 
-function formatLaTeXFallback(expr, block) {
+function formatLaTeXFallback(expr, _block) {
     if (!expr) return '';
     let html = expr;
 

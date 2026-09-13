@@ -77,13 +77,13 @@ export const safeJsonParse = (rawStr) => {
         return JSON.parse(cleaned);
     } catch (e1) {
         try {
-            // Repair unescaped backslashes that are not valid JSON escape chars (\", \\, \/, \b, \f, \n, \r, \t, \uXXXX)
-            const repaired = cleaned.replace(/\\([^"\\\/bfnrtu]|u(?![\da-fA-F]{4}))/g, '\\\\$1');
+            // Repair unescaped backslashes that are not valid JSON escape chars (\", \\, /, \b, \f, \n, \r, \t, \uXXXX)
+            const repaired = cleaned.replace(/\\([^"\\/bfnrtu]|u(?![\da-fA-F]{4}))/g, '\\\\$1');
             return JSON.parse(repaired);
-        } catch (e2) {
+        } catch {
             const jsonMatch = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
             if (jsonMatch) {
-                const repaired = jsonMatch[0].replace(/\\([^"\\\/bfnrtu]|u(?![\da-fA-F]{4}))/g, '\\\\$1');
+                const repaired = jsonMatch[0].replace(/\\([^"\\/bfnrtu]|u(?![\da-fA-F]{4}))/g, '\\\\$1');
                 return JSON.parse(repaired);
             }
             throw e1;
