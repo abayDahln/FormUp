@@ -44,7 +44,8 @@ void showAppToast(
           : type == ToastType.warning
               ? const Duration(milliseconds: 2800)
               : const Duration(milliseconds: 2500));
-  final overlay = Overlay.of(context);
+  // rootOverlay:true agar toast di tengah window, bukan di tengah panel chat/sidebar
+  final overlay = Overlay.of(context, rootOverlay: true);
   final v = _variants[type]!;
 
   _dismissActive();

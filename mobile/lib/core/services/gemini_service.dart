@@ -673,4 +673,71 @@ Aturan:
       client.close();
     }
   }
+
+  /// Transkripsi audio via AI (dipakai voice note).
+  /// Mengirim audio sebagai inlineData + prompt pendek, mengembalikan teks.
+  static Future<String> transcribeAudio(
+    Uint8List bytes, {
+    String mime = 'audio/wav',
+    GeminiCancel? cancel,
+  }) async {
+    if (!hasKey) throw Exception('GEMINI_API_KEY belum diatur. Atur di AI Chat > API Key.');
+    if (bytes.isEmpty) throw Exception('Audio kosong');
+    final b64 = base64Encode(bytes);
+    final effectiveModel = selectedModelId;
+    final uri = Uri.parse('$_baseUrl/models/$effectiveModel:generateContent');
+    final client = http.Client();
+    cancel?._attach(client);
+    try {
+      if (cancel?.isCancelled ?? false) throw Exception('GEMINI_CANCELLED');
+      final res = await client
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-goog-api-key': _apiKey,
+            },
+            body: jsonEncode({
+              'contents': [
+                {
+                  'role': 'user',
+                  'parts': [
+                    {
+                      'text':
+                          'Transkripsikan audio ini ke Bahasa Indonesia. Kembalikan HANYA teks transkripsi tanpa penjelasan, tanpa tanda kutip.'
+                    },
+                    {
+                      'inlineData': {'mimeType': mime, 'data': b64}
+                    },
+                  ]
+                }
+              ],
+              'generationConfig': {'temperature': 0.2, 'maxOutputTokens': 4096}
+            }),
+          )
+          .timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw TimeoutException('Server AI tidak merespons saat transkripsi (30 detik)'),
+      );
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        String googleMsg = '';
+        try {
+          final j = jsonDecode(res.body) as Map<String, dynamic>;
+          googleMsg = j['error']?['message'] as String? ?? '';
+        } catch (_) {}
+        final msg = googleMsg.isNotEmpty
+            ? 'Gemini error ${res.statusCode}: $googleMsg'
+            : 'Gemini error ${res.statusCode}';
+        throw Exception(msg);
+      }
+      final j = jsonDecode(res.body) as Map<String, dynamic>;
+      final candidates = j['candidates'] as List<dynamic>?;
+      final first = candidates != null && candidates.isNotEmpty ? candidates[0] as Map<String, dynamic> : null;
+      final parts = (first?['content'] as Map<String, dynamic>?)?['parts'] as List<dynamic>?;
+      final text = parts != null && parts.isNotEmpty ? (parts[0] as Map<String, dynamic>)['text'] as String? : null;
+      return (text ?? '').trim();
+    } finally {
+      client.close();
+    }
+  }
 }

@@ -26,6 +26,7 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback onPickFiles;
   final ValueChanged<String> onRemoveAttachment;
   final bool isListening;
+  final bool isTranscribing;
   final VoidCallback onMicPressed;
   final VoidCallback? onModelChanged;
   const ChatInputBar({
@@ -50,6 +51,7 @@ class ChatInputBar extends StatefulWidget {
     required this.onPickFiles,
     required this.onRemoveAttachment,
     this.isListening = false,
+    this.isTranscribing = false,
     required this.onMicPressed,
     this.onModelChanged,
   });
@@ -93,19 +95,30 @@ class _ChatInputBarState extends State<ChatInputBar> {
           final outerPad = isWide ? const EdgeInsets.fromLTRB(24, 8, 24, 16) : const EdgeInsets.fromLTRB(16, 8, 16, 16);
           return Container(padding: outerPad, child: Container(padding: EdgeInsets.fromLTRB(12, widget.attachments.isNotEmpty ? 12 : 8, 8, 8), decoration: BoxDecoration(color: pillColor, borderRadius: BorderRadius.circular(28), border: Border.all(color: borderColor), boxShadow: softShadow()), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (widget.attachments.isNotEmpty) ...[_AttachmentPreview(attachments: widget.attachments, onRemove: widget.onRemoveAttachment), const SizedBox(height: 8)],
-          TextField(controller: widget.textController, focusNode: widget.focusNode, minLines: 1, maxLines: 4, textInputAction: TextInputAction.send, onSubmitted: (_) { if (canSend && !widget.streaming && !widget.sending) widget.onSend(); }, decoration: InputDecoration(hintText: 'Ask Gemini', filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.fromLTRB(8, 10, 8, 8), hintStyle: TextStyle(fontSize: 15, color: cs.onSurfaceVariant)), style: TextStyle(fontSize: 15, color: cs.onSurface)),
+          TextField(controller: widget.textController, focusNode: widget.focusNode, minLines: 1, maxLines: 4, textInputAction: TextInputAction.send, onSubmitted: (_) { if (canSend && !widget.streaming && !widget.sending) widget.onSend(); }, decoration: InputDecoration(hintText: 'Tanya Gemini', filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.fromLTRB(8, 10, 8, 8), hintStyle: TextStyle(fontSize: 15, color: cs.onSurfaceVariant)), style: TextStyle(fontSize: 15, color: cs.onSurface)),
           const SizedBox(height: 6),
           Row(children: [
-            InkWell(onTap: (widget.streaming || widget.sending) ? null : widget.onPickFiles, borderRadius: BorderRadius.circular(20), child: Container(width: 36, height: 36, alignment: Alignment.center, child: Icon(Icons.add, size: 22, color: cs.onSurfaceVariant))),
+            InkWell(onTap: (widget.streaming || widget.sending || widget.isTranscribing) ? null : widget.onPickFiles, borderRadius: BorderRadius.circular(20), child: Container(width: 36, height: 36, alignment: Alignment.center, child: Icon(Icons.add, size: 22, color: cs.onSurfaceVariant))),
             const Spacer(),
             // Mobile sangat sempit: pemilihan model di kiri atas, bukan di field
             if (MediaQuery.sizeOf(context).width >= 600)
               Flexible(child: Align(alignment: Alignment.centerRight, child: _FlashPickerCompact(onChanged: widget.onModelChanged))),
             if (MediaQuery.sizeOf(context).width >= 600) const SizedBox(width: 4),
-            IconButton(onPressed: (widget.streaming || widget.sending) ? null : widget.onMicPressed, tooltip: widget.isListening ? 'Berhenti merekam' : 'Dikte suara', visualDensity: VisualDensity.compact, icon: Icon(widget.isListening ? Icons.mic : Icons.mic_none_outlined, size: 20, color: widget.isListening ? Colors.red : cs.onSurfaceVariant)),
+            if (widget.isTranscribing)
+              Padding(
+                padding: const EdgeInsets.all(10),
+                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary)),
+              )
+            else
+              IconButton(
+                onPressed: (widget.streaming || widget.sending || widget.isTranscribing) ? null : widget.onMicPressed,
+                tooltip: widget.isListening ? 'Berhenti merekam (AI)' : 'Rekam suara (AI)',
+                visualDensity: VisualDensity.compact,
+                icon: Icon(widget.isListening ? Icons.stop_circle : Icons.mic_none_outlined, size: 20, color: widget.isListening ? Colors.red : cs.onSurfaceVariant),
+              ),
             const SizedBox(width: 4),
             if (widget.streaming) IconButton(onPressed: widget.onStop, tooltip: 'Stop', style: IconButton.styleFrom(backgroundColor: cs.surfaceContainerHigh), icon: Icon(Icons.stop_rounded, size: 20, color: cs.primary))
-            else if (widget.sending) Padding(padding: const EdgeInsets.all(8), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary)))
+            else if (widget.sending || widget.isTranscribing) Padding(padding: const EdgeInsets.all(8), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary)))
             else if (canSend) Material(color: cs.primary, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: InkWell(onTap: widget.onSend, child: SizedBox(width: 36, height: 36, child: Icon(Icons.arrow_upward, size: 20, color: cs.onPrimary))))
             else const SizedBox(width: 4),
           ]),

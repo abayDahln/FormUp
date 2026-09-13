@@ -10,9 +10,11 @@ import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/gemini_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/responsive.dart';
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:speech_to_text/speech_to_text.dart';
+import 'package:record/record.dart';
 import 'package:form_up/features/ai_chat/controllers/mention_highlight_controller.dart';
 import 'package:form_up/features/ai_chat/controllers/typing_stream.dart';
 import 'package:form_up/features/ai_chat/models/ai_attachment.dart';
@@ -159,9 +161,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
   // Lampiran pending sebelum dikirim (maks 3 @10MB)
   List<AiAttachment> _pendingAttachments = [];
 
-  // Voice dikte
-  bool _isListening = false;
-  SpeechToText? _speech;
+  // Voice rekam → transkrip AI (hanya butuh mic + internet, tidak tergantung OS Speech)
+  bool _isRecording = false;
+  bool _isTranscribing = false;
+  AudioRecorder? _recorder;
+  Timer? _recordTimer;
+  String? _recordingPath;
 
   Future<void> pickAttachments() async {
     if (_streaming || _sending) return;
@@ -211,11 +216,16 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   Future<void> toggleVoice() async {
-    if (_isListening) {
-      try {
-        await _speech?.stop();
-      } catch (_) {}
-      if (mounted) setState(() => _isListening = false);
+    if (_isTranscribing) return;
+    if (_isRecording) {
+      await _stopAndTranscribe();
+      return;
+    }
+    if (!GeminiService.hasKey) {
+      if (mounted) {
+        showAuthToast(context, 'API Key belum diatur', isError: true);
+        showAiApiKeyDialog(context, onKeyChanged: () => setState(() {}));
+      }
       return;
     }
     try {
@@ -226,58 +236,87 @@ class _AiChatScreenState extends State<AiChatScreen> {
           return;
         }
       }
-      _speech ??= SpeechToText();
-      final available = await _speech!.initialize(
-        onError: (e) {
-          if (mounted) setState(() => _isListening = false);
-        },
-        onStatus: (s) {
-          if (s == 'done' || s == 'notListening') {
-            if (mounted && _isListening) setState(() => _isListening = false);
-          }
-        },
-      );
-      if (!available) {
-        if (mounted) {
-          if (isDesktopPlatform) {
-            showAuthToast(
-              context,
-              'Dikte Windows belum aktif. Aktifkan di Pengaturan Windows > Waktu & Bahasa > Ucapan, instal paket Indonesia, lalu coba lagi.',
-              isError: true,
-            );
-          } else {
-            showAuthToast(context, 'Dikte tidak tersedia di perangkat ini', isError: true);
-          }
-        }
+      _recorder ??= AudioRecorder();
+      bool hasPerm = true;
+      try {
+        hasPerm = await _recorder!.hasPermission();
+      } on MissingPluginException {
+        hasPerm = true; // Windows: hasPermission tidak diimplementasikan
+      } catch (_) {
+        hasPerm = true;
+      }
+      if (!hasPerm) {
+        if (mounted) showAuthToast(context, 'Mikrofon tidak tersedia', isError: true);
         return;
       }
-      setState(() => _isListening = true);
-      await _speech!.listen(
-        onResult: (result) {
-          final recognized = result.recognizedWords;
-          if (recognized.isNotEmpty) {
-            final sel = _controller.selection;
-            final text = _controller.text;
-            final before = text.substring(0, sel.start >= 0 ? sel.start : text.length);
-            final after = text.substring(sel.end >= 0 ? sel.end : text.length);
-            final insert = (before.isEmpty || before.endsWith(' ') ? '' : ' ') + recognized;
-            final newText = before + insert + (after.isEmpty ? '' : ' $after');
-            _controller.text = newText;
-            _controller.selection = TextSelection.collapsed(offset: (before + insert).length);
-          }
-          if (result.finalResult) {
-            if (mounted) setState(() => _isListening = false);
-          }
-        },
-        localeId: 'id_ID',
-        listenFor: const Duration(seconds: 30),
-        pauseFor: const Duration(seconds: 3),
-      );
+      final tempDir = await Directory.systemTemp.createTemp('voice_');
+      _recordingPath = '${tempDir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.wav';
+      await _recorder!.start(const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1, bitRate: 128000), path: _recordingPath!);
+      if (!mounted) return;
+      setState(() => _isRecording = true);
+      _recordTimer?.cancel();
+      _recordTimer = Timer(const Duration(seconds: 60), () {
+        if (_isRecording && mounted) _stopAndTranscribe();
+      });
+    } on MissingPluginException catch (_) {
+      if (mounted) {
+        setState(() => _isRecording = false);
+        showAuthToast(
+          context,
+          'Plugin voice belum terpasang di Windows.',
+          isError: true,
+        );
+      }
     } catch (e) {
       if (mounted) {
-        setState(() => _isListening = false);
-        showAuthToast(context, 'Gagal dikte: $e', isError: true);
+        setState(() => _isRecording = false);
+        showAuthToast(context, 'Gagal merekam: $e', isError: true);
       }
+    }
+  }
+
+  Future<void> _stopAndTranscribe() async {
+    if (!_isRecording) return;
+    _recordTimer?.cancel();
+    setState(() {
+      _isRecording = false;
+      _isTranscribing = true;
+    });
+    try {
+      final path = await _recorder?.stop();
+      final effectivePath = path ?? _recordingPath;
+      _recordingPath = null;
+      if (effectivePath == null || !File(effectivePath).existsSync()) {
+        throw Exception('File rekaman tidak ditemukan');
+      }
+      final bytes = await File(effectivePath).readAsBytes();
+      try {
+        await File(effectivePath).delete();
+      } catch (_) {}
+      try {
+        final dir = Directory(File(effectivePath).parent.path);
+        if (dir.path.contains('voice_')) await dir.delete(recursive: true);
+      } catch (_) {}
+      if (bytes.isEmpty) throw Exception('Rekaman kosong');
+      final text = await GeminiService.transcribeAudio(bytes, mime: 'audio/wav');
+      if (!mounted) return;
+      if (text.trim().isEmpty) {
+        showAuthToast(context, 'Transkripsi kosong. Coba bicara lebih jelas.', isError: true);
+        return;
+      }
+      final sel = _controller.selection;
+      final cur = _controller.text;
+      final before = cur.substring(0, sel.start >= 0 ? sel.start : cur.length);
+      final after = cur.substring(sel.end >= 0 ? sel.end : cur.length);
+      final insert = (before.isEmpty || before.endsWith(' ') ? '' : ' ') + text.trim();
+      final newText = before + insert + (after.isEmpty ? '' : ' $after');
+      _controller.text = newText;
+      _controller.selection = TextSelection.collapsed(offset: (before + insert).length);
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (mounted) showAuthToast(context, GeminiService.friendlyMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _isTranscribing = false);
     }
   }
 
@@ -315,7 +354,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _activeCancel?.cancel();
     _typingStream?.dispose();
     _sub?.cancel();
-    _speech?.cancel();
+    _recordTimer?.cancel();
+    _recorder?.dispose();
     for (final m in _messages) {
       m.disposeStream();
     }
@@ -467,6 +507,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   Widget _buildHeader(ColorScheme cs, double topInset) {
+    final isWideHeader = isTablet(context);
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -475,10 +516,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
           colors: [
             Theme.of(context).scaffoldBackgroundColor,
             Theme.of(context).scaffoldBackgroundColor,
-            Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.85),
+            Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.92),
+            Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.55),
             Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0),
           ],
-          stops: const [0.0, 0.55, 0.8, 1.0],
+          stops: isWideHeader ? const [0.0, 0.45, 0.68, 0.82, 1.0] : const [0.0, 0.50, 0.70, 0.85, 1.0],
         ),
       ),
       padding: EdgeInsets.fromLTRB(8, topInset + 6, 8, 28),
@@ -512,8 +554,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
   Widget _buildChatStack(ColorScheme cs, double topInset) {
     return Stack(
       children: [
-        // Header gradient khusus chat — berada di belakang sidebar/history (di dalam chat saja)
-        Positioned(top: 0, left: 0, right: 0, child: _buildHeader(cs, topInset)),
         Positioned.fill(
           child: _messages.isEmpty
               ? ChatEmptyState(
@@ -571,23 +611,28 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   ),
                 ),
         ),
+        // Header di atas list (mobile) agar tombol model & menu tidak ketiban chat, gradient atas tetap di atas list
+        Positioned(top: 0, left: 0, right: 0, child: _buildHeader(cs, topInset)),
         Positioned(
           left: 0,
           right: 0,
           bottom: 0,
           child: IgnorePointer(
             child: Container(
-              height: 170,
+              height: isDesktopWidth(context) ? 220 : isTablet(context) ? 200 : 170,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
                     Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0),
-                    Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.50),
+                    Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.12),
+                    Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.32),
+                    Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.62),
+                    Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.92),
                     Theme.of(context).scaffoldBackgroundColor,
                   ],
-                  stops: const [0.0, 0.55, 1.0],
+                  stops: const [0.0, 0.25, 0.45, 0.65, 0.82, 1.0],
                 ),
               ),
             ),
@@ -634,7 +679,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         attachments: _pendingAttachments,
                         onPickFiles: pickAttachments,
                         onRemoveAttachment: removePendingAttachment,
-                        isListening: _isListening,
+                        isListening: _isRecording,
+                        isTranscribing: _isTranscribing,
                         onMicPressed: toggleVoice,
                         onModelChanged: () {
                           _dismissKeyboard();
