@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -34,6 +35,8 @@ class _DesktopQrcodeScannerScreenState
   bool _cameraFailed = false;
   bool _busy = false;
   String? _errorMessage;
+  Timer? _scanTimer;
+  bool _autoScanning = false;
 
   static final _validUrl = RegExp(
     r'^https://formup\.my\.id/f/(.+)$',
@@ -48,6 +51,7 @@ class _DesktopQrcodeScannerScreenState
 
   @override
   void dispose() {
+    _stopAutoScan();
     _camera?.dispose();
     super.dispose();
   }
@@ -59,8 +63,19 @@ class _DesktopQrcodeScannerScreenState
         if (mounted) setState(() => _cameraFailed = true);
         return;
       }
-      final controller =
-          CameraController(cameras.first, ResolutionPreset.medium);
+      // Windows laptop/PC: utamakan kamera depan, fallback ke pertama
+      CameraDescription selected = cameras.first;
+      try {
+        selected = cameras.firstWhere(
+          (c) => c.lensDirection == CameraLensDirection.front,
+          orElse: () => cameras.first,
+        );
+      } catch (_) {}
+      final controller = CameraController(
+        selected,
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
       await controller.initialize();
       if (!mounted) {
         await controller.dispose();
@@ -70,9 +85,43 @@ class _DesktopQrcodeScannerScreenState
         _camera = controller;
         _cameraReady = true;
       });
+      _startAutoScan();
     } catch (_) {
       if (mounted) setState(() => _cameraFailed = true);
     }
+  }
+
+  void _startAutoScan() {
+    _scanTimer?.cancel();
+    // Mobile langsung terbaca tanpa tombol: Windows juga otomatis tiap 900ms
+    _scanTimer = Timer.periodic(const Duration(milliseconds: 900), (_) async {
+      if (!mounted || !_cameraReady || _busy || _autoScanning) return;
+      final cam = _camera;
+      if (cam == null || !cam.value.isInitialized) return;
+      _autoScanning = true;
+      try {
+        final photo = await cam.takePicture();
+        final bytes = await photo.readAsBytes();
+        // Hapus file temp segera
+        try {
+          await photo.readAsBytes().then((_) {});
+        } catch (_) {}
+        final text = await _decodeQrBytes(bytes);
+        if (text != null && mounted && !_busy) {
+          _scanTimer?.cancel();
+          await _handleRawText(text);
+        }
+      } catch (_) {
+        // diam — coba lagi di tick berikutnya
+      } finally {
+        _autoScanning = false;
+      }
+    });
+  }
+
+  void _stopAutoScan() {
+    _scanTimer?.cancel();
+    _scanTimer = null;
   }
 
   String? _extractFormLink(String? raw) {
@@ -256,14 +305,14 @@ class _DesktopQrcodeScannerScreenState
                   const Center(child: AppLoadingIndicator(color: Colors.white)),
                   const SizedBox(height: 12),
                 ],
-                AuthPrimaryButton(
-                  label: 'Ambil & Pindai',
-                  pill: true,
-                  loading: _busy,
-                  onPressed: (_cameraReady && !_busy)
-                      ? _captureAndDecode
-                      : null,
-                ),
+                // AuthPrimaryButton(
+                //   label: 'Ambil & Pindai',
+                //   pill: true,
+                //   loading: _busy,
+                //   onPressed: (_cameraReady && !_busy)
+                //       ? _captureAndDecode
+                //       : null,
+                // ),
                 const SizedBox(height: 10),
                 OutlinedButton.icon(
                   onPressed: _busy ? null : _pickFileAndDecode,
@@ -280,11 +329,28 @@ class _DesktopQrcodeScannerScreenState
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  'Arahkan QR ke kamera lalu tekan Ambil & Pindai\nformat: https://formup.my.id/f/{kode}',
+                Text(
+                  _cameraReady && !_cameraFailed
+                      ? 'Arahkan QR ke dalam kotak — otomatis terbaca\nformat: https://formup.my.id/f/{kode} / Pilih dari File'
+                      : 'Arahkan QR ke dalam kotak — otomatis terbaca\nformat: https://formup.my.id/f/{kode}',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
+                if (_cameraReady && !_busy) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 8,
+                        height: 8,
+                        child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white54),
+                      ),
+                      SizedBox(width: 6),
+                      Text('Mencari QR otomatis...', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -319,23 +385,80 @@ class _DesktopQrcodeScannerScreenState
     if (!_cameraReady || camera == null) {
       return const Center(child: AppLoadingIndicator(color: Colors.white));
     }
+    // Full-screen 16:9 agar tidak gepeng (stretch). Box scan diperbesar agar QR mudah terbaca.
+    final previewSize = camera.value.previewSize;
+    final isFront = camera.description.lensDirection == CameraLensDirection.front;
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          CameraPreview(camera),
-          Center(
-            child: Container(
-              width: 240,
-              height: 240,
-              decoration: BoxDecoration(
-                border: Border.all(color: cs.surface, width: 3),
-                borderRadius: BorderRadius.circular(16),
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // FittedBox cover: preview mengisi 16:9 tanpa gepeng
+            if (previewSize != null)
+              FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: previewSize.width,
+                  height: previewSize.height,
+                  child: CameraPreview(camera),
+                ),
+              )
+            else
+              CameraPreview(camera),
+            // Overlay gelap di luar kotak scan agar fokus ke QR
+            ColorFiltered(
+              colorFilter: ColorFilter.mode(
+                Colors.black.withValues(alpha: 0.45),
+                BlendMode.srcOut,
+              ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      backgroundBlendMode: BlendMode.dstOut,
+                    ),
+                  ),
+                  Center(
+                    child: Container(
+                      width: 360,
+                      height: 360,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+            Center(
+              child: Container(
+                width: 360,
+                height: 360,
+                decoration: BoxDecoration(
+                  border: Border.all(color: cs.surface, width: 3),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+            // Hint kamera depan (mirrored) — koreksi decode tetap via bytes foto asli
+            if (isFront)
+              const Positioned(
+                top: 12,
+                left: 0,
+                right: 0,
+                child: Text(
+                  'Kamera depan',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
