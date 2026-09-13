@@ -38,6 +38,18 @@ export default function AdminDashboardPage() {
     const [loadingFormDetail, setLoadingFormDetail] = useState(false);
 
     useEffect(() => {
+        if (selectedUserDetail || selectedFormDetail) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [selectedUserDetail, selectedFormDetail]);
+
+    useEffect(() => {
         const userRole = (user?.role || '').toUpperCase();
         if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') {
             navigate('/dashboard');
@@ -136,18 +148,18 @@ export default function AdminDashboardPage() {
         }
     };
 
-    const handleDeleteUser = async (userId) => {
-        if (!window.confirm('Hapus pengguna ini? Semua formulir milik pengguna ini juga akan dihapus.')) return;
-        setActionLoadingId(`user_del_${userId}`);
-        const res = await adminDeleteUser(userId);
-        setActionLoadingId(null);
-        if (res.ok) {
-            setUsers(prev => prev.filter(u => u.id !== userId));
-            showToast('Pengguna berhasil dihapus');
-        } else {
-            showToast(res.message || 'Gagal menghapus pengguna', 'error');
-        }
-    };
+    // const handleDeleteUser = async (userId) => {
+    //     if (!window.confirm('Hapus pengguna ini? Semua formulir milik pengguna ini juga akan dihapus.')) return;
+    //     setActionLoadingId(`user_del_${userId}`);
+    //     const res = await adminDeleteUser(userId);
+    //     setActionLoadingId(null);
+    //     if (res.ok) {
+    //         setUsers(prev => prev.filter(u => u.id !== userId));
+    //         showToast('Pengguna berhasil dihapus');
+    //     } else {
+    //         showToast(res.message || 'Gagal menghapus pengguna', 'error');
+    //     }
+    // };
 
     // ── Form Handlers ───────────────────────────────────────────────────────────
     const handleViewForm = async (formId) => {
@@ -518,7 +530,7 @@ export default function AdminDashboardPage() {
                                                                 )}
 
                                                                 {/* Delete User */}
-                                                                {!isAdminUser && !isSelf && (
+                                                                {/* {!isAdminUser && !isSelf && (
                                                                     <button
                                                                         onClick={() => handleDeleteUser(u.id)}
                                                                         disabled={actionLoadingId === `user_del_${u.id}`}
@@ -527,7 +539,7 @@ export default function AdminDashboardPage() {
                                                                     >
                                                                         <Trash2 size={15} />
                                                                     </button>
-                                                                )}
+                                                                )} */}
                                                             </div>
                                                         </td>
                                                     </tr>

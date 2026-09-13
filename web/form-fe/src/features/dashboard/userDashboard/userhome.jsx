@@ -6,7 +6,7 @@ import Topbar from '../../../components/layout/Topbar';
 import AIFormBuilderModal from '../../../components/ui/AIFormBuilderModal';
 import OnboardingTour from '../../../components/ui/OnboardingTour';
 import UserGuideModal from '../../../components/ui/UserGuideModal';
-import { getMyForms, getLocalUser, clearSession, assetUrl, createForm } from '../../../services/apiService';
+import { getMyForms, getMyStats, getLocalUser, clearSession, assetUrl, createForm } from '../../../services/apiService';
 
 const getGreeting = () => {
     const hour = new Date().getHours();
@@ -19,6 +19,7 @@ const getGreeting = () => {
 const UserHome = () => {
     const navigate = useNavigate();
     const [myForms, setMyForms] = useState([]);
+    const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [user] = useState(() => getLocalUser());
     const [searchQuery, setSearchQuery] = useState('');
@@ -53,7 +54,10 @@ const UserHome = () => {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const formsResult = await getMyForms();
+                const [formsResult, statsResult] = await Promise.all([
+                    getMyForms(),
+                    getMyStats().catch(() => null),
+                ]);
 
                 if (formsResult.status === 401) {
                     clearSession();
@@ -63,6 +67,9 @@ const UserHome = () => {
 
                 if (formsResult.ok && Array.isArray(formsResult.data)) {
                     setMyForms(formsResult.data);
+                }
+                if (statsResult?.ok && statsResult?.data) {
+                    setStats(statsResult.data);
                 }
 
                 // Cek apakah user baru (belum pernah menyelesaikan onboarding)
@@ -268,48 +275,57 @@ const UserHome = () => {
                         </div>
                     </div>
 
-                    {/* Stats Metrics */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4" data-tour="stats-overview">
-                        <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-2xs flex items-center justify-between">
-                            <div>
-                                <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Total Formulir</p>
-                                <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{myForms.length}</h3>
-                            </div>
-                            <div className="p-2 sm:p-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400">
-                                <FileText size={18} className="sm:w-5 sm:h-5" />
-                            </div>
-                        </div>
+                    {/* Compute stats metrics from stats API or myForms fallback */}
+                    {(() => {
+                        const totalFormCount = stats?.totalForms ?? stats?.formsCount ?? myForms.length;
+                        const totalResponses = stats?.totalResponses ?? stats?.responsesCount ?? myForms.reduce((acc, f) => acc + (f.responseCount || f.responsesCount || 0), 0);
+                        const publishedCount = stats?.publishedForms ?? stats?.publishedCount ?? myForms.filter(f => (f.status || '').toLowerCase() === 'published' || f.isPublished).length;
+                        const draftCount = stats?.draftForms ?? stats?.draftCount ?? myForms.filter(f => (f.status || '').toLowerCase() === 'draft' || !f.isPublished).length;
 
-                        <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-2xs flex items-center justify-between">
-                            <div>
-                                <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Total Respons</p>
-                                <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{totalResponses}</h3>
-                            </div>
-                            <div className="p-2 sm:p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
-                                <Users size={18} className="sm:w-5 sm:h-5" />
-                            </div>
-                        </div>
+                        return (
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4" data-tour="stats-overview">
+                                <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-2xs flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Total Formulir</p>
+                                        <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{totalFormCount}</h3>
+                                    </div>
+                                    <div className="p-2 sm:p-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400">
+                                        <FileText size={18} className="sm:w-5 sm:h-5" />
+                                    </div>
+                                </div>
 
-                        <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-2xs flex items-center justify-between">
-                            <div>
-                                <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Dipublikasikan</p>
-                                <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{publishedCount}</h3>
-                            </div>
-                            <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
-                                <CheckCircle2 size={18} className="sm:w-5 sm:h-5" />
-                            </div>
-                        </div>
+                                <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-2xs flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Total Respons</p>
+                                        <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{totalResponses}</h3>
+                                    </div>
+                                    <div className="p-2 sm:p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
+                                        <Users size={18} className="sm:w-5 sm:h-5" />
+                                    </div>
+                                </div>
 
-                        <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-2xs flex items-center justify-between">
-                            <div>
-                                <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Draf</p>
-                                <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{draftCount}</h3>
+                                <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-2xs flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Dipublikasikan</p>
+                                        <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{publishedCount}</h3>
+                                    </div>
+                                    <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
+                                        <CheckCircle2 size={18} className="sm:w-5 sm:h-5" />
+                                    </div>
+                                </div>
+
+                                <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-2xs flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Draf</p>
+                                        <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{draftCount}</h3>
+                                    </div>
+                                    <div className="p-2 sm:p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400">
+                                        <Clock size={18} className="sm:w-5 sm:h-5" />
+                                    </div>
+                                </div>
                             </div>
-                            <div className="p-2 sm:p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400">
-                                <Clock size={18} className="sm:w-5 sm:h-5" />
-                            </div>
-                        </div>
-                    </div>
+                        );
+                    })()}
 
                     {/* Recent Forms Section */}
                     <section className="space-y-4" data-tour="recent-forms-section">

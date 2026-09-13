@@ -6,14 +6,17 @@ import {
     MinusCircle, ChevronLeft, ChevronRight, TrendingUp, Calendar, Maximize2,
     Sliders, Edit2, RotateCcw, Check, Save, Sparkles,
     ShieldAlert, ShieldCheck, Activity, Radio, RefreshCw, ChevronDown, ChevronUp,
-    Search, Filter, AlertCircle, ArrowRight as ArrowRightIcon
+    Search, Filter, AlertCircle, ArrowRight as ArrowRightIcon, Share2
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
+import ConfirmModal from '../../components/ui/ConfirmModal';
 import {
     getFormById, getFormResponses, getFormAnalytics,
-    getResponseResult, getQuestions,
+    getResponseResult, getQuestions, getResponseDetail, getResponseAttempts,
     updateResponseStatus, clearSession, exportFormResponses, getFormFeedbacks, assetUrl,
-    overrideAnswerScore, bulkOverrideAnswerScores, getExamMonitoring
+    overrideAnswerScore, bulkOverrideAnswerScores, getExamMonitoring,
+    forceSubmitExamSession, resetExamSession, resolveAnswerKey, ResolveAnswerKey, ExamProctorActions,
+    stripMathNotation
 } from '../../services/apiService';
 import { getGeminiApiKey } from '../../services/aiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
@@ -28,21 +31,8 @@ const STATUS_OPTIONS = [
 
 const PAGE_SIZE = 25;
 
-export const resolveQuestionKey = (qDef) => {
-    if (!qDef) return '';
-    if (qDef.typeId === 2 || qDef.typeId === 5) {
-        // Multiple choice / True-False
-        const correctOpt = (qDef.options || []).find(o => o.isCorrect === true);
-        return correctOpt?.optionText || qDef.correctAnswer || '';
-    }
-    if (qDef.typeId === 3) {
-        // Checkbox (can have multiple correct)
-        const correctOpts = (qDef.options || []).filter(o => o.isCorrect === true).map(o => o.optionText);
-        if (correctOpts.length > 0) return correctOpts.join(', ');
-        return qDef.correctAnswer || '';
-    }
-    return qDef.correctAnswer || '';
-};
+export { resolveAnswerKey, ResolveAnswerKey };
+export const resolveQuestionKey = (qDef) => resolveAnswerKey(qDef);
 
 export const resolveBaseIsCorrect = (answer, qDef) => {
     if (!qDef) return null;
@@ -180,6 +170,12 @@ const saveLocalManualOverride = (formId, responseId, questionId, isCorrect) => {
     }
 };
 
+const isProctorActionType = (type) =>
+    (type || '').toLowerCase() === ExamProctorActions.ForceSubmitByProctor.toLowerCase();
+
+const getGenuineViolationCount = (session) =>
+    (session?.violations || []).filter(v => !isProctorActionType(v.type)).length;
+
 export default function FormResponsesPage() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -210,6 +206,11 @@ export default function FormResponsesPage() {
     const [partialScoreEditingId, setPartialScoreEditingId] = useState(null); // answerId being edited
     const [partialScoreInput, setPartialScoreInput] = useState(''); // string "0"–"100"
 
+    // B-2: Complete correction panel state (essay) — IsCorrectOverride explicit + OverrideNote
+    const [activeCorrectionId, setActiveCorrectionId] = useState(null);
+    const [correctionNote, setCorrectionNote] = useState('');
+    const [correctionIsCorrectOverride, setCorrectionIsCorrectOverride] = useState(undefined);
+
     // B-3: AI Essay Scoring — redesigned to holistic per-submission (A-8)
     const [aiScoringAnswerId, setAiScoringAnswerId] = useState(null); // answerId being scored
     const [aiScoreSuggestions, setAiScoreSuggestions] = useState({});
@@ -234,6 +235,75 @@ export default function FormResponsesPage() {
     const [expandedSessions, setExpandedSessions] = useState(new Set());
     const [autoRefresh, setAutoRefresh] = useState(true);
     const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+    const [includeAnswerKey, setIncludeAnswerKey] = useState(true);
+
+    // Proctoring action modal state
+    const [proctorModal, setProctorModal] = useState({
+        isOpen: false,
+        type: null, // 'force_submit' | 'reset'
+        sessionId: null,
+        respondentName: '',
+        loading: false,
+    });
+
+    const handleOpenForceSubmit = (session) => {
+        setProctorModal({
+            isOpen: true,
+            type: 'force_submit',
+            sessionId: session.sessionId,
+            respondentName: session.respondentName || 'Anonim',
+            loading: false,
+        });
+    };
+
+    const handleOpenResetSession = (session) => {
+        setProctorModal({
+            isOpen: true,
+            type: 'reset',
+            sessionId: session.sessionId,
+            respondentName: session.respondentName || 'Anonim',
+            loading: false,
+        });
+    };
+
+    const handleConfirmProctorAction = async () => {
+        const { type, sessionId } = proctorModal;
+        if (!sessionId) return;
+        setProctorModal(prev => ({ ...prev, loading: true }));
+        try {
+            if (type === 'force_submit') {
+                const res = await forceSubmitExamSession(id, sessionId);
+                if (res.ok) {
+                    showToast(res.message || 'Sesi ujian berhasil diselesaikan paksa.');
+                    setProctorModal({ isOpen: false, type: null, sessionId: null, respondentName: '', loading: false });
+                    fetchExamMonitoring(true);
+                    getFormResponses(id, { page: 1, pageSize: PAGE_SIZE }).then(respRes => {
+                        if (respRes.ok && respRes.data) setResponses(respRes.data.responses || respRes.data || []);
+                    }).catch(() => {});
+                } else {
+                    showToast(res.message || 'Gagal menyelesaikan paksa sesi ujian.', 'error');
+                    setProctorModal(prev => ({ ...prev, loading: false }));
+                }
+            } else if (type === 'reset') {
+                const res = await resetExamSession(id, sessionId);
+                if (res.ok) {
+                    showToast(res.message || 'Sesi peserta berhasil di-reset.');
+                    setProctorModal({ isOpen: false, type: null, sessionId: null, respondentName: '', loading: false });
+                    fetchExamMonitoring(true);
+                    getFormResponses(id, { page: 1, pageSize: PAGE_SIZE }).then(respRes => {
+                        if (respRes.ok && respRes.data) setResponses(respRes.data.responses || respRes.data || []);
+                    }).catch(() => {});
+                } else {
+                    showToast(res.message || 'Gagal me-reset sesi ujian peserta.', 'error');
+                    setProctorModal(prev => ({ ...prev, loading: false }));
+                }
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('Terjadi kesalahan saat memproses aksi proctoring.', 'error');
+            setProctorModal(prev => ({ ...prev, loading: false }));
+        }
+    };
 
     const toggleSessionExpand = (sessionId) => {
         setExpandedSessions(prev => {
@@ -254,7 +324,7 @@ export default function FormResponsesPage() {
                 setLastRefreshedAt(new Date());
                 setMonitoringError('');
             } else if (!isSilent) {
-                setMonitoringError(res.message || 'Gagal memuat data monitoring ujian.');
+                setMonitoringError(res.message || 'Gagal memuat data monitoring.');
             }
         } catch (err) {
             if (!isSilent) setMonitoringError('Koneksi terputus saat mengambil data monitoring.');
@@ -279,21 +349,21 @@ export default function FormResponsesPage() {
     }, [activeTab, autoRefresh, fetchExamMonitoring]);
 
     const filteredSessions = useMemo(() => {
-        const list = monitoringData?.sessions || [];
-        const maxSw = monitoringData?.maxTabSwitch || 3;
-        return list.filter(s => {
-            if (monitoringSearch) {
-                const term = monitoringSearch.toLowerCase();
-                const name = (s.respondentName || 'Anonim').toLowerCase();
-                if (!name.includes(term)) return false;
-            }
-            if (monitoringFilter === 'in_progress') return s.status === 'in_progress';
-            if (monitoringFilter === 'submitted') return s.status === 'submitted';
-            if (monitoringFilter === 'violations') return s.violationCount > 0;
-            if (monitoringFilter === 'high_violations') return s.violationCount >= maxSw || s.tabSwitchCount >= maxSw;
-            return true;
-        });
-    }, [monitoringData, monitoringFilter, monitoringSearch]);
+    const list = monitoringData?.sessions || [];
+    const maxSw = monitoringData?.maxTabSwitch || 3;
+    return list.filter(s => {
+        if (monitoringSearch) {
+            const term = monitoringSearch.toLowerCase();
+            const name = (s.respondentName || 'Anonim').toLowerCase();
+            if (!name.includes(term)) return false;
+        }
+        if (monitoringFilter === 'in_progress') return s.status === 'in_progress';
+        if (monitoringFilter === 'submitted') return s.status === 'submitted';
+        if (monitoringFilter === 'violations') return getGenuineViolationCount(s) > 0;
+        if (monitoringFilter === 'high_violations') return getGenuineViolationCount(s) >= maxSw || s.tabSwitchCount >= maxSw;
+        return true;
+    });
+}, [monitoringData, monitoringFilter, monitoringSearch]);
 
     const getViolationInfo = (type) => {
         switch (type) {
@@ -331,6 +401,14 @@ export default function FormResponsesPage() {
                     icon: <MinusCircle size={13} />,
                     color: 'text-slate-600 dark:text-slate-400',
                     bg: 'bg-slate-100 dark:bg-slate-800',
+                };
+            case 'FORCE_SUBMIT_BY_PROCTOR':
+            case 'force_submit_by_proctor':
+                return {
+                    label: 'Diselesaikan Paksa oleh Pengawas (Force Submit)',
+                    icon: <ShieldAlert size={13} />,
+                    color: 'text-red-700 dark:text-red-300',
+                    bg: 'bg-red-100 dark:bg-red-950/80',
                 };
             default:
                 return {
@@ -481,13 +559,29 @@ export default function FormResponsesPage() {
         }));
     }, [analytics, responses]);
 
-    const handleExport = (formId) => {
+    const handleExport = async (formId, format = 'csv') => {
         if (!formId || exporting) return;
         setExporting(true);
         try {
+            // For Excel / PDF, use server-side export endpoint
+            if (format === 'xlsx' || format === 'pdf') {
+                const res = await exportFormResponses(formId, format, includeAnswerKey);
+                if (!res.ok) {
+                    showToast(res.message || `Gagal mengekspor ${format.toUpperCase()}`, 'error');
+                } else {
+                    showToast(`File ${format.toUpperCase()} berhasil diunduh!`);
+                }
+                return;
+            }
+
+            // For CSV: If no local responses list, fallback to server-side CSV
             if (!respondentsList || respondentsList.length === 0) {
-                showToast('Belum ada data respons untuk diekspor.', 'error');
-                setExporting(false);
+                const res = await exportFormResponses(formId, 'csv', includeAnswerKey);
+                if (!res.ok) {
+                    showToast(res.message || 'Belum ada data respons untuk diekspor.', 'error');
+                } else {
+                    showToast('File CSV berhasil diunduh!');
+                }
                 return;
             }
 
@@ -505,6 +599,17 @@ export default function FormResponsesPage() {
                 });
             });
 
+            // Also ensure any loaded questions are included
+            (formQuestions || []).forEach(q => {
+                if (q.id && !questionMap.has(q.id)) {
+                    const cleanTitle = (q.question || q.question1 || `Soal #${q.id}`)
+                        .replace(/<[^>]*>/g, '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                    questionMap.set(q.id, cleanTitle);
+                }
+            });
+
             const escapeCsv = (val) => {
                 if (val === null || val === undefined) return '""';
                 const str = String(val)
@@ -515,35 +620,42 @@ export default function FormResponsesPage() {
             };
 
             const headerRow = [
-                'ID Respons',
-                'Nama Responden',
-                'Waktu Submit',
-                'Status',
-                'Soal Dijawab',
-                'Benar',
-                'Salah',
-                'Skor Akhir (%)',
-                ...Array.from(questionMap.values())
+                'Response ID',
+                'Submitted At',
+                'Respondent',
+                ...Array.from(questionMap.values()).map(stripMathNotation)
             ];
 
-            const rows = respondentsList.map(r => {
+            let rows = [];
+
+            // A5 Spec:
+            // "Format CSV: tambahkan baris ke-2 berisi KUNCI,JAWABAN,-,<kunci per soal>, tepat di bawah header. Hapus kolom Kunci_* versi lama."
+            // "Parameter ?includeAnswerKey=false harus tetap bisa mematikan baris kunci jawaban."
+            if (includeAnswerKey) {
+                const answerKeyRow = [
+                    'KUNCI',
+                    'JAWABAN',
+                    '-',
+                    ...Array.from(questionMap.keys()).map(qId => {
+                        const qDef = (formQuestions || []).find(q => q.id === qId);
+                        return stripMathNotation(resolveAnswerKey(qDef));
+                    })
+                ];
+                rows.push(answerKeyRow.map(escapeCsv).join(','));
+            }
+
+            const dataRows = (respondentsList || []).map(r => {
                 const answerByQ = new Map((r.answers || []).map(a => [a.questionId, a.answerText || a.answerValue || a.optionText || '']));
-                const scorable = r.scorableQuestions ?? 0;
-                const correct = r.correctCount ?? 0;
-                const wrong = r.wrongCount != null ? r.wrongCount : Math.max(scorable - correct, 0);
 
                 return [
                     r.responseId,
+                    r.submittedAt ? formatDate(r.submittedAt) : '-',
                     r.respondentName || 'Anonim',
-                    formatDate(r.submittedAt),
-                    r.status || 'new',
-                    `${r.answeredCount ?? 0}/${r.totalQuestions ?? 0}`,
-                    correct,
-                    wrong,
-                    r.score != null ? `${r.score}%` : 'N/A',
-                    ...Array.from(questionMap.keys()).map(qId => answerByQ.get(qId) || '')
+                    ...Array.from(questionMap.keys()).map(qId => stripMathNotation(answerByQ.get(qId) || ''))
                 ].map(escapeCsv).join(',');
             });
+
+            rows.push(...dataRows);
 
             const csvContent = '\uFEFF' + [headerRow.map(escapeCsv).join(','), ...rows].join('\r\n');
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -556,10 +668,10 @@ export default function FormResponsesPage() {
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
 
-            showToast('File CSV (lengkap dengan pembaruan nilai) berhasil diunduh!');
+            showToast('File CSV berhasil diunduh!');
         } catch (err) {
             console.error(err);
-            showToast('Terjadi kesalahan saat mengekspor CSV.', 'error');
+            showToast('Terjadi kesalahan saat mengekspor.', 'error');
         } finally {
             setExporting(false);
         }
@@ -853,6 +965,123 @@ export default function FormResponsesPage() {
             showToast(`Skor parsial ${pct}% (${rawPoints} poin) berhasil disimpan`);
         } else {
             showToast(res.message || 'Gagal menyimpan skor parsial.', 'error');
+        }
+    };
+
+    // B-2: Save complete correction (partial score + explicit isCorrectOverride + overrideNote)
+    const handleSaveCompleteCorrection = async (responseId, questionId, answerId, qPoints) => {
+        const parsedAnswerId = parseInt(answerId, 10);
+        let finalAnswerId = parsedAnswerId;
+        if (!parsedAnswerId || isNaN(parsedAnswerId)) {
+            const fresh = await getResponseResult(id, responseId);
+            if (fresh.ok && fresh.data?.answers) {
+                const found = fresh.data.answers.find(a => Number(a.questionId) === Number(questionId));
+                const fetchedId = found?.answerId || found?.id;
+                if (!fetchedId) { showToast('ID jawaban tidak ditemukan.', 'error'); return; }
+                finalAnswerId = parseInt(fetchedId, 10);
+            } else {
+                showToast('ID jawaban tidak ditemukan.', 'error'); return;
+            }
+        }
+
+        let finalManualScore = null;
+        let finalIsCorrectOverride = correctionIsCorrectOverride;
+
+        if (partialScoreEditingId === answerId || partialScoreEditingId === questionId) {
+            const pct = Math.max(0, Math.min(100, parseFloat(partialScoreInput) || 0));
+            finalManualScore = Math.round((pct / 100) * qPoints * 100) / 100;
+            if (finalIsCorrectOverride === undefined || finalIsCorrectOverride === null) {
+                finalIsCorrectOverride = pct > 0;
+            }
+        } else if (finalIsCorrectOverride === undefined || finalIsCorrectOverride === null) {
+            const currentAnswer = (selectedRespondent?.answers || []).find(a => Number(a.questionId) === Number(questionId));
+            finalIsCorrectOverride = currentAnswer?.isCorrectOverride ?? currentAnswer?.isCorrect ?? false;
+        }
+
+        const payload = {
+            isCorrectOverride: finalIsCorrectOverride,
+            manualScore: finalManualScore,
+            overrideNote: correctionNote?.trim() || null,
+        };
+
+        const res = await overrideAnswerScore(responseId, finalAnswerId, payload);
+
+        if (res.ok) {
+            try {
+                const cur = getLocalManualOverrides(id);
+                if (!cur[responseId]) cur[responseId] = {};
+                const pctVal = finalManualScore != null
+                    ? Math.round((Number(finalManualScore) / qPoints) * 100)
+                    : (finalIsCorrectOverride ? 100 : 0);
+                cur[responseId][questionId] = {
+                    isCorrect: finalIsCorrectOverride,
+                    manualScore: finalManualScore,
+                    pct: pctVal,
+                    note: correctionNote?.trim() || null,
+                };
+                localStorage.setItem(`formup_overrides_${id}`, JSON.stringify(cur));
+            } catch {}
+
+            setSelectedRespondent(prev => {
+                if (!prev) return prev;
+                const newAnswers = (prev.answers || []).map(a => {
+                    if (Number(a.questionId) === Number(questionId)) {
+                        return {
+                            ...a,
+                            isCorrectOverride: finalIsCorrectOverride,
+                            isCorrect: finalIsCorrectOverride,
+                            manualScore: finalManualScore,
+                            overrideNote: payload.overrideNote ?? a.overrideNote,
+                        };
+                    }
+                    return a;
+                });
+                const scoring = calculateTotalScore(newAnswers, formQuestions);
+                return {
+                    ...prev,
+                    answers: newAnswers,
+                    correctCount: scoring.correctCount,
+                    wrongCount: scoring.wrongCount,
+                    score: scoring.score,
+                };
+            });
+
+            setAnalytics(prev => {
+                if (!prev?.respondents) return prev;
+                return {
+                    ...prev,
+                    respondents: prev.respondents.map(r => {
+                        if (r.responseId !== responseId) return r;
+                        const newAnswers = (r.answers || []).map(a => {
+                            if (Number(a.questionId) === Number(questionId)) {
+                                return {
+                                    ...a,
+                                    isCorrectOverride: finalIsCorrectOverride,
+                                    isCorrect: finalIsCorrectOverride,
+                                    manualScore: finalManualScore,
+                                    overrideNote: payload.overrideNote ?? a.overrideNote,
+                                };
+                            }
+                            return a;
+                        });
+                        const scoring = calculateTotalScore(newAnswers, formQuestions);
+                        return {
+                            ...r,
+                            answers: newAnswers,
+                            correctCount: scoring.correctCount,
+                            wrongCount: scoring.wrongCount,
+                            score: scoring.score,
+                            isCustomScore: true,
+                        };
+                    }),
+                };
+            });
+
+            setActiveCorrectionId(null);
+            setPartialScoreEditingId(null);
+            showToast('Koreksi jawaban berhasil disimpan.');
+        } else {
+            showToast(res.message || 'Gagal menyimpan koreksi.', 'error');
         }
     };
 
@@ -1214,19 +1443,53 @@ Panduan penilaian:
                         >
                             <BarChart2 size={14} /> Analisis
                         </button>
+
+                        <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 select-none cursor-pointer font-medium px-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+                            <input
+                                type="checkbox"
+                                checked={includeAnswerKey}
+                                onChange={e => setIncludeAnswerKey(e.target.checked)}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                            <span>Kunci Jawaban</span>
+                        </label>
+
                         <button
                             type="button"
-                            onClick={() => handleExport(id)}
+                            onClick={() => handleExport(id, 'csv')}
                             disabled={exporting}
-                            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs disabled:opacity-60 cursor-pointer"
+                            className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs disabled:opacity-60 cursor-pointer"
+                            title="Unduh format CSV"
                         >
-                            {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                            <span>{exporting ? 'Mengekspor...' : 'Unduh CSV'}</span>
+                            {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                            <span>CSV</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => handleExport(id, 'xlsx')}
+                            disabled={exporting}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs disabled:opacity-60 cursor-pointer"
+                            title="Unduh format Excel (.xlsx)"
+                        >
+                            <Download size={13} />
+                            <span>Excel</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => handleExport(id, 'pdf')}
+                            disabled={exporting}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs disabled:opacity-60 cursor-pointer"
+                            title="Unduh format PDF (.pdf)"
+                        >
+                            <Download size={13} />
+                            <span>PDF</span>
                         </button>
                     </div>
                 </div>
 
-                                {/* Sub-tabs: Respons / Feedback / Monitoring Ujian */}
+                                {/* Sub-tabs: Respons / Feedback / Monitoring */}
                 <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6">
                     <div className="flex">
                         <button
@@ -1263,7 +1526,7 @@ Panduan penilaian:
                             }`}
                         >
                             <ShieldAlert size={14} />
-                            <span>Monitoring Ujian</span>
+                            <span>Monitoring</span>
                             {monitoringData?.onlineCount > 0 && (
                                 <span className="flex h-2 w-2 relative">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -1372,11 +1635,11 @@ Panduan penilaian:
                                             Formulir ini belum menerima kiriman jawaban dari audiens. Bagikan tautan formulir Anda agar responden dapat mulai mengisi.
                                         </p>
                                     </div>
-                                    {formData?.formLink && (
+                                    {form?.formLink && (
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                const url = `${window.location.origin}/f/${formData.formLink}`;
+                                                const url = `${window.location.origin}/f/${form.formLink}`;
                                                 navigator.clipboard.writeText(url);
                                                 showToast('Tautan formulir berhasil disalin ke clipboard!');
                                             }}
@@ -1698,7 +1961,7 @@ Panduan penilaian:
                                 {monitoringLoading && !monitoringData ? (
                                     <div className="flex items-center justify-center p-12 text-slate-400 gap-2">
                                         <Loader2 size={18} className="animate-spin text-indigo-600" />
-                                        <span className="text-xs font-bold">Memuat data monitoring ujian...</span>
+                                        <span className="text-xs font-bold">Memuat data monitoring...</span>
                                     </div>
                                 ) : filteredSessions.length === 0 ? (
                                     <div className="text-center p-12 text-slate-400 dark:text-slate-500">
@@ -1716,14 +1979,15 @@ Panduan penilaian:
                                                     <th className="py-3 px-4">Pindah Tab</th>
                                                     <th className="py-3 px-4">Total Pelanggaran</th>
                                                     <th className="py-3 px-4">Aktivitas Terakhir</th>
-                                                    <th className="py-3 px-4 text-right">Rincian Log</th>
+                                                    <th className="py-3 px-4 text-right">Aksi & Log</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                                                 {filteredSessions.map((session, idx) => {
                                                     const isExpanded = expandedSessions.has(session.sessionId || `session-${idx}`);
                                                     const maxSw = monitoringData?.maxTabSwitch || 3;
-                                                    const isHighViolation = session.violationCount >= maxSw || session.tabSwitchCount >= maxSw;
+                                                    const genuineViolationCount = getGenuineViolationCount(session);
+                                                    const isHighViolation = genuineViolationCount >= maxSw || session.tabSwitchCount >= maxSw;
 
                                                     return (
                                                         <Fragment key={session.sessionId || `session-${idx}`}>
@@ -1783,21 +2047,21 @@ Panduan penilaian:
                                                                 </td>
 
                                                                 <td className="py-3.5 px-4">
-                                                                    {session.violationCount === 0 ? (
-                                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                                                                            ✓ Bersih (0)
-                                                                        </span>
-                                                                    ) : isHighViolation ? (
-                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-red-100 text-red-700 dark:bg-red-950/70 dark:text-red-300 border border-red-300 dark:border-red-800 animate-pulse">
-                                                                            <AlertTriangle size={12} />
-                                                                            {session.violationCount} Pelanggaran (Tinggi)
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-                                                                            ⚠️ {session.violationCount} Pelanggaran
-                                                                        </span>
-                                                                    )}
-                                                                </td>
+    {genuineViolationCount === 0 ? (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+            ✓ Bersih (0)
+        </span>
+    ) : isHighViolation ? (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-red-100 text-red-700 dark:bg-red-950/70 dark:text-red-300 border border-red-300 dark:border-red-800 animate-pulse">
+            <AlertTriangle size={12} />
+            {genuineViolationCount} Pelanggaran (Tinggi)
+        </span>
+    ) : (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+            ⚠️ {genuineViolationCount} Pelanggaran
+        </span>
+    )}
+</td>
 
                                                                 <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 text-[11px]">
                                                                     <div>{formatDate(session.lastSeenAt || session.startedAt)}</div>
@@ -1807,14 +2071,38 @@ Panduan penilaian:
                                                                 </td>
 
                                                                 <td className="py-3.5 px-4 text-right">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => toggleSessionExpand(session.sessionId || `session-${idx}`)}
-                                                                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 rounded-lg transition-all cursor-pointer"
-                                                                    >
-                                                                        <span>Log ({session.violations?.length || 0})</span>
-                                                                        {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                                                                    </button>
+                                                                    <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                                                        {session.sessionId && session.status === 'in_progress' && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleOpenForceSubmit(session)}
+                                                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 rounded-lg transition-all cursor-pointer"
+                                                                                title="Selesaikan paksa sesi ujian peserta ini"
+                                                                            >
+                                                                                <ShieldAlert size={12} />
+                                                                                <span>Force Submit</span>
+                                                                            </button>
+                                                                        )}
+                                                                        {session.sessionId && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleOpenResetSession(session)}
+                                                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 rounded-lg transition-all cursor-pointer"
+                                                                                title="Reset sesi ujian agar peserta dapat memulai dari awal"
+                                                                            >
+                                                                                <RotateCcw size={12} />
+                                                                                <span>Reset Sesi</span>
+                                                                            </button>
+                                                                        )}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => toggleSessionExpand(session.sessionId || `session-${idx}`)}
+                                                                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 rounded-lg transition-all cursor-pointer"
+                                                                        >
+                                                                            <span>Log ({session.violations?.length || 0})</span>
+                                                                            {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                                                        </button>
+                                                                    </div>
                                                                 </td>
                                                             </tr>
 
@@ -2047,80 +2335,252 @@ Panduan penilaian:
                                                     Lets the owner award e.g. 90% for a near-correct answer instead
                                                     of the all-or-nothing Benar/Salah toggle. */}
                                                 {(answer.typeId === 1 || qDef?.typeId === 1) && (
-                                                    partialScoreEditingId === (answer.answerId || answer.id || answer.questionId) ? (
-                                                        <div className="flex items-center gap-1">
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                max="100"
-                                                                step="1"
-                                                                autoFocus
-                                                                value={partialScoreInput}
-                                                                onChange={e => setPartialScoreInput(e.target.value)}
-                                                                onKeyDown={e => {
-                                                                    if (e.key === 'Enter') {
-                                                                        handleSetPartialScore(
-                                                                            selectedRespondent.responseId,
-                                                                            answer.questionId,
-                                                                            answer.answerId || answer.id,
-                                                                            partialScoreInput,
-                                                                            qPoints
-                                                                        );
-                                                                    }
-                                                                    if (e.key === 'Escape') setPartialScoreEditingId(null);
+                                                    <>
+                                                        {partialScoreEditingId === (answer.answerId || answer.id || answer.questionId) ? (
+                                                            <div className="flex items-center gap-1">
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max="100"
+                                                                    step="1"
+                                                                    autoFocus
+                                                                    value={partialScoreInput}
+                                                                    onChange={e => setPartialScoreInput(e.target.value)}
+                                                                    onKeyDown={e => {
+                                                                        if (e.key === 'Escape') setPartialScoreEditingId(null);
+                                                                    }}
+                                                                    className="w-16 px-2 py-1 bg-white dark:bg-slate-800 border border-amber-400 dark:border-amber-600 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-center"
+                                                                    placeholder="0–100"
+                                                                />
+                                                                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">%</span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setPartialScoreEditingId(null)}
+                                                                    className="px-2 py-1 text-slate-400 hover:text-slate-600 text-[11px] font-bold rounded-lg cursor-pointer"
+                                                                    title="Batal"
+                                                                >
+                                                                    ✕
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const currentPct = answer.manualScore != null
+                                                                        ? Math.round((Number(answer.manualScore) / qPoints) * 100)
+                                                                        : effIsCorrect === true ? 100 : effIsCorrect === false ? 0 : '';
+                                                                    setPartialScoreInput(String(currentPct));
+                                                                    setPartialScoreEditingId(answer.answerId || answer.id || answer.questionId);
                                                                 }}
-                                                                className="w-16 px-2 py-1 bg-white dark:bg-slate-800 border border-amber-400 dark:border-amber-600 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-center"
-                                                                placeholder="0–100"
-                                                            />
-                                                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">%</span>
+                                                                className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border cursor-pointer transition-all ${
+                                                                    answer.manualScore != null
+                                                                        ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'
+                                                                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-amber-300 hover:text-amber-600'
+                                                                }`}
+                                                                title="Atur skor parsial (%)"
+                                                            >
+                                                                {answer.manualScore != null
+                                                                    ? `${Math.round((Number(answer.manualScore) / qPoints) * 100)}% parsial`
+                                                                    : '± Skor Parsial'}
+                                                            </button>
+                                                        )}
+
+                                                        {/* B-2: Complete correction panel toggle — explicit override + note */}
+                                                        {activeCorrectionId !== (answer.answerId || answer.id || answer.questionId) ? (
                                                             <button
                                                                 type="button"
-                                                                onClick={() => handleSetPartialScore(
-                                                                    selectedRespondent.responseId,
-                                                                    answer.questionId,
-                                                                    answer.answerId || answer.id,
-                                                                    partialScoreInput,
-                                                                    qPoints
-                                                                )}
-                                                                className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg cursor-pointer"
-                                                                title="Simpan skor parsial"
+                                                                onClick={() => {
+                                                                    const ansKey = answer.answerId || answer.id || answer.questionId;
+                                                                    setActiveCorrectionId(ansKey);
+                                                                    setCorrectionNote(answer.overrideNote || '');
+                                                                    setCorrectionIsCorrectOverride(
+                                                                        answer.isCorrectOverride !== undefined
+                                                                            ? answer.isCorrectOverride
+                                                                            : undefined
+                                                                    );
+                                                                    if (partialScoreEditingId !== ansKey) {
+                                                                        const currentPct = answer.manualScore != null
+                                                                            ? Math.round((Number(answer.manualScore) / qPoints) * 100)
+                                                                            : effIsCorrect === true ? 100 : effIsCorrect === false ? 0 : '';
+                                                                        setPartialScoreInput(String(currentPct));
+                                                                        setPartialScoreEditingId(ansKey);
+                                                                    }
+                                                                }}
+                                                                className="text-[11px] font-bold px-2 py-0.5 rounded-lg border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 cursor-pointer hover:bg-indigo-100 transition-all"
+                                                                title="Buka panel koreksi lengkap (catatan + override status)"
                                                             >
-                                                                ✓
+                                                                📝 Koreksi Lengkap
                                                             </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setPartialScoreEditingId(null)}
-                                                                className="px-2 py-1 text-slate-400 hover:text-slate-600 text-[11px] font-bold rounded-lg cursor-pointer"
-                                                                title="Batal"
-                                                            >
-                                                                ✕
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const currentPct = answer.manualScore != null
-                                                                    ? Math.round((Number(answer.manualScore) / qPoints) * 100)
-                                                                    : effIsCorrect === true ? 100 : effIsCorrect === false ? 0 : '';
-                                                                setPartialScoreInput(String(currentPct));
-                                                                setPartialScoreEditingId(answer.answerId || answer.id || answer.questionId);
-                                                            }}
-                                                            className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border cursor-pointer transition-all ${
-                                                                answer.manualScore != null
-                                                                    ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'
-                                                                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-amber-300 hover:text-amber-600'
-                                                            }`}
-                                                            title="Atur skor parsial (%)"
-                                                        >
-                                                            {answer.manualScore != null
-                                                                ? `${Math.round((Number(answer.manualScore) / qPoints) * 100)}% parsial`
-                                                                : '± Skor Parsial'}
-                                                        </button>
-                                                    )
+                                                        ) : null}
+                                                    </>
                                                 )}
                                             </div>
                                         </div>
+
+                                        {/* B-2: Expandable Complete Correction Panel (Essay only) */}
+                                        {(answer.typeId === 1 || qDef?.typeId === 1) &&
+                                            activeCorrectionId === (answer.answerId || answer.id || answer.questionId) && (
+                                                <div className="mt-3 w-full p-4 rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/40 dark:to-violet-950/40 border border-indigo-200/60 dark:border-indigo-900/40 space-y-3 animate-fadeIn">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 text-white flex items-center justify-center shadow-xs">
+                                                                <ShieldAlert size={13} />
+                                                            </div>
+                                                            <p className="text-xs font-extrabold text-slate-900 dark:text-white">
+                                                                Panel Koreksi Jawaban Essay
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { setActiveCorrectionId(null); }}
+                                                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+
+                                                    {/* 1 — Skor Parsial (percentage input already shown above, repeat here for UX) */}
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                                        {/* A. Skor Parsial */}
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[11px] uppercase tracking-wider font-bold text-indigo-600 dark:text-indigo-300 flex items-center gap-1.5">
+                                                                🏆 Skor Parsial (%)
+                                                                <span className="text-[9px] text-slate-400 normal-case font-medium">
+                                                                    (maks. {qPoints} poin)
+                                                                </span>
+                                                            </label>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max="100"
+                                                                    step="1"
+                                                                    value={partialScoreInput}
+                                                                    onChange={e => setPartialScoreInput(e.target.value)}
+                                                                    className="flex-1 w-full px-3 py-2 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/60 text-center"
+                                                                    placeholder="0–100"
+                                                                />
+                                                                <span className="text-sm font-bold text-slate-600 dark:text-slate-300 w-6 text-center">
+                                                                    %
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                                                Skor parsial dalam persentase. Contoh: 80% = {(0.8 * qPoints).toFixed(1)} poin
+                                                                dari total {qPoints} poin.
+                                                            </p>
+                                                        </div>
+
+                                                        {/* B. Override Status Benar/Salah */}
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[11px] uppercase tracking-wider font-bold text-indigo-600 dark:text-indigo-300 flex items-center gap-1.5">
+                                                                🔒 Override Status
+                                                            </label>
+                                                            <div className="space-y-1.5">
+                                                                <label className="flex items-center gap-2 p-2.5 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-indigo-200/50 dark:border-indigo-800/50 cursor-pointer hover:border-indigo-400/60 transition-all">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={correctionIsCorrectOverride === true}
+                                                                        onChange={e => {
+                                                                            setCorrectionIsCorrectOverride(e.target.checked ? true : (correctionIsCorrectOverride === true ? false : undefined));
+                                                                        }}
+                                                                        className="w-4 h-4 rounded-md text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                                                                    />
+                                                                    <div className="flex-1">
+                                                                        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                                                                            Tandai Jawaban Ini Benar
+                                                                        </p>
+                                                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                                                            Centang bila jawaban tidak exact match tapi konsepnya benar (override).
+                                                                        </p>
+                                                                    </div>
+                                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                                                        correctionIsCorrectOverride === true
+                                                                            ? 'bg-emerald-500 text-white'
+                                                                            : correctionIsCorrectOverride === false
+                                                                                ? 'bg-red-500 text-white'
+                                                                                : 'bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                                                    }`}>
+                                                                        {correctionIsCorrectOverride === true ? 'BENAR' : correctionIsCorrectOverride === false ? 'SALAH' : 'AUTO'}
+                                                                    </span>
+                                                                </label>
+                                                                {correctionIsCorrectOverride === false && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setCorrectionIsCorrectOverride(undefined)}
+                                                                        className="text-[10px] text-slate-500 hover:text-indigo-600 font-medium underline decoration-dotted"
+                                                                    >
+                                                                        Reset ke status otomatis
+                                                                    </button>
+                                                                )}
+                                                                {correctionIsCorrectOverride === true && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setCorrectionIsCorrectOverride(false)}
+                                                                        className="text-[10px] text-slate-500 hover:text-indigo-600 font-medium underline decoration-dotted"
+                                                                    >
+                                                                        Tandai sebagai salah
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 2 — Catatan ke Siswa (OverrideNote) */}
+                                                    <div className="space-y-1.5 pt-1">
+                                                        <label className="text-[11px] uppercase tracking-wider font-bold text-indigo-600 dark:text-indigo-300 flex items-center gap-1.5">
+                                                            💬 Catatan ke Siswa (Optional)
+                                                        </label>
+                                                        <textarea
+                                                            value={correctionNote}
+                                                            onChange={e => setCorrectionNote(e.target.value)}
+                                                            rows={3}
+                                                            placeholder="Tulis catatan untuk siswa, misal: Bagus, tapi rumusnya kurang tepat di langkah kedua. Coba periksa kembali aturan integral."
+                                                            className="w-full px-3 py-2.5 text-sm rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/60 placeholder:text-slate-400 resize-y"
+                                                        />
+                                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                                            Catatan ini akan ditampilkan kepada responden/siswa saat melihat hasil pengerjaan.
+                                                        </p>
+                                                    </div>
+
+                                                    {/* 3 — Display existing note (if any) */}
+                                                    {answer.overrideNote && (
+                                                        <div className="p-3 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-amber-200/60 dark:border-amber-800/60">
+                                                            <p className="text-[10px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-300 mb-1">
+                                                                📌 Catatan Sebelumnya:
+                                                            </p>
+                                                            <p className="text-xs text-slate-700 dark:text-slate-200 font-medium whitespace-pre-wrap">
+                                                                {answer.overrideNote}
+                                                            </p>
+                                                        </div>
+                                                    )}
+
+                                                    {/* 4 — Simpan Koreksi Lengkap */}
+                                                    <div className="flex items-center justify-end gap-2 pt-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setActiveCorrectionId(null);
+                                                                setPartialScoreEditingId(null);
+                                                            }}
+                                                            className="px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 bg-white/70 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer transition-all"
+                                                        >
+                                                            Batal
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleSaveCompleteCorrection(
+                                                                selectedRespondent.responseId,
+                                                                answer.questionId,
+                                                                answer.answerId || answer.id,
+                                                                qPoints
+                                                            )}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-gradient-to-r from-indigo-600 to-violet-500 hover:from-indigo-700 hover:to-violet-600 text-white rounded-xl shadow-xs cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                                        >
+                                                            💾 Simpan Koreksi Lengkap
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
 
                                         <div className="border-t border-slate-100 dark:border-slate-800 p-4 space-y-3 bg-slate-50 dark:bg-slate-800/50 text-xs">
                                             <div>
@@ -2574,6 +3034,23 @@ Panduan penilaian:
                     </div>
                 </div>
             )}
+
+            {/* Proctor Action Confirmation Modal */}
+            <ConfirmModal
+                isOpen={proctorModal.isOpen}
+                onClose={() => !proctorModal.loading && setProctorModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={handleConfirmProctorAction}
+                isLoading={proctorModal.loading}
+                variant={proctorModal.type === 'force_submit' ? 'warning' : 'danger'}
+                title={proctorModal.type === 'force_submit' ? 'Selesaikan Paksa Sesi Ujian?' : 'Reset Sesi Ujian Peserta?'}
+                message={
+                    proctorModal.type === 'force_submit'
+                        ? `Apakah Anda yakin ingin menyelesaikan paksa sesi ujian untuk peserta "${proctorModal.respondentName}"? Draft jawaban yang tersinkronisasi akan disimpan dan status sesi akan diubah menjadi submitted.`
+                        : `Apakah Anda yakin ingin me-reset sesi ujian untuk peserta "${proctorModal.respondentName}"? Sesi ini akan dihapus agar peserta dapat mulai baru di halaman ujian.`
+                }
+                confirmText={proctorModal.type === 'force_submit' ? 'Ya, Selesaikan Paksa' : 'Ya, Reset Sesi'}
+                cancelText="Batal"
+            />
 
             {/* Lightbox Modal */}
             <ImageLightboxModal

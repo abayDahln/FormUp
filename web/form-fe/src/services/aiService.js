@@ -77,13 +77,13 @@ export const safeJsonParse = (rawStr) => {
         return JSON.parse(cleaned);
     } catch (e1) {
         try {
-            // Repair unescaped backslashes that are not valid JSON escape chars (\", \\, \/, \b, \f, \n, \r, \t, \uXXXX)
-            const repaired = cleaned.replace(/\\([^"\\\/bfnrtu]|u(?![\da-fA-F]{4}))/g, '\\\\$1');
+            // Repair unescaped backslashes that are not valid JSON escape chars (\", \\, /, \b, \f, \n, \r, \t, \uXXXX)
+            const repaired = cleaned.replace(/\\([^"\\/bfnrtu]|u(?![\da-fA-F]{4}))/g, '\\\\$1');
             return JSON.parse(repaired);
-        } catch (e2) {
+        } catch {
             const jsonMatch = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
             if (jsonMatch) {
-                const repaired = jsonMatch[0].replace(/\\([^"\\\/bfnrtu]|u(?![\da-fA-F]{4}))/g, '\\\\$1');
+                const repaired = jsonMatch[0].replace(/\\([^"\\/bfnrtu]|u(?![\da-fA-F]{4}))/g, '\\\\$1');
                 return JSON.parse(repaired);
             }
             throw e1;
@@ -496,4 +496,237 @@ Kembalikan HANYA array JSON valid tanpa teks atau penjelasan pembuka/penutup.
         else if (err && err.name === 'TypeError') { onDone({ ok: false, message: 'Tidak dapat terhubung ke AI Studio. Periksa koneksi internet Anda.' }); }
         else { onDone({ ok: false, message: `Terjadi kendala saat streaming AI: ${err?.message || 'Unknown error'}` }); }
     }
+};
+
+/**
+ * Generate questions directly from an uploaded document (PDF, Text, CSV, etc.)
+ */
+export const generateQuestionsFromDocument = async ({
+    file,
+    instruction = 'Buatkan butir soal kuis/ujian berkualitas tinggi dari materi dokumen ini',
+    count = 5,
+    typePreference = '2',
+    difficulty = 'Sedang',
+    selectedModel = 'gemini-2.5-flash',
+    customApiKey = null,
+    onStatus = null,
+}) => {
+    const apiKey = (customApiKey || getGeminiApiKey()).trim();
+    const setStatus = (msg) => { if (typeof onStatus === 'function') onStatus(msg); };
+
+    if (!apiKey) {
+        return { ok: false, message: 'API Key Gemini belum diatur. Masukkan Gemini API Key dari Google AI Studio terlebih dahulu.' };
+    }
+
+    if (!file) {
+        return { ok: false, message: 'Berkas materi belum dipilih.' };
+    }
+
+    setStatus(`Membaca berkas "${file.name}"...`);
+
+    const typeDescription = {
+        '1': 'Semua soal bertipe Essay / Isian Singkat (typeId: 1, sertakan kunci/contoh jawaban di correctAnswer).',
+        '2': 'Semua soal bertipe Pilihan Ganda (typeId: 2, sediakan 4 pilihan jawaban di options di mana tepat SATU bernilai isCorrect: true).',
+        '3': 'Semua soal bertipe Checkbox / Pilihan Majemuk (typeId: 3, sediakan 4-5 opsi di mana ada minimal 2 bernilai isCorrect: true).',
+        '4': 'Semua soal bertipe Tanggal & Waktu / Date Time (typeId: 4, correctAnswer diisi format ISO "YYYY-MM-DD" atau "YYYY-MM-DDTHH:mm").',
+        '5': 'Semua soal bertipe Benar / Salah (typeId: 5, correctAnswer diisi "Benar" atau "Salah").',
+        'mixed': 'Variasi campuran antara Pilihan Ganda (typeId: 2), Benar/Salah (typeId: 5), dan Essay (typeId: 1).',
+    }[typePreference] || 'Pilihan Ganda (typeId: 2)';
+
+    const promptText = `${AI_GUARDRAIL}Berdasarkan berkas/dokumen materi terlampir, buatlah ${count} butir soal berkualitas tinggi dengan panduan berikut:
+- **Instruksi Khusus Pengguna:** ${instruction || 'Buat butir soal dari seluruh materi'}
+- **Tingkat Kesulitan:** ${difficulty}
+- **Bentuk Soal:** ${typeDescription}
+- **Bahasa:** Gunakan bahasa yang SAMA dengan bahasa dokumen materi di atas untuk SELURUH output.
+
+**FORMAT KELUARAN WAJIB (JSON ARRAY):**
+Kembalikan HANYA array JSON valid tanpa teks atau penjelasan pembuka/penutup. Struktur objek per soal:
+[
+  {
+    "question": "Teks pertanyaan lengkap",
+    "typeId": 2,
+    "isRequired": true,
+    "isScorable": true,
+    "points": 1,
+    "correctAnswer": "Kunci jawaban untuk tipe 1/4 atau 'Benar'/'Salah' untuk tipe 5",
+    "options": [
+      { "optionText": "Pilihan A", "isCorrect": false },
+      { "optionText": "Pilihan B", "isCorrect": true },
+      { "optionText": "Pilihan C", "isCorrect": false },
+      { "optionText": "Pilihan D", "isCorrect": false }
+    ]
+  }
+]
+Catatan:
+- Untuk tipe 2 (Pilihan Ganda), pastikan tepat 1 opsi isCorrect: true.
+- Untuk tipe 3 (Checkbox), minimal 2 opsi isCorrect: true.
+- Untuk tipe 1, 4, 5, options boleh kosong [].
+`.trim();
+
+    try {
+        const targetModel = selectedModel || 'gemini-2.5-flash';
+        setStatus(`Menghubungkan ke ${targetModel} di Google AI Studio...`);
+
+        const isPdfOrImage = file.type === 'application/pdf' || file.type.startsWith('image/') || file.name.toLowerCase().endsWith('.pdf');
+        const parts = [{ text: promptText }];
+
+        if (isPdfOrImage) {
+            const base64Data = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const res = reader.result;
+                    const base64 = typeof res === 'string' ? res.split(',')[1] : '';
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+            parts.push({
+                inlineData: {
+                    mimeType: file.type || 'application/pdf',
+                    data: base64Data,
+                }
+            });
+        } else {
+            const textContent = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result || '');
+                reader.onerror = reject;
+                reader.readAsText(file);
+            });
+            parts.push({
+                text: `\n\n=== ISI DOKUMEN MATERI ("${file.name}") ===\n"""\n${String(textContent).slice(0, 100000)}\n"""`
+            });
+        }
+
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+        const startTime = Date.now();
+        setStatus(`AI (${targetModel}) sedang membaca materi & menyusun butir soal...`);
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts }],
+                generationConfig: {
+                    responseMimeType: 'application/json',
+                    temperature: 0.7,
+                },
+            }),
+        });
+
+        const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            const errMsg = errData.error?.message || `HTTP ${response.status}`;
+            if (response.status === 429) {
+                return { ok: false, message: `Batas rate limit model ${targetModel} tercapai. Coba lagi dalam beberapa saat.` };
+            }
+            if (response.status === 400 || response.status === 403) {
+                return { ok: false, message: `API Key tidak valid atau akses ditolak. (${errMsg})` };
+            }
+            return { ok: false, message: `Gagal memanggil AI: ${errMsg}` };
+        }
+
+        setStatus(`Menerima hasil soal dari AI (${elapsedSec} detik). Memvalidasi struktur...`);
+
+        const data = await response.json();
+        const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!textResponse) {
+            return { ok: false, message: 'AI tidak mengembalikan hasil teks soal.' };
+        }
+
+        let parsedQuestions;
+        try {
+            parsedQuestions = safeJsonParse(textResponse);
+        } catch {
+            return { ok: false, message: 'Format data dari AI tidak valid.' };
+        }
+
+        if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
+            return { ok: false, message: 'Format data dari AI tidak menghasilkan daftar soal.' };
+        }
+
+        const normalized = parsedQuestions.map((q, idx) => {
+            const typeId = parseInt(q.typeId, 10) || 2;
+            let options = Array.isArray(q.options) ? q.options : [];
+            if ([2, 3].includes(typeId) && options.length === 0) {
+                options = [
+                    { optionText: 'Pilihan A', isCorrect: true },
+                    { optionText: 'Pilihan B', isCorrect: false },
+                    { optionText: 'Pilihan C', isCorrect: false },
+                    { optionText: 'Pilihan D', isCorrect: false },
+                ];
+            }
+            return {
+                _id: `q_doc_ai_${Date.now()}_${idx}`,
+                id: null,
+                question: String(q.question || `Pertanyaan ${idx + 1}`),
+                typeId: typeId,
+                isRequired: q.isRequired !== undefined ? Boolean(q.isRequired) : true,
+                isScorable: q.isScorable !== undefined ? Boolean(q.isScorable) : true,
+                points: q.points != null ? Number(q.points) : 1,
+                correctAnswer: q.correctAnswer ? String(q.correctAnswer) : '',
+                options: options.map((opt, oIdx) => ({
+                    optionText: String(opt.optionText || opt.text || `Pilihan ${String.fromCharCode(65 + oIdx)}`),
+                    isCorrect: Boolean(opt.isCorrect),
+                })),
+                questionImage: null,
+                questionAudio: null,
+            };
+        });
+
+        setStatus(`Selesai! Berhasil membuat ${normalized.length} butir soal dari "${file.name}".`);
+
+        return {
+            ok: true,
+            data: normalized,
+            fileName: file.name,
+            modelUsed: targetModel,
+            elapsedSec,
+        };
+    } catch (err) {
+        return {
+            ok: false,
+            message: `Terjadi kendala saat membaca materi atau memproses AI: ${err?.message || 'Unknown error'}`,
+        };
+    }
+};
+
+/**
+ * Helper to download structured questions as a standard CSV template for re-import
+ */
+export const exportQuestionsToCSV = (questions, title = 'template-soal-ai') => {
+    if (!questions || questions.length === 0) return;
+    const rows = [
+        ['question', 'type_id', 'order', 'is_required', 'correct_answer', 'options']
+    ];
+    questions.forEach((q, i) => {
+        const isChoice = q.typeId === 2 || q.typeId === 3;
+        const optionsStr = (q.options || []).map(o => (o.isCorrect ? `[BENAR] ${o.optionText}` : o.optionText)).join('|');
+        const cleanQ = (q.question || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+        const correctCa = isChoice
+            ? (q.options || []).filter(o => o.isCorrect).map(o => o.optionText).join(',')
+            : (q.correctAnswer || '');
+        rows.push([
+            `"${cleanQ.replace(/"/g, '""')}"`,
+            q.typeId || 2,
+            i + 1,
+            q.isRequired ? 'true' : 'false',
+            `"${(correctCa || '').replace(/"/g, '""')}"`,
+            `"${optionsStr.replace(/"/g, '""')}"`,
+        ]);
+    });
+    const csv = '\uFEFF' + rows.map(r => r.join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.replace(/\s+/g, '_')}-${Date.now()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 };

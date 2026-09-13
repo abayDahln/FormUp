@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     Save, Plus, Trash2, ChevronUp, ChevronDown,
@@ -6,7 +6,7 @@ import {
     Code, Calculator, Eye, EyeOff, X, Sparkles,
     Copy, Undo2, Redo2, FileDown, Wand2, ToggleLeft, ToggleRight,
     ShieldAlert, Palette, CheckSquare, MoreHorizontal, MoreVertical, ChevronDown as ChevDown,
-    Sliders, Share2, HelpCircle, Compass
+    Sliders, Share2, HelpCircle, Compass, Loader2
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import ConfirmModal from '../../components/ui/ConfirmModal';
@@ -16,7 +16,8 @@ import {
     togglePublishForm, updateFormSettings, getFormShare,
     uploadFormBanner, clearSession, assetUrl,
     deleteQuestion, importQuestions, uploadQuestionImage, uploadQuestionAudio,
-    templateDownloadUrl, createForm
+    uploadOptionImage,
+    templateDownloadUrl, createForm, deleteAllQuestions, previewImportQuestions
 } from '../../services/apiService';
 import { getGeminiApiKey, AVAILABLE_MODELS } from '../../services/aiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
@@ -25,6 +26,7 @@ import MathAndCodeModal from '../../components/ui/MathAndCodeModal';
 import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
 import AIGeneratorModal from '../../components/ui/AIGeneratorModal';
 import AIFormBuilderModal from '../../components/ui/AIFormBuilderModal';
+import ImportQuestionsModal from '../../components/ui/ImportQuestionsModal';
 
 const envUrl = import.meta.env.VITE_API_BASE_URL;
 const API_BASE_URL = (envUrl !== undefined && envUrl !== '')
@@ -50,12 +52,55 @@ const newQuestion = (order) => ({
     isScorable: true,
     points: null,
     correctAnswer: '',
-    options: [{ optionText: '', isCorrect: false }, { optionText: '', isCorrect: false }],
+    options: [
+        { optionText: '', isCorrect: false, optionImage: null },
+        { optionText: '', isCorrect: false, optionImage: null }
+    ],
     questionImage: null,
     questionAudio: null,
 });
 
 const needsOptions = (typeId) => [2, 3].includes(typeId);
+
+// Helper: Normalize imported or loaded option (strips [BENAR] or * marker, preserves optionImage)
+const normalizeImportedOption = (o) => {
+    let text = (o.optionText || o.OptionText || '').trim();
+    let isCorrect = o.isCorrect === true || o.IsCorrect === true;
+
+    if (text.startsWith('[BENAR]')) {
+        isCorrect = true;
+        text = text.replace(/^\[BENAR\]\s*/i, '').trim();
+    } else if (text.startsWith('*')) {
+        isCorrect = true;
+        text = text.replace(/^\*\s*/, '').trim();
+    }
+
+    return {
+        ...o,
+        optionText: text,
+        isCorrect,
+        optionImage: o.optionImage || o.image || o.imageUrl || null,
+    };
+};
+
+const normalizeQuestionOptions = (q) => {
+    const rawOptions = q.options || q.optionQuestions || [];
+    let opts = rawOptions.map(normalizeImportedOption);
+
+    // If PG (typeId 2) or Checkbox (typeId 3) and no option is marked correct, but correctAnswer matches
+    const isChoice = q.typeId === 2 || q.typeId === 3 || q.type_id === 2 || q.type_id === 3;
+    if (isChoice && q.correctAnswer && !opts.some(o => o.isCorrect)) {
+        const caList = String(q.correctAnswer).split(/[,;|]/).map(s => s.trim().toLowerCase());
+        opts = opts.map(o => {
+            if (caList.includes(o.optionText.trim().toLowerCase())) {
+                return { ...o, isCorrect: true };
+            }
+            return o;
+        });
+    }
+
+    return opts.length > 0 ? opts : [{ optionText: '', isCorrect: false, optionImage: null }];
+};
 
 export default function FormBuilder() {
     const { id } = useParams();
@@ -84,6 +129,16 @@ export default function FormBuilder() {
 
     // AI Form Builder Modal state
     const [aiFormBuilderOpen, setAiFormBuilderOpen] = useState(false);
+
+    // A-2: Import Questions Modal (preview + commit)
+    const [importModalOpen, setImportModalOpen] = useState(false);
+
+    // C-2: Pagination & Search state for questions list
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(25);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [totalQuestions, setTotalQuestions] = useState(0);
 
     // AI Revise per-question inline panel
     const [aiReviseOpenIdx, setAiReviseOpenIdx] = useState(null);
@@ -220,6 +275,7 @@ export default function FormBuilder() {
             options: (q.options || []).map(o => ({
                 optionText: (o.optionText || '').trim(),
                 isCorrect: !!o.isCorrect,
+                optionImage: o.optionImage || o.image || o.imageUrl || null,
             })),
         })));
     }, []);
@@ -428,10 +484,91 @@ export default function FormBuilder() {
         setTimeout(() => setToast(null), 3000);
     };
 
+    // B-1: Total Maksimal Skor (sum of all scorable question points)
+    const totalMaxScore = useMemo(() => {
+        if (!Array.isArray(questions)) return 0;
+        return questions.reduce((total, q) => {
+            if (q.isScorable === false) return total;
+            const p = Number(q.points);
+            return total + (!isNaN(p) && p > 0 ? p : 1);
+        }, 0);
+    }, [questions]);
+
+    // C-2: Debounce search term 250ms
+    useEffect(() => {
+        const t = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+            setCurrentPage(1);
+        }, 250);
+        return () => clearTimeout(t);
+    }, [searchTerm]);
+
+    // Helper: load questions list with pagination + search params
+    const fetchQuestions = useCallback(async ({ page = 1, pageSizeVal = pageSize, search = debouncedSearch, resetTotal = false } = {}) => {
+        const qRes = await getQuestions(id, {
+            page,
+            pageSize: pageSizeVal,
+            search
+        });
+        if (!qRes.ok) {
+            showToast(qRes.message || 'Gagal memuat daftar soal', 'error');
+            return null;
+        }
+
+        let loadedQuestions = [];
+        let total = 0;
+
+        if (Array.isArray(qRes.data)) {
+            loadedQuestions = qRes.data;
+            total = qRes.data.length;
+        } else if (qRes.data && typeof qRes.data === 'object') {
+            loadedQuestions = qRes.data.questions || qRes.data.items || qRes.data.list || [];
+            total = qRes.data.total || qRes.data.totalItems || qRes.data.count || loadedQuestions.length;
+        }
+
+        setTotalQuestions(resetTotal || page === 1 ? total : (n) => Math.max(n, total));
+        setCurrentPage(page);
+        setPageSize(pageSizeVal);
+
+        return loadedQuestions;
+    }, [id, pageSize, debouncedSearch]);
+
+    // C-2: Re-fetch questions whenever debouncedSearch, currentPage, or pageSize changes
+    useEffect(() => {
+        if (loading || !id) return;
+        const doFetch = async () => {
+            const loadedQuestions = await fetchQuestions({ page: currentPage });
+            if (loadedQuestions == null) return;
+            let final = [];
+            if (Array.isArray(loadedQuestions) && loadedQuestions.length > 0) {
+                final = loadedQuestions.map((q) => {
+                    const normalizedOptions = normalizeQuestionOptions(q);
+                    const hasCorrectOption = normalizedOptions.some(o => o.isCorrect === true);
+                    const hasCorrectAnswer = !!(q.correctAnswer && q.correctAnswer.trim());
+                    const isScorable = q.isScorable !== undefined ? q.isScorable : (hasCorrectOption || hasCorrectAnswer);
+                    return {
+                        ...q,
+                        _id: `q_${q.id}`,
+                        isScorable: isScorable,
+                        options: normalizedOptions,
+                    };
+                });
+            } else if (currentPage === 1 && !debouncedSearch) {
+                final = [newQuestion(1)];
+                setTotalQuestions(0);
+            }
+            setQuestions(final);
+        };
+        doFetch();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentPage, debouncedSearch, pageSize, id]);
+
+
     useEffect(() => {
         const load = async () => {
             setLoading(true);
-            const [formRes, qRes] = await Promise.all([getFormById(id), getQuestions(id)]);
+            const formRes = await getFormById(id);
+            const loadedQuestionsRaw = await fetchQuestions({ page: 1, resetTotal: true });
 
             if (formRes.status === 401) { clearSession(); navigate('/login'); return; }
 
@@ -463,9 +600,10 @@ export default function FormBuilder() {
             }
 
             let loadedQuestions = [];
-            if (qRes.ok && Array.isArray(qRes.data) && qRes.data.length > 0) {
-                loadedQuestions = qRes.data.map((q) => {
-                    const hasCorrectOption = (q.options || []).some(o => o.isCorrect === true);
+            if (Array.isArray(loadedQuestionsRaw) && loadedQuestionsRaw.length > 0) {
+                loadedQuestions = loadedQuestionsRaw.map((q) => {
+                    const normalizedOptions = normalizeQuestionOptions(q);
+                    const hasCorrectOption = normalizedOptions.some(o => o.isCorrect === true);
                     const hasCorrectAnswer = !!(q.correctAnswer && q.correctAnswer.trim());
                     const isScorable = q.isScorable !== undefined ? q.isScorable : (hasCorrectOption || hasCorrectAnswer);
 
@@ -473,7 +611,7 @@ export default function FormBuilder() {
                         ...q,
                         _id: `q_${q.id}`,
                         isScorable: isScorable,
-                        options: q.options || [],
+                        options: normalizedOptions,
                     };
                 });
             } else {
@@ -520,6 +658,7 @@ export default function FormBuilder() {
                 options: (q.options || []).map(opt => ({
                     optionText: opt.optionText || '',
                     isCorrect: scorable ? !!opt.isCorrect : false,
+                    optionImage: opt.optionImage || opt.image || opt.imageUrl || null,
                 })),
             };
         });
@@ -535,13 +674,16 @@ export default function FormBuilder() {
                 if (qRes.data.length === 0) {
                     freshQuestions = [];
                 } else {
-                    freshQuestions = qRes.data.map((q, i) => ({
-                        ...q,
-                        _id: questions[i]?._id || `q_${q.id}`,
-                        isScorable: questions[i]?.isScorable ?? ((q.options || []).some(o => o.isCorrect === true) || !!(q.correctAnswer && q.correctAnswer.trim())),
-                        points: q.points ?? null,
-                        options: q.options || [],
-                    }));
+                    freshQuestions = qRes.data.map((q, i) => {
+                        const normalizedOptions = normalizeQuestionOptions(q);
+                        return {
+                            ...q,
+                            _id: questions[i]?._id || `q_${q.id}`,
+                            isScorable: questions[i]?.isScorable ?? (normalizedOptions.some(o => o.isCorrect === true) || !!(q.correctAnswer && q.correctAnswer.trim())),
+                            points: q.points ?? null,
+                            options: normalizedOptions,
+                        };
+                    });
                 }
                 setQuestions(freshQuestions);
                 // Jika form kehabisan soal, status otomatis kembali draft
@@ -718,6 +860,39 @@ export default function FormBuilder() {
         }
     };
 
+    // Helper: refresh question list from API (post-import, post-clear)
+    const refreshQuestionsList = async (opts = {}) => {
+        const qRes = await fetchQuestions({ page: 1, resetTotal: true, ...opts });
+        if (qRes == null) return;
+        let fresh = [];
+        if (Array.isArray(qRes) && qRes.length > 0) {
+            fresh = qRes.map((q, i) => {
+                const normalizedOptions = normalizeQuestionOptions(q);
+                const hasCorrectOption = normalizedOptions.some(o => o.isCorrect === true);
+                const hasCorrectAnswer = !!(q.correctAnswer && q.correctAnswer.trim());
+                const isScorable = q.isScorable !== undefined ? q.isScorable : (hasCorrectOption || hasCorrectAnswer);
+                return {
+                    ...q,
+                    _id: `q_${q.id}`,
+                    question: q.question || '',
+                    typeId: q.typeId || 2,
+                    questionOrder: q.questionOrder ?? i + 1,
+                    isRequired: q.isRequired ?? false,
+                    isScorable: isScorable,
+                    correctAnswer: q.correctAnswer ?? '',
+                    questionImage: q.questionImage ?? null,
+                    questionAudio: q.questionAudio ?? null,
+                    options: normalizedOptions,
+                };
+            });
+        } else if (!opts.search || opts.search === '') {
+            fresh = [newQuestion(1)];
+            setTotalQuestions(0);
+        }
+        setQuestions(fresh);
+        pushHistory(fresh);
+    };
+
     const handleImportFile = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -726,25 +901,17 @@ export default function FormBuilder() {
         setImportLoading(false);
         if (res.ok) {
             showToast(`Berhasil mengimpor ${res.data?.totalImported ?? 0} soal!`);
-            const qRes = await getQuestions(id);
-            if (qRes.ok && Array.isArray(qRes.data)) {
-                setQuestions(qRes.data.map((q, i) => ({
-                    ...q,
-                    _id: `q_${q.id}`,
-                    question: q.question || '',
-                    typeId: q.typeId || 2,
-                    questionOrder: q.questionOrder ?? i + 1,
-                    isRequired: q.isRequired ?? false,
-                    correctAnswer: q.correctAnswer ?? '',
-                    questionImage: q.questionImage ?? null,
-                    questionAudio: q.questionAudio ?? null,
-                    options: q.options?.length > 0 ? q.options : [{ optionText: '', isCorrect: false }],
-                })));
-            }
+            await refreshQuestionsList();
         } else {
             showToast(res.message || 'Gagal mengimpor berkas', 'error');
         }
         e.target.value = '';
+    };
+
+    // A-2: Callback after ImportQuestionsModal successfully commits import
+    const handleOnImported = async (data = {}) => {
+        showToast(`Berhasil mengimpor ${data.totalImported ?? 0} soal!`);
+        await refreshQuestionsList();
     };
 
     // BUG-2 FIX: Stage deletion locally; only committed on "Simpan Perubahan".
@@ -783,14 +950,18 @@ export default function FormBuilder() {
             ['question', 'type_id', 'order', 'is_required', 'correct_answer', 'options']
         ];
         questions.forEach((q, i) => {
-            const optionsStr = (q.options || []).map(o => (o.isCorrect ? `*${o.optionText}` : o.optionText)).join('|');
+            const isChoice = q.typeId === 2 || q.typeId === 3;
+            const optionsStr = (q.options || []).map(o => (o.isCorrect ? `[BENAR] ${o.optionText}` : o.optionText)).join('|');
             const cleanQ = (q.question || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+            const correctCa = isChoice
+                ? (q.options || []).filter(o => o.isCorrect).map(o => o.optionText).join(',')
+                : (q.correctAnswer || '');
             rows.push([
                 `"${cleanQ.replace(/"/g, '""')}"`,
                 q.typeId || 2,
                 i + 1,
                 q.isRequired ? 'true' : 'false',
-                `"${(q.correctAnswer || '').replace(/"/g, '""')}"`,
+                `"${(correctCa || '').replace(/"/g, '""')}"`,
                 `"${optionsStr.replace(/"/g, '""')}"`,
             ]);
         });
@@ -920,45 +1091,72 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
         return currentQ.id;
     };
 
-        const handleUploadQuestionImage = async (idx, file) => {
-        // A1 FIX: Snapshot taken BEFORE await so it reflects pre-upload state
-        const snapshotBeforeUpload = JSON.parse(JSON.stringify(questionsRef.current));
-        const qId = await autoSaveBeforeUpload(idx);
-        if (!qId) { showToast('Gagal memproses soal sebelum mengunggah gambar', 'error'); return; }
+    // Pastikan soal DAN opsi sudah punya id asli dari backend sebelum upload gambar opsi
+const ensureOptionSaved = async (idx, oIdx) => {
+    const currentOpt = questions[idx]?.options?.[oIdx];
+    if (questions[idx]?.id && currentOpt?.id) {
+        return { questionId: questions[idx].id, optionId: currentOpt.id };
+    }
+    // Simpan dulu supaya backend assign id untuk soal & opsinya
+    const success = await handleSaveQuestions();
+    if (!success) return null;
 
-        // B1: Pass onProgress to show real upload progress
-        const res = await uploadQuestionImage(id, qId, file, (pct) => {
-            setUploadProgress(prev => ({ ...prev, [idx]: pct }));
-        });
-        setUploadProgress(prev => ({ ...prev, [idx]: null }));
-        if (res.ok) {
-            // A1 FIX: Push the pre-upload snapshot so undo restores state before image
-            pushHistory(snapshotBeforeUpload);
-            updateQuestion(idx, 'questionImage', res.data?.questionImage ?? null);
-            showToast('Gambar soal berhasil diunggah!');
-        } else {
-            showToast(res.message || 'Gagal mengunggah gambar', 'error');
+    const updatedList = await getQuestions(id);
+    if (updatedList.ok && Array.isArray(updatedList.data)) {
+        const freshQ = updatedList.data[idx];
+        const freshOpt = freshQ?.options?.[oIdx] ?? freshQ?.optionQuestions?.[oIdx];
+        if (freshQ?.id && freshOpt?.id) {
+            return { questionId: freshQ.id, optionId: freshOpt.id };
+        }
+    }
+    return null;
+};
+
+    const handleUploadQuestionImage = async (idx, file) => {
+        try {
+            const snapshotBeforeUpload = JSON.parse(JSON.stringify(questionsRef.current));
+            const qId = await autoSaveBeforeUpload(idx);
+            if (!qId) { showToast('Gagal memproses soal sebelum mengunggah gambar', 'error'); return; }
+
+            const res = await uploadQuestionImage(id, qId, file, (pct) => {
+                setUploadProgress(prev => ({ ...prev, [idx]: pct }));
+            });
+            if (res.ok) {
+                pushHistory(snapshotBeforeUpload);
+                updateQuestion(idx, 'questionImage', res.data?.questionImage ?? null);
+                showToast('Gambar soal berhasil diunggah!');
+            } else {
+                showToast(res.message || 'Gagal mengunggah gambar', 'error');
+            }
+        } catch (err) {
+            console.error('[Upload Image Error]:', err);
+            showToast('Terjadi kesalahan saat mengunggah gambar', 'error');
+        } finally {
+            setUploadProgress(prev => ({ ...prev, [idx]: null }));
         }
     };
 
-        const handleUploadQuestionAudio = async (idx, file) => {
-        // A1 FIX: Snapshot taken BEFORE await so it reflects pre-upload state
-        const snapshotBeforeUpload = JSON.parse(JSON.stringify(questionsRef.current));
-        const qId = await autoSaveBeforeUpload(idx);
-        if (!qId) { showToast('Gagal memproses soal sebelum mengunggah audio', 'error'); return; }
+    const handleUploadQuestionAudio = async (idx, file) => {
+        try {
+            const snapshotBeforeUpload = JSON.parse(JSON.stringify(questionsRef.current));
+            const qId = await autoSaveBeforeUpload(idx);
+            if (!qId) { showToast('Gagal memproses soal sebelum mengunggah audio', 'error'); return; }
 
-        // B1: Pass onProgress to show real upload progress
-        const res = await uploadQuestionAudio(id, qId, file, (pct) => {
-            setUploadProgress(prev => ({ ...prev, [idx]: pct }));
-        });
-        setUploadProgress(prev => ({ ...prev, [idx]: null }));
-        if (res.ok) {
-            // A1 FIX: Push the pre-upload snapshot so undo restores state before audio
-            pushHistory(snapshotBeforeUpload);
-            updateQuestion(idx, 'questionAudio', res.data?.questionAudio ?? null);
-            showToast('Audio soal berhasil diunggah!');
-        } else {
-            showToast(res.message || 'Gagal mengunggah audio', 'error');
+            const res = await uploadQuestionAudio(id, qId, file, (pct) => {
+                setUploadProgress(prev => ({ ...prev, [idx]: pct }));
+            });
+            if (res.ok) {
+                pushHistory(snapshotBeforeUpload);
+                updateQuestion(idx, 'questionAudio', res.data?.questionAudio ?? null);
+                showToast('Audio soal berhasil diunggah!');
+            } else {
+                showToast(res.message || 'Gagal mengunggah audio', 'error');
+            }
+        } catch (err) {
+            console.error('[Upload Audio Error]:', err);
+            showToast('Terjadi kesalahan saat mengunggah audio', 'error');
+        } finally {
+            setUploadProgress(prev => ({ ...prev, [idx]: null }));
         }
     };
 
@@ -1279,23 +1477,39 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                     </label>
                                 </div>
 
+                                {/* B-1: Total Maksimal Skor Info Card */}
+                                <div className="mt-3 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center border border-slate-200 dark:border-slate-700">
+                                            <Sliders size={15} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-tight">Total Maksimal Skor</p>
+                                            <p className="text-base font-extrabold text-slate-900 dark:text-white leading-tight">{totalMaxScore} poin</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">Jumlah Soal</p>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                                            {totalQuestions > 0 ? totalQuestions : questions.length} soal
+                                        </p>
+                                    </div>
+                                </div>
+
                                 {/* AI Generator & File Import Bar */}
                                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
                                     {/* AI Generator Banner Card */}
                                     <div 
-                                        className="p-3.5 rounded-2xl bg-gradient-to-r from-teal-500/15 via-emerald-500/10 to-teal-500/5 border border-teal-500/25 dark:border-teal-500/20 flex flex-wrap items-center justify-between gap-3 shadow-xs"
+                                        className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3"
                                         data-tour="builder-ai-generator"
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-400 text-white flex items-center justify-center shadow-xs">
+                                            <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 flex items-center justify-center border border-teal-100 dark:border-teal-900/40">
                                                 <Sparkles size={16} />
                                             </div>
                                             <div>
-                                                <p className="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                <p className="text-xs font-extrabold text-slate-900 dark:text-white">
                                                     Buat Soal Otomatis dengan AI
-                                                    {/* <span className="text-[9px] uppercase px-1.5 py-0.5 rounded-md bg-teal-600 text-white font-extrabold tracking-wider">
-                                                        Gemini
-                                                    </span> */}
                                                 </p>
                                                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
                                                     Ketik topik atau paste materi, AI menyusun soal, opsi, dan kunci jawaban instan.
@@ -1305,7 +1519,7 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                         <button
                                             type="button"
                                             onClick={() => setAiModalOpen(true)}
-                                            className="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-500 hover:from-teal-700 hover:to-emerald-600 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                                            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                                         >
                                             <Sparkles size={13} />
                                             <span>Generate Soal AI</span>
@@ -1327,11 +1541,52 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                                 </a>
                                             ))}
                                         </div>
-                                        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0">
-                                            <FileUp size={13} /> {importLoading ? 'Mengimpor...' : 'Impor File Soal'}
-                                            <input type="file" accept=".xlsx,.csv,.docx,.pdf" className="hidden" onChange={handleImportFile} disabled={importLoading} />
-                                        </label>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setImportModalOpen(true)}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0 shadow-xs"
+                                            >
+                                                <FileUp size={13} /> Impor File (Preview Dulu)
+                                            </button>
+                                            <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0">
+                                                <FileUp size={13} /> {importLoading ? 'Mengimpor...' : 'Impor Langsung'}
+                                                <input type="file" accept=".xlsx,.csv,.docx,.pdf" className="hidden" onChange={handleImportFile} disabled={importLoading} />
+                                            </label>
+                                        </div>
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* C-2: Search Box + Stats */}
+                            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                                <div className="relative flex-1 min-w-[240px] max-w-md">
+                                    <input
+                                        type="text"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        placeholder="Cari soal berdasarkan teks..."
+                                        className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500/60 placeholder:text-slate-400"
+                                    />
+                                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                    {searchTerm && (
+                                        <button
+                                            type="button"
+                                            onClick={() => { setSearchTerm(''); setDebouncedSearch(''); setCurrentPage(1); }}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                    {searchTerm || totalQuestions > 0 ? (
+                                        <>Menampilkan halaman <b>{currentPage}</b> dari <b>{Math.max(1, Math.ceil(totalQuestions / pageSize))}</b> · Total {totalQuestions} soal</>
+                                    ) : (
+                                        <>Belum ada soal · Tambahkan soal atau impor dari file</>
+                                    )}
                                 </div>
                             </div>
 
@@ -1677,33 +1932,41 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                                                     <Code size={14} />
                                                                 </button>
                                                                 {/* FEAT-7: Image upload per option */}
+
                                                                 <label
-                                                                    className="p-1 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 rounded cursor-pointer"
-                                                                    title="Tambah Gambar Opsi (maks 500KB)"
-                                                                >
-                                                                    <Image size={14} />
-                                                                    <input
-                                                                        type="file"
-                                                                        accept="image/*"
-                                                                        className="hidden"
-                                                                        onChange={e => {
-                                                                            const file = e.target.files?.[0];
-                                                                            if (!file) return;
-                                                                            if (file.size > 500 * 1024) {
-                                                                                showToast('Gambar opsi terlalu besar (maks 500KB).', 'error');
-                                                                                return;
-                                                                            }
-                                                                            const reader = new FileReader();
-                                                                            reader.onload = (ev) => {
-                                                                                const current = opt.optionText || '';
-                                                                                const imgTag = `<img src="${ev.target.result}" style="max-height:80px;display:inline-block;vertical-align:middle;" alt="opsi" />`;
-                                                                                updateOption(idx, oIdx, 'optionText', current + (current ? ' ' : '') + imgTag);
-                                                                            };
-                                                                            reader.readAsDataURL(file);
+                                                                className="p-1 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 rounded cursor-pointer"
+                                                                title="Tambah Gambar Opsi (maks 500KB)"
+                                                            >
+                                                                <Image size={14} />
+                                                                <input
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    className="hidden"
+                                                                    onChange={async e => {
+                                                                        const file = e.target.files?.[0];
+                                                                        if (!file) return;
+                                                                        if (file.size > 500 * 1024) {
+                                                                            showToast('Gambar opsi terlalu besar (maks 500KB).', 'error');
+                                                                            return;
+                                                                        }
+                                                                        const ids = await ensureOptionSaved(idx, oIdx);
+                                                                        if (!ids) {
+                                                                            showToast('Gagal memproses opsi sebelum mengunggah gambar', 'error');
                                                                             e.target.value = '';
-                                                                        }}
-                                                                    />
-                                                                </label>
+                                                                            return;
+                                                                        }
+                                                                        const res = await uploadOptionImage(id, ids.questionId, ids.optionId, file);
+                                                                        if (res.ok) {
+                                                                            pushHistory(questions);
+                                                                            updateOption(idx, oIdx, 'optionImage', res.data?.optionImage ?? res.data?.url ?? null);
+                                                                            showToast('Gambar opsi berhasil diunggah!');
+                                                                        } else {
+                                                                            showToast(res.message || 'Gagal mengunggah gambar opsi', 'error');
+                                                                        }
+                                                                        e.target.value = '';
+                                                                    }}
+                                                                />
+                                                            </label>
                                                             </div>
 
                                                             <button onClick={() => removeOption(idx, oIdx)} className="text-red-400 hover:text-red-600 p-1 shrink-0 cursor-pointer">
@@ -1711,10 +1974,30 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                                             </button>
                                                         </div>
 
-                                                        {/* Option Rich Content Preview if formula/code/image inserted */}
-                                                        {(opt.optionText?.includes('$') || opt.optionText?.includes('<pre') || opt.optionText?.includes('<code') || opt.optionText?.includes('<img')) && (
+                                                        {/* Preview formula/code (bukan image, karena image sekarang di field terpisah) */}
+                                                        {(opt.optionText?.includes('$') || opt.optionText?.includes('<pre') || opt.optionText?.includes('<code')) && (
                                                             <div className="ml-6 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-lg text-xs border border-slate-200/60 dark:border-slate-700">
                                                                 <RichContentRenderer content={opt.optionText} format="text" className="text-xs" />
+                                                            </div>
+                                                        )}
+
+                                                        {/* Preview gambar opsi */}
+                                                        {opt.optionImage && (
+                                                        <div className="ml-6 flex items-center gap-2 mt-1">
+                                                            <img
+                                                                src={assetUrl(opt.optionImage)}
+                                                                alt="Gambar opsi"
+                                                                className="max-h-16 rounded-lg border border-slate-200 dark:border-slate-700 cursor-zoom-in"
+                                                                onClick={() => setLightboxImage({ src: assetUrl(opt.optionImage), alt: 'Gambar Opsi' })}
+                                                            />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => updateOption(idx, oIdx, 'optionImage', null)}
+                                                                    className="text-red-400 hover:text-red-600 p-1"
+                                                                    title="Hapus gambar opsi"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
                                                             </div>
                                                         )}
                                                     </div>
@@ -1743,6 +2026,13 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                                         <option value="Benar">Benar</option>
                                                         <option value="Salah">Salah</option>
                                                     </select>
+                                                ) : q.typeId === 4 ? (
+                                                    <input
+                                                        type="datetime-local"
+                                                        value={q.correctAnswer || ''}
+                                                        onChange={e => updateQuestion(idx, 'correctAnswer', e.target.value)}
+                                                        className="w-full max-w-xs border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#00897B]"
+                                                    />
                                                 ) : (
                                                     <input
                                                         placeholder="contoh: 4 atau Soekarno"
@@ -1763,6 +2053,51 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Form tanpa soal akan tersimpan kosong (0 soal) dan otomatis kembali menjadi draf.</p>
                                 </div>
                             )}
+
+                            {/* C-2: Pagination Controls */}
+                            {(totalQuestions > pageSize || searchTerm) && (
+                                <div className="mt-6 mb-2 flex flex-wrap items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                            disabled={currentPage === 1}
+                                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                        >
+                                            <ChevronUp size={13} className="rotate-90" />
+                                            <span>Sebelumnya</span>
+                                        </button>
+                                        <div className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
+                                            <span className="font-bold text-slate-800 dark:text-slate-100">Halaman {currentPage}</span>
+                                            <span className="text-slate-400">/</span>
+                                            <span className="font-bold text-slate-500 dark:text-slate-400">{Math.max(1, Math.ceil(totalQuestions / pageSize))}</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCurrentPage(p => p + 1)}
+                                            disabled={currentPage >= Math.ceil(totalQuestions / pageSize)}
+                                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                        >
+                                            <span>Berikutnya</span>
+                                            <ChevronUp size={13} className="-rotate-90" />
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Per halaman:</label>
+                                        <select
+                                            value={pageSize}
+                                            onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                                            className="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/40 cursor-pointer"
+                                        >
+                                            <option value={10}>10 soal</option>
+                                            <option value={25}>25 soal</option>
+                                            <option value={50}>50 soal</option>
+                                            <option value={100}>100 soal</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            )}
+
                            {/* Tambah Soal Manual — Aksi Lainnya dipindah ke FAB */}
                             <div className="flex flex-wrap gap-2 items-center">
                                 <button
@@ -2151,6 +2486,15 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
                 isOpen={aiFormBuilderOpen}
                 onClose={() => setAiFormBuilderOpen(false)}
                 onFormCreated={(newId) => navigate(`/forms/${newId}/builder`)}
+            />
+
+            {/* A-2: Import Questions Modal (Preview + Commit 5 Format) */}
+            <ImportQuestionsModal
+                isOpen={importModalOpen}
+                onClose={() => setImportModalOpen(false)}
+                formId={id}
+                hasResponses={(form?.responseCount ?? form?.totalResponses ?? 0) > 0 ? (form?.responseCount ?? form?.totalResponses ?? 0) : null}
+                onImported={handleOnImported}
             />
 
             {/* Lightbox Modal */}
