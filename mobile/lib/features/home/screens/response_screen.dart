@@ -222,7 +222,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
                   },
                   style: OutlinedButton.styleFrom(
                     side:  BorderSide(color: Theme.of(sheetContext).colorScheme.primary),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   ),
                   child:  Text('Reset', style: TextStyle(color: Theme.of(sheetContext).colorScheme.primary, fontSize: 13)),
                 ),
@@ -316,7 +316,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
                   },
                   style: OutlinedButton.styleFrom(
                     side:  BorderSide(color: Theme.of(sheetContext).colorScheme.primary),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   ),
                   child:  Text('Reset', style: TextStyle(color: Theme.of(sheetContext).colorScheme.primary, fontSize: 13)),
                 ),

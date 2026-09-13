@@ -264,7 +264,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
                               context,
                               base: EdgeInsets.fromLTRB(
                                 22,
-                                4,
+                                16,
                                 22,
                                 toolbarVisible ? 110 : 24,
                               ),

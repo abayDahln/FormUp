@@ -997,9 +997,9 @@ class _SessionCardState extends State<_SessionCard> {
                                 fontWeight: FontWeight.w700,
                                 fontFamily: kFontBold)),
                         style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(20),
                           ),
                         ),
                       ),
@@ -1015,9 +1015,9 @@ class _SessionCardState extends State<_SessionCard> {
                                 fontWeight: FontWeight.w700,
                                 fontFamily: kFontBold)),
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(20),
                           ),
                         ),
                       ),

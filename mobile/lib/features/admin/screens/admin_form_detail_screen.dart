@@ -432,7 +432,6 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
         if (takenDown && f.deletedAt == null)
           AuthPrimaryButton(
             label: 'Restore Form',
-            pill: true,
             onPressed: _restore,
           ),
       ],

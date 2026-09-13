@@ -205,7 +205,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
               backgroundColor: Theme.of(context).colorScheme.primary,
               foregroundColor: Theme.of(context).colorScheme.onPrimary,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(20),
               ),
             ),
             onPressed: () async {
@@ -295,7 +295,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
 
     final info = _formInfo!;
     return SingleChildScrollView(
-      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24), wideMaxWidth: 1000),
+      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 1000),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -339,6 +339,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
               style: OutlinedButton.styleFrom(
                 side:  BorderSide(color: Theme.of(context).colorScheme.primary),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                minimumSize: const Size(64, 48),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
               child:  Text("Lihat Respon", style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold, fontFamily: kFontBold)),
@@ -446,7 +447,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: _submittingFeedback ? null : _submitFeedback,
-                        style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), padding: const EdgeInsets.symmetric(vertical: 14)),
+                        style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), minimumSize: const Size(64, 48), padding: const EdgeInsets.symmetric(vertical: 14)),
                         child: _submittingFeedback
                             ?  SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.surface))
                             : const Text("Kirim Umpan Balik", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),
@@ -499,7 +500,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
                           const SizedBox(height: 12),
                           FilledButton(
                             onPressed: _submittingFeedback ? null : _submitFeedback,
-                            style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), padding: const EdgeInsets.symmetric(vertical: 14)),
+                            style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), minimumSize: const Size(64, 48), padding: const EdgeInsets.symmetric(vertical: 14)),
                             child: _submittingFeedback
                                 ?  SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.surface))
                                 : const Text("Kirim Umpan Balik", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold)),

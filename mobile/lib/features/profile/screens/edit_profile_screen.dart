@@ -216,7 +216,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: AuthBackground(plain: true,
                 child: SafeArea(
                 child: SingleChildScrollView(
-                  padding: centerPad(context, base: const EdgeInsets.fromLTRB(22, 8, 22, 24)),
+                  padding: centerPad(context, base: const EdgeInsets.fromLTRB(22, 16, 22, 24)),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [

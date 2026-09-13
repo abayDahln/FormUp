@@ -352,7 +352,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                       context,
                       base: EdgeInsets.fromLTRB(
                         22,
-                        4,
+                        16,
                         22,
                         toolbarVisible ? 110 : 24,
                       ),

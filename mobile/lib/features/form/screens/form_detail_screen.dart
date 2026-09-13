@@ -149,7 +149,7 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
               indicatorColor: cs.primary,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24), wideMaxWidth: 960),
+                padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 960),
                 children: [
                   FormDetailHeader(form: form),
                   const SizedBox(height: 16),

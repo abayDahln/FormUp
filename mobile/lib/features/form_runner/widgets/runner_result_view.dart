@@ -67,7 +67,8 @@ class RunnerResultView extends StatelessWidget {
           // Desktop ≥1200: pembahasan 2 kolom; phone 1 kolom identik.
           else
             ResponsiveGrid(
-              columnCountFor: (_) => 2,
+              // 2 kolom hanya jika lebar aktual cukup (samakan runner_fill_step).
+              columnCountFor: (w) => w < 780 ? 1 : 2,
               children: [
                 for (var i = 0; i < result.answers.length; i++)
                   _ResultCard(
@@ -78,39 +79,51 @@ class RunnerResultView extends StatelessWidget {
               ],
             ),
           const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: onReset,
-            icon:  Icon(Icons.refresh, size: 18, color: cs.primary),
-            label:  Text(
-              "Kerjakan Form Lain",
-              style: TextStyle(color: cs.primary),
-            ),
-            style: OutlinedButton.styleFrom(
-              side:  BorderSide(color: cs.primary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          // Batasi lebar aksi di desktop lebar; phone (<560) identik.
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onReset,
+                    icon:  Icon(Icons.refresh, size: 18, color: cs.primary),
+                    label:  Text(
+                      "Kerjakan Form Lain",
+                      style: TextStyle(color: cs.primary),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side:  BorderSide(color: cs.primary),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      minimumSize: const Size(64, 48),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                  if (isLoggedIn) ...[
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: onFeedback,
+                      icon:  Icon(Icons.message_outlined, size: 18, color: cs.primary),
+                      label:  Text(
+                        "Kirim Feedback",
+                        style: TextStyle(color: cs.primary),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side:  BorderSide(color: cs.primary),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),
-          if (isLoggedIn) ...[
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: onFeedback,
-              icon:  Icon(Icons.message_outlined, size: 18, color: cs.primary),
-              label:  Text(
-                "Kirim Feedback",
-                style: TextStyle(color: cs.primary),
-              ),
-              style: OutlinedButton.styleFrom(
-                side:  BorderSide(color: cs.primary),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-            ),
-          ],
         ],
       ),
     );

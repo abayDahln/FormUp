@@ -359,7 +359,8 @@ class _AdminFeedbackDetailScreenState extends State<AdminFeedbackDetailScreen> {
                           style: OutlinedButton.styleFrom(
                             side:  BorderSide(color: cs.primary),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
+                                borderRadius: BorderRadius.circular(20)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                           ),
                         ),
                       ],

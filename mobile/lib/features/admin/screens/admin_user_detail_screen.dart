@@ -240,7 +240,6 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
           else
             AuthPrimaryButton(
               label: 'Aktifkan User',
-              pill: true,
               onPressed: _activate,
             ),
         ],

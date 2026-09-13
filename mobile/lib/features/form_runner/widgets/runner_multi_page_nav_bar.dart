@@ -34,8 +34,9 @@ class RunnerMultiPageNavBar extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   side:  BorderSide(color: cs.primary),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(20),
                   ),
+                  minimumSize: const Size(64, 48),
                   padding: const EdgeInsets.symmetric(vertical: 15),
                 ),
                 child:  Text(

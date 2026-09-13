@@ -32,7 +32,7 @@ Future<RunnerExitAction> showRunnerExitDialog(BuildContext context) async {
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFFC0392B),
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           ),
           onPressed: () => Navigator.pop(ctx, RunnerExitAction.exitWithoutSubmit),
           child: const Text("Keluar"),

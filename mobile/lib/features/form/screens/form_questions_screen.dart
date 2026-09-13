@@ -511,7 +511,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
             Expanded(
               child: ListView.separated(
                 controller: scrollController,
-                padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 4, 20, 8)),
+                padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 8)),
                 itemCount: questions.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (context, i) {
@@ -1091,7 +1091,7 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                             : Stack(
                                 children: [
                                   ReorderableListView.builder(
-                                    padding: centerPad(context, base: const EdgeInsets.fromLTRB(22, 4, 22, 96), wideMaxWidth: 900),
+                                    padding: centerPad(context, base: const EdgeInsets.fromLTRB(22, 16, 22, 96), wideMaxWidth: 900),
                                     itemCount: _questions.length,
                                     onReorder: _onReorder,
                                     buildDefaultDragHandles: false,

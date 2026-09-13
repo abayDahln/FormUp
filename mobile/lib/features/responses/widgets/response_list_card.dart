@@ -103,9 +103,9 @@ class ResponseListCard extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     side:  BorderSide(color: cs.primary),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   ),
                   child:  Text(
                     'Lihat Jawaban',

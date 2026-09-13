@@ -115,8 +115,9 @@ class PendingActionBar extends StatelessWidget {
             // Tolak di kiri, Terima di kanan (utama).
             TextButton(
               style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
                 foregroundColor: cs.onSurfaceVariant,
+                minimumSize: const Size(64, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
               onPressed: (isWorking || !enabled) ? null : onReject,
               child: const Text('Tolak', style: TextStyle(fontSize: 13)),
@@ -126,8 +127,8 @@ class PendingActionBar extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: cs.primary,
                 foregroundColor: Colors.white,
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                minimumSize: const Size(64, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
               onPressed: (isWorking || !enabled) ? null : onAccept,
               child: isWorking

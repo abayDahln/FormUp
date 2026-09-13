@@ -515,7 +515,7 @@ class _TemplateCard extends StatelessWidget {
                 onPressed: busy ? null : onUse,
                 icon: cloning ? const SizedBox(width: 14, height: 14, child: AppLoadingIndicator.button()) : const Icon(Icons.arrow_forward, size: 16),
                 label: Text(cloning ? 'Menyiapkan...' : 'Gunakan Template Ini', style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 12)),
-                style: ElevatedButton.styleFrom(backgroundColor: kAuthPrimary, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 11), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                style: ElevatedButton.styleFrom(backgroundColor: kAuthPrimary, foregroundColor: Colors.white, minimumSize: const Size(64, 48), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
               ),
             ),
           ]),

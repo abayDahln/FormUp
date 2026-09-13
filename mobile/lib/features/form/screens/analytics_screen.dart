@@ -505,7 +505,7 @@ Berikan analisis yang mencakup:
             },
             child: ListView(
               controller: _responScrollController,
-              padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 24), wideMaxWidth: 1100),
+              padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 1100),
               children: [
                 if (_exporting)
                   const progress.ProgressIndicator.linear(

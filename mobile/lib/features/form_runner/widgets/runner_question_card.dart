@@ -77,20 +77,62 @@ class RunnerQuestionCard extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${index + 1}. ',
-                  style: TextStyle(
-                    fontSize: zs(15),
-                    fontWeight: FontWeight.bold,
-                    fontFamily: kFontBold,
-                    color: cs.onSurface,
-                    height: 1.4,
-                  ),
-                ),
-                Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                Widget buildMarkButton() => InkWell(
+                      onTap: onToggleMark,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isMarked
+                              ? const Color(0xFFFACC15)
+                              : cs.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isMarked
+                                ? const Color(0xFFFACC15)
+                                : cs.outlineVariant,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isMarked
+                                  ? Icons.bookmark_added_rounded
+                                  : Icons.bookmark_add_outlined,
+                              size: 14,
+                              color: isMarked
+                                  ? Colors.white
+                                  : cs.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                isMarked ? 'Ragu-ragu' : 'Tandai',
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: kFontBold,
+                                  color: isMarked
+                                      ? Colors.white
+                                      : cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                final showRequired = q.isRequired == true;
+                const requiredMark = Text(
+                  "*",
+                  style: TextStyle(color: Color(0xFFC0392B), fontSize: 16),
+                );
+                final questionText = Expanded(
                   child: RichTextView(
                     text: q.question,
                     zoom: zoom,
@@ -101,61 +143,53 @@ class RunnerQuestionCard extends StatelessWidget {
                       height: 1.4,
                     ),
                   ),
-                ),
-                if (q.isRequired == true)
-                  const Text(
-                    "*",
-                    style: TextStyle(color: Color(0xFFC0392B), fontSize: 16),
+                );
+                final numberText = Text(
+                  '${index + 1}. ',
+                  style: TextStyle(
+                    fontSize: zs(15),
+                    fontWeight: FontWeight.bold,
+                    fontFamily: kFontBold,
+                    color: cs.onSurface,
+                    height: 1.4,
                   ),
-                if (showMarkButton) ...[
-                  const SizedBox(width: 8),
-                  InkWell(
-                    onTap: onToggleMark,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isMarked
-                            ? const Color(0xFFFACC15)
-                            : cs.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isMarked
-                              ? const Color(0xFFFACC15)
-                              : cs.outlineVariant,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                );
+                // Layar/kartu sempit (kolom grid desktop yang terjepit,
+                // window desktop kecil, zoom besar): tombol tandai turun ke
+                // baris sendiri agar Row header tidak overflow.
+                if (showMarkButton && constraints.maxWidth < 420) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            isMarked
-                                ? Icons.bookmark_added_rounded
-                                : Icons.bookmark_add_outlined,
-                            size: 14,
-                            color: isMarked
-                                ? Colors.white
-                                : cs.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            isMarked ? 'Ragu-ragu' : 'Tandai',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: kFontBold,
-                              color: isMarked
-                                  ? Colors.white
-                                  : cs.onSurfaceVariant,
-                            ),
-                          ),
+                          numberText,
+                          questionText,
+                          if (showRequired) requiredMark,
                         ],
                       ),
-                    ),
-                  ),
-                ],
-              ],
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: buildMarkButton(),
+                      ),
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    numberText,
+                    questionText,
+                    if (showRequired) requiredMark,
+                    if (showMarkButton) ...[
+                      const SizedBox(width: 8),
+                      Flexible(child: buildMarkButton()),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
           // Gambar soal (jika dilampirkan)

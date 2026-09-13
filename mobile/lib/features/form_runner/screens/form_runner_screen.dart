@@ -585,7 +585,7 @@ class FormRunnerViewState extends State<FormRunnerView>
               backgroundColor: Theme.of(ctx).colorScheme.primary,
               foregroundColor: Theme.of(ctx).colorScheme.onPrimary,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(20),
               ),
             ),
             onPressed: () => Navigator.pop(ctx, true),

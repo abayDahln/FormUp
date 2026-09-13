@@ -298,7 +298,7 @@ class _OnboardingTourState extends State<OnboardingTour> {
                           backgroundColor: kAuthPrimary,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(20),
                           ),
                         ),
                         onPressed: () {

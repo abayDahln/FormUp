@@ -64,7 +64,7 @@ class RunnerFillStep extends StatelessWidget {
   Widget _buildSinglePage(BuildContext context) {
     return SingleChildScrollView(
       physics: physics ?? const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -77,7 +77,10 @@ class RunnerFillStep extends StatelessWidget {
             ]
           else
             ResponsiveGrid(
-              columnCountFor: (_) => 2,
+              // 2 kolom hanya jika lebar aktual cukup; kartu soal butuh
+              // ~380px agar Row header (nomor + teks + tombol tandai)
+              // tidak overflow di window desktop sempit / zoom besar.
+              columnCountFor: (w) => w < 780 ? 1 : 2,
               children: [
                 for (var i = 0; i < questions.length; i++)
                   _buildQuestionCard(i),
