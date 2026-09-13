@@ -170,6 +170,12 @@ const saveLocalManualOverride = (formId, responseId, questionId, isCorrect) => {
     }
 };
 
+const isProctorActionType = (type) =>
+    (type || '').toLowerCase() === ExamProctorActions.ForceSubmitByProctor.toLowerCase();
+
+const getGenuineViolationCount = (session) =>
+    (session?.violations || []).filter(v => !isProctorActionType(v.type)).length;
+
 export default function FormResponsesPage() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -318,7 +324,7 @@ export default function FormResponsesPage() {
                 setLastRefreshedAt(new Date());
                 setMonitoringError('');
             } else if (!isSilent) {
-                setMonitoringError(res.message || 'Gagal memuat data monitoring ujian.');
+                setMonitoringError(res.message || 'Gagal memuat data monitoring.');
             }
         } catch (err) {
             if (!isSilent) setMonitoringError('Koneksi terputus saat mengambil data monitoring.');
@@ -413,12 +419,6 @@ export default function FormResponsesPage() {
                 };
         }
     };
-
-    const isProctorActionType = (type) =>
-    (type || '').toLowerCase() === ExamProctorActions.ForceSubmitByProctor.toLowerCase();
-
-const getGenuineViolationCount = (session) =>
-    (session.violations || []).filter(v => !isProctorActionType(v.type)).length;
 
     const formatDateWithTime = (d) => d
         ? new Date(d).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -1489,7 +1489,7 @@ Panduan penilaian:
                     </div>
                 </div>
 
-                                {/* Sub-tabs: Respons / Feedback / Monitoring Ujian */}
+                                {/* Sub-tabs: Respons / Feedback / Monitoring */}
                 <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6">
                     <div className="flex">
                         <button
@@ -1526,7 +1526,7 @@ Panduan penilaian:
                             }`}
                         >
                             <ShieldAlert size={14} />
-                            <span>Monitoring Ujian</span>
+                            <span>Monitoring</span>
                             {monitoringData?.onlineCount > 0 && (
                                 <span className="flex h-2 w-2 relative">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -1961,7 +1961,7 @@ Panduan penilaian:
                                 {monitoringLoading && !monitoringData ? (
                                     <div className="flex items-center justify-center p-12 text-slate-400 gap-2">
                                         <Loader2 size={18} className="animate-spin text-indigo-600" />
-                                        <span className="text-xs font-bold">Memuat data monitoring ujian...</span>
+                                        <span className="text-xs font-bold">Memuat data monitoring...</span>
                                     </div>
                                 ) : filteredSessions.length === 0 ? (
                                     <div className="text-center p-12 text-slate-400 dark:text-slate-500">
