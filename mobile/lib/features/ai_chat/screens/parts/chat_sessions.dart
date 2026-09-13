@@ -53,6 +53,9 @@ extension _AiChatSessions on _AiChatScreenState {
                 isTruncated: m.isTruncated,
                 undoSnapshot: m.undoSnapshot,
                 actionUndone: m.actionUndone,
+                attachments: m.attachments.isEmpty
+                    ? null
+                    : m.attachments.map((a) => a.toMetaJson()).toList(),
               ))
           .toList(),
       updatedAt: DateTime.now(),
@@ -107,6 +110,7 @@ extension _AiChatSessions on _AiChatScreenState {
             _currentSessionId = DateTime.now().millisecondsSinceEpoch
                 .toString();
             _messages.clear();
+            _pendingAttachments.clear();
             _lastFormContext = null;
             _activeFormId = null;
           });
@@ -122,6 +126,7 @@ extension _AiChatSessions on _AiChatScreenState {
     setState(() {
       _currentSessionId = id;
       _messages.clear();
+      _pendingAttachments.clear();
       _showFab = false;
       _lastFormContext = null; // sesi baru, konteks form lama tidak relevan
       _activeFormId = null;
@@ -159,6 +164,7 @@ extension _AiChatSessions on _AiChatScreenState {
     if (!mounted) return;
     setState(() {
       _currentSessionId = id;
+      _pendingAttachments.clear();
       _messages
         ..clear()
         ..addAll(target.messages.map((m) {
@@ -177,6 +183,12 @@ extension _AiChatSessions on _AiChatScreenState {
           msg.isTruncated = m.isTruncated ?? false;
           msg.undoSnapshot = m.undoSnapshot;
           msg.actionUndone = m.actionUndone ?? false;
+          if (m.attachments != null) {
+            msg.attachments = m.attachments!
+                .map((a) => AiAttachment.tryFromMeta(a))
+                .whereType<AiAttachment>()
+                .toList();
+          }
           return msg;
         }));
       _showFab = false;

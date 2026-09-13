@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:xml/xml.dart' as xml;
+import 'package:form_up/features/ai_chat/models/ai_attachment.dart';
 
 /// Token pembatalan request Gemini. [cancel] menutup koneksi HTTP
 /// sehingga request yang menggantung langsung dibatalkan — tanpa ini,
@@ -323,12 +326,139 @@ Aturan:
 - DILARANG menulis ulang soal/pembahasan di teks bila SUDAH ada di JSON — kartu preview sudah menampilkannya. Menulis dua kali hanya memboroskan token dan membingungkan user.
 ''';
 
+  /// Ekstrak teks dari DOCX (zip + word/document.xml) via archive + xml
+  static String _extractDocxText(Uint8List bytes) {
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final file = archive.findFile('word/document.xml');
+      if (file == null) return '';
+      final xmlStr = utf8.decode(file.content as List<int>);
+      final doc = xml.XmlDocument.parse(xmlStr);
+      final texts = doc.findAllElements('w:t').map((e) => e.innerText).join(' ');
+      return texts.trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// Ekstrak teks dari XLSX via archive + xml (sharedStrings + sheet data)
+  static String _extractXlsxText(Uint8List bytes) {
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final sharedStringsFile = archive.findFile('xl/sharedStrings.xml');
+      final sharedStrings = <String>[];
+      if (sharedStringsFile != null) {
+        final xmlStr = utf8.decode(sharedStringsFile.content as List<int>);
+        final doc = xml.XmlDocument.parse(xmlStr);
+        for (final si in doc.findAllElements('si')) {
+          sharedStrings.add(si.findAllElements('t').map((e) => e.innerText).join(''));
+        }
+      }
+      final buf = StringBuffer();
+      for (final f in archive.files) {
+        if (f.name.startsWith('xl/worksheets/') && f.name.endsWith('.xml')) {
+          final xmlStr = utf8.decode(f.content as List<int>);
+          final doc = xml.XmlDocument.parse(xmlStr);
+          for (final c in doc.findAllElements('c')) {
+            final tAttr = c.getAttribute('t');
+            final v = c.findElements('v').isEmpty ? null : c.findElements('v').first.innerText;
+            if (v == null) continue;
+            if (tAttr == 's') {
+              final idx = int.tryParse(v);
+              if (idx != null && idx >= 0 && idx < sharedStrings.length) {
+                buf.write(sharedStrings[idx]);
+                buf.write(' ');
+              }
+            } else {
+              // inlineStr or number
+              final isText = c.findAllElements('t').isNotEmpty;
+              if (isText) {
+                buf.write(c.findAllElements('t').map((e) => e.innerText).join(''));
+                buf.write(' ');
+              } else {
+                buf.write(v);
+                buf.write(' ');
+              }
+            }
+          }
+          buf.writeln();
+        }
+      }
+      final out = buf.toString().trim();
+      return out.isEmpty ? '' : out;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// Bangun parts untuk pesan user dengan lampiran.
+  /// Image/PDF → inlineData; doc/excel → teks hasil ekstraksi digabung ke text part.
+  static List<Map<String, dynamic>> _buildPartsWithAttachments(
+    String text,
+    List<AiAttachment>? atts,
+  ) {
+    if (atts == null || atts.isEmpty) return [{'text': text}];
+    final inlineParts = <Map<String, dynamic>>[];
+    final docTexts = <String>[];
+    for (final a in atts) {
+      if (!a.hasBytes) continue;
+      if (AiAttachment.isInlineSupported(a.mime)) {
+        inlineParts.add({
+          'inlineData': {'mimeType': a.mime, 'data': a.base64Data}
+        });
+      } else if (a.isDoc) {
+        final ext = a.name.split('.').last.toLowerCase();
+        if (ext == 'docx') {
+          final t = _extractDocxText(a.bytes);
+          if (t.isNotEmpty) docTexts.add('— Lampiran ${a.name} (DOCX):\n$t');
+        } else {
+          docTexts.add('— Lampiran ${a.name} (DOC lama): format .doc tidak didukung, silakan simpan sebagai .docx atau .pdf.');
+        }
+      } else if (a.isExcel) {
+        final ext = a.name.split('.').last.toLowerCase();
+        if (ext == 'xlsx') {
+          final t = _extractXlsxText(a.bytes);
+          if (t.isNotEmpty) docTexts.add('— Lampiran ${a.name} (XLSX):\n$t');
+        } else {
+          docTexts.add('— Lampiran ${a.name} (XLS lama): format .xls tidak didukung, silakan simpan sebagai .xlsx atau .pdf.');
+        }
+      }
+    }
+    var finalText = text;
+    if (docTexts.isNotEmpty) {
+      final extra = docTexts.join('\n\n');
+      finalText = finalText.isEmpty ? extra : '$finalText\n\n$extra';
+    }
+    final parts = <Map<String, dynamic>>[{'text': finalText}];
+    parts.addAll(inlineParts);
+    return parts;
+  }
+
+  static List<Map<String, dynamic>> _buildContents(
+    List<Map<String, String>> history,
+    List<AiAttachment>? inlineAttachments,
+  ) {
+    final contents = <Map<String, dynamic>>[];
+    for (var i = 0; i < history.length; i++) {
+      final m = history[i];
+      final role = m['role'] == 'model' ? 'model' : 'user';
+      final isLastUser = i == history.length - 1 && role == 'user' && inlineAttachments != null && inlineAttachments.isNotEmpty;
+      final parts = isLastUser
+          ? _buildPartsWithAttachments(m['text'] ?? '', inlineAttachments)
+          : [{'text': m['text'] ?? ''}];
+      contents.add({'role': role, 'parts': parts});
+    }
+    return contents;
+  }
+
   /// Kirim histori chat dan stream token balasan (realtime).
   /// [history] = list map {role: 'user'|'model', text: String}
   /// [cancel] = token pembatalan (dipakai tombol stop di input bar).
+  /// [inlineAttachments] = lampiran untuk pesan user terakhir (image/pdf inline, doc/excel sebagai teks).
   static Stream<String> streamChat(
     List<Map<String, String>> history, {
     GeminiCancel? cancel,
+    List<AiAttachment>? inlineAttachments,
   }) async* {
     if (!hasKey) {
       throw Exception('GEMINI_API_KEY belum diatur. Buka AI Chat > Atur API Key untuk menyimpannya di aplikasi.');
@@ -336,17 +466,7 @@ Aturan:
     lastFinishReason = null;
     final effectiveModel = selectedModelId;
     final uri = Uri.parse('$_baseUrl/models/$effectiveModel:streamGenerateContent?alt=sse');
-    // Build contents
-    final contents = <Map<String, dynamic>>[];
-    for (final m in history) {
-      final role = m['role'] == 'model' ? 'model' : 'user';
-      contents.add({
-        'role': role,
-        'parts': [
-          {'text': m['text'] ?? ''}
-        ]
-      });
-    }
+    final contents = _buildContents(history, inlineAttachments);
     final body = jsonEncode({
       'systemInstruction': {
         'parts': [
@@ -483,20 +603,13 @@ Aturan:
   static Future<String> generateOnce(
     List<Map<String, String>> history, {
     GeminiCancel? cancel,
+    List<AiAttachment>? inlineAttachments,
   }) async {
     if (!hasKey) throw Exception('GEMINI_API_KEY belum diatur. Atur di AI Chat > API Key.');
     lastFinishReason = null;
     final effectiveModel = selectedModelId;
     final uri = Uri.parse('$_baseUrl/models/$effectiveModel:generateContent');
-    final contents = <Map<String, dynamic>>[
-      for (final m in history)
-        {
-          'role': m['role'] == 'model' ? 'model' : 'user',
-          'parts': [
-            {'text': m['text'] ?? ''}
-          ]
-        }
-    ];
+    final contents = _buildContents(history, inlineAttachments);
     final client = http.Client();
     cancel?._attach(client);
     try {

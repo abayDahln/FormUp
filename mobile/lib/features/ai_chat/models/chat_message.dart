@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:form_up/features/ai_chat/models/ai_attachment.dart';
 
 /// Satu bubble chat AI (user | model).
 class ChatMessage {
@@ -6,6 +7,9 @@ class ChatMessage {
   String text;
   final DateTime time;
   Map<String, dynamic>? actionJson;
+
+  /// Lampiran metadata user (bytes hanya in-memory via AiChatScreen, tidak persist bytes).
+  List<AiAttachment> attachments = [];
 
   /// Status aksi form yang diajukan AI di bubble ini:
   /// '' (bukan/legacy) | 'pending' | 'accepted' | 'rejected'.

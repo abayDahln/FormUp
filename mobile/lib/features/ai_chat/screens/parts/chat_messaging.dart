@@ -38,9 +38,9 @@ Map<String, dynamic> _questionToSaveJson(QuestionData q) => {
 /// Pengiriman pesan ke AI: kirim baru, kirim ulang, eksekusi aksi form,
 /// dan dialog konfirmasi aksi.
 extension _AiChatMessaging on _AiChatScreenState {
-  /// Kirim teks dari field input.
+  /// Kirim teks dari field input (plus lampiran pending).
   Future<void> send() async {
-    await sendWithText(_controller.text.trim());
+    await sendWithText(_controller.text.trim(), pendingAttachments: List<AiAttachment>.from(_pendingAttachments));
   }
 
   /// Hentikan respons AI yang sedang streaming (tombol stop di input bar).
@@ -418,10 +418,9 @@ extension _AiChatMessaging on _AiChatScreenState {
     await persistCurrent();
   }
 
-  Future<void> sendWithText(String rawText) async {
-    // Debounce: tolak kirim ganda selama persiapan kirim (_sending) atau
-    // streaming (_streaming) masih berjalan.
-    if (rawText.isEmpty || _streaming || _sending) return;
+  Future<void> sendWithText(String rawText, {List<AiAttachment>? pendingAttachments}) async {
+    final hasFiles = pendingAttachments != null && pendingAttachments.isNotEmpty;
+    if ((rawText.isEmpty && !hasFiles) || _streaming || _sending) return;
     if (!GeminiService.hasKey) {
       showAuthToast(context, 'API Key belum diatur', isError: true);
       showAiApiKeyDialog(
@@ -432,15 +431,11 @@ extension _AiChatMessaging on _AiChatScreenState {
       );
       return;
     }
-    // Kunci seketika (sinkron, sebelum await pertama) agar tap kedua
-    // yang datang saat bangun konteks tidak lolos jadi request ganda.
     _sending = true;
     if (mounted) setState(() {});
     try {
-      await _prepareAndStream(rawText);
+      await _prepareAndStream(rawText, inlineAttachments: pendingAttachments);
     } catch (_) {
-      // Gagal sebelum streaming mulai (mis. sesi/history gagal dimuat):
-      // buka kunci agar user bisa coba lagi.
       _sending = false;
       if (mounted) setState(() {});
     }
@@ -452,7 +447,8 @@ extension _AiChatMessaging on _AiChatScreenState {
   /// Konteks basi TIDAK dipakai diam-diam: bila build konteks form gagal
   /// dan tidak ada cache, kirim dibatalkan dengan penjelasan (hindari AI
   /// mengarang id soal dari konteks kedaluwarsa).
-  Future<void> _prepareAndStream(String rawText) async {
+  Future<void> _prepareAndStream(String rawText, {List<AiAttachment>? inlineAttachments}) async {
+    final sendAttachments = inlineAttachments != null && inlineAttachments.isNotEmpty ? List<AiAttachment>.from(inlineAttachments) : null;
     // ensure session exists
     if (_currentSessionId == null) await newSession();
     // Agent: deteksi @mention dan bangun konteks form
@@ -514,14 +510,16 @@ extension _AiChatMessaging on _AiChatScreenState {
         extraContext != null && extraContext.isNotEmpty
         ? '$extraContext\n\nPertanyaan user: $rawText'
         : rawText;
-    // bersihkan mention picker
+    // bersihkan mention picker + lampiran pending
     setState(() {
       _mentionCandidates = [];
       _isMentionActive = false;
-      _pickedMentions.clear(); // jangan bawa mention pesan sebelumnya ke pesan berikutnya
+      _pickedMentions.clear();
+      _pendingAttachments.clear();
     });
 
     final userMsg = ChatMessage(role: 'user', text: displayText);
+    if (sendAttachments != null) userMsg.attachments = sendAttachments;
     setState(() {
       _messages.add(userMsg);
       _controller.clear();
@@ -584,10 +582,7 @@ extension _AiChatMessaging on _AiChatScreenState {
       _typingStream = typing;
       cancelToken = GeminiCancel();
       _activeCancel = cancelToken;
-      // **1. Stream-Based API Handling:** SSE/chunked dari endpoint
-      // streamGenerateContent?alt=sse diparse per-baris `data:` di
-      // GeminiService.streamChat dan di-yield per token/chunk.
-      _sub = GeminiService.streamChat(history, cancel: cancelToken).listen(
+      _sub = GeminiService.streamChat(history, cancel: cancelToken, inlineAttachments: sendAttachments).listen(
         (chunk) {
           // **2. Smooth rendering:** append ke buffer; tampilan per kata
           // diserahkan ke TypingStream (lihat onTick untuk auto-scroll).
@@ -683,6 +678,7 @@ extension _AiChatMessaging on _AiChatScreenState {
             final full = await GeminiService.generateOnce(
               history,
               cancel: cancelToken,
+              inlineAttachments: sendAttachments,
             );
             if (botMsg != _streamingMsg) return; // di-stop saat fallback jalan
             if (full.trim().isEmpty) {

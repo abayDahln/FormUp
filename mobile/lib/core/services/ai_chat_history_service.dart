@@ -30,6 +30,9 @@ class ChatHistoryMessage {
   Map<String, dynamic>? undoSnapshot;
   bool? actionUndone;
 
+  /// Metadata lampiran (tanpa bytes) — agar riwayat tetap menampilkan chip file setelah restart.
+  List<Map<String, dynamic>>? attachments;
+
   ChatHistoryMessage({
     required this.role,
     required this.text,
@@ -42,6 +45,7 @@ class ChatHistoryMessage {
     this.isTruncated,
     this.undoSnapshot,
     this.actionUndone,
+    this.attachments,
   });
   Map<String, dynamic> toJson() => {
         'role': role,
@@ -55,6 +59,7 @@ class ChatHistoryMessage {
         'isTruncated': isTruncated,
         'undoSnapshot': undoSnapshot,
         'actionUndone': actionUndone,
+        'attachments': attachments,
       };
   /// Parse toleran: nilai bertipe salah (mis. int tersimpan sebagai
   /// String karena versi lama/disk korup) dikonversi bila mungkin,
@@ -82,6 +87,13 @@ class ChatHistoryMessage {
       return null;
     }
 
+    List<Map<String, dynamic>>? atts;
+    if (j['attachments'] is List) {
+      atts = (j['attachments'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
     return ChatHistoryMessage(
       role: j['role'] as String? ?? 'model',
       text: j['text']?.toString() ?? '',
@@ -94,6 +106,7 @@ class ChatHistoryMessage {
       isTruncated: asBool(j['isTruncated']),
       undoSnapshot: asMap(j['undoSnapshot']),
       actionUndone: asBool(j['actionUndone']),
+      attachments: atts,
     );
   }
 

@@ -8,11 +8,14 @@ import 'package:form_up/core/services/ai_form_context_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/gemini_service.dart';
-import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/responsive.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import 'package:form_up/features/ai_chat/controllers/mention_highlight_controller.dart';
 import 'package:form_up/features/ai_chat/controllers/typing_stream.dart';
+import 'package:form_up/features/ai_chat/models/ai_attachment.dart';
 import 'package:form_up/features/ai_chat/models/chat_message.dart';
 import 'package:form_up/features/ai_chat/utils/action_json_parse.dart';
 import 'package:form_up/features/ai_chat/widgets/ai_chat_drawer.dart';
@@ -125,8 +128,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
   // FAB scroll-to-bottom: muncul jika user sudah scroll ke atas > 1 layar & belum di paling bawah
   bool _showFab = false;
 
-  // 2: panel riwayat collapsible di desktop (hemat ruang horizontal).
-  bool _historyOpen = true;
+  // 2: panel riwayat collapsible di desktop (default tersembunyi).
+  bool _historyOpen = false;
 
   /// Inset kanan FAB agar menempel kolom chat 860 di desktop.
   /// Phone/tablet sempit: tetap 16.
@@ -152,6 +155,121 @@ class _AiChatScreenState extends State<AiChatScreen> {
   // hint mention tampil) — dipakai agar FAB & padding list mengikuti.
   double _inputBarHeight = 80;
   final _inputBarKey = GlobalKey();
+
+  // Lampiran pending sebelum dikirim (maks 3 @10MB)
+  List<AiAttachment> _pendingAttachments = [];
+
+  // Voice dikte
+  bool _isListening = false;
+  SpeechToText? _speech;
+
+  Future<void> pickAttachments() async {
+    if (_streaming || _sending) return;
+    if (_pendingAttachments.length >= AiAttachment.maxCount) {
+      showAuthToast(context, 'Maksimal ${AiAttachment.maxCount} file', isError: true);
+      return;
+    }
+    try {
+      final result = await FilePicker.pickFiles(
+        allowMultiple: true,
+        type: FileType.custom,
+        allowedExtensions: AiAttachment.allowedExtensions,
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final newItems = <AiAttachment>[];
+      for (final f in result.files) {
+        final bytes = f.bytes;
+        if (bytes == null) continue;
+        if (bytes.length > AiAttachment.maxBytesPerFile) {
+          showAuthToast(context, '${f.name} melebihi 10MB', isError: true);
+          continue;
+        }
+        final ext = f.name.split('.').last.toLowerCase();
+        final mime = AiAttachment.mimeFromExtension(ext);
+        newItems.add(AiAttachment(
+          id: DateTime.now().microsecondsSinceEpoch.toString() + f.name,
+          name: f.name,
+          mime: mime,
+          sizeBytes: bytes.length,
+          bytes: bytes,
+        ));
+        if (_pendingAttachments.length + newItems.length >= AiAttachment.maxCount) break;
+      }
+      if (_pendingAttachments.length + newItems.length > AiAttachment.maxCount) {
+        showAuthToast(context, 'Maksimal ${AiAttachment.maxCount} file', isError: true);
+        newItems.removeRange(AiAttachment.maxCount - _pendingAttachments.length, newItems.length);
+      }
+      if (newItems.isNotEmpty) setState(() => _pendingAttachments = [..._pendingAttachments, ...newItems]);
+    } catch (e) {
+      showAuthToast(context, 'Gagal memilih file: $e', isError: true);
+    }
+  }
+
+  void removePendingAttachment(String id) {
+    setState(() => _pendingAttachments.removeWhere((a) => a.id == id));
+  }
+
+  Future<void> toggleVoice() async {
+    if (_isListening) {
+      try {
+        await _speech?.stop();
+      } catch (_) {}
+      if (mounted) setState(() => _isListening = false);
+      return;
+    }
+    try {
+      if (!isDesktopPlatform) {
+        final status = await Permission.microphone.request();
+        if (!status.isGranted) {
+          if (mounted) showAuthToast(context, 'Izin mikrofon ditolak', isError: true);
+          return;
+        }
+      }
+      _speech ??= SpeechToText();
+      final available = await _speech!.initialize(
+        onError: (e) {
+          if (mounted) setState(() => _isListening = false);
+        },
+        onStatus: (s) {
+          if (s == 'done' || s == 'notListening') {
+            if (mounted && _isListening) setState(() => _isListening = false);
+          }
+        },
+      );
+      if (!available) {
+        if (mounted) showAuthToast(context, 'Dikte tidak tersedia di perangkat ini', isError: true);
+        return;
+      }
+      setState(() => _isListening = true);
+      await _speech!.listen(
+        onResult: (result) {
+          final recognized = result.recognizedWords;
+          if (recognized.isNotEmpty) {
+            final sel = _controller.selection;
+            final text = _controller.text;
+            final before = text.substring(0, sel.start >= 0 ? sel.start : text.length);
+            final after = text.substring(sel.end >= 0 ? sel.end : text.length);
+            final insert = (before.isEmpty || before.endsWith(' ') ? '' : ' ') + recognized;
+            final newText = before + insert + (after.isEmpty ? '' : ' $after');
+            _controller.text = newText;
+            _controller.selection = TextSelection.collapsed(offset: (before + insert).length);
+          }
+          if (result.finalResult) {
+            if (mounted) setState(() => _isListening = false);
+          }
+        },
+        localeId: 'id_ID',
+        listenFor: const Duration(seconds: 30),
+        pauseFor: const Duration(seconds: 3),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isListening = false);
+        showAuthToast(context, 'Gagal dikte: $e', isError: true);
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -187,6 +305,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _activeCancel?.cancel();
     _typingStream?.dispose();
     _sub?.cancel();
+    _speech?.cancel();
     for (final m in _messages) {
       m.disposeStream();
     }
@@ -365,24 +484,16 @@ class _AiChatScreenState extends State<AiChatScreen> {
               icon: Icon(Icons.arrow_back, color: cs.onSurface),
               onPressed: () => AppRouter.of(context).pop(),
             ),
-          AiChatIcon(color: cs.primary, size: 20, filled: true),
-          const SizedBox(width: 8),
-          Flexible(
-            child: AiModelPicker(onChanged: () {
-              _dismissKeyboard();
-              setState(() {});
-            }),
-          ),
-          const Spacer(),
-          if (widget.embedded && isExpanded(context))
-            IconButton(
-              tooltip: _historyOpen ? 'Tutup panel riwayat' : 'Buka panel riwayat',
-              icon: Icon(
-                _historyOpen ? Icons.menu_open : Icons.menu,
-                color: cs.onSurface,
-              ),
-              onPressed: () => setState(() => _historyOpen = !_historyOpen),
+          // Pemilihan model di header hanya untuk mobile; desktop dipindah ke dalam field
+          if (!isExpanded(context))
+            Flexible(
+              child: AiModelPicker(onChanged: () {
+                _dismissKeyboard();
+                setState(() {});
+              }),
             ),
+          const Spacer(),
+          // Tombol toggle panel dipindah ke overlay pojok kanan Scaffold agar tidak tertutup gradient
         ],
       ),
     );
@@ -391,6 +502,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
   Widget _buildChatStack(ColorScheme cs, double topInset) {
     return Stack(
       children: [
+        // Header gradient khusus chat — berada di belakang sidebar/history (di dalam chat saja)
+        Positioned(top: 0, left: 0, right: 0, child: _buildHeader(cs, topInset)),
         Positioned.fill(
           child: _messages.isEmpty
               ? ChatEmptyState(
@@ -408,13 +521,21 @@ class _AiChatScreenState extends State<AiChatScreen> {
                     }
                     return false;
                   },
-                  child: ListView.separated(
-                    controller: _scroll,
-                    padding: centerPad(
-                      context,
-                      base: EdgeInsets.fromLTRB(16, topInset + 96, 16, _inputBarHeight + 36),
-                      maxWidth: 860,
-                    ),
+                  child: LayoutBuilder(
+                    builder: (ctx, cons) {
+                      // Desktop: lebar chat = window - sidebar - history.
+                      // centerPad lama pakai MediaQuery (window), jadi saat
+                      // sidebar/history terbuka, chat jadi gepeng (220px).
+                      // Samakan dengan field prompt: center 860 di dalam chat.
+                      // Tambah margin horizontal sedikit untuk tablet/desktop.
+                      final w = cons.maxWidth;
+                      final isWideLayout = isTablet(ctx);
+                      final baseSide = isWideLayout ? 24.0 : 16.0;
+                      final side = w >= 860 ? (w - 860) / 2 + (isWideLayout ? 12 : 0) : baseSide;
+                      final pad = EdgeInsets.fromLTRB(side, topInset + 96, side, _inputBarHeight + 36);
+                      return ListView.separated(
+                        controller: _scroll,
+                        padding: pad,
                     itemCount: _messages.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (ctx, i) {
@@ -434,6 +555,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         onPromptEdit: isUser ? () => showEditMessageDialog(m) : null,
                         onPromptCopy: isUser ? () => copyUserMessage(m) : null,
                       );
+                    },
+                  );
                     },
                   ),
                 ),
@@ -498,6 +621,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         onStop: stopGeneration,
                         onSelectMention: selectMention,
                         onRetryLoadForms: () => loadAllForms(force: true),
+                        attachments: _pendingAttachments,
+                        onPickFiles: pickAttachments,
+                        onRemoveAttachment: removePendingAttachment,
+                        isListening: _isListening,
+                        onMicPressed: toggleVoice,
+                        onModelChanged: () {
+                          _dismissKeyboard();
+                          setState(() {});
+                        },
                       ),
                     ),
                   ],
@@ -547,12 +679,28 @@ class _AiChatScreenState extends State<AiChatScreen> {
       drawer: isExpanded(context) ? null : _buildSessionDrawer(context),
       body: Stack(
         children: [
-          // Chat + panel di bawah header full-width, jadi tombol
-          // "Buka/Tutup panel riwayat" selalu di pojok kanan layar.
+          // Chat + history panel — header & bottom gradient berada di dalam chat saja,
+          // sehingga sidebar kiri (Drive) & panel kanan (Riwayat) berada di depan gradient.
           Positioned.fill(
             child: _adaptiveChatBody(_buildChatStack(cs, topInset)),
           ),
-          Positioned(top: 0, left: 0, right: 0, child: _buildHeader(cs, topInset)),
+          // Tombol buka panel di pojok kanan — hanya saat panel tertutup.
+          // Saat panel terbuka, tombol tertimpa sidebar kanan; yang tampil
+          // hanya tombol Tutup di dalam drawer (AiChatDrawer onClosePanel).
+          // Tampilkan untuk mode embedded maupun standalone di desktop.
+          if (isExpanded(context) && !_historyOpen)
+            Positioned(
+              top: topInset + 6,
+              right: 8,
+              child: SafeArea(
+                top: false,
+                child: IconButton(
+                  tooltip: 'Buka panel riwayat',
+                  icon: Icon(Icons.menu, color: cs.onSurface),
+                  onPressed: () => setState(() => _historyOpen = true),
+                ),
+              ),
+            ),
         ],
       ),
     );

@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Aplikasi memerlukan akses kamera untuk memindai QR code form.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Izinkan akses mikrofon untuk dikte suara menjadi teks di AI Chat.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Izinkan pengenalan suara untuk mengubah ucapan menjadi teks di AI Chat.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

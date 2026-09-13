@@ -160,79 +160,90 @@ class _TopToastEntryState extends State<_TopToastEntry>
     final cs = Theme.of(context).colorScheme;
     final v = widget.variant;
     final topPadding = MediaQuery.of(context).viewPadding.top + 12;
+    // Tablet/desktop: toast fixed seperti mobile (±400) dan di tengah horizontal,
+    // bukan full-width dari ujung ke ujung.
     return Positioned(
       top: topPadding,
-      left: 16,
-      right: 16,
-      child: SlideTransition(
-        position: _offset,
-        child: FadeTransition(
-          opacity: _opacity,
-          child: Material(
-            type: MaterialType.transparency,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
-              decoration: BoxDecoration(
-                color: Color.alphaBlend(v.color.withValues(alpha: 0.14), cs.surface),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: v.color.withValues(alpha: 0.55)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.18),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(v.icon, color: v.color, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
+      left: 0,
+      right: 0,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SlideTransition(
+              position: _offset,
+              child: FadeTransition(
+                opacity: _opacity,
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                    decoration: BoxDecoration(
+                      color: Color.alphaBlend(v.color.withValues(alpha: 0.14), cs.surface),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: v.color.withValues(alpha: 0.55)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.18),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          widget.title ?? v.defaultTitle,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: cs.onSurface,
-                            height: 1.3,
-                            decoration: TextDecoration.none,
+                        Icon(v.icon, color: v.color, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                widget.title ?? v.defaultTitle,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: cs.onSurface,
+                                  height: 1.3,
+                                  decoration: TextDecoration.none,
+                                ),
+                              ),
+                              if (widget.message.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  widget.message,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: v.color,
+                                    height: 1.35,
+                                    decoration: TextDecoration.none,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                        if (widget.message.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.message,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: v.color,
-                              height: 1.35,
-                              decoration: TextDecoration.none,
-                            ),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () async {
+                            _hideTimer?.cancel();
+                            await _controller.reverse();
+                            widget.onDismiss();
+                          },
+                          behavior: HitTestBehavior.opaque,
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(Icons.close, size: 16, color: v.color),
                           ),
-                        ],
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  GestureDetector(
-                    onTap: () async {
-                      _hideTimer?.cancel();
-                      await _controller.reverse();
-                      widget.onDismiss();
-                    },
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(Icons.close, size: 16, color: v.color),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

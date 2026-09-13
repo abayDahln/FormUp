@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/responsive.dart';
+import 'package:form_up/features/ai_chat/models/ai_attachment.dart';
 import 'package:form_up/features/ai_chat/models/chat_message.dart';
 import 'package:form_up/features/ai_chat/widgets/action_change_card.dart';
 import 'package:form_up/features/ai_chat/widgets/action_json_tabs.dart';
@@ -79,11 +81,16 @@ class ChatBubble extends StatelessWidget {
     final errorBorder = Theme.of(context).brightness == Brightness.dark
         ? Colors.red.shade400
         : Colors.red.shade300;
+    // Desktop: bubble selebar prompt (860) agar tidak mengecil di tengah;
+    // mobile/tablet tetap 82% lebar layar seperti sebelumnya.
+    final isDesktop = isDesktopWidth(context);
+    final bubbleMaxW = isDesktop ? 860.0 : MediaQuery.of(context).size.width * 0.82;
     final bubble = GestureDetector(
         onLongPress: isUser ? onUserLongPress : null,
         child: Container(
+        width: isDesktop ? double.infinity : null,
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.82,
+          maxWidth: bubbleMaxW,
         ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
@@ -104,9 +111,13 @@ class ChatBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (isUser && m.attachments.isNotEmpty) ...[
+              _BubbleAttachments(attachments: m.attachments, isUser: true),
+              if (m.text.isNotEmpty) const SizedBox(height: 8),
+            ],
             if (isUser)
               SelectableText(
-                m.text.isEmpty ? '...' : m.text,
+                m.text.isEmpty ? (m.attachments.isNotEmpty ? '(lampiran)' : '...') : m.text,
                 style: TextStyle(fontSize: 14, color: cs.onPrimary),
               )
             else if (m.stream != null)
@@ -273,6 +284,63 @@ class ChatBubble extends StatelessWidget {
       widgets.add(GptMarkdown(text, style: aiTextStyle));
     }
     return widgets;
+  }
+}
+
+class _BubbleAttachments extends StatelessWidget {
+  final List<AiAttachment> attachments;
+  final bool isUser;
+  const _BubbleAttachments({required this.attachments, this.isUser = false});
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final a in attachments)
+          Container(
+            constraints: const BoxConstraints(maxWidth: 220),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isUser ? Colors.white.withValues(alpha: 0.15) : cs.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: isUser ? Colors.white24 : cs.outlineVariant),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (a.isPreviewableImage && a.hasBytes)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(a.bytes, width: 40, height: 40, fit: BoxFit.cover),
+                  )
+                else
+                  Icon(
+                    a.isPdf
+                        ? Icons.picture_as_pdf_outlined
+                        : a.isDoc
+                            ? Icons.description_outlined
+                            : a.isExcel
+                                ? Icons.table_chart_outlined
+                                : Icons.insert_drive_file_outlined,
+                    size: 20,
+                    color: isUser ? Colors.white : cs.onSurfaceVariant,
+                  ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    a.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: isUser ? Colors.white : cs.onSurface),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
   }
 }
 
