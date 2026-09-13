@@ -5,7 +5,8 @@ import {
     FileSpreadsheet, BarChart2, Loader2, AlertCircle, CheckCircle2,
     RefreshCw, ExternalLink, HelpCircle, FileText, CornerDownLeft,
     Clock, Layers, Plus, ShieldCheck, Key, CheckSquare, Square,
-    Filter, ChevronRight, X, AlertTriangle, UserCheck, ShieldAlert
+    Filter, ChevronRight, X, AlertTriangle, UserCheck, ShieldAlert,
+    Mic, MicOff, Paperclip, Upload, FileUp, Check
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import RichContentRenderer from '../../utils/RichContentRenderer';
@@ -13,12 +14,16 @@ import {
     getGeminiApiKey,
     saveGeminiApiKey,
     removeGeminiApiKey,
-    AVAILABLE_MODELS
+    AVAILABLE_MODELS,
+    generateQuestionsFromDocument,
+    exportQuestionsToCSV
 } from '../../services/aiService';
 import {
     getMyForms,
     getFormById,
     getQuestions,
+    addQuestions,
+    createForm,
     getFormResponses,
     getExamMonitoring,
     getFormAnalytics,
@@ -46,6 +51,19 @@ export default function AiChatPage() {
     const [userForms, setUserForms] = useState([]);
     const [selectedForm, setSelectedForm] = useState(null);
 
+    // C-1: Voice input state (Web Speech API)
+    const [isListening, setIsListening] = useState(false);
+    const [speechSupported, setSpeechSupported] = useState(false);
+    const recognitionRef = useRef(null);
+
+    // C-2: Document File Upload state & Preview/Insert modal state
+    const [attachedFile, setAttachedFile] = useState(null);
+    const fileInputRef = useRef(null);
+    const [previewDocModal, setPreviewDocModal] = useState(null); // { questions, fileName }
+    const [targetFormId, setTargetFormId] = useState('new'); // 'new' | formId
+    const [committingToForm, setCommittingToForm] = useState(false);
+    const [commitSuccessInfo, setCommitSuccessInfo] = useState(null);
+
     // Mention @ Autocomplete
     const [showMentionMenu, setShowMentionMenu] = useState(false);
     const [mentionFilter, setMentionFilter] = useState('');
@@ -67,6 +85,59 @@ export default function AiChatPage() {
     const chatContainerRef = useRef(null);
     const inputRef = useRef(null);
     const abortControllerRef = useRef(null);
+
+    // Initialize Web Speech API for C-1 Voice Mode
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (SpeechRecognition) {
+                setSpeechSupported(true);
+                const recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = true;
+                recognition.lang = 'id-ID';
+
+                recognition.onresult = (event) => {
+                    const transcript = Array.from(event.results)
+                        .map(result => result[0].transcript)
+                        .join('');
+                    setInput(prev => {
+                        const base = prev.trim() ? `${prev.trim()} ` : '';
+                        return `${base}${transcript}`;
+                    });
+                };
+
+                recognition.onerror = (event) => {
+                    console.warn('[Speech Recognition Error]:', event.error);
+                    setIsListening(false);
+                };
+
+                recognition.onend = () => {
+                    setIsListening(false);
+                };
+
+                recognitionRef.current = recognition;
+            }
+        }
+    }, []);
+
+    const toggleVoiceInput = () => {
+        if (!speechSupported || !recognitionRef.current) {
+            alert('Fitur Voice Input tidak didukung di browser ini. Disarankan menggunakan Google Chrome atau Microsoft Edge.');
+            return;
+        }
+        if (isListening) {
+            recognitionRef.current.stop();
+            setIsListening(false);
+        } else {
+            try {
+                recognitionRef.current.start();
+                setIsListening(true);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    };
 
     useEffect(() => {
         const savedKey = getGeminiApiKey();
@@ -281,9 +352,21 @@ export default function AiChatPage() {
             const lowestScorer = scoredResponses.length > 0 ? scoredResponses[scoredResponses.length - 1] : null;
             const avgScore = scoredResponses.length > 0
                 ? (scoredResponses.reduce((acc, curr) => acc + curr.score, 0) / scoredResponses.length).toFixed(1)
-                : '-';
+                : (aData.averageScore != null ? Number(aData.averageScore).toFixed(1) : '-');
 
-            // 2. Anti-cheating & Exam Monitoring statistics
+            // 2. Point Weight (Bobot Poin) & Scoring Configuration
+            const scorableQuestions = qList.filter(q => q.isScorable !== false);
+            const rawPoints = scorableQuestions.map(q => (q.points != null && Number(q.points) > 0 ? Number(q.points) : 1));
+            const totalMaxPoints = rawPoints.reduce((sum, p) => sum + p, 0);
+            const highestPointVal = rawPoints.length > 0 ? Math.max(...rawPoints) : 0;
+            const lowestPointVal = rawPoints.length > 0 ? Math.min(...rawPoints) : 0;
+            const isUniformPoints = rawPoints.length > 0 && (highestPointVal === lowestPointVal);
+
+            const highestPointQuestions = qList
+                .map((q, idx) => ({ ...q, qNumber: idx + 1, pointVal: q.points != null && Number(q.points) > 0 ? Number(q.points) : 1 }))
+                .filter(q => q.isScorable !== false && q.pointVal === highestPointVal);
+
+            // 3. Anti-cheating & Exam Monitoring statistics
             const sessions = Array.isArray(mData.sessions) ? mData.sessions : [];
             const tabSwitchers = sessions
                 .filter(s => (s.tabSwitchCount && s.tabSwitchCount > 0) || (s.violations && s.violations.length > 0))
@@ -294,27 +377,52 @@ export default function AiChatPage() {
                     violations: (s.violations || []).map(v => `${v.eventType} pada ${v.timestamp}`).join(', ')
                 }));
 
-            // 3. Question difficulty details
+            // 4. Question details with explicit Points, Scorable, Required & Correct Answer
+            const typeLabelMap = { 1: 'Essay', 2: 'Pilihan Ganda', 3: 'Checkbox', 4: 'Date/Time', 5: 'Benar/Salah' };
             const questionStats = qList.map((q, idx) => {
-                const correctOpt = q.options?.find(o => o.isCorrect)?.optionText || q.correctAnswer || '-';
-                return `${idx + 1}. [Tipe: ${q.typeId === 2 ? 'PG' : q.typeId === 1 ? 'Essay' : q.typeId === 5 ? 'Benar/Salah' : 'Checkbox'}] "${q.question}" (Kunci: ${correctOpt})`;
+                const typeName = typeLabelMap[q.typeId] || `Tipe ${q.typeId}`;
+                const correctOpt = q.options?.find(o => o.isCorrect)?.optionText || q.correctAnswer || (q.isScorable === false ? '(Tidak dinilai)' : '-');
+                const pointDesc = q.isScorable === false 
+                    ? 'Tidak dinilai (0 poin)' 
+                    : q.points != null 
+                    ? `${q.points} poin` 
+                    : 'Default (1 poin / bobot sama rata)';
+                return `${idx + 1}. [Tipe: ${typeName}] "${q.question}" | Bobot: ${pointDesc} | Wajib: ${q.isRequired ? 'Ya' : 'Tidak'} | Kunci/Jawaban Diharapkan: ${correctOpt}`;
             });
+
+            // 5. Form Settings
+            const fSettings = fData.settings || {};
+            const timerDesc = (fData.timerDuration || fSettings.timerDuration) 
+                ? `${Math.round((fData.timerDuration || fSettings.timerDuration) / 60)} menit` 
+                : 'Tidak ada batas waktu';
 
             return `
 === DATA LENGKAP FORMULIR: "${fData.title || targetForm.title}" ===
-- ID: ${targetForm.id}
+- ID Formulir: ${targetForm.id}
 - Deskripsi: ${fData.description || '-'}
 - Status: ${fData.status || 'Published'}
-- Total Pertanyaan: ${qList.length} butir
-- Total Responden Selesai: ${totalRespondents} orang
+- Total Butir Soal: ${qList.length} butir (${scorableQuestions.length} dinilai, ${qList.length - scorableQuestions.length} tidak dinilai)
+- Total Responden Masuk: ${totalRespondents} orang
+- Pengaturan: Batas Waktu: ${timerDesc} | Mode Ujian: ${fData.isExamMode || fSettings.isExamMode ? 'Aktif' : 'Non-aktif'} | Acak Soal: ${fData.randomizeQuestions || fSettings.randomizeQuestions ? 'Ya' : 'Tidak'}
+
+--- INFORMASI BOBOT POIN & SKOR MAKSIMAL ---
+- Total Poin Maksimal Formulir: ${totalMaxPoints} poin
+- Distribusi Bobot Soal: ${isUniformPoints ? `Sama rata untuk semua soal (${highestPointVal} poin per butir)` : `Bervariasi (Tertinggi: ${highestPointVal} poin, Terendah: ${lowestPointVal} poin)`}
+- Butir Soal dengan Bobot Poin Tertinggi (${highestPointVal} poin):
+${highestPointQuestions.length > 0 
+    ? highestPointQuestions.map(q => `  * Soal No. ${q.qNumber} (${q.question ? q.question.slice(0, 60) : 'Tanpa judul'}...) : ${q.pointVal} poin`).join('\n')
+    : '  * Semua soal memiliki bobot default'}
 
 --- STATISTIK SKOR & PERINGKAT RESPONDEN ---
-- Nilai Rata-rata: ${avgScore}
-- Nilai Tertinggi: ${highestScorer ? `${highestScorer.name} (Skor: ${highestScorer.score})` : 'Belum ada data nilai'}
-- Nilai Terendah: ${lowestScorer ? `${lowestScorer.name} (Skor: ${lowestScorer.score})` : 'Belum ada data nilai'}
+- Nilai Rata-rata: ${avgScore !== '-' ? `${avgScore}%` : '-'}
+- Nilai Tertinggi: ${highestScorer ? `${highestScorer.name} (Skor: ${highestScorer.score}%)` : 'Belum ada data nilai'}
+- Nilai Terendah: ${lowestScorer ? `${lowestScorer.name} (Skor: ${lowestScorer.score}%)` : 'Belum ada data nilai'}
+- Catatan Penilaian: ${totalRespondents > 0 && scoredResponses.length === 0 
+    ? `Terdapat ${totalRespondents} respons masuk, namun skor otomatis belum terhitung (kemungkinan berisi soal Essay yang belum dinilai manual/AI atau merupakan formulir survei/non-kuis).` 
+    : `Sebanyak ${scoredResponses.length} dari ${totalRespondents} responden telah memiliki nilai terhitung.`}
 - Daftar Lengkap Ranking Responden:
 ${scoredResponses.length > 0 
-    ? scoredResponses.map((r, i) => `  ${i + 1}. ${r.name} - Skor: ${r.score} (Selesai: ${r.submittedAt})`).join('\n')
+    ? scoredResponses.map((r, i) => `  ${i + 1}. ${r.name} - Skor: ${r.score}% (Selesai: ${r.submittedAt})`).join('\n')
     : '  (Belum ada respons dengan nilai terhitung)'}
 
 --- MONITORING UJIAN & LOG PELANGGARAN (TAB SWITCH / KECURANGAN) ---
@@ -324,7 +432,7 @@ ${tabSwitchers.length > 0
     ? tabSwitchers.map(s => `  * ${s.name}: ${s.tabSwitches}x pindah tab / alt-tab | Status: ${s.status} ${s.violations ? `| Log: ${s.violations}` : ''}`).join('\n')
     : '  * Tidak ada kecurangan atau pelanggaran pindah tab yang terdeteksi.'}
 
---- DAFTAR BUTIR SOAL & KUNCI JAWABAN ---
+--- DAFTAR LENGKAP BUTIR SOAL, BOBOT & KUNCI JAWABAN ---
 ${questionStats.join('\n')}
 `;
         } catch (err) {
@@ -338,11 +446,78 @@ Gagal memuat detail mendalam: ${err.message}.
     const handleSendMessage = async (e) => {
         if (e) e.preventDefault();
         const query = input.trim();
-        if (!query || loading) return;
+        if ((!query && !attachedFile) || loading) return;
 
         const curKey = (apiKey || getGeminiApiKey()).trim();
         if (!curKey) {
             setShowKeyEditor(true);
+            return;
+        }
+
+        // ── C-2: DOCUMENT GENERATOR INTENT (ATTACHED FILE) ───────────────────
+        if (attachedFile) {
+            const currentFile = attachedFile;
+            const userMsg = {
+                id: Date.now(),
+                sender: 'user',
+                text: query || `Generate soal kuis dari dokumen materi: ${currentFile.name}`,
+                attachedFileInfo: { name: currentFile.name, size: (currentFile.size / 1024).toFixed(1) + ' KB' },
+                timestamp: new Date().toISOString()
+            };
+
+            setMessages(prev => [...prev, userMsg]);
+            setAttachedFile(null);
+            setInput('');
+            setLoading(true);
+
+            // Placeholder bot message for generation status
+            const botMsgId = Date.now() + 1;
+            setMessages(prev => [
+                ...prev,
+                {
+                    id: botMsgId,
+                    sender: 'bot',
+                    text: `Sedang memproses dokumen **"${currentFile.name}"** dengan AI...`,
+                    timestamp: new Date().toISOString()
+                }
+            ]);
+
+            try {
+                const res = await generateQuestionsFromDocument({
+                    file: currentFile,
+                    instruction: query || 'Buatkan butir soal kuis/ujian berkualitas tinggi dari dokumen ini',
+                    customApiKey: curKey,
+                    onStatus: (st) => {
+                        setMessages(prev => prev.map(msg => msg.id === botMsgId ? { ...msg, text: st } : msg));
+                    }
+                });
+
+                if (res.ok && Array.isArray(res.data) && res.data.length > 0) {
+                    setMessages(prev => prev.map(msg => msg.id === botMsgId ? {
+                        ...msg,
+                        text: `✨ Berhasil mengekstrak dan menyusun **${res.data.length} butir soal** dari materi dokumen **"${currentFile.name}"** (${res.elapsedSec}s).\n\nAnda dapat meninjau dan langsung memasukkannya ke formulir atau mengunduhnya sebagai template CSV:`,
+                        actionCard: {
+                            type: 'doc_questions_preview',
+                            questions: res.data,
+                            fileName: currentFile.name,
+                            modelUsed: res.modelUsed,
+                            elapsedSec: res.elapsedSec
+                        }
+                    } : msg));
+                } else {
+                    setMessages(prev => prev.map(msg => msg.id === botMsgId ? {
+                        ...msg,
+                        text: `⚠️ Gagal menghasilkan soal dari dokumen: ${res.message || 'Format tidak didukung atau isi tidak terbaca.'}`
+                    } : msg));
+                }
+            } catch (err) {
+                setMessages(prev => prev.map(msg => msg.id === botMsgId ? {
+                    ...msg,
+                    text: `⚠️ Terjadi kendala saat membaca dokumen: ${err.message}`
+                } : msg));
+            } finally {
+                setLoading(false);
+            }
             return;
         }
 
@@ -587,6 +762,53 @@ ${deepContext}
         }
     };
 
+    const handleCommitQuestionsToForm = async () => {
+        if (!previewDocModal || !previewDocModal.questions || previewDocModal.questions.length === 0) return;
+        setCommittingToForm(true);
+        try {
+            let formId = targetFormId;
+            let formTitle = '';
+
+            if (formId === 'new') {
+                const baseTitle = previewDocModal.fileName ? previewDocModal.fileName.replace(/\.[^/.]+$/, '') : 'Materi Dokumen';
+                const createRes = await createForm({
+                    title: `Kuis dari ${baseTitle}`,
+                    description: `Dibuat otomatis oleh AI Assistant dari dokumen materi "${previewDocModal.fileName}".`,
+                });
+                if (!createRes.ok || !createRes.data?.id) {
+                    throw new Error(createRes.message || 'Gagal membuat formulir baru.');
+                }
+                formId = createRes.data.id;
+                formTitle = createRes.data.title;
+            } else {
+                const found = userForms.find(f => String(f.id) === String(formId));
+                formTitle = found?.title || `Formulir #${formId}`;
+            }
+
+            const addRes = await addQuestions(formId, previewDocModal.questions);
+            if (!addRes.ok) {
+                throw new Error(addRes.message || 'Gagal memasukkan butir soal ke formulir.');
+            }
+
+            const totalAdded = previewDocModal.questions.length;
+            setPreviewDocModal(null);
+            setCommitSuccessInfo({
+                formId,
+                formTitle,
+                count: totalAdded
+            });
+
+            // Refresh user forms list in background
+            getMyForms().then(res => {
+                if (res.ok && Array.isArray(res.data)) setUserForms(res.data);
+            }).catch(() => {});
+        } catch (err) {
+            alert(`Gagal memasukkan butir soal: ${err.message}`);
+        } finally {
+            setCommittingToForm(false);
+        }
+    };
+
     const filteredMentionForms = userForms.filter(f =>
         (f.title || '').toLowerCase().includes(mentionFilter)
     );
@@ -612,7 +834,7 @@ ${deepContext}
                                     </span>
                                 </h1>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
-                                    Analisis nilai responden, deteksi kecurangan, bulk export, saran evaluasi butir soal kuis.
+                                    Analisis nilai responden, deteksi kecurangan, bulk export, saran evaluasi & pembuatan soal dari dokumen.
                                 </p>
                             </div>
                         </div>
@@ -702,7 +924,7 @@ ${deepContext}
                                         Ada yang bisa saya bantu hari ini?
                                     </h3>
                                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                                        Ketik <code className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-bold text-teal-600">@nama_form</code> untuk analisis mendalam nilai responden & kecurangan, atau pilih aksi cepat berikut:
+                                        Ketik <code className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-800 rounded font-bold text-teal-600">@nama_form</code> untuk analisis nilai/kecurangan, lampirkan berkas dokumen untuk generate kuis otomatis, atau gunakan voice input:
                                     </p>
                                 </div>
 
@@ -786,6 +1008,14 @@ ${deepContext}
                                             </div>
                                         )}
 
+                                        {/* User attached file badge */}
+                                        {m.attachedFileInfo && (
+                                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-700/40 text-[11px] font-semibold text-teal-100 w-fit mb-1 border border-teal-500/30">
+                                                <FileText size={11} />
+                                                <span>{m.attachedFileInfo.name} ({m.attachedFileInfo.size})</span>
+                                            </div>
+                                        )}
+
                                         {/* Message Body with Rich Formatting */}
                                         <div className="leading-relaxed">
                                             {m.text ? (
@@ -831,6 +1061,40 @@ ${deepContext}
                                                     <Download size={13} />
                                                     <span>Buka Menu Bulk Export ({userForms.length} Formulir)</span>
                                                 </button>
+                                            </div>
+                                        )}
+
+                                        {/* Action Card for Document Generated Questions Preview */}
+                                        {m.actionCard?.type === 'doc_questions_preview' && m.actionCard.questions && (
+                                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                                                <div className="flex items-center gap-2 text-xs font-bold text-teal-700 dark:text-teal-300">
+                                                    <CheckCircle2 size={14} className="text-teal-500" />
+                                                    <span>{m.actionCard.questions.length} Butir Soal Siap Digunakan</span>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setPreviewDocModal({
+                                                                questions: m.actionCard.questions,
+                                                                fileName: m.actionCard.fileName
+                                                            });
+                                                            setTargetFormId('new');
+                                                        }}
+                                                        className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                                    >
+                                                        <Plus size={13} />
+                                                        <span>Tinjau & Masukkan ke Form</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => exportQuestionsToCSV(m.actionCard.questions, m.actionCard.fileName || 'soal-materi-ai')}
+                                                        className="px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                                                    >
+                                                        <Download size={13} />
+                                                        <span>Unduh Format CSV</span>
+                                                    </button>
+                                                </div>
                                             </div>
                                         )}
 
@@ -916,8 +1180,61 @@ ${deepContext}
                         </div>
                     )}
 
-                    {/* Input Bar */}
+                    {/* Attached file chip indicator */}
+                    {attachedFile && (
+                        <div className="mb-2 flex items-center justify-between px-3 py-1.5 bg-teal-50 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800 rounded-xl text-xs w-fit shrink-0">
+                            <div className="flex items-center gap-2 text-teal-900 dark:text-teal-200">
+                                <Paperclip size={13} className="text-teal-600" />
+                                <span className="font-bold truncate max-w-[200px] sm:max-w-xs">{attachedFile.name}</span>
+                                <span className="text-[10px] text-teal-600 dark:text-teal-400">({(attachedFile.size / 1024).toFixed(1)} KB)</span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setAttachedFile(null)}
+                                className="text-teal-400 hover:text-red-500 font-bold ml-2 cursor-pointer"
+                            >
+                                <X size={13} />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Input Bar with Attachment, Voice, and Send */}
                     <form onSubmit={handleSendMessage} className="relative flex items-center gap-2 pt-2 shrink-0">
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                    setAttachedFile(e.target.files[0]);
+                                    e.target.value = '';
+                                }
+                            }}
+                            accept=".pdf,.docx,.txt,.csv,.md,application/pdf,text/plain,text/csv"
+                            className="hidden"
+                        />
+                        
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            title="Lampirkan Dokumen Materi (PDF, DOCX, TXT, CSV, MD)"
+                            className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-teal-500 hover:text-teal-600 text-slate-600 dark:text-slate-300 rounded-2xl transition-all cursor-pointer shadow-xs shrink-0"
+                        >
+                            <Paperclip size={18} />
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={toggleVoiceInput}
+                            title={isListening ? 'Berhenti mendengarkan' : 'Voice Input (Bicara dalam Bahasa Indonesia)'}
+                            className={`p-3 border rounded-2xl transition-all cursor-pointer shadow-xs shrink-0 ${
+                                isListening
+                                    ? 'bg-red-500 text-white border-red-500 animate-pulse'
+                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-teal-500 hover:text-teal-600 text-slate-600 dark:text-slate-300'
+                            }`}
+                        >
+                            {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+                        </button>
+
                         <div className="relative flex-1">
                             <textarea
                                 ref={inputRef}
@@ -930,13 +1247,19 @@ ${deepContext}
                                         handleSendMessage(e);
                                     }
                                 }}
-                                placeholder="Tanyakan ranking responden, deteksi kecurangan, atau ketik @ untuk memilih formulir..."
+                                placeholder={
+                                    isListening
+                                        ? 'Sedang mendengarkan suara Anda...'
+                                        : attachedFile
+                                        ? 'Ketik instruksi khusus (opsional) lalu tekan Enter...'
+                                        : 'Tanyakan ranking, kecurangan, atau ketik @ untuk pilih formulir...'
+                                }
                                 className="w-full pl-4 pr-12 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-sm resize-none"
                                 disabled={loading || bulkExporting}
                             />
                             <button
                                 type="submit"
-                                disabled={loading || !input.trim() || bulkExporting}
+                                disabled={loading || (!input.trim() && !attachedFile) || bulkExporting}
                                 className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
                             >
                                 <Send size={15} />
@@ -1060,6 +1383,187 @@ ${deepContext}
                             >
                                 <Download size={14} />
                                 <span>Unduh ({selectedFormIdsForExport.length}) Formulir</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* C-2 Preview & Insert Document Questions Modal */}
+            {previewDocModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-xs" onClick={() => !committingToForm && setPreviewDocModal(null)} />
+                    <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-2xl w-full shadow-2xl space-y-4 z-10 max-h-[90vh] flex flex-col">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600">
+                                    <FileUp size={18} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                                        Tinjau Soal dari Dokumen: {previewDocModal.fileName}
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400">
+                                        Total {previewDocModal.questions?.length || 0} butir soal siap dimasukkan ke formulir Anda.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                disabled={committingToForm}
+                                onClick={() => setPreviewDocModal(null)}
+                                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl cursor-pointer"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {/* Target Form Selection */}
+                        <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2">
+                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                Tujuan Penyimpanan Soal:
+                            </label>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <label className={`flex-1 p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${
+                                    targetFormId === 'new'
+                                        ? 'bg-teal-50 dark:bg-teal-950/60 border-teal-500 text-teal-900 dark:text-teal-200'
+                                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                                }`}>
+                                    <input
+                                        type="radio"
+                                        name="targetForm"
+                                        value="new"
+                                        checked={targetFormId === 'new'}
+                                        onChange={() => setTargetFormId('new')}
+                                        className="text-teal-600"
+                                    />
+                                    <div className="text-xs">
+                                        <p className="font-bold">✨ Buat Formulir Baru</p>
+                                        <p className="text-[10px] text-slate-400">Otomatis membuat kuis baru dari judul materi</p>
+                                    </div>
+                                </label>
+
+                                {userForms.length > 0 && (
+                                    <div className="flex-1 flex flex-col justify-center">
+                                        <select
+                                            value={targetFormId}
+                                            onChange={(e) => setTargetFormId(e.target.value)}
+                                            className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                        >
+                                            <option value="new">-- Atau Pilih Formulir Yang Sudah Ada --</option>
+                                            {userForms.map(f => (
+                                                <option key={f.id} value={f.id}>
+                                                    Tambahkan ke: {f.title}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Questions list preview */}
+                        <div className="flex-1 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-2xl p-3 space-y-3 max-h-64">
+                            {previewDocModal.questions?.map((q, idx) => (
+                                <div key={idx} className="p-3 bg-white dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 rounded-xl space-y-1.5">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                            {idx + 1}. {q.question}
+                                        </span>
+                                        <span className="px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 text-[10px] font-bold shrink-0">
+                                            {q.typeId === 2 ? 'Pilihan Ganda' : q.typeId === 3 ? 'Checkbox' : q.typeId === 5 ? 'Benar/Salah' : 'Essay'} ({q.points || 1} Poin)
+                                        </span>
+                                    </div>
+                                    {q.options && q.options.length > 0 && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1">
+                                            {q.options.map((opt, oIdx) => (
+                                                <div
+                                                    key={oIdx}
+                                                    className={`px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 ${
+                                                        opt.isCorrect
+                                                            ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800'
+                                                            : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400'
+                                                    }`}
+                                                >
+                                                    {opt.isCorrect && <Check size={12} className="text-emerald-500 shrink-0" />}
+                                                    <span className="truncate">{opt.optionText}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {q.correctAnswer && (
+                                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold pt-1">
+                                            Kunci: {q.correctAnswer}
+                                        </p>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Modal Action Buttons */}
+                        <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <button
+                                type="button"
+                                disabled={committingToForm}
+                                onClick={() => setPreviewDocModal(null)}
+                                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl cursor-pointer hover:bg-slate-200"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                disabled={committingToForm}
+                                onClick={handleCommitQuestionsToForm}
+                                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+                            >
+                                {committingToForm ? (
+                                    <>
+                                        <Loader2 size={14} className="animate-spin" />
+                                        <span>Menyimpan ke Formulir...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus size={14} />
+                                        <span>Masukkan {previewDocModal.questions?.length} Soal ke Form</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Commit Success Dialog */}
+            {commitSuccessInfo && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-xs" onClick={() => setCommitSuccessInfo(null)} />
+                    <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4 z-10 text-center">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 mx-auto flex items-center justify-center">
+                            <CheckCircle2 size={24} />
+                        </div>
+                        <div className="space-y-1">
+                            <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                                Berhasil Dimasukkan!
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Sebanyak <b>{commitSuccessInfo.count} butir soal</b> telah ditambahkan ke <b>"{commitSuccessInfo.formTitle}"</b>.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setCommitSuccessInfo(null)}
+                                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl cursor-pointer hover:bg-slate-200"
+                            >
+                                Tutup
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/forms/${commitSuccessInfo.formId}/edit`)}
+                                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                            >
+                                <span>Buka Form Builder</span>
+                                <ArrowRight size={13} />
                             </button>
                         </div>
                     </div>

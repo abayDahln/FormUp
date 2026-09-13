@@ -6,7 +6,7 @@ import {
     Code, Calculator, Eye, EyeOff, X, Sparkles,
     Copy, Undo2, Redo2, FileDown, Wand2, ToggleLeft, ToggleRight,
     ShieldAlert, Palette, CheckSquare, MoreHorizontal, MoreVertical, ChevronDown as ChevDown,
-    Sliders, Share2, HelpCircle, Compass
+    Sliders, Share2, HelpCircle, Compass, Loader2
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import ConfirmModal from '../../components/ui/ConfirmModal';
@@ -1112,45 +1112,51 @@ const ensureOptionSaved = async (idx, oIdx) => {
     return null;
 };
 
-        const handleUploadQuestionImage = async (idx, file) => {
-        // A1 FIX: Snapshot taken BEFORE await so it reflects pre-upload state
-        const snapshotBeforeUpload = JSON.parse(JSON.stringify(questionsRef.current));
-        const qId = await autoSaveBeforeUpload(idx);
-        if (!qId) { showToast('Gagal memproses soal sebelum mengunggah gambar', 'error'); return; }
+    const handleUploadQuestionImage = async (idx, file) => {
+        try {
+            const snapshotBeforeUpload = JSON.parse(JSON.stringify(questionsRef.current));
+            const qId = await autoSaveBeforeUpload(idx);
+            if (!qId) { showToast('Gagal memproses soal sebelum mengunggah gambar', 'error'); return; }
 
-        // B1: Pass onProgress to show real upload progress
-        const res = await uploadQuestionImage(id, qId, file, (pct) => {
-            setUploadProgress(prev => ({ ...prev, [idx]: pct }));
-        });
-        setUploadProgress(prev => ({ ...prev, [idx]: null }));
-        if (res.ok) {
-            // A1 FIX: Push the pre-upload snapshot so undo restores state before image
-            pushHistory(snapshotBeforeUpload);
-            updateQuestion(idx, 'questionImage', res.data?.questionImage ?? null);
-            showToast('Gambar soal berhasil diunggah!');
-        } else {
-            showToast(res.message || 'Gagal mengunggah gambar', 'error');
+            const res = await uploadQuestionImage(id, qId, file, (pct) => {
+                setUploadProgress(prev => ({ ...prev, [idx]: pct }));
+            });
+            if (res.ok) {
+                pushHistory(snapshotBeforeUpload);
+                updateQuestion(idx, 'questionImage', res.data?.questionImage ?? null);
+                showToast('Gambar soal berhasil diunggah!');
+            } else {
+                showToast(res.message || 'Gagal mengunggah gambar', 'error');
+            }
+        } catch (err) {
+            console.error('[Upload Image Error]:', err);
+            showToast('Terjadi kesalahan saat mengunggah gambar', 'error');
+        } finally {
+            setUploadProgress(prev => ({ ...prev, [idx]: null }));
         }
     };
 
-        const handleUploadQuestionAudio = async (idx, file) => {
-        // A1 FIX: Snapshot taken BEFORE await so it reflects pre-upload state
-        const snapshotBeforeUpload = JSON.parse(JSON.stringify(questionsRef.current));
-        const qId = await autoSaveBeforeUpload(idx);
-        if (!qId) { showToast('Gagal memproses soal sebelum mengunggah audio', 'error'); return; }
+    const handleUploadQuestionAudio = async (idx, file) => {
+        try {
+            const snapshotBeforeUpload = JSON.parse(JSON.stringify(questionsRef.current));
+            const qId = await autoSaveBeforeUpload(idx);
+            if (!qId) { showToast('Gagal memproses soal sebelum mengunggah audio', 'error'); return; }
 
-        // B1: Pass onProgress to show real upload progress
-        const res = await uploadQuestionAudio(id, qId, file, (pct) => {
-            setUploadProgress(prev => ({ ...prev, [idx]: pct }));
-        });
-        setUploadProgress(prev => ({ ...prev, [idx]: null }));
-        if (res.ok) {
-            // A1 FIX: Push the pre-upload snapshot so undo restores state before audio
-            pushHistory(snapshotBeforeUpload);
-            updateQuestion(idx, 'questionAudio', res.data?.questionAudio ?? null);
-            showToast('Audio soal berhasil diunggah!');
-        } else {
-            showToast(res.message || 'Gagal mengunggah audio', 'error');
+            const res = await uploadQuestionAudio(id, qId, file, (pct) => {
+                setUploadProgress(prev => ({ ...prev, [idx]: pct }));
+            });
+            if (res.ok) {
+                pushHistory(snapshotBeforeUpload);
+                updateQuestion(idx, 'questionAudio', res.data?.questionAudio ?? null);
+                showToast('Audio soal berhasil diunggah!');
+            } else {
+                showToast(res.message || 'Gagal mengunggah audio', 'error');
+            }
+        } catch (err) {
+            console.error('[Upload Audio Error]:', err);
+            showToast('Terjadi kesalahan saat mengunggah audio', 'error');
+        } finally {
+            setUploadProgress(prev => ({ ...prev, [idx]: null }));
         }
     };
 
