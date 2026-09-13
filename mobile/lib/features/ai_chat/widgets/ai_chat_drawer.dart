@@ -16,6 +16,11 @@ class AiChatDrawer extends StatelessWidget {
   final Future<void> Function() onClearAll;
   final VoidCallback onOpenSettings;
 
+  /// Non-null bila dipakai sebagai panel permanen (bukan drawer overlay):
+  /// tombol X menutup panel via ini, dan aksi tidak mem-pop route.
+  /// Null = drawer overlay klasik (X mem-pop drawer).
+  final VoidCallback? onClosePanel;
+
   const AiChatDrawer({
     super.key,
     required this.sessions,
@@ -26,15 +31,25 @@ class AiChatDrawer extends StatelessWidget {
     required this.onDeleteSession,
     required this.onClearAll,
     required this.onOpenSettings,
+    this.onClosePanel,
   });
+
+  /// Tutup drawer overlay; no-op bila panel permanen.
+  void _maybePop(BuildContext context) {
+    if (onClosePanel == null) Navigator.pop(context);
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isPanel = onClosePanel != null;
     return Drawer(
       backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.horizontal(right: Radius.circular(16)),
+      shape: RoundedRectangleBorder(
+        // Panel kanan: sisi luar (kanan) membulat, sisi dalam rata.
+        borderRadius: isPanel
+            ? const BorderRadius.horizontal(left: Radius.circular(16))
+            : const BorderRadius.horizontal(right: Radius.circular(16)),
       ),
       child: SafeArea(
         child: Column(
@@ -69,12 +84,21 @@ class AiChatDrawer extends StatelessWidget {
                   const Spacer(),
                   IconButton(
                     icon: Icon(
-                      Icons.close,
+                      isPanel ? Icons.close_fullscreen_outlined : Icons.close,
                       size: 22,
                       color: cs.onSurface,
                     ),
-                    tooltip: 'Tutup',
-                    onPressed: () => Navigator.pop(context),
+                    tooltip: isPanel
+                        ? 'Tutup panel riwayat'
+                        : 'Tutup',
+                    onPressed: () {
+                      final close = onClosePanel;
+                      if (close != null) {
+                        close();
+                      } else {
+                        Navigator.pop(context);
+                      }
+                    },
                   ),
                 ],
               ),
@@ -83,7 +107,7 @@ class AiChatDrawer extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: FilledButton.icon(
                 onPressed: () async {
-                  Navigator.pop(context);
+                  _maybePop(context);
                   await onNewSession();
                 },
                 icon: const Icon(Icons.add, size: 18),
@@ -142,7 +166,7 @@ class AiChatDrawer extends StatelessWidget {
                           child: InkWell(
                             borderRadius: BorderRadius.circular(12),
                             onTap: () async {
-                              Navigator.pop(context);
+                              _maybePop(context);
                               await onSelectSession(s.id);
                             },
                             child: Padding(
@@ -221,7 +245,7 @@ class AiChatDrawer extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     onTap: () {
-                      Navigator.pop(context);
+                      _maybePop(context);
                       onOpenSettings();
                     },
                   ),
@@ -276,7 +300,7 @@ class AiChatDrawer extends StatelessWidget {
   }
 
   Future<void> _confirmClearAll(BuildContext context) async {
-    Navigator.pop(context);
+    _maybePop(context);
     final c = await showDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(

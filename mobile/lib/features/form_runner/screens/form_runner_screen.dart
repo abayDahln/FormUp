@@ -7,6 +7,8 @@ import 'package:form_up/core/theme/form_theme.dart';
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/responsive.dart';
+import 'package:form_up/core/services/desktop_exam_guard.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/exam_lock_service.dart';
 import 'package:form_up/core/services/exam_warning_sound.dart';
@@ -100,7 +102,8 @@ class _FormRunnerScreenState extends State<FormRunnerScreen> {
   }
 }
 
-class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObserver {
+class FormRunnerViewState extends State<FormRunnerView>
+    with WidgetsBindingObserver, WindowListener {
   AppRouterDelegate? _router;
   final FormRunnerController _c = FormRunnerController();
 
@@ -131,6 +134,9 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
   bool _multiWindowFlagged = false;
   DateTime? _lastWindowBlurAt;
   static const _windowBlurCooldown = Duration(seconds: 10);
+  // Desktop: waktu event fokus terakhir (dedup blur+minimize & echo lifecycle).
+  DateTime? _lastDesktopSwitchAt;
+  static const _desktopSwitchDedup = Duration(milliseconds: 1500);
   // True bila auto-submit karena limit pelanggaran sudah jalan: bunyi
   // alarm dibiarkan terus sampai dialog ditutup (dispose), tidak ikut
   // berhenti saat resumed. True bila app sedang di luar (background).
@@ -211,11 +217,74 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
         unawaited(ExamWarningSound.stop());
       }
       // Kembali tanpa pernah pause = interupsi overlay/floating semata.
+      // Desktop dikecualikan: WindowListener sudah melapor saat blur
+      // (echo di sini hanya jadi hitungan ganda).
       final wasOverlayOnly = _sawInactive && !_sawPaused;
       _sawInactive = false;
       _sawPaused = false;
-      if (wasOverlayOnly) _reportWindowBlur();
+      if (wasOverlayOnly && !isDesktopPlatform) _reportWindowBlur();
     }
+  }
+
+  // ---- WindowListener (desktop): fokus/minimize/restore/close window ----
+  // Terdaftar hanya saat pelacakan ujian; semua best-effort + guard state.
+
+  /// Fokus hilang (Alt+Tab, klik app lain): hitung 1 pelanggaran.
+  /// Dedup 1,5 dtk menelan pasangan blur+minimize; _lastWindowBlurAt
+  /// mengaktifkan cooldown 10 dtk agar echo lifecycle tidak dobel.
+  void _desktopFocusLost() {
+    if (!isDesktopPlatform) return;
+    if (!_examTracking || _step != _RunnerStep.fill) return;
+    final now = DateTime.now();
+    if (_lastDesktopSwitchAt != null &&
+        now.difference(_lastDesktopSwitchAt!) < _desktopSwitchDedup) {
+      return;
+    }
+    _lastDesktopSwitchAt = now;
+    _lastWindowBlurAt = now;
+    _appInBackground = true;
+    unawaited(ExamWarningSound.playDeterrent());
+    unawaited(_reportTabSwitch());
+  }
+
+  @override
+  void onWindowBlur() => _desktopFocusLost();
+
+  @override
+  void onWindowMinimize() => _desktopFocusLost();
+
+  @override
+  void onWindowFocus() {
+    if (!isDesktopPlatform) return;
+    if (!_examTracking || _step != _RunnerStep.fill) return;
+    _appInBackground = false;
+    if (!_violationSubmitted) {
+      unawaited(ExamWarningSound.stop());
+    }
+    if (_examActive) {
+      unawaited(DesktopExamGuard.reassertAffinity());
+    }
+  }
+
+  @override
+  void onWindowRestore() => onWindowFocus();
+
+  @override
+  void onWindowClose() async {
+    if (!isDesktopPlatform) return;
+    // preventClose aktif saat ujian: tolak tutup diam-diam.
+    if (_examTracking && _step == _RunnerStep.fill) {
+      if (!mounted) return;
+      showAppToast(
+        context,
+        'Selesaikan ujian dulu (kirim jawaban) sebelum menutup.',
+        type: ToastType.warning,
+      );
+      return;
+    }
+    try {
+      await windowManager.destroy();
+    } catch (_) {}
   }
 
   /// Lapor 1x keluar aplikasi ke server; auto-submit bila server meminta.
@@ -377,6 +446,15 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
     _examGuardTimer = null;
     _multiWindowFlagged = false;
     _unpinFlagged = false;
+    _lastDesktopSwitchAt = null;
+    if (isDesktopPlatform) {
+      try {
+        windowManager.removeListener(this);
+      } catch (_) {}
+      try {
+        await DesktopExamGuard.exitExamWindow();
+      } catch (_) {}
+    }
     try {
       await ExamLockService.unlock();
     } catch (_) {}
@@ -554,6 +632,22 @@ class FormRunnerViewState extends State<FormRunnerView> with WidgetsBindingObser
         unawaited(ExamWarningSound.prime());
         await exam.start();
         if (mounted) setState(() => _tabSwitchCount = exam.tabSwitchCount);
+        // Desktop: dengarkan fokus window + kunci layar-penuh (khusus ujian).
+        if (isDesktopPlatform) {
+          try {
+            windowManager.addListener(this);
+          } catch (_) {}
+          if (_examActive) {
+            unawaited(DesktopExamGuard.enterExamWindow().then((state) {
+              if (!mounted || state.ok) return;
+              showAppToast(
+                context,
+                'Pengaman tak penuh (${state.failedLayers.join(', ')}). Pelanggaran tetap tercatat.',
+                type: ToastType.warning,
+              );
+            }));
+          }
+        }
         _startExamGuard();
       }
     } catch (e) {

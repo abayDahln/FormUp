@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:form_up/core/services/exam_lock_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/responsive.dart';
 
 /// Strip info selama ujian terkunci/pin: jam + tanggal di KIRI,
 /// baterai di KANAN (+ hitungan pelanggaran bila ada).
@@ -115,22 +116,40 @@ class _ExamLockStatusBarState extends State<ExamLockStatusBar> {
             ),
           ],
           const Spacer(),
-          // Kanan: baterai.
-          Icon(
-            _batteryIcon(),
-            size: 15,
-            color: lowBattery ? cs.error : cs.onSurfaceVariant,
-          ),
-          const SizedBox(width: 3),
-          Text(
-            _battery < 0 ? '--' : '$_battery%',
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              color: lowBattery ? cs.error : cs.onSurfaceVariant,
-              fontFeatures: const [FontFeature.tabularFigures()],
+          // Kanan: baterai (mobile) atau indikator desktop (tanpa baterai).
+          if (isDesktopPlatform) ...[
+            Icon(
+              Icons.desktop_windows_outlined,
+              size: 15,
+              color: cs.onSurfaceVariant,
             ),
-          ),
+            const SizedBox(width: 3),
+            Text(
+              'Desktop',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurfaceVariant,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ] else ...[
+            Icon(
+              _batteryIcon(),
+              size: 15,
+              color: lowBattery ? cs.error : cs.onSurfaceVariant,
+            ),
+            const SizedBox(width: 3),
+            Text(
+              _battery < 0 ? '--' : '$_battery%',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: lowBattery ? cs.error : cs.onSurfaceVariant,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
         ],
       ),
     );

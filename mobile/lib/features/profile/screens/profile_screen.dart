@@ -155,12 +155,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               card(
                 Column(
                   children: [
-                    _buildAvatar(),
+                    _buildAvatar(size: 112),
                     const SizedBox(height: 16),
                     Text(
                       _displayName,
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
                         color: cs.onSurface,
@@ -239,6 +239,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: _MiniStat(
                               label: 'Dikerjakan',
                               value: '${stats.totalResponses}'),
+                        ),
+                        Container(width: 1, height: 40, color: Colors.black12),
+                        Expanded(
+                          child: _MiniStat(
+                              label: 'Umpan Balik',
+                              value: '${stats.totalFeedbackGiven}'),
                         ),
                       ],
                     ),
@@ -342,7 +348,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         indicatorColor: cs.primary,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 15, 20, 24)),
+          padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 15, 20, 24), wideMaxWidth: 1200),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -464,20 +470,20 @@ if (_loading)
     );
   }
 
-  Widget _buildAvatar() {
+  Widget _buildAvatar({double size = 90}) {
     return GestureDetector(
       onTap: _pickAvatarImage,
       child: Stack(
         children: [
           Container(
-            width: 90,
-            height: 90,
+            width: size,
+            height: size,
             decoration: const BoxDecoration(
               color: Color(0xFFB8E2DE),
               shape: BoxShape.circle,
             ),
             clipBehavior: Clip.antiAlias,
-            child: _avatarContent(),
+            child: _avatarContent(size * 0.4),
           ),
           Positioned(
             right: 0,
@@ -496,14 +502,14 @@ if (_loading)
     );
   }
 
-  Widget _avatarContent() {
+  Widget _avatarContent([double fontSize = 36]) {
     final path = _profile?.profileImage;
     if (path == null || path.isEmpty) {
       return Center(
         child: Text(
           _initial,
           style:  TextStyle(
-            fontSize: 36,
+            fontSize: fontSize,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
             color: Theme.of(context).colorScheme.primary,
@@ -518,7 +524,7 @@ if (_loading)
         child: Text(
           _initial,
           style:  TextStyle(
-            fontSize: 36,
+            fontSize: fontSize,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
             color: Theme.of(context).colorScheme.primary,

@@ -171,15 +171,15 @@ class _FormScreenState extends State<FormScreen> {
       indicatorColor: cs.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 15, 20, 24), wideMaxWidth: 1500),
+        padding: const EdgeInsets.fromLTRB(32, 28, 32, 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Expanded(
-                  child: Column(
+                Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
@@ -198,7 +198,6 @@ class _FormScreenState extends State<FormScreen> {
                       ),
                     ],
                   ),
-                ),
                 // 3b: desktop — tombol di header (ganti FAB melayang).
                 if (isDesktopWidth(context)) ...[
                   const SizedBox(width: 12),
@@ -213,9 +212,10 @@ class _FormScreenState extends State<FormScreen> {
             ),
             const SizedBox(height: 16),
 
-            // 3c: desktop — search 480px + tombol filter di sebelahnya.
+            // 3c: desktop — search 480px + tombol filter, full width between.
             if (isDesktopWidth(context))
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // Flexible + maxWidth: selebar 480 bila muat, menyusut
                   // mengikuti ruang (anti-overflow saat window dikecilkan).
@@ -272,17 +272,11 @@ class _FormScreenState extends State<FormScreen> {
               )
             else if (all.isEmpty)
               FormEmptyState(hasFilter: hasFilter)
-            // 1b: grid 2/3/4 kolom di tablet/desktop; phone identik.
-            else if (!isTablet(context)) ...[
-              for (final form in all) ...[
-                _buildFormCard(form),
-                const SizedBox(height: 12),
-              ],
-            ] else
-              // Grid Form Saya: 2 / 4 / 6 kolom mengikuti lebar.
+            // Desktop: 2/3/4 kolom dinamis (minimal 2).
+            else
               ResponsiveGrid(
                 columnCountFor: (w) =>
-                    w >= 1400 ? 6 : w >= 1000 ? 4 : w >= 600 ? 2 : 1,
+                    w >= 1400 ? 4 : w >= 840 ? 3 : 2,
                 children: [
                   for (final form in all) _buildFormCard(form),
                 ],

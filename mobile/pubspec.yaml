@@ -54,6 +54,7 @@ dependencies:
   camera: ^0.12.1
   zxing2: ^0.2.4
   camera_windows: ^0.2.6+5
+  ffi: ^2.2.0
 
 dev_dependencies:
   flutter_test:

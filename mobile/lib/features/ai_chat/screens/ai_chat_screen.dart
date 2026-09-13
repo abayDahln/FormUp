@@ -107,8 +107,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
   // Ikut dipersist per sesi (lihat ChatSession.activeFormId).
   int? _activeFormId;
 
-  static bool _shownInitialMissingKeyToast = false;
-
   // Agent: @mention & model picker
   List<FormData> _allForms = [];
   List<FormData> _mentionCandidates = [];
@@ -176,17 +174,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
         }
       }
     });
-    // Toast sekali saat baru membuka app & membuka screen AI chat jika key belum diatur
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_shownInitialMissingKeyToast && !GeminiService.hasKey && mounted) {
-        _shownInitialMissingKeyToast = true;
-        showAuthToast(
-          context,
-          'Api Key belum diatur. Tambahkan sekarang di pengaturan',
-          isError: true,
-        );
-      }
-    });
+    // Error key hanya muncul saat user menekan kirim (lihat sendWithText),
+    // bukan saat membuka layar.
   }
 
   @override
@@ -324,23 +313,26 @@ class _AiChatScreenState extends State<AiChatScreen> {
       onDeleteSession: deleteSession,
       onClearAll: clearAllSessions,
       onOpenSettings: () => AppRouter.of(context).push(AppPage.aiSettings),
+      // Panel kanan: tombol X menutup panel (bukan pop route).
+      onClosePanel: isExpanded(context)
+          ? () => setState(() => _historyOpen = false)
+          : null,
     );
   }
 
-  /// G6/2: phone = chat full-bleed seperti sekarang; expanded (≥840) = panel
-  /// sesi + chat, dengan panel bisa di-toggle (hemat ruang di desktop).
+  /// G6/2: phone = chat full-bleed seperti sekarang; expanded (≥840) = chat +
+  /// panel sesi di KANAN (navigasi app sudah di kiri), panel bisa di-toggle.
   /// Tidak menyentuh isi Stack chat.
   Widget _adaptiveChatBody(Widget chat) {
     if (!isExpanded(context)) return chat;
-    final cs = Theme.of(context).colorScheme;
     if (!_historyOpen) return chat;
+    // Tanpa divider: panel menempel bersih ke area chat.
     return Row(
       children: [
+        Expanded(child: chat),
         SizedBox(
             width: isWide(context) ? 360 : 320,
             child: _buildSessionDrawer(context)),
-        VerticalDivider(width: 1, thickness: 1, color: cs.outlineVariant),
-        Expanded(child: chat),
       ],
     );
   }
@@ -562,28 +554,18 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 ),
               ),
               padding: EdgeInsets.fromLTRB(8, topInset + 6, 8, 28),
-              // Isi header disejajarkan kolom chat 860 di desktop.
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 860),
-                  child: Row(
-                    children: [
-                  // 2: embedded → tombol menu selalu ada: toggle panel di
-                  // desktop, drawer overlay di phone/tablet.
-                  if (widget.embedded)
+              // Full-width: model di kiri, toggle panel di pojok kanan.
+              child: Row(
+                children: [
+                  // Phone/tablet: tombol menu membuka drawer overlay kiri.
+                  if (widget.embedded && !isExpanded(context))
                     IconButton(
                       icon: Icon(
-                        _historyOpen && isExpanded(context)
-                            ? Icons.menu_open
-                            : Icons.menu,
+                        Icons.menu,
                         color: cs.onSurface,
                       ),
                       onPressed: () {
-                        if (isExpanded(context)) {
-                          setState(() => _historyOpen = !_historyOpen);
-                        } else {
-                          _scaffoldKey.currentState?.openDrawer();
-                        }
+                        _scaffoldKey.currentState?.openDrawer();
                       },
                     )
                   else if (!widget.embedded)
@@ -607,11 +589,24 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       setState(() {});
                     }),
                   ),
-                  // Top-right sengaja dikosongkan (tanpa action buttons).
                   const Spacer(),
-                    ],
-                  ),
-                ),
+                  // Desktop: toggle panel riwayat kanan (buka/tutup).
+                  if (widget.embedded && isExpanded(context))
+                    IconButton(
+                      tooltip: _historyOpen
+                          ? 'Tutup panel riwayat'
+                          : 'Buka panel riwayat',
+                      icon: Icon(
+                        _historyOpen
+                            ? Icons.menu_open
+                            : Icons.menu,
+                        color: cs.onSurface,
+                      ),
+                      onPressed: () {
+                        setState(() => _historyOpen = !_historyOpen);
+                      },
+                    ),
+                ],
               ),
             ),
           ),
