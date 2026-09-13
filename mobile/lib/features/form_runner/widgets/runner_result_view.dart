@@ -24,7 +24,7 @@ class RunnerResultView extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
-      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 1000),
+      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 720),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -42,6 +42,7 @@ class RunnerResultView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
+          // Selalu 1 kolom seperti mobile di semua lebar layar.
           if (result.answers.isEmpty)
             Container(
               padding: const EdgeInsets.all(24),
@@ -55,7 +56,7 @@ class RunnerResultView extends StatelessWidget {
                 style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
               ),
             )
-          else if (!isDesktopWidth(context))
+          else
             for (var i = 0; i < result.answers.length; i++) ...[
               _ResultCard(
                 index: i,
@@ -63,21 +64,7 @@ class RunnerResultView extends StatelessWidget {
                 showScore: result.showScore,
               ),
               const SizedBox(height: 12),
-            ]
-          // Desktop ≥1200: pembahasan 2 kolom; phone 1 kolom identik.
-          else
-            ResponsiveGrid(
-              // 2 kolom hanya jika lebar aktual cukup (samakan runner_fill_step).
-              columnCountFor: (w) => w < 780 ? 1 : 2,
-              children: [
-                for (var i = 0; i < result.answers.length; i++)
-                  _ResultCard(
-                    index: i,
-                    answer: result.answers[i],
-                    showScore: result.showScore,
-                  ),
-              ],
-            ),
+            ],
           const SizedBox(height: 8),
           // Batasi lebar aksi di desktop lebar; phone (<560) identik.
           Center(

@@ -52,9 +52,10 @@ class RunnerScreenShell extends StatelessWidget {
             ),
         ],
       ),
-      // G3: konten runner terpusat (720, 900 di 1920); phone identik.
+      // Konten runner selalu selebar mobile (maks 720, terpusat) di semua
+      // lebar layar — desktop/tablet tidak lagi melebar.
       body: AuthBackground(plain: true,
-        child: SafeArea(child: ResponsiveCenter(maxWidth: 720, wideMaxWidth: 1020, child: child)),
+        child: SafeArea(child: ResponsiveCenter(maxWidth: 720, child: child)),
       ),
     );
   }

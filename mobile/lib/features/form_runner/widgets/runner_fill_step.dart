@@ -60,7 +60,7 @@ class RunnerFillStep extends StatelessWidget {
     );
   }
 
-  /// Mode Single Page (desktop ≥1200: kartu 2 kolom, phone 1 kolom identik)
+  /// Mode Single Page: selalu 1 kolom seperti mobile di semua lebar layar.
   Widget _buildSinglePage(BuildContext context) {
     return SingleChildScrollView(
       physics: physics ?? const AlwaysScrollableScrollPhysics(),
@@ -70,22 +70,10 @@ class RunnerFillStep extends StatelessWidget {
         children: [
           RunnerFormHeaderCard(info: info, questionCount: questions.length),
           const SizedBox(height: 16),
-          if (!isDesktopWidth(context))
-            for (var i = 0; i < questions.length; i++) ...[
-              _buildQuestionCard(i),
-              const SizedBox(height: 12),
-            ]
-          else
-            ResponsiveGrid(
-              // 2 kolom hanya jika lebar aktual cukup; kartu soal butuh
-              // ~380px agar Row header (nomor + teks + tombol tandai)
-              // tidak overflow di window desktop sempit / zoom besar.
-              columnCountFor: (w) => w < 780 ? 1 : 2,
-              children: [
-                for (var i = 0; i < questions.length; i++)
-                  _buildQuestionCard(i),
-              ],
-            ),
+          for (var i = 0; i < questions.length; i++) ...[
+            _buildQuestionCard(i),
+            const SizedBox(height: 12),
+          ],
           const SizedBox(height: 4),
           AuthPrimaryButton(
             label: submitting ? "Mengirim..." : "Kirim Jawaban",
@@ -104,7 +92,7 @@ class RunnerFillStep extends StatelessWidget {
     final canGoBack = currentQuestion > 0;
     return ListView(
       physics: physics ?? const AlwaysScrollableScrollPhysics(),
-      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 20), wideMaxWidth: 800),
+      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 20), wideMaxWidth: 720),
       children: [
         _buildQuestionCard(currentQuestion),
         const SizedBox(height: 16),
