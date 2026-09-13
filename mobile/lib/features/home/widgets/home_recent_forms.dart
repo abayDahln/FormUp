@@ -32,7 +32,8 @@ class HomeRecentForms extends StatelessWidget {
         message: 'Belum ada form. Ketuk + untuk membuat.',
       );
     }
-    // G4: 1 kolom di phone (identik), 2/3 kolom di tablet/desktop.
+    // G4: 1 kolom di phone (3 item, identik); tablet/desktop mengikuti
+    // kolom grid aktual dengan baris penuh (kolom × 2: 2→4, 3→6, 4→8).
     if (!isTablet(context)) {
       return Column(
         children: [
@@ -46,15 +47,23 @@ class HomeRecentForms extends StatelessWidget {
         ],
       );
     }
-    return ResponsiveGrid(
-      compact: true,
-      children: [
-        for (final form in forms.take(3))
-          FormCard(
-            form: form,
-            onTap: () => onOpenForm(form),
-          ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Satu ambang dengan Form Saya (formGridColumns) + jumlah item
+        // selalu baris penuh (kolom × 2).
+        final cols = formGridColumns(constraints.maxWidth);
+        return ResponsiveGrid(
+          compact: true,
+          columnCountFor: formGridColumns,
+          children: [
+            for (final form in forms.take(cols * 2))
+              FormCard(
+                form: form,
+                onTap: () => onOpenForm(form),
+              ),
+          ],
+        );
+      },
     );
   }
 }

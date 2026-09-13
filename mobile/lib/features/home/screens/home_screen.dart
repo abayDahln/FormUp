@@ -321,14 +321,10 @@ class _HomeScreenState extends State<HomeScreen> {
             constraints: const BoxConstraints(maxWidth: 1400),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // Samakan ambang ResponsiveGrid: grid Terbaru = kolom × 2
+                // Satu ambang dengan Beranda/Form Saya: grid Terbaru = kolom × 2
                 // (4/6/8), aktivitas secukupnya mengikuti kolom (2/3/4).
                 final w = constraints.maxWidth;
-                final cols = w >= kWideBreakpoint
-                    ? 4
-                    : w >= kExpandedBreakpoint
-                    ? 3
-                    : 2;
+                final cols = formGridColumns(w);
                 final formCount = cols * 2;
                 final activityCount = cols;
                 return Column(
@@ -422,13 +418,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHomeTab() {
-    // Satu kolom phone/tablet seperti semula (desktop memakai Drive).
+    // Phone identik (base); tablet/desktop konten boleh melebar hingga 960
+    // agar grid Form Terbaru mencapai 3 kolom seperti Form Saya.
     return AppRefreshIndicator(
       onRefresh: _load,
       indicatorColor: Theme.of(context).colorScheme.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: centerPad(context, base: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0)),
+        padding: centerPad(context, base: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0), maxWidth: 960),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -715,10 +712,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    // Drive desktop ≥1200: sidebar M3 + konten di background polos tanpa
-    // panel pembungkus (semua tab); 840–1200 rail; phone bottom bar.
+    // Sidebar panel HANYA untuk OS desktop asli (Windows/macOS/Linux) yang
+    // lebar (≥1200). Tablet Android/iOS — walau landscape 1280 — tetap
+    // memakai NavigationRail di bawah; baru phone (<840) bottom bar.
     // Cabang tablet/phone di bawah tidak berubah.
-    if (isDesktopWidth(context)) {
+    if (isDesktopPlatform && isDesktopWidth(context)) {
       return Scaffold(
         body: SafeArea(
           child: Row(
@@ -730,8 +728,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-    // G2: layar lebar (≥840) memakai NavigationRail kiri; phone identik.
-    if (isExpanded(context)) {
+    // Tablet (semua orientasi, termasuk portrait <840) + layar lebar (≥840)
+    // memakai NavigationRail kiri seperti screenshot acuan; phone bottom bar.
+    if (useNavRail(context)) {
       return Scaffold(
         body: SafeArea(
           child: Row(
@@ -739,12 +738,10 @@ class _HomeScreenState extends State<HomeScreen> {
               NavigationRail(
                 selectedIndex: _currentIndex,
                 onDestinationSelected: _selectTab,
-                // 1920: rail extended (label di samping ikon) di ≥1200.
-                // extended mewajibkan labelType none (assert framework).
-                extended: isDesktopWidth(context),
-                labelType: isDesktopWidth(context)
-                    ? NavigationRailLabelType.none
-                    : NavigationRailLabelType.all,
+                // Rail ikon saja tanpa label di semua layout (tidak ada
+                // varian rail + label / extended).
+                extended: false,
+                labelType: NavigationRailLabelType.none,
                 backgroundColor: cs.surface,
                 indicatorColor: kPrimary.withValues(alpha: 0.15),
                 selectedIconTheme: IconThemeData(color: cs.primary),

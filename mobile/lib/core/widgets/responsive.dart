@@ -21,6 +21,30 @@ bool isDesktopWidth(BuildContext context) =>
 bool isWide(BuildContext context) =>
     MediaQuery.sizeOf(context).width >= kWideBreakpoint;
 
+/// True untuk tablet hardware (sisi terpendek ≥ 600dp), tidak tergantung
+/// orientasi — tablet portrait (mis. 800×1280, lebar 800 < 840) tetap
+/// terdeteksi tablet, phone tidak (sisi terpendek < 600).
+bool isTabletDevice(BuildContext context) =>
+    MediaQuery.sizeOf(context).shortestSide >= kTabletBreakpoint;
+
+/// Keputusan navigasi rel kiri: selalu untuk tablet (semua orientasi);
+/// phone hanya saat landscape lebar (≥840). Pengganti isExpanded khusus
+/// untuk keputusan nav chrome (rail vs bottom bar).
+bool useNavRail(BuildContext context) =>
+    isTabletDevice(context) || isExpanded(context);
+
+/// Kolom grid kartu form (FormCard): 1 phone, 2 tablet portrait,
+/// 3 tablet landscape/layar lebar, 4 ekstra-lebar. Satu sumber agar
+/// Beranda, Form Saya, dan tab Drive selalu konsisten — jangan duplikasi
+/// ambang ini di tiap screen.
+int formGridColumns(double width) => width >= kWideBreakpoint
+    ? 4
+    : width >= kExpandedBreakpoint
+        ? 3
+        : width >= kTabletBreakpoint
+            ? 2
+            : 1;
+
 /// True di Windows/macOS/Linux desktop (bukan web/mobile) — dipakai untuk
 /// guard fitur yang tidak didukung di desktop (kamera image_picker, QR
 /// mobile_scanner). Aman untuk web (tanpa dart:io).

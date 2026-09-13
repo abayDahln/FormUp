@@ -277,11 +277,10 @@ class _FormScreenState extends State<FormScreen> {
               )
             else if (all.isEmpty)
               FormEmptyState(hasFilter: hasFilter)
-            // Mobile 1 kolom, tablet/desktop 2/3/4 (min 2, max 4).
+            // Mobile 1 kolom, tablet/desktop 2/3/4 (satu ambang via formGridColumns).
             else
               ResponsiveGrid(
-                columnCountFor: (w) =>
-                    w >= 1400 ? 4 : w >= 840 ? 3 : w >= 600 ? 2 : 1,
+                columnCountFor: formGridColumns,
                 children: [
                   for (final form in all) _buildFormCard(form),
                 ],

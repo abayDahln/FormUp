@@ -86,8 +86,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    // 3a: desktop ≥1200 memakai NavigationDrawer permanen.
-    if (isDesktopWidth(context)) {
+    // 3a: NavigationDrawer permanen HANYA untuk OS desktop asli
+    // (Windows/macOS/Linux) yang lebar (≥1200). Tablet Android/iOS tetap
+    // memakai NavigationRail agar tidak muncul UI desktop.
+    if (isDesktopPlatform && isDesktopWidth(context)) {
       return Scaffold(
         body: SafeArea(
           child: Row(
@@ -146,8 +148,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         ),
       );
     }
-    // G2: layar lebar (≥840) memakai NavigationRail kiri; phone identik.
-    if (isExpanded(context)) {
+    // Tablet (semua orientasi) + layar lebar (≥840) memakai NavigationRail
+    // kiri; phone bottom bar (identik).
+    if (useNavRail(context)) {
       return Scaffold(
         body: SafeArea(
           child: Row(
@@ -155,10 +158,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               NavigationRail(
                 selectedIndex: _currentIndex,
                 onDestinationSelected: _selectTab,
-                extended: isDesktopWidth(context),
-                labelType: isDesktopWidth(context)
-                    ? NavigationRailLabelType.none
-                    : NavigationRailLabelType.all,
+                // Rail ikon saja tanpa label di semua layout.
+                extended: false,
+                labelType: NavigationRailLabelType.none,
                 backgroundColor: cs.surface,
                 selectedIconTheme: IconThemeData(color: cs.primary),
                 destinations: const [
