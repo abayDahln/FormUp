@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { login, saveSession, isAuthenticated } from '../../services/apiService';
 import { FileText, ArrowRight, Lock, Mail, Loader2, Eye, EyeOff } from 'lucide-react';
 
@@ -11,12 +11,17 @@ const Login = () => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
 
     useEffect(() => {
         if (isAuthenticated()) {
             navigate('/dashboard', { replace: true });
         }
-    }, [navigate]);
+        const reason = searchParams.get('reason');
+        if (reason === 'session_expired') {
+            setError('Sesi Anda telah berakhir. Silakan login kembali.');
+        }
+    }, [navigate, searchParams]);
 
     const handleLogin = async (e) => {
         e.preventDefault();

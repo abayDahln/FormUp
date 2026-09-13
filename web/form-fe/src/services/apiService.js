@@ -54,6 +54,71 @@ const authHeaders = () => {
     return headers;
 };
 
+let _refreshInFlight = null;
+
+const _redirectToLoginWithReason = (reason) => {
+    clearSession();
+    if (typeof window === 'undefined') return;
+    try {
+        const path = window.location.pathname || '';
+        if (path.startsWith('/login')) return;
+        const query = reason ? `?reason=${encodeURIComponent(reason)}` : '';
+        window.location.assign(`/login${query}`);
+    } catch {
+        /* ignore */
+    }
+};
+
+const _performRefreshMutex = async () => {
+    if (_refreshInFlight) return _refreshInFlight;
+    _refreshInFlight = (async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+                method: 'POST',
+                headers: authHeaders(),
+            });
+            const result = await parseResponse(res);
+            if (result.ok && result.data?.token) {
+                const remember = localStorage.getItem('rememberMe') === 'true';
+                const existingUser = getLocalUser();
+                saveSession({ token: result.data.token, user: existingUser || result.data.user || null }, remember);
+                return true;
+            }
+            _redirectToLoginWithReason('session_expired');
+            return false;
+        } catch {
+            _redirectToLoginWithReason('session_expired');
+            return false;
+        } finally {
+            _refreshInFlight = null;
+        }
+    })();
+    return _refreshInFlight;
+};
+
+export const authFetch = async (url, options = {}) => {
+    const token = getToken();
+    const isFormData = options && options.body && typeof options.body.append && typeof options.body.constructor === 'function' && options.body instanceof FormData;
+    const baseHeaders = {};
+    if (!isFormData) baseHeaders['Content-Type'] = 'application/json';
+    if (token) baseHeaders['Authorization'] = `Bearer ${token}`;
+    const headers = { ...baseHeaders, ...(options.headers || {}) };
+
+    const res = await fetch(url, { ...options, headers });
+    const isAuthUrl = typeof url === 'string' && url.includes('/api/auth/');
+    if (token && res.status === 401 && !isAuthUrl) {
+        const refreshed = await _performRefreshMutex();
+        if (refreshed) {
+            const newToken = getToken();
+            const retryHeaders = { ...(options.headers || {}) };
+            if (!isFormData) retryHeaders['Content-Type'] = 'application/json';
+            if (newToken) retryHeaders['Authorization'] = `Bearer ${newToken}`;
+            return fetch(url, { ...options, headers: retryHeaders, body: options.body });
+        }
+    }
+    return res;
+};
+
 const parseResponse = async (res) => {
     let body;
     try { body = await res.json(); } catch { body = {}; }
@@ -121,21 +186,19 @@ export const resetPassword = async (email, otp, newPassword) => {
 };
 
 // ── User Profile Endpoints ────────────────────────────────────────────────────
-export const getMyProfile = async () => parseResponse(await fetch(`${API_BASE_URL}/api/users/me`, { headers: authHeaders() }));
+export const getMyProfile = async () => parseResponse(await authFetch(`${API_BASE_URL}/api/users/me`));
 
 export const updateProfile = async (payload) => {
-    const res = await fetch(`${API_BASE_URL}/api/users/me`, {
+    const res = await authFetch(`${API_BASE_URL}/api/users/me`, {
         method: 'PUT',
-        headers: authHeaders(),
         body: JSON.stringify(payload),
     });
     return parseResponse(res);
 };
 
 export const changePassword = async (currentPassword, newPassword) => {
-    const res = await fetch(`${API_BASE_URL}/api/users/change-password`, {
+    const res = await authFetch(`${API_BASE_URL}/api/users/change-password`, {
         method: 'POST',
-        headers: authHeaders(),
         body: JSON.stringify({ currentPassword, newPassword }),
     });
     return parseResponse(res);
@@ -144,113 +207,126 @@ export const changePassword = async (currentPassword, newPassword) => {
 export const uploadProfileImage = async (file) => {
     const form = new FormData();
     form.append('file', file);
-    const token = getToken();
-    const res = await fetch(`${API_BASE_URL}/api/users/me/profile-image`, {
+    const res = authFetch(`${API_BASE_URL}/api/users/me/profile-image`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: form,
     });
     return parseResponse(res);
 };
 
-export const getMyStats = async () => parseResponse(await fetch(`${API_BASE_URL}/api/users/me/stats`, { headers: authHeaders() }));
-export const getMySubmittedResponses = async () => parseResponse(await fetch(`${API_BASE_URL}/api/users/me/responses`, { headers: authHeaders() }));
+export const getMyStats = async () => parseResponse(await authFetch(`${API_BASE_URL}/api/users/me/stats`));
+export const getMySubmittedResponses = async () => parseResponse(await authFetch(`${API_BASE_URL}/api/users/me/responses`));
 
 // ── Reference Endpoints ──────────────────────────────────────────────────────
-export const getFormTypes = async () => parseResponse(await fetch(`${API_BASE_URL}/api/references/form-types`, { headers: authHeaders() }));
-export const getFormStatuses = async () => parseResponse(await fetch(`${API_BASE_URL}/api/references/form-statuses`, { headers: authHeaders() }));
-export const getQuestionTypes = async () => parseResponse(await fetch(`${API_BASE_URL}/api/references/question-types`, { headers: authHeaders() }));
+export const getFormTypes = async () => parseResponse(await authFetch(`${API_BASE_URL}/api/references/form-types`));
+export const getFormStatuses = async () => parseResponse(await authFetch(`${API_BASE_URL}/api/references/form-statuses`));
+export const getQuestionTypes = async () => parseResponse(await authFetch(`${API_BASE_URL}/api/references/question-types`));
 
 // ── Form Endpoints ────────────────────────────────────────────────────────────
-export const getMyForms = async () => parseResponse(await fetch(`${API_BASE_URL}/api/forms`, { headers: authHeaders() }));
+export const getMyForms = async () => parseResponse(await authFetch(`${API_BASE_URL}/api/forms`));
 
-export const getFormById = async (id) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${id}`, { headers: authHeaders() }));
+export const getFormById = async (id) => parseResponse(await authFetch(`${API_BASE_URL}/api/forms/${id}`));
 
 export const createForm = async ({ title, description, descriptionFormat }) => {
-    const res = await fetch(`${API_BASE_URL}/api/forms`, {
+    const res = await authFetch(`${API_BASE_URL}/api/forms`, {
         method: 'POST',
-        headers: authHeaders(),
         body: JSON.stringify({ title, description, descriptionFormat }),
     });
     return parseResponse(res);
 };
 
 export const updateForm = async (id, payload) => {
-    const res = await fetch(`${API_BASE_URL}/api/forms/${id}`, {
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${id}`, {
         method: 'PUT',
-        headers: authHeaders(),
         body: JSON.stringify(payload),
     });
     return parseResponse(res);
 };
 
 export const deleteForm = async (id) => {
-    const res = await fetch(`${API_BASE_URL}/api/forms/${id}`, { method: 'DELETE', headers: authHeaders() });
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${id}`, { method: 'DELETE' });
     return parseResponse(res);
 };
 
 export const bulkDeleteForms = async (formIds) => {
-    const res = await fetch(`${API_BASE_URL}/api/forms/bulk-delete`, {
+    const res = await authFetch(`${API_BASE_URL}/api/forms/bulk-delete`, {
         method: 'POST',
-        headers: authHeaders(),
         body: JSON.stringify({ formIds }),
     });
     return parseResponse(res);
 };
 
 export const togglePublishForm = async (id) => {
-    const res = await fetch(`${API_BASE_URL}/api/forms/${id}/publish`, { method: 'POST', headers: authHeaders() });
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${id}/publish`, { method: 'POST' });
     return parseResponse(res);
 };
 
 export const updateFormSettings = async (id, settings) => {
-    const res = await fetch(`${API_BASE_URL}/api/forms/${id}/settings`, {
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${id}/settings`, {
         method: 'PATCH',
-        headers: authHeaders(),
         body: JSON.stringify(settings),
     });
     return parseResponse(res);
 };
 
-export const getFormShare = async (id) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${id}/share`, { headers: authHeaders() }));
+export const getFormShare = async (id) => parseResponse(await authFetch(`${API_BASE_URL}/api/forms/${id}/share`));
 
 export const uploadFormBanner = async (formId, file) => {
     const form = new FormData();
     form.append('file', file);
-    const token = getToken();
-    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/banner`, {
+    const res = authFetch(`${API_BASE_URL}/api/forms/${formId}/banner`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: form,
     });
     return parseResponse(res);
 };
 
 // ── Question Endpoints ────────────────────────────────────────────────────────
-export const getQuestions = async (formId) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/questions`, { headers: authHeaders() }));
+export const getQuestions = async (formId, { page, pageSize, search } = {}) => {
+    const params = new URLSearchParams();
+    if (page != null) params.set('page', page);
+    if (pageSize != null) params.set('pageSize', pageSize);
+    if (search != null && search !== '') params.set('search', search);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return parseResponse(await authFetch(`${API_BASE_URL}/api/forms/${formId}/questions${qs}`));
+};
 
 export const saveQuestions = async (formId, questions) => {
-    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/questions`, {
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${formId}/questions`, {
         method: 'PUT',
-        headers: authHeaders(),
         body: JSON.stringify({ questions }),
     });
     return parseResponse(res);
 };
 
 export const addQuestions = async (formId, questions) => {
-    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/questions`, {
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${formId}/questions`, {
         method: 'POST',
-        headers: authHeaders(),
         body: JSON.stringify({ questions }),
     });
     return parseResponse(res);
 };
 
 export const deleteQuestion = async (formId, questionId) => {
-    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/questions/${questionId}`, {
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${formId}/questions/${questionId}`, {
         method: 'DELETE',
-        headers: authHeaders(),
+    });
+    return parseResponse(res);
+};
+
+export const deleteAllQuestions = async (formId) => {
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${formId}/questions`, {
+        method: 'DELETE',
+    });
+    return parseResponse(res);
+};
+
+export const previewImportQuestions = async (formId, file) => {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${formId}/questions/import/preview`, {
+        method: 'POST',
+        body: form,
     });
     return parseResponse(res);
 };
@@ -258,10 +334,8 @@ export const deleteQuestion = async (formId, questionId) => {
 export const importQuestions = async (formId, file) => {
     const form = new FormData();
     form.append('file', file);
-    const token = getToken();
-    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/questions/import`, {
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${formId}/questions/import`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: form,
     });
     return parseResponse(res);
@@ -322,25 +396,23 @@ export const uploadQuestionAudio = (formId, questionId, file, onProgress) => {
 };
 
 // ── Response Endpoints (Owner) ────────────────────────────────────────────────
-export const getFormResponses = async (formId, { page, pageSize } = {}) => {
+export const getFormResponses = async (formId, { page, pageSize, search } = {}) => {
     const params = new URLSearchParams();
     if (page != null) params.set('page', page);
     if (pageSize != null) params.set('pageSize', pageSize);
+    if (search != null && search !== '') params.set('search', search);
     const qs = params.toString() ? `?${params}` : '';
-    return parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/responses${qs}`, { headers: authHeaders() }));
+    return parseResponse(await authFetch(`${API_BASE_URL}/api/forms/${formId}/responses${qs}`));
 };
-export const getResponseDetail = async (formId, responseId) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/responses/${responseId}`, { headers: authHeaders() }));
+export const getResponseDetail = async (formId, responseId) => parseResponse(await authFetch(`${API_BASE_URL}/api/forms/${formId}/responses/${responseId}`));
 
-// GET /api/forms/{formId}/responses/{id}/result — scored result for owner view
-export const getResponseResult = async (formId, responseId) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/responses/${responseId}/result`, { headers: authHeaders() }));
+export const getResponseResult = async (formId, responseId) => parseResponse(await authFetch(`${API_BASE_URL}/api/forms/${formId}/responses/${responseId}/result`));
 
-// GET /api/forms/{formId}/responses/{id}/attempts — all attempts by same respondent
-export const getResponseAttempts = async (formId, responseId) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/responses/${responseId}/attempts`, { headers: authHeaders() }));
+export const getResponseAttempts = async (formId, responseId) => parseResponse(await authFetch(`${API_BASE_URL}/api/forms/${formId}/responses/${responseId}/attempts`));
 
 export const updateResponseStatus = async (responseId, statusId) => {
-    const res = await fetch(`${API_BASE_URL}/api/responses/${responseId}/status`, {
+    const res = await authFetch(`${API_BASE_URL}/api/responses/${responseId}/status`, {
         method: 'PUT',
-        headers: authHeaders(),
         body: JSON.stringify({ statusId }),
     });
     return parseResponse(res);
@@ -456,7 +528,6 @@ export const exportUrl = (formId, format = 'csv', includeAnswerKey = true) => {
 };
 
 export const exportFormResponses = async (formId, format = 'csv', includeAnswerKey = true) => {
-    const token = getToken();
     const fmt = (format || 'csv').toLowerCase();
     const params = new URLSearchParams();
     params.set('format', fmt);
@@ -465,9 +536,7 @@ export const exportFormResponses = async (formId, format = 'csv', includeAnswerK
     }
 
     try {
-        const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/responses/export?${params.toString()}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+        const res = await authFetch(`${API_BASE_URL}/api/forms/${formId}/responses/export?${params.toString()}`);
 
         if (!res.ok) {
             let msg = 'Gagal mengekspor data respons';
@@ -483,9 +552,6 @@ export const exportFormResponses = async (formId, format = 'csv', includeAnswerK
             }
 
             if (fmt === 'pdf' && res.status === 500) {
-                // TODO: Backend PDF generator (ResponsesController.ExportPdf using QuestPDF / DinkToPdf)
-                // throws 500 when question text or answer text contains raw math notation (KaTeX/LaTeX).
-                // Backend requires math sanitization before PDF layout compilation.
                 console.error('[Export PDF 500 Error] Server failed generating PDF:', res.status, errDetail);
                 msg = 'Export PDF gagal, kemungkinan karena konten matematika pada soal. Coba export CSV/Excel sementara, atau hubungi admin.';
             }
@@ -517,23 +583,22 @@ export const exportFormResponses = async (formId, format = 'csv', includeAnswerK
 
 // ── Feedback Endpoints ────────────────────────────────────────────────────────
 export const submitFeedback = async (formId, { reason, description, responseId = null }) => {
-    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/feedback`, {
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${formId}/feedback`, {
         method: 'POST',
-        headers: authHeaders(),
         body: JSON.stringify({ reason, description, responseId }),
     });
     return parseResponse(res);
 };
 
-export const getMyFeedback = async (formId) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/feedback`, { headers: authHeaders() }));
-export const getFormFeedbacks = async (formId) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/feedbacks`, { headers: authHeaders() }));
+export const getMyFeedback = async (formId) => parseResponse(await authFetch(`${API_BASE_URL}/api/forms/${formId}/feedback`));
+export const getFormFeedbacks = async (formId) => parseResponse(await authFetch(`${API_BASE_URL}/api/forms/${formId}/feedbacks`));
 
 // ── Template Endpoints ────────────────────────────────────────────────────────
 export const templateDownloadUrl = (format = 'csv') =>
     `${API_BASE_URL}/api/templates/import-questions?format=${format}`;
 
 // ── Analytics Endpoints ───────────────────────────────────────────────────────
-export const getFormAnalytics = async (formId) => parseResponse(await fetch(`${API_BASE_URL}/api/forms/${formId}/analytics`, { headers: authHeaders() }));
+export const getFormAnalytics = async (formId) => parseResponse(await authFetch(`${API_BASE_URL}/api/forms/${formId}/analytics`));
 
 // ── Public Form Flow (Responden) ──────────────────────────────────────────────
 
@@ -545,10 +610,8 @@ export const getPublicFormByLink = async (formLink) => {
 
 // Step 2: Request public questions after token/login validation
 export const getPublicFormQuestions = async (formLink, { token, name } = {}) => {
-    const headers = authHeaders();
-    const res = await fetch(`${API_BASE_URL}/api/public/forms/${formLink}/questions`, {
+    const res = await authFetch(`${API_BASE_URL}/api/public/forms/${formLink}/questions`, {
         method: 'POST',
-        headers,
         body: JSON.stringify({ token: token || null, name: name || null }),
     });
     return parseResponse(res);
@@ -556,10 +619,8 @@ export const getPublicFormQuestions = async (formLink, { token, name } = {}) => 
 
 // Step 3: Submit public form responses
 export const submitPublicFormResponse = async (formLink, payload) => {
-    const headers = authHeaders();
-    const res = await fetch(`${API_BASE_URL}/api/public/forms/${formLink}/responses`, {
+    const res = await authFetch(`${API_BASE_URL}/api/public/forms/${formLink}/responses`, {
         method: 'POST',
-        headers,
         body: JSON.stringify(payload),
     });
     return parseResponse(res);
@@ -570,17 +631,15 @@ export const getPublicResponseResult = async (formLink, responseId, guestToken) 
     const url = guestToken
         ? `${API_BASE_URL}/api/public/forms/${formLink}/responses/${responseId}?token=${encodeURIComponent(guestToken)}`
         : `${API_BASE_URL}/api/public/forms/${formLink}/responses/${responseId}`;
-    const res = await fetch(url, { headers: authHeaders() });
+    const res = authFetch(url);
     return parseResponse(res);
 };
 
 // ── Exam Monitoring Endpoints ────────────────────────────────────────────────
 // Backend: [HttpPost("api/public/forms/{formLink}/exam-events")] in ExamMonitoringController.cs
 export const postExamEvent = async (formLink, eventData) => {
-    const headers = authHeaders();
-    const res = await fetch(`${API_BASE_URL}/api/public/forms/${formLink}/exam-events`, {
+    const res = await authFetch(`${API_BASE_URL}/api/public/forms/${formLink}/exam-events`, {
         method: 'POST',
-        headers,
         body: JSON.stringify(eventData),
     });
     return parseResponse(res);
@@ -588,9 +647,7 @@ export const postExamEvent = async (formLink, eventData) => {
 
 // Backend: [HttpGet("api/forms/{formId}/exam-monitoring")] in ExamMonitoringController.cs
 export const getExamMonitoring = async (formId) => {
-    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/exam-monitoring`, {
-        headers: authHeaders(),
-    });
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${formId}/exam-monitoring`);
     return parseResponse(res);
 };
 
@@ -600,23 +657,22 @@ export const ExamProctorActions = {
 
 // Backend: [HttpPost("api/forms/{formId}/exam-monitoring/sessions/{sessionId}/force-submit")]
 export const forceSubmitExamSession = async (formId, sessionId) => {
-    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/exam-monitoring/sessions/${encodeURIComponent(sessionId)}/force-submit`, {
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${formId}/exam-monitoring/sessions/${encodeURIComponent(sessionId)}/force-submit`, {
         method: 'POST',
-        headers: authHeaders(),
     });
     return parseResponse(res);
 };
 
 // Backend: [HttpPost("api/forms/{formId}/exam-monitoring/sessions/{sessionId}/reset")]
 export const resetExamSession = async (formId, sessionId) => {
-    const res = await fetch(`${API_BASE_URL}/api/forms/${formId}/exam-monitoring/sessions/${encodeURIComponent(sessionId)}/reset`, {
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${formId}/exam-monitoring/sessions/${encodeURIComponent(sessionId)}/reset`, {
         method: 'POST',
-        headers: authHeaders(),
     });
     return parseResponse(res);
 };
 
 // Backend: [HttpPost("api/public/forms/{formLink}/exam-sessions/{sessionId}/sync-answers")]
+// Note: syncExamAnswers is used by guest (no auth token expected); tetap pakai fetch manual tanpa wrapper karena Content-Type di-set custom tanpa auth header influence.
 export const syncExamAnswers = async (formLink, sessionId, { answers, respondentName }) => {
     const res = await fetch(`${API_BASE_URL}/api/public/forms/${encodeURIComponent(formLink)}/exam-sessions/${encodeURIComponent(sessionId)}/sync-answers`, {
         method: 'POST',
@@ -631,9 +687,8 @@ export const syncExamAnswers = async (formLink, sessionId, { answers, respondent
 // ── Score Override Endpoints ─────────────────────────────────────────────────
 // Backend: [HttpPut("api/responses/{id}/answers/{answerId}/score")] in ResponsesController.cs
 export const overrideAnswerScore = async (responseId, answerId, payload) => {
-    const res = await fetch(`${API_BASE_URL}/api/responses/${responseId}/answers/${answerId}/score`, {
+    const res = await authFetch(`${API_BASE_URL}/api/responses/${responseId}/answers/${answerId}/score`, {
         method: 'PUT',
-        headers: authHeaders(),
         body: JSON.stringify(payload),
     });
     return parseResponse(res);
@@ -641,56 +696,57 @@ export const overrideAnswerScore = async (responseId, answerId, payload) => {
 
 // Backend: [HttpPut("api/responses/{id}/scores")] in ResponsesController.cs
 export const bulkOverrideAnswerScores = async (responseId, overrides) => {
-    const res = await fetch(`${API_BASE_URL}/api/responses/${responseId}/scores`, {
+    const res = await authFetch(`${API_BASE_URL}/api/responses/${responseId}/scores`, {
         method: 'PUT',
-        headers: authHeaders(),
         body: JSON.stringify({ overrides }),
     });
     return parseResponse(res);
 };
 
+// Alias (backward compatible — beberapa call site lama memakai updateAnswerScore)
+export const updateAnswerScore = overrideAnswerScore;
+
 // ── Admin Endpoints ───────────────────────────────────────────────────────────
-export const adminGetUsers = async () => parseResponse(await fetch(`${API_BASE_URL}/api/admin/users`, { headers: authHeaders() }));
-export const adminGetUserDetail = async (id) => parseResponse(await fetch(`${API_BASE_URL}/api/admin/users/${id}`, { headers: authHeaders() }));
-export const adminGetForms = async () => parseResponse(await fetch(`${API_BASE_URL}/api/admin/forms`, { headers: authHeaders() }));
-export const adminGetFormDetail = async (id) => parseResponse(await fetch(`${API_BASE_URL}/api/admin/forms/${id}`, { headers: authHeaders() }));
-export const adminGetFeedback = async () => parseResponse(await fetch(`${API_BASE_URL}/api/admin/feedback`, { headers: authHeaders() }));
+export const adminGetUsers = async () => parseResponse(await authFetch(`${API_BASE_URL}/api/admin/users`));
+export const adminGetUserDetail = async (id) => parseResponse(await authFetch(`${API_BASE_URL}/api/admin/users/${id}`));
+export const adminGetForms = async () => parseResponse(await authFetch(`${API_BASE_URL}/api/admin/forms`));
+export const adminGetFormDetail = async (id) => parseResponse(await authFetch(`${API_BASE_URL}/api/admin/forms/${id}`));
+export const adminGetFeedback = async () => parseResponse(await authFetch(`${API_BASE_URL}/api/admin/feedback`));
 
 export const adminBanUser = async (id) => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}/ban`, { method: 'PUT', headers: authHeaders() });
+    const res = await authFetch(`${API_BASE_URL}/api/admin/users/${id}/ban`, { method: 'PUT' });
     return parseResponse(res);
 };
 export const adminActivateUser = async (id) => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}/activate`, { method: 'PUT', headers: authHeaders() });
+    const res = await authFetch(`${API_BASE_URL}/api/admin/users/${id}/activate`, { method: 'PUT' });
     return parseResponse(res);
 };
 export const adminDeleteUser = async (id) => {
-    // Backend endpoint: [HttpDelete("users/{id}")] in AdminController.cs
-    const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, { method: 'DELETE', headers: authHeaders() });
+    const res = await authFetch(`${API_BASE_URL}/api/admin/users/${id}`, { method: 'DELETE' });
     return parseResponse(res);
 };
 export const adminTakedownForm = async (id) => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/forms/${id}/takedown`, { method: 'POST', headers: authHeaders() });
+    const res = await authFetch(`${API_BASE_URL}/api/admin/forms/${id}/takedown`, { method: 'POST' });
     return parseResponse(res);
 };
 export const adminRestoreForm = async (id) => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/forms/${id}/restore`, { method: 'POST', headers: authHeaders() });
+    const res = await authFetch(`${API_BASE_URL}/api/admin/forms/${id}/restore`, { method: 'POST' });
     return parseResponse(res);
 };
 export const adminDeleteForm = async (id) => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/forms/${id}`, { method: 'DELETE', headers: authHeaders() });
+    const res = await authFetch(`${API_BASE_URL}/api/admin/forms/${id}`, { method: 'DELETE' });
     return parseResponse(res);
 };
 export const adminDeleteFeedback = async (id) => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/feedback/${id}`, { method: 'DELETE', headers: authHeaders() });
+    const res = await authFetch(`${API_BASE_URL}/api/admin/feedback/${id}`, { method: 'DELETE' });
     return parseResponse(res);
 };
 export const adminTakedownFormFromFeedback = async (id) => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/feedback/${id}/takedown`, { method: 'POST', headers: authHeaders() });
+    const res = await authFetch(`${API_BASE_URL}/api/admin/feedback/${id}/takedown`, { method: 'POST' });
     return parseResponse(res);
 };
 export const adminRestoreFormFromFeedback = async (id) => {
-    const res = await fetch(`${API_BASE_URL}/api/admin/feedback/${id}/restore`, { method: 'POST', headers: authHeaders() });
+    const res = await authFetch(`${API_BASE_URL}/api/admin/feedback/${id}/restore`, { method: 'POST' });
     return parseResponse(res);
 };
 

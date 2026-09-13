@@ -7,7 +7,7 @@ import AIFormBuilderModal from '../../../components/ui/AIFormBuilderModal';
 import {
     Plus, MoreVertical, MessageSquare, Calendar,
     Edit3, Eye, Trash2, CheckCircle2, FileText,
-    ChevronLeft, ChevronRight, Square, CheckSquare, Copy, Sparkles, Loader2
+    ChevronLeft, ChevronRight, ChevronDown, Square, CheckSquare, Copy, Sparkles, Loader2
 } from 'lucide-react';
 import { getMyForms, deleteForm, clearSession, assetUrl, createForm, bulkDeleteForms, getQuestions, saveQuestions } from '../../../services/apiService';
 import useDebounce from '../../../hooks/useDebounce';
@@ -26,6 +26,9 @@ const MyForms = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [creatingForm, setCreatingForm] = useState(false);
     const menuRef = useRef(null);
+    const createMenuRef = useRef(null);
+
+    const [showCreateMenu, setShowCreateMenu] = useState(false);
 
     // Multi-select state
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -76,6 +79,9 @@ const MyForms = () => {
         const handleClickOutside = (e) => {
             if (menuRef.current && !menuRef.current.contains(e.target)) {
                 setOpenMenuId(null);
+            }
+            if (createMenuRef.current && !createMenuRef.current.contains(e.target)) {
+                setShowCreateMenu(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -390,37 +396,72 @@ const MyForms = () => {
 
                     {/* Cards Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" ref={menuRef}>
-                        {/* Create New Form Card */}
+                        {/* Unified Create Form Card with dropdown options */}
                         <div
-                            onClick={handleCreateNewForm}
-                            className="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl min-h-[240px] flex flex-col items-center justify-center cursor-pointer hover:border-[#00897B] dark:hover:border-teal-400 hover:bg-teal-50/20 dark:hover:bg-teal-950/20 transition-all group p-6 text-center"
+                            ref={createMenuRef}
+                            className="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl min-h-[240px] flex flex-col items-center justify-center hover:border-[#00897B] dark:hover:border-teal-400 hover:bg-teal-50/10 dark:hover:bg-teal-950/10 transition-all group p-6 text-center relative"
                         >
-                            <div className="w-12 h-12 bg-teal-50 dark:bg-teal-950/60 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform text-[#00897B] dark:text-teal-400">
+                            <div className="w-12 h-12 bg-teal-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform text-[#00897B] dark:text-teal-400 border border-teal-200/60 dark:border-slate-700">
                                 <Plus className="w-6 h-6" />
                             </div>
                             <h3 className="text-slate-900 dark:text-white font-bold text-sm mb-1">
-                                {creatingForm ? 'Menyiapkan...' : 'Formulir Baru'}
+                                Buat Formulir Baru
                             </h3>
-                            <p className="text-slate-400 dark:text-slate-500 text-xs font-medium max-w-[170px]">
-                                Bangun dari awal atau gunakan templat
+                            <p className="text-slate-400 dark:text-slate-500 text-xs font-medium max-w-[170px] mb-4">
+                                Pilih cara pembuatan formulir Anda
                             </p>
-                        </div>
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setShowCreateMenu(!showCreateMenu); }}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-white hover:border-teal-500 hover:text-teal-600 dark:hover:bg-slate-900 dark:hover:text-teal-400 transition-all cursor-pointer"
+                            >
+                                <Plus size={13} /> Pilih Cara Buat
+                                <ChevronDown size={13} className={`transition-transform ${showCreateMenu ? 'rotate-180' : ''}`} />
+                            </button>
 
-                        {/* AI-1: Buat Form dengan AI card */}
-                        <div
-                            onClick={() => setAiFormBuilderOpen(true)}
-                            className="bg-gradient-to-br from-teal-500/10 via-emerald-500/5 to-teal-500/5 border-2 border-dashed border-teal-300/50 dark:border-teal-700/50 rounded-2xl min-h-[240px] flex flex-col items-center justify-center cursor-pointer hover:border-teal-500 hover:bg-teal-50/30 dark:hover:bg-teal-950/20 transition-all group p-6 text-center"
-                        >
-                            <div className="w-12 h-12 bg-gradient-to-tr from-teal-600 to-emerald-400 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform text-white shadow-sm">
-                                <Sparkles className="w-6 h-6" />
-                            </div>
-                            <h3 className="text-slate-900 dark:text-white font-bold text-sm mb-1 flex items-center gap-1.5">
-                                Buat Form dengan AI
-                                {/* <span className="text-[9px] uppercase px-1.5 py-0.5 rounded-md bg-teal-600 text-white font-extrabold tracking-wider">Gemini</span> */}
-                            </h3>
-                            <p className="text-slate-400 dark:text-slate-500 text-xs font-medium max-w-[170px]">
-                                Deskripsikan form & AI siapkan soalnya
-                            </p>
+                            {showCreateMenu && (
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden z-30 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowCreateMenu(false); handleCreateNewForm(); }}
+                                        disabled={creatingForm}
+                                        className="w-full px-4 py-3 text-left border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-60"
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300">
+                                                <Edit3 size={15} />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-extrabold text-slate-900 dark:text-white">
+                                                    {creatingForm ? 'Menyiapkan...' : 'Buat Manual'}
+                                                </p>
+                                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                                    Susun soal dari awal
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowCreateMenu(false); setAiFormBuilderOpen(true); }}
+                                        className="w-full px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-8 h-8 rounded-lg bg-teal-50 dark:bg-teal-950/40 flex items-center justify-center text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/40">
+                                                <Sparkles size={15} />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-extrabold text-slate-900 dark:text-white">
+                                                    Buat dengan AI
+                                                </p>
+                                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                                    Deskripsikan, AI susun soal
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {loading ? (

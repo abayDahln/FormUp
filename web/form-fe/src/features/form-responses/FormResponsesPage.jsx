@@ -200,6 +200,11 @@ export default function FormResponsesPage() {
     const [partialScoreEditingId, setPartialScoreEditingId] = useState(null); // answerId being edited
     const [partialScoreInput, setPartialScoreInput] = useState(''); // string "0"–"100"
 
+    // B-2: Complete correction panel state (essay) — IsCorrectOverride explicit + OverrideNote
+    const [activeCorrectionId, setActiveCorrectionId] = useState(null);
+    const [correctionNote, setCorrectionNote] = useState('');
+    const [correctionIsCorrectOverride, setCorrectionIsCorrectOverride] = useState(undefined);
+
     // B-3: AI Essay Scoring — redesigned to holistic per-submission (A-8)
     const [aiScoringAnswerId, setAiScoringAnswerId] = useState(null); // answerId being scored
     const [aiScoreSuggestions, setAiScoreSuggestions] = useState({});
@@ -960,6 +965,123 @@ const getGenuineViolationCount = (session) =>
             showToast(`Skor parsial ${pct}% (${rawPoints} poin) berhasil disimpan`);
         } else {
             showToast(res.message || 'Gagal menyimpan skor parsial.', 'error');
+        }
+    };
+
+    // B-2: Save complete correction (partial score + explicit isCorrectOverride + overrideNote)
+    const handleSaveCompleteCorrection = async (responseId, questionId, answerId, qPoints) => {
+        const parsedAnswerId = parseInt(answerId, 10);
+        let finalAnswerId = parsedAnswerId;
+        if (!parsedAnswerId || isNaN(parsedAnswerId)) {
+            const fresh = await getResponseResult(id, responseId);
+            if (fresh.ok && fresh.data?.answers) {
+                const found = fresh.data.answers.find(a => Number(a.questionId) === Number(questionId));
+                const fetchedId = found?.answerId || found?.id;
+                if (!fetchedId) { showToast('ID jawaban tidak ditemukan.', 'error'); return; }
+                finalAnswerId = parseInt(fetchedId, 10);
+            } else {
+                showToast('ID jawaban tidak ditemukan.', 'error'); return;
+            }
+        }
+
+        let finalManualScore = null;
+        let finalIsCorrectOverride = correctionIsCorrectOverride;
+
+        if (partialScoreEditingId === answerId || partialScoreEditingId === questionId) {
+            const pct = Math.max(0, Math.min(100, parseFloat(partialScoreInput) || 0));
+            finalManualScore = Math.round((pct / 100) * qPoints * 100) / 100;
+            if (finalIsCorrectOverride === undefined || finalIsCorrectOverride === null) {
+                finalIsCorrectOverride = pct > 0;
+            }
+        } else if (finalIsCorrectOverride === undefined || finalIsCorrectOverride === null) {
+            const currentAnswer = (selectedRespondent?.answers || []).find(a => Number(a.questionId) === Number(questionId));
+            finalIsCorrectOverride = currentAnswer?.isCorrectOverride ?? currentAnswer?.isCorrect ?? false;
+        }
+
+        const payload = {
+            isCorrectOverride: finalIsCorrectOverride,
+            manualScore: finalManualScore,
+            overrideNote: correctionNote?.trim() || null,
+        };
+
+        const res = await overrideAnswerScore(responseId, finalAnswerId, payload);
+
+        if (res.ok) {
+            try {
+                const cur = getLocalManualOverrides(id);
+                if (!cur[responseId]) cur[responseId] = {};
+                const pctVal = finalManualScore != null
+                    ? Math.round((Number(finalManualScore) / qPoints) * 100)
+                    : (finalIsCorrectOverride ? 100 : 0);
+                cur[responseId][questionId] = {
+                    isCorrect: finalIsCorrectOverride,
+                    manualScore: finalManualScore,
+                    pct: pctVal,
+                    note: correctionNote?.trim() || null,
+                };
+                localStorage.setItem(`formup_overrides_${id}`, JSON.stringify(cur));
+            } catch {}
+
+            setSelectedRespondent(prev => {
+                if (!prev) return prev;
+                const newAnswers = (prev.answers || []).map(a => {
+                    if (Number(a.questionId) === Number(questionId)) {
+                        return {
+                            ...a,
+                            isCorrectOverride: finalIsCorrectOverride,
+                            isCorrect: finalIsCorrectOverride,
+                            manualScore: finalManualScore,
+                            overrideNote: payload.overrideNote ?? a.overrideNote,
+                        };
+                    }
+                    return a;
+                });
+                const scoring = calculateTotalScore(newAnswers, formQuestions);
+                return {
+                    ...prev,
+                    answers: newAnswers,
+                    correctCount: scoring.correctCount,
+                    wrongCount: scoring.wrongCount,
+                    score: scoring.score,
+                };
+            });
+
+            setAnalytics(prev => {
+                if (!prev?.respondents) return prev;
+                return {
+                    ...prev,
+                    respondents: prev.respondents.map(r => {
+                        if (r.responseId !== responseId) return r;
+                        const newAnswers = (r.answers || []).map(a => {
+                            if (Number(a.questionId) === Number(questionId)) {
+                                return {
+                                    ...a,
+                                    isCorrectOverride: finalIsCorrectOverride,
+                                    isCorrect: finalIsCorrectOverride,
+                                    manualScore: finalManualScore,
+                                    overrideNote: payload.overrideNote ?? a.overrideNote,
+                                };
+                            }
+                            return a;
+                        });
+                        const scoring = calculateTotalScore(newAnswers, formQuestions);
+                        return {
+                            ...r,
+                            answers: newAnswers,
+                            correctCount: scoring.correctCount,
+                            wrongCount: scoring.wrongCount,
+                            score: scoring.score,
+                            isCustomScore: true,
+                        };
+                    }),
+                };
+            });
+
+            setActiveCorrectionId(null);
+            setPartialScoreEditingId(null);
+            showToast('Koreksi jawaban berhasil disimpan.');
+        } else {
+            showToast(res.message || 'Gagal menyimpan koreksi.', 'error');
         }
     };
 
@@ -2213,80 +2335,252 @@ Panduan penilaian:
                                                     Lets the owner award e.g. 90% for a near-correct answer instead
                                                     of the all-or-nothing Benar/Salah toggle. */}
                                                 {(answer.typeId === 1 || qDef?.typeId === 1) && (
-                                                    partialScoreEditingId === (answer.answerId || answer.id || answer.questionId) ? (
-                                                        <div className="flex items-center gap-1">
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                max="100"
-                                                                step="1"
-                                                                autoFocus
-                                                                value={partialScoreInput}
-                                                                onChange={e => setPartialScoreInput(e.target.value)}
-                                                                onKeyDown={e => {
-                                                                    if (e.key === 'Enter') {
-                                                                        handleSetPartialScore(
-                                                                            selectedRespondent.responseId,
-                                                                            answer.questionId,
-                                                                            answer.answerId || answer.id,
-                                                                            partialScoreInput,
-                                                                            qPoints
-                                                                        );
-                                                                    }
-                                                                    if (e.key === 'Escape') setPartialScoreEditingId(null);
+                                                    <>
+                                                        {partialScoreEditingId === (answer.answerId || answer.id || answer.questionId) ? (
+                                                            <div className="flex items-center gap-1">
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max="100"
+                                                                    step="1"
+                                                                    autoFocus
+                                                                    value={partialScoreInput}
+                                                                    onChange={e => setPartialScoreInput(e.target.value)}
+                                                                    onKeyDown={e => {
+                                                                        if (e.key === 'Escape') setPartialScoreEditingId(null);
+                                                                    }}
+                                                                    className="w-16 px-2 py-1 bg-white dark:bg-slate-800 border border-amber-400 dark:border-amber-600 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-center"
+                                                                    placeholder="0–100"
+                                                                />
+                                                                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">%</span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setPartialScoreEditingId(null)}
+                                                                    className="px-2 py-1 text-slate-400 hover:text-slate-600 text-[11px] font-bold rounded-lg cursor-pointer"
+                                                                    title="Batal"
+                                                                >
+                                                                    ✕
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const currentPct = answer.manualScore != null
+                                                                        ? Math.round((Number(answer.manualScore) / qPoints) * 100)
+                                                                        : effIsCorrect === true ? 100 : effIsCorrect === false ? 0 : '';
+                                                                    setPartialScoreInput(String(currentPct));
+                                                                    setPartialScoreEditingId(answer.answerId || answer.id || answer.questionId);
                                                                 }}
-                                                                className="w-16 px-2 py-1 bg-white dark:bg-slate-800 border border-amber-400 dark:border-amber-600 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500 text-center"
-                                                                placeholder="0–100"
-                                                            />
-                                                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">%</span>
+                                                                className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border cursor-pointer transition-all ${
+                                                                    answer.manualScore != null
+                                                                        ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'
+                                                                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-amber-300 hover:text-amber-600'
+                                                                }`}
+                                                                title="Atur skor parsial (%)"
+                                                            >
+                                                                {answer.manualScore != null
+                                                                    ? `${Math.round((Number(answer.manualScore) / qPoints) * 100)}% parsial`
+                                                                    : '± Skor Parsial'}
+                                                            </button>
+                                                        )}
+
+                                                        {/* B-2: Complete correction panel toggle — explicit override + note */}
+                                                        {activeCorrectionId !== (answer.answerId || answer.id || answer.questionId) ? (
                                                             <button
                                                                 type="button"
-                                                                onClick={() => handleSetPartialScore(
-                                                                    selectedRespondent.responseId,
-                                                                    answer.questionId,
-                                                                    answer.answerId || answer.id,
-                                                                    partialScoreInput,
-                                                                    qPoints
-                                                                )}
-                                                                className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg cursor-pointer"
-                                                                title="Simpan skor parsial"
+                                                                onClick={() => {
+                                                                    const ansKey = answer.answerId || answer.id || answer.questionId;
+                                                                    setActiveCorrectionId(ansKey);
+                                                                    setCorrectionNote(answer.overrideNote || '');
+                                                                    setCorrectionIsCorrectOverride(
+                                                                        answer.isCorrectOverride !== undefined
+                                                                            ? answer.isCorrectOverride
+                                                                            : undefined
+                                                                    );
+                                                                    if (partialScoreEditingId !== ansKey) {
+                                                                        const currentPct = answer.manualScore != null
+                                                                            ? Math.round((Number(answer.manualScore) / qPoints) * 100)
+                                                                            : effIsCorrect === true ? 100 : effIsCorrect === false ? 0 : '';
+                                                                        setPartialScoreInput(String(currentPct));
+                                                                        setPartialScoreEditingId(ansKey);
+                                                                    }
+                                                                }}
+                                                                className="text-[11px] font-bold px-2 py-0.5 rounded-lg border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 cursor-pointer hover:bg-indigo-100 transition-all"
+                                                                title="Buka panel koreksi lengkap (catatan + override status)"
                                                             >
-                                                                ✓
+                                                                📝 Koreksi Lengkap
                                                             </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setPartialScoreEditingId(null)}
-                                                                className="px-2 py-1 text-slate-400 hover:text-slate-600 text-[11px] font-bold rounded-lg cursor-pointer"
-                                                                title="Batal"
-                                                            >
-                                                                ✕
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const currentPct = answer.manualScore != null
-                                                                    ? Math.round((Number(answer.manualScore) / qPoints) * 100)
-                                                                    : effIsCorrect === true ? 100 : effIsCorrect === false ? 0 : '';
-                                                                setPartialScoreInput(String(currentPct));
-                                                                setPartialScoreEditingId(answer.answerId || answer.id || answer.questionId);
-                                                            }}
-                                                            className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border cursor-pointer transition-all ${
-                                                                answer.manualScore != null
-                                                                    ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'
-                                                                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-amber-300 hover:text-amber-600'
-                                                            }`}
-                                                            title="Atur skor parsial (%)"
-                                                        >
-                                                            {answer.manualScore != null
-                                                                ? `${Math.round((Number(answer.manualScore) / qPoints) * 100)}% parsial`
-                                                                : '± Skor Parsial'}
-                                                        </button>
-                                                    )
+                                                        ) : null}
+                                                    </>
                                                 )}
                                             </div>
                                         </div>
+
+                                        {/* B-2: Expandable Complete Correction Panel (Essay only) */}
+                                        {(answer.typeId === 1 || qDef?.typeId === 1) &&
+                                            activeCorrectionId === (answer.answerId || answer.id || answer.questionId) && (
+                                                <div className="mt-3 w-full p-4 rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/40 dark:to-violet-950/40 border border-indigo-200/60 dark:border-indigo-900/40 space-y-3 animate-fadeIn">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 text-white flex items-center justify-center shadow-xs">
+                                                                <ShieldAlert size={13} />
+                                                            </div>
+                                                            <p className="text-xs font-extrabold text-slate-900 dark:text-white">
+                                                                Panel Koreksi Jawaban Essay
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { setActiveCorrectionId(null); }}
+                                                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+
+                                                    {/* 1 — Skor Parsial (percentage input already shown above, repeat here for UX) */}
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                                        {/* A. Skor Parsial */}
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[11px] uppercase tracking-wider font-bold text-indigo-600 dark:text-indigo-300 flex items-center gap-1.5">
+                                                                🏆 Skor Parsial (%)
+                                                                <span className="text-[9px] text-slate-400 normal-case font-medium">
+                                                                    (maks. {qPoints} poin)
+                                                                </span>
+                                                            </label>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max="100"
+                                                                    step="1"
+                                                                    value={partialScoreInput}
+                                                                    onChange={e => setPartialScoreInput(e.target.value)}
+                                                                    className="flex-1 w-full px-3 py-2 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/60 text-center"
+                                                                    placeholder="0–100"
+                                                                />
+                                                                <span className="text-sm font-bold text-slate-600 dark:text-slate-300 w-6 text-center">
+                                                                    %
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                                                Skor parsial dalam persentase. Contoh: 80% = {(0.8 * qPoints).toFixed(1)} poin
+                                                                dari total {qPoints} poin.
+                                                            </p>
+                                                        </div>
+
+                                                        {/* B. Override Status Benar/Salah */}
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[11px] uppercase tracking-wider font-bold text-indigo-600 dark:text-indigo-300 flex items-center gap-1.5">
+                                                                🔒 Override Status
+                                                            </label>
+                                                            <div className="space-y-1.5">
+                                                                <label className="flex items-center gap-2 p-2.5 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-indigo-200/50 dark:border-indigo-800/50 cursor-pointer hover:border-indigo-400/60 transition-all">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={correctionIsCorrectOverride === true}
+                                                                        onChange={e => {
+                                                                            setCorrectionIsCorrectOverride(e.target.checked ? true : (correctionIsCorrectOverride === true ? false : undefined));
+                                                                        }}
+                                                                        className="w-4 h-4 rounded-md text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                                                                    />
+                                                                    <div className="flex-1">
+                                                                        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                                                                            Tandai Jawaban Ini Benar
+                                                                        </p>
+                                                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                                                            Centang bila jawaban tidak exact match tapi konsepnya benar (override).
+                                                                        </p>
+                                                                    </div>
+                                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                                                        correctionIsCorrectOverride === true
+                                                                            ? 'bg-emerald-500 text-white'
+                                                                            : correctionIsCorrectOverride === false
+                                                                                ? 'bg-red-500 text-white'
+                                                                                : 'bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                                                    }`}>
+                                                                        {correctionIsCorrectOverride === true ? 'BENAR' : correctionIsCorrectOverride === false ? 'SALAH' : 'AUTO'}
+                                                                    </span>
+                                                                </label>
+                                                                {correctionIsCorrectOverride === false && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setCorrectionIsCorrectOverride(undefined)}
+                                                                        className="text-[10px] text-slate-500 hover:text-indigo-600 font-medium underline decoration-dotted"
+                                                                    >
+                                                                        Reset ke status otomatis
+                                                                    </button>
+                                                                )}
+                                                                {correctionIsCorrectOverride === true && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setCorrectionIsCorrectOverride(false)}
+                                                                        className="text-[10px] text-slate-500 hover:text-indigo-600 font-medium underline decoration-dotted"
+                                                                    >
+                                                                        Tandai sebagai salah
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 2 — Catatan ke Siswa (OverrideNote) */}
+                                                    <div className="space-y-1.5 pt-1">
+                                                        <label className="text-[11px] uppercase tracking-wider font-bold text-indigo-600 dark:text-indigo-300 flex items-center gap-1.5">
+                                                            💬 Catatan ke Siswa (Optional)
+                                                        </label>
+                                                        <textarea
+                                                            value={correctionNote}
+                                                            onChange={e => setCorrectionNote(e.target.value)}
+                                                            rows={3}
+                                                            placeholder="Tulis catatan untuk siswa, misal: Bagus, tapi rumusnya kurang tepat di langkah kedua. Coba periksa kembali aturan integral."
+                                                            className="w-full px-3 py-2.5 text-sm rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/60 placeholder:text-slate-400 resize-y"
+                                                        />
+                                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                                            Catatan ini akan ditampilkan kepada responden/siswa saat melihat hasil pengerjaan.
+                                                        </p>
+                                                    </div>
+
+                                                    {/* 3 — Display existing note (if any) */}
+                                                    {answer.overrideNote && (
+                                                        <div className="p-3 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-amber-200/60 dark:border-amber-800/60">
+                                                            <p className="text-[10px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-300 mb-1">
+                                                                📌 Catatan Sebelumnya:
+                                                            </p>
+                                                            <p className="text-xs text-slate-700 dark:text-slate-200 font-medium whitespace-pre-wrap">
+                                                                {answer.overrideNote}
+                                                            </p>
+                                                        </div>
+                                                    )}
+
+                                                    {/* 4 — Simpan Koreksi Lengkap */}
+                                                    <div className="flex items-center justify-end gap-2 pt-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setActiveCorrectionId(null);
+                                                                setPartialScoreEditingId(null);
+                                                            }}
+                                                            className="px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 bg-white/70 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer transition-all"
+                                                        >
+                                                            Batal
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleSaveCompleteCorrection(
+                                                                selectedRespondent.responseId,
+                                                                answer.questionId,
+                                                                answer.answerId || answer.id,
+                                                                qPoints
+                                                            )}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-gradient-to-r from-indigo-600 to-violet-500 hover:from-indigo-700 hover:to-violet-600 text-white rounded-xl shadow-xs cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                                        >
+                                                            💾 Simpan Koreksi Lengkap
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
 
                                         <div className="border-t border-slate-100 dark:border-slate-800 p-4 space-y-3 bg-slate-50 dark:bg-slate-800/50 text-xs">
                                             <div>
