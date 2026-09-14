@@ -4,6 +4,7 @@ import 'package:form_up/core/services/gemini_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/features/ai_chat/controllers/mention_highlight_controller.dart';
 import 'package:form_up/features/ai_chat/models/ai_attachment.dart';
+import 'package:form_up/features/ai_chat/widgets/image_preview_dialog.dart';
 
 class ChatInputBar extends StatefulWidget {
   final MentionHighlightController textController;
@@ -82,9 +83,64 @@ class _ChatInputBarState extends State<ChatInputBar> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final canSend = widget.textController.text.trim().isNotEmpty || widget.attachments.isNotEmpty;
-    // Pill mengikuti tema aplikasi (bukan warna statik foto mockup)
-    final pillColor = cs.surfaceContainerHighest;
-    final borderColor = cs.outlineVariant;
+    // Pill mengikuti warna bubble AI (cs.surface) di kedua mode —
+    // light mode jadi full putih, dark mode senada dengan bubble chat AI.
+    final pillColor = cs.surface;
+    // Hover memakai warna tema (onSurfaceVariant / onPrimary dengan alpha) —
+    // tanpa warna di luar palet tema.
+    final hoverTint = cs.onSurfaceVariant.withValues(alpha: 0.12);
+    final pressTint = cs.onSurfaceVariant.withValues(alpha: 0.20);
+    final enabledActions = !widget.streaming && !widget.sending && !widget.isTranscribing;
+    Widget plusButton() => IconButton(
+          onPressed: enabledActions ? widget.onPickFiles : null,
+          tooltip: 'Lampirkan file',
+          style: IconButton.styleFrom(hoverColor: hoverTint, highlightColor: pressTint),
+          icon: Icon(Icons.add, size: 24, color: cs.onSurfaceVariant),
+        );
+    Widget promptField() => TextField(
+          controller: widget.textController,
+          focusNode: widget.focusNode,
+          minLines: 1,
+          maxLines: 4,
+          textInputAction: TextInputAction.send,
+          onSubmitted: (_) { if (canSend && !widget.streaming && !widget.sending) widget.onSend(); },
+          decoration: InputDecoration(hintText: 'Tanya Gemini', filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.fromLTRB(4, 10, 8, 8), hintStyle: TextStyle(fontSize: 15, color: cs.onSurfaceVariant)),
+          style: TextStyle(fontSize: 15, color: cs.onSurface),
+        );
+    Widget micButton() => widget.isTranscribing
+        ? const Padding(padding: EdgeInsets.all(10), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
+        : IconButton(
+            onPressed: enabledActions ? widget.onMicPressed : null,
+            tooltip: widget.isListening ? 'Berhenti merekam (AI)' : 'Rekam suara (AI)',
+            style: IconButton.styleFrom(hoverColor: hoverTint, highlightColor: pressTint),
+            icon: Icon(widget.isListening ? Icons.stop_circle : Icons.mic_none_outlined, size: 22, color: widget.isListening ? cs.error : cs.onSurfaceVariant),
+          );
+    Widget trailing() {
+      if (widget.streaming) {
+        return IconButton(
+          onPressed: widget.onStop,
+          tooltip: 'Stop',
+          style: IconButton.styleFrom(backgroundColor: cs.surfaceContainerHigh, hoverColor: hoverTint, highlightColor: pressTint),
+          icon: Icon(Icons.stop_rounded, size: 22, color: cs.primary),
+        );
+      }
+      if (widget.sending || widget.isTranscribing) {
+        return const Padding(padding: EdgeInsets.all(8), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)));
+      }
+      if (canSend) {
+        return Material(
+          color: cs.primary,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: widget.onSend,
+            hoverColor: cs.onPrimary.withValues(alpha: 0.25),
+            child: Tooltip(message: 'Kirim', child: SizedBox(width: 36, height: 36, child: Icon(Icons.arrow_upward, size: 20, color: cs.onPrimary))),
+          ),
+        );
+      }
+      return const SizedBox.shrink();
+    }
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -93,35 +149,18 @@ class _ChatInputBarState extends State<ChatInputBar> {
         SafeArea(top: false, child: Builder(builder: (ctx) {
           final isWide = MediaQuery.sizeOf(ctx).width >= 600;
           final outerPad = isWide ? const EdgeInsets.fromLTRB(24, 8, 24, 16) : const EdgeInsets.fromLTRB(16, 8, 16, 16);
-          return Container(padding: outerPad, child: Container(padding: EdgeInsets.fromLTRB(12, widget.attachments.isNotEmpty ? 12 : 8, 8, 8), decoration: BoxDecoration(color: pillColor, borderRadius: BorderRadius.circular(28), border: Border.all(color: borderColor), boxShadow: softShadow()), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          return Container(padding: outerPad, child: Container(padding: EdgeInsets.fromLTRB(8, widget.attachments.isNotEmpty ? 12 : 6, 8, 6), decoration: BoxDecoration(color: pillColor, borderRadius: BorderRadius.circular(28), boxShadow: softShadow()), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (widget.attachments.isNotEmpty) ...[_AttachmentPreview(attachments: widget.attachments, onRemove: widget.onRemoveAttachment), const SizedBox(height: 8)],
-          TextField(controller: widget.textController, focusNode: widget.focusNode, minLines: 1, maxLines: 4, textInputAction: TextInputAction.send, onSubmitted: (_) { if (canSend && !widget.streaming && !widget.sending) widget.onSend(); }, decoration: InputDecoration(hintText: 'Tanya Gemini', filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.fromLTRB(8, 10, 8, 8), hintStyle: TextStyle(fontSize: 15, color: cs.onSurfaceVariant)), style: TextStyle(fontSize: 15, color: cs.onSurface)),
-          const SizedBox(height: 6),
-          Row(children: [
-            InkWell(onTap: (widget.streaming || widget.sending || widget.isTranscribing) ? null : widget.onPickFiles, borderRadius: BorderRadius.circular(20), child: Container(width: 36, height: 36, alignment: Alignment.center, child: Icon(Icons.add, size: 22, color: cs.onSurfaceVariant))),
-            const Spacer(),
-            // Mobile sangat sempit: pemilihan model di kiri atas, bukan di field
-            if (MediaQuery.sizeOf(context).width >= 600)
-              Flexible(child: Align(alignment: Alignment.centerRight, child: _FlashPickerCompact(onChanged: widget.onModelChanged))),
-            if (MediaQuery.sizeOf(context).width >= 600) const SizedBox(width: 4),
-            if (widget.isTranscribing)
-              Padding(
-                padding: const EdgeInsets.all(10),
-                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary)),
-              )
-            else
-              IconButton(
-                onPressed: (widget.streaming || widget.sending || widget.isTranscribing) ? null : widget.onMicPressed,
-                tooltip: widget.isListening ? 'Berhenti merekam (AI)' : 'Rekam suara (AI)',
-                visualDensity: VisualDensity.compact,
-                icon: Icon(widget.isListening ? Icons.stop_circle : Icons.mic_none_outlined, size: 20, color: widget.isListening ? Colors.red : cs.onSurfaceVariant),
-              ),
-            const SizedBox(width: 4),
-            if (widget.streaming) IconButton(onPressed: widget.onStop, tooltip: 'Stop', style: IconButton.styleFrom(backgroundColor: cs.surfaceContainerHigh), icon: Icon(Icons.stop_rounded, size: 20, color: cs.primary))
-            else if (widget.sending || widget.isTranscribing) Padding(padding: const EdgeInsets.all(8), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary)))
-            else if (canSend) Material(color: cs.primary, shape: const CircleBorder(), clipBehavior: Clip.antiAlias, child: InkWell(onTap: widget.onSend, child: SizedBox(width: 36, height: 36, child: Icon(Icons.arrow_upward, size: 20, color: cs.onPrimary))))
-            else const SizedBox(width: 4),
-          ]),
+          // Layout ala Gemini (lebar field TIDAK diubah). Field prompt
+          // SELALU di posisi yang sama (satu field saja) — saat user
+          // mengetik hanya baris tombol di bawah yang berubah konten,
+          // field tidak melompat / tidak kehilangan fokus.
+          if (MediaQuery.sizeOf(context).width >= 600) ...[
+            Padding(padding: const EdgeInsets.only(left: 8, top: 4), child: promptField()),
+            const SizedBox(height: 6),
+            Row(children: [plusButton(), const Spacer(), _FlashPickerCompact(onChanged: widget.onModelChanged), const SizedBox(width: 4), micButton(), trailing()]),
+          ] else
+            Row(children: [plusButton(), Expanded(child: promptField()), micButton(), trailing()]),
         ])));
           }),
         ),
@@ -144,7 +183,7 @@ class _AttachmentPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Wrap(spacing: 8, runSpacing: 8, children: [for (final a in attachments) Stack(clipBehavior: Clip.none, children: [Container(width: 96, height: 96, decoration: BoxDecoration(color: cs.surfaceContainer, borderRadius: BorderRadius.circular(16), border: Border.all(color: cs.outlineVariant)), clipBehavior: Clip.antiAlias, child: a.isPreviewableImage && a.hasBytes ? Image.memory(a.bytes, fit: BoxFit.cover) : a.isPdf && a.hasBytes ? _PdfThumbPlaceholder(name: a.name) : _FileIconPlaceholder(attachment: a)), Positioned(top: -6, right: -6, child: Material(color: cs.surface, shape: const CircleBorder(), elevation: 2, child: InkWell(customBorder: const CircleBorder(), onTap: () => onRemove(a.id), child: Container(width: 22, height: 22, alignment: Alignment.center, child: Icon(Icons.close, size: 14, color: cs.onSurface)))))] )]);
+    return Wrap(spacing: 8, runSpacing: 8, children: [for (final a in attachments) Stack(clipBehavior: Clip.none, children: [Material(color: Colors.transparent, child: InkWell(borderRadius: BorderRadius.circular(16), onTap: a.isPreviewableImage && a.hasBytes ? () => showImagePreview(context, a) : null, child: Container(width: 96, height: 96, decoration: BoxDecoration(color: cs.surfaceContainer, borderRadius: BorderRadius.circular(16), border: Border.all(color: cs.outlineVariant)), clipBehavior: Clip.antiAlias, child: a.isPreviewableImage && a.hasBytes ? Image.memory(a.bytes, fit: BoxFit.cover) : a.isPdf && a.hasBytes ? _PdfThumbPlaceholder(name: a.name) : _FileIconPlaceholder(attachment: a)))), Positioned(top: -6, right: -6, child: Material(color: cs.surface, shape: const CircleBorder(), elevation: 2, child: InkWell(customBorder: const CircleBorder(), onTap: () => onRemove(a.id), child: Container(width: 22, height: 22, alignment: Alignment.center, child: Icon(Icons.close, size: 14, color: cs.onSurface)))))] )]);
   }
 }
 class _PdfThumbPlaceholder extends StatelessWidget {

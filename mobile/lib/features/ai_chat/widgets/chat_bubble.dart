@@ -6,6 +6,7 @@ import 'package:form_up/features/ai_chat/models/chat_message.dart';
 import 'package:form_up/features/ai_chat/widgets/action_change_card.dart';
 import 'package:form_up/features/ai_chat/widgets/action_json_tabs.dart';
 import 'package:form_up/features/ai_chat/widgets/form_context_card.dart';
+import 'package:form_up/features/ai_chat/widgets/image_preview_dialog.dart';
 import 'package:form_up/features/ai_chat/widgets/streaming_ai_preview.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
@@ -85,9 +86,6 @@ class ChatBubble extends StatelessWidget {
     // dikenali di kedua mode (sebelumnya menyatu dengan background).
     final errorTint =
         Color.alphaBlend(Colors.red.withValues(alpha: 0.10), cs.surface);
-    final errorBorder = Theme.of(context).brightness == Brightness.dark
-        ? Colors.red.shade400
-        : Colors.red.shade300;
     // Desktop: bubble selebar prompt (860) agar tidak mengecil di tengah;
     // mobile/tablet tetap 82% lebar layar seperti sebelumnya.
     final isDesktop = isDesktopWidth(context);
@@ -99,21 +97,14 @@ class ChatBubble extends StatelessWidget {
         constraints: BoxConstraints(
           maxWidth: bubbleMaxW,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: isUser
               ? userBubbleColor
               : (m.isError ? errorTint : cs.surface),
-          borderRadius: BorderRadius.circular(16).copyWith(
-            bottomRight: isUser ? const Radius.circular(4) : null,
-            bottomLeft: !isUser ? const Radius.circular(4) : null,
-          ),
+          // Semua sisi radius sama & lebih melengkung — tanpa "ekor" bubble.
+          borderRadius: BorderRadius.circular(24),
           boxShadow: softShadow(),
-          border: isUser
-              ? null
-              : Border.all(
-                  color: m.isError ? errorBorder : cs.outlineVariant,
-                ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -329,9 +320,15 @@ class _BubbleAttachments extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (a.isPreviewableImage && a.hasBytes)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.memory(a.bytes, width: 40, height: 40, fit: BoxFit.cover),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => showImagePreview(context, a),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.memory(a.bytes, width: 40, height: 40, fit: BoxFit.cover),
+                      ),
+                    ),
                   )
                 else
                   Icon(
