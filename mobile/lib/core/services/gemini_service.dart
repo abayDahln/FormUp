@@ -493,10 +493,17 @@ Aturan:
       if (cancel?.isCancelled ?? false) throw Exception('GEMINI_CANCELLED');
       // Fail-fast: tunggu respons server maksimal 15 detik. Kalau server
       // tidak merespons, lebih baik gagal cepat daripada user menunggu.
+      // DENGAN lampiran (base64 bisa belasan MB), upload butuh jauh lebih
+      // lama di koneksi HP — gunakan 120 detik agar file besar tetap
+      // terkirim dan AI tetap menjawab (sebelumnya 15 dtk → selalu timeout
+      // dan AI "tidak memberi jawaban").
+      final connectTimeout = (inlineAttachments != null && inlineAttachments.any((a) => a.hasBytes))
+          ? const Duration(seconds: 120)
+          : const Duration(seconds: 15);
       final streamed = await client.send(request).timeout(
-        const Duration(seconds: 15),
+        connectTimeout,
         onTimeout: () => throw TimeoutException(
-            'Server AI tidak merespons dalam 15 detik (koneksi lambat atau server sibuk)'),
+            'Server AI tidak merespons dalam ${connectTimeout.inSeconds} detik (koneksi lambat atau server sibuk)'),
       );
       if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
         final errBody = await streamed.stream.bytesToString().timeout(
@@ -614,6 +621,10 @@ Aturan:
     cancel?._attach(client);
     try {
       if (cancel?.isCancelled ?? false) throw Exception('GEMINI_CANCELLED');
+      // Timeout lebih panjang bila ada lampiran (upload base64 besar).
+      final connectTimeout = (inlineAttachments != null && inlineAttachments.any((a) => a.hasBytes))
+          ? const Duration(seconds: 120)
+          : const Duration(seconds: 30);
       final res = await client
           .post(uri,
               headers: {
@@ -630,9 +641,9 @@ Aturan:
                 'generationConfig': {'temperature': 0.8, 'maxOutputTokens': 32768}
               }))
           .timeout(
-        const Duration(seconds: 30),
+        connectTimeout,
         onTimeout: () => throw TimeoutException(
-            'Server AI tidak merespons dalam 30 detik (koneksi lambat atau server sibuk)'),
+            'Server AI tidak merespons dalam ${connectTimeout.inSeconds} detik (koneksi lambat atau server sibuk)'),
       );
       if (res.statusCode < 200 || res.statusCode >= 300) {
         String googleMsg = '';

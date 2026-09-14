@@ -47,18 +47,21 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
       context: context,
       builder: (context) => ResponsiveDialog(
         child: AlertDialog(
-        title: Text(title, style: const TextStyle(fontFamily: kFontBold)),
-        content: Text(content),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(action, style:  TextStyle(color: Theme.of(context).colorScheme.primary)),
-          ),
-        ],
+          title: Text(title, style: const TextStyle(fontFamily: kFontBold)),
+          content: Text(content),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(
+                action,
+                style: TextStyle(color: Theme.of(context).colorScheme.primary),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -86,7 +89,8 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
       'User "${_user?.fullname}" tidak akan bisa login lagi.',
       'Ban',
     );
-    if (ok == true && mounted) _run(() => AdminService.banUser(widget.userId), 'User di-ban');
+    if (ok == true && mounted)
+      _run(() => AdminService.banUser(widget.userId), 'User di-ban');
   }
 
   void _activate() async {
@@ -110,10 +114,8 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
         backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape:  Border(
-          bottom: BorderSide(color: cs.outlineVariant),
-        ),
-        title:  Text(
+        shape: Border(bottom: BorderSide(color: cs.outlineVariant)),
+        title: Text(
           "Detail User",
           style: TextStyle(
             fontSize: 22,
@@ -126,23 +128,34 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
       body: _loading
           ? const AppLoadingOverlay()
           : u == null
-              ?  Center(
-                  child: Text('Data tidak tersedia.',
-                      style: TextStyle(color: cs.onSurfaceVariant)))
-              : AbsorbPointer(
-                  absorbing: _busy,
-                  child: ListView(
-                    padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 960),
-                    children: _userColumns(context, cs, u, isAdmin),
-                  ),
+          ? Center(
+              child: Text(
+                'Data tidak tersedia.',
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+            )
+          : AbsorbPointer(
+              absorbing: _busy,
+              child: ListView(
+                padding: centerPad(
+                  context,
+                  base: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  wideMaxWidth: 960,
                 ),
+                children: _userColumns(context, cs, u, isAdmin),
+              ),
+            ),
     );
   }
 
   /// Kolom detail user: phone 1 kolom identik; desktop ≥1200 profil + info
   /// berdampingan, tombol tetap full-width di bawah.
-  List<Widget> _userColumns(BuildContext context, ColorScheme cs,
-      AdminUserDetail u, bool isAdmin) {
+  List<Widget> _userColumns(
+    BuildContext context,
+    ColorScheme cs,
+    AdminUserDetail u,
+    bool isAdmin,
+  ) {
     final profileCard = Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -160,9 +173,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                 : null,
             child: (u.profileImage ?? '').isEmpty
                 ? Text(
-                    u.fullname.isNotEmpty
-                        ? u.fullname[0].toUpperCase()
-                        : '?',
+                    u.fullname.isNotEmpty ? u.fullname[0].toUpperCase() : '?',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -192,8 +203,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
           Wrap(
             spacing: 6,
             children: [
-              if (isAdmin)
-                const _DetailBadge('Admin', Color(0xFF6A1B9A)),
+              if (isAdmin) const _DetailBadge('Admin', Color(0xFF6A1B9A)),
               _DetailBadge(
                 u.isActive ? 'Aktif' : 'Banned',
                 u.isActive ? kSuccessColor : kDangerColor,
@@ -206,14 +216,15 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     final info = _infoCard([
       _infoRow(Icons.email_outlined, 'Email', u.email),
       _infoRow(Icons.cake_outlined, 'Tanggal Lahir', u.birthdate ?? '—'),
-      _infoRow(
-          Icons.description_outlined, 'Jumlah Form', '${u.formCount}'),
+      _infoRow(Icons.description_outlined, 'Jumlah Form', '${u.formCount}'),
       _infoRow(Icons.people_outline, 'Jumlah Respon', '${u.responseCount}'),
-      _infoRow(Icons.calendar_today_outlined, 'Tanggal Gabung',
-          _formatDate(u.createdAt)),
+      _infoRow(
+        Icons.calendar_today_outlined,
+        'Tanggal Gabung',
+        _formatDate(u.createdAt),
+      ),
       if (u.deletedAt != null)
-        _infoRow(
-            Icons.delete_outline, 'Dihapus', _formatDate(u.deletedAt)),
+        _infoRow(Icons.delete_outline, 'Dihapus', _formatDate(u.deletedAt)),
     ]);
     if (!isDesktopWidth(context)) {
       return [
@@ -228,20 +239,21 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: kWarningColor),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(kRadius)),
+                  borderRadius: BorderRadius.circular(kRadius),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              child: const Text('Ban User',
-                  style: TextStyle(
-                      color: kWarningColor,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: kFontBold)),
+              child: const Text(
+                'Ban User',
+                style: TextStyle(
+                  color: kWarningColor,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: kFontBold,
+                ),
+              ),
             )
           else
-            AuthPrimaryButton(
-              label: 'Aktifkan User',
-              onPressed: _activate,
-            ),
+            AuthPrimaryButton(label: 'Aktifkan User', onPressed: _activate),
         ],
       ];
     }
@@ -262,14 +274,18 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: kWarningColor),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(kRadius)),
+                borderRadius: BorderRadius.circular(kRadius),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
-            child: const Text('Ban User',
-                style: TextStyle(
-                    color: kWarningColor,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: kFontBold)),
+            child: const Text(
+              'Ban User',
+              style: TextStyle(
+                color: kWarningColor,
+                fontWeight: FontWeight.bold,
+                fontFamily: kFontBold,
+              ),
+            ),
           )
         else
           AuthPrimaryButton(
@@ -303,15 +319,23 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
           const SizedBox(width: 10),
           SizedBox(
             width: 110,
-            child: Text(label,
-                style:  TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style:  TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Theme.of(context).colorScheme.onSurface)),
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
           ),
         ],
       ),

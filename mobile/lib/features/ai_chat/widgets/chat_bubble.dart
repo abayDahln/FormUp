@@ -74,6 +74,13 @@ class ChatBubble extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final m = message;
     final isUser = m.role == 'user';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Bubble pesan user: tema-sadar (bukan cs.primary/onPrimary, karena
+    // skema dark memakai onPrimary gelap → teks tak terbaca di bubble terang).
+    // Dark mode: bubble teal gelap + teks putih; light mode: bubble hijau
+    // terang (mint) + teks hitam. Bubble AI tidak berubah.
+    final userBubbleColor = isDark ? const Color(0xFF20443E) : const Color(0xFFB9EBDF);
+    final userTextColor = isDark ? Colors.white : Colors.black87;
     // Error dibedakan dari bubble normal: tint merah agar langsung
     // dikenali di kedua mode (sebelumnya menyatu dengan background).
     final errorTint =
@@ -95,7 +102,7 @@ class ChatBubble extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: isUser
-              ? cs.primary
+              ? userBubbleColor
               : (m.isError ? errorTint : cs.surface),
           borderRadius: BorderRadius.circular(16).copyWith(
             bottomRight: isUser ? const Radius.circular(4) : null,
@@ -118,7 +125,7 @@ class ChatBubble extends StatelessWidget {
             if (isUser)
               SelectableText(
                 m.text.isEmpty ? (m.attachments.isNotEmpty ? '(lampiran)' : '...') : m.text,
-                style: TextStyle(fontSize: 14, color: cs.onPrimary),
+                style: TextStyle(fontSize: 14, color: userTextColor),
               )
             else if (m.stream != null)
               // Bubble AKTIF: preview progresif per soal (pagar JSON
@@ -294,6 +301,17 @@ class _BubbleAttachments extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // Chip lampiran di bubble user ikut tema: di dark mode (bubble teal
+    // gelap) overlay putih + teks putih; di light mode (bubble hijau
+    // terang) teks gelap agar tetap terbaca.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final chipBg = isUser
+        ? (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.65))
+        : cs.surfaceContainerHighest;
+    final chipBorder = isUser
+        ? (isDark ? Colors.white24 : Colors.black26)
+        : cs.outlineVariant;
+    final chipFg = isUser ? (isDark ? Colors.white : Colors.black87) : cs.onSurface;
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -303,9 +321,9 @@ class _BubbleAttachments extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 220),
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: isUser ? Colors.white.withValues(alpha: 0.15) : cs.surfaceContainerHighest,
+              color: chipBg,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isUser ? Colors.white24 : cs.outlineVariant),
+              border: Border.all(color: chipBorder),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -325,7 +343,7 @@ class _BubbleAttachments extends StatelessWidget {
                                 ? Icons.table_chart_outlined
                                 : Icons.insert_drive_file_outlined,
                     size: 20,
-                    color: isUser ? Colors.white : cs.onSurfaceVariant,
+                    color: chipFg,
                   ),
                 const SizedBox(width: 8),
                 Flexible(
@@ -333,7 +351,7 @@ class _BubbleAttachments extends StatelessWidget {
                     a.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: isUser ? Colors.white : cs.onSurface),
+                    style: TextStyle(fontSize: 12, color: chipFg),
                   ),
                 ),
               ],

@@ -147,17 +147,29 @@ extension _AiChatMessaging on _AiChatScreenState {
   }
 
   /// Lanjutkan respons terpotong: minta AI tulis ulang SELURUH jawaban +
-  /// SATU blok JSON aksi yang lengkap dalam satu respons.
+  /// SATU blok JSON aksi yang lengkap dalam satu respons. Lampiran pesan
+  /// user terakhir ikut disertakan lagi agar AI tetap "melihat" file-nya
+  /// (history ke AI hanya menempelkan file pada pesan terakhir).
   Future<void> continueTruncated(ChatMessage m) async {
     if (_streaming || _sending) return;
     _dismissKeyboard();
     m.isTruncated = false;
     if (mounted) setState(() {});
     await persistCurrent();
+    List<AiAttachment>? resendAtts;
+    for (var i = _messages.length - 1; i >= 0; i--) {
+      if (_messages[i].role == 'user' && _messages[i].attachments.isNotEmpty) {
+        final found =
+            _messages[i].attachments.where((a) => a.hasBytes).toList();
+        if (found.isNotEmpty) resendAtts = found;
+        break;
+      }
+    }
     await sendWithText(
       'Respons kamu sebelumnya terpotong di tengah JSON aksi. '
       'Tulis ULANG seluruh jawaban + SATU blok ```json aksi yang lengkap dan valid '
       'dalam satu respons ini. Singkat saja penjelasannya agar tidak terpotong lagi.',
+      pendingAttachments: resendAtts,
     );
   }
 

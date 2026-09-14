@@ -328,10 +328,16 @@ extension _AiChatHistoryOps on _AiChatScreenState {
     return failed;
   }
 
+  /// Lampiran milik pesan user ini yang masih punya bytes in-memory
+  /// (bisa dikirim ulang). Riwayat persist hanya menyimpan metadata —
+  /// setelah restart bytes kosong dan user wajib melampirkan ulang.
+  List<AiAttachment> _resendableAttachments(ChatMessage m) {
+    return m.attachments.where((a) => a.hasBytes).toList();
+  }
+
   /// Tombol "coba lagi" di bawah pesanku: potong chat setelah pesan ini,
   /// undo perubahan form-nya (setelah konfirmasi), lalu kirim ulang prompt
-  /// yang sama. Bila ada aksi yang GAGAL di-undo, chat TIDAK dipotong
-  /// (batal total) agar form dan riwayat tak divergen permanen.
+  /// yang sama BESERTA lampirannya (jangan hilangkan file user).
   Future<void> retryUserMessage(ChatMessage m) async {
     _dismissKeyboard();
     if (_streaming || _sending) {
@@ -361,9 +367,23 @@ extension _AiChatHistoryOps on _AiChatScreenState {
       }
       return;
     }
+    // PENTING: ambil lampiran SEBELUM pesan dipotong — bytes hanya hidup
+    // in-memory dan persist hanya menyimpan metadata (lihat AiAttachment).
+    final resendAtts = _resendableAttachments(m);
+    final hadLostFiles = m.attachments.isNotEmpty && resendAtts.isEmpty;
     setState(() => _messages.removeRange(index, _messages.length));
     await persistCurrent();
-    await sendWithText(m.text);
+    if (hadLostFiles && mounted) {
+      showAuthToast(
+        context,
+        'File sebelumnya sudah tidak tersimpan. Lampirkan ulang file-nya lalu kirim lagi.',
+        isError: true,
+      );
+    }
+    await sendWithText(
+      m.text,
+      pendingAttachments: resendAtts.isEmpty ? null : resendAtts,
+    );
   }
 
   /// Tombol "edit" di bawah pesanku: dialog edit + rincian undo; setelah
@@ -460,9 +480,22 @@ extension _AiChatHistoryOps on _AiChatScreenState {
       }
       return;
     }
+    // Lampiran pesan asli ikut dikirim ulang (lihat retryUserMessage).
+    final resendAtts = _resendableAttachments(m);
+    final hadLostFiles = m.attachments.isNotEmpty && resendAtts.isEmpty;
     setState(() => _messages.removeRange(index, _messages.length));
     await persistCurrent();
-    await sendWithText(newText);
+    if (hadLostFiles && mounted) {
+      showAuthToast(
+        context,
+        'File sebelumnya sudah tidak tersimpan. Lampirkan ulang file-nya lalu kirim lagi.',
+        isError: true,
+      );
+    }
+    await sendWithText(
+      newText,
+      pendingAttachments: resendAtts.isEmpty ? null : resendAtts,
+    );
   }
 
   /// Tombol "salin" di bawah pesanku.

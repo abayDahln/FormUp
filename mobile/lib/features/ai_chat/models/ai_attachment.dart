@@ -103,9 +103,9 @@ class AiAttachment {
     'heif',
   ];
 
-  /// Batas: 3 file @10MB
+  /// Batas: 3 file @20MB
   static const maxCount = 3;
-  static const maxBytesPerFile = 10 * 1024 * 1024;
+  static const maxBytesPerFile = 20 * 1024 * 1024;
 
   /// Gemini inlineData dukung image + pdf langsung; doc/excel dikonversi ke teks
   static bool isInlineSupported(String mime) {

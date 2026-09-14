@@ -209,8 +209,12 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
     });
   }
 
-  Future<bool?> _confirm(String title, String content, String action,
-      {bool danger = false}) {
+  Future<bool?> _confirm(
+    String title,
+    String content,
+    String action, {
+    bool danger = false,
+  }) {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -223,9 +227,14 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(action,
-                style: TextStyle(
-                    color: danger ? kDangerColor : Theme.of(context).colorScheme.primary)),
+            child: Text(
+              action,
+              style: TextStyle(
+                color: danger
+                    ? kDangerColor
+                    : Theme.of(context).colorScheme.primary,
+              ),
+            ),
           ),
         ],
       ),
@@ -280,10 +289,8 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
         backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape:  Border(
-          bottom: BorderSide(color: cs.outlineVariant),
-        ),
-        title:  Text(
+        shape: Border(bottom: BorderSide(color: cs.outlineVariant)),
+        title: Text(
           "Detail Form",
           style: TextStyle(
             fontSize: 18,
@@ -297,12 +304,17 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
         bottom: TabBar(
           controller: _tabController,
           isScrollable: isTablet(context),
-          tabAlignment:
-              isTablet(context) ? TabAlignment.start : TabAlignment.fill,
+          tabAlignment: isTablet(context)
+              ? TabAlignment.start
+              : TabAlignment.fill,
           labelColor: cs.primary,
           unselectedLabelColor: Colors.grey,
           indicatorColor: cs.primary,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 12),
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            fontSize: 12,
+          ),
           tabs: const [
             Tab(text: 'Info'),
             Tab(text: 'Soal'),
@@ -314,27 +326,33 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
       body: _loading
           ? const AppLoadingOverlay()
           : f == null
-              ?  Center(
-                  child: Text('Data tidak tersedia.',
-                      style: TextStyle(color: cs.onSurfaceVariant)))
-              : AbsorbPointer(
-                  absorbing: _busy,
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildInfoTab(f, takenDown),
-                      _buildQuestionsTab(),
-                      _buildResponsesTab(),
-                      _buildFeedbackTab(),
-                    ],
-                  ),
-                ),
+          ? Center(
+              child: Text(
+                'Data tidak tersedia.',
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+            )
+          : AbsorbPointer(
+              absorbing: _busy,
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildInfoTab(f, takenDown),
+                  _buildQuestionsTab(),
+                  _buildResponsesTab(),
+                  _buildFeedbackTab(),
+                ],
+              ),
+            ),
     );
   }
 
   Widget _buildInfoTab(AdminFormDetail f, bool takenDown) {
     return ListView(
-      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
+      padding: centerPad(
+        context,
+        base: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      ),
       children: [
         Container(
           decoration: BoxDecoration(
@@ -362,32 +380,29 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
                   children: [
                     RichTextView(
                       text: f.title,
-                      style:  TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         fontFamily: kFontBold,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
-                    if (f.description != null &&
-                        f.description!.isNotEmpty) ...[
+                    if (f.description != null && f.description!.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       RichTextView(
                         text: f.description!,
-                        style:  TextStyle(
-                            fontSize: 13,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 6,
                       children: [
-                        _Badge(_statusLabel(f.status),
-                            _statusColor(f.status)),
-                        if (takenDown)
-                          const _Badge(
-                              'Taken Down', kDangerColor),
+                        _Badge(_statusLabel(f.status), _statusColor(f.status)),
+                        if (takenDown) const _Badge('Taken Down', kDangerColor),
                       ],
                     ),
                   ],
@@ -398,20 +413,27 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
         ),
         const SizedBox(height: 16),
         _infoCard([
-          _infoRow(Icons.person_outline, 'Pemilik',
-              '${f.owner.fullname ?? '-'} (${f.owner.email ?? '-'})'),
+          _infoRow(
+            Icons.person_outline,
+            'Pemilik',
+            '${f.owner.fullname ?? '-'} (${f.owner.email ?? '-'})',
+          ),
           _infoRow(Icons.link_outlined, 'Kode Link', f.formLink),
-          _infoRow(Icons.people_outline, 'Jumlah Respon',
-              '${f.responseCount}'),
+          _infoRow(Icons.people_outline, 'Jumlah Respon', '${f.responseCount}'),
           ..._settingRows(f.settings),
-          _infoRow(Icons.calendar_today_outlined, 'Dibuat',
-              _formatDate(f.createdAt)),
+          _infoRow(
+            Icons.calendar_today_outlined,
+            'Dibuat',
+            _formatDate(f.createdAt),
+          ),
           if (takenDown)
-            _infoRow(Icons.block_outlined, 'Di-takedown',
-                _formatDate(f.takenDownAt)),
+            _infoRow(
+              Icons.block_outlined,
+              'Di-takedown',
+              _formatDate(f.takenDownAt),
+            ),
           if (f.deletedAt != null)
-            _infoRow(Icons.delete_outline, 'Dihapus',
-                _formatDate(f.deletedAt)),
+            _infoRow(Icons.delete_outline, 'Dihapus', _formatDate(f.deletedAt)),
         ]),
         const SizedBox(height: 16),
         if (!takenDown && f.deletedAt == null)
@@ -420,20 +442,21 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: kWarningColor),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(kRadius)),
+                borderRadius: BorderRadius.circular(kRadius),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
-            child: const Text('Takedown Form',
-                style: TextStyle(
-                    color: kWarningColor,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: kFontBold)),
+            child: const Text(
+              'Takedown Form',
+              style: TextStyle(
+                color: kWarningColor,
+                fontWeight: FontWeight.bold,
+                fontFamily: kFontBold,
+              ),
+            ),
           ),
         if (takenDown && f.deletedAt == null)
-          AuthPrimaryButton(
-            label: 'Restore Form',
-            onPressed: _restore,
-          ),
+          AuthPrimaryButton(label: 'Restore Form', onPressed: _restore),
       ],
     );
   }
@@ -442,7 +465,11 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
     return Column(
       children: [
         Padding(
-          padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 8), maxWidth: 1100),
+          padding: centerPad(
+            context,
+            base: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            maxWidth: 1100,
+          ),
           child: AppSearchField(
             controller: _qSearchCtrl,
             onChanged: _onQSearch,
@@ -454,34 +481,44 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
           child: _qLoading
               ? const AppLoadingOverlay()
               : _questions.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          _qQuery.isEmpty
-                              ? 'Form ini belum memiliki soal.'
-                              : 'Tidak ada soal untuk "$_qQuery"',
-                          style:  TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                          textAlign: TextAlign.center,
-                        ),
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      _qQuery.isEmpty
+                          ? 'Form ini belum memiliki soal.'
+                          : 'Tidak ada soal untuk "$_qQuery"',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
-                    )
-                  : ListView.separated(
-                      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 16), maxWidth: 1100),
-                      itemCount: _questions.length + (_qTotalPages > 1 ? 1 : 0),
-                      separatorBuilder: (_, _) => const SizedBox(height: 12),
-                      itemBuilder: (context, i) {
-                        if (i >= _questions.length) {
-                          return _PageNav(
-                            page: _qPage,
-                            totalPages: _qTotalPages,
-                            total: _qTotal,
-                            onChanged: (p) => _loadQuestions(page: p),
-                          );
-                        }
-                        return _QuestionCard(index: (_qPage - 1) * _pageSize + i, question: _questions[i]);
-                      },
+                      textAlign: TextAlign.center,
                     ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: centerPad(
+                    context,
+                    base: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                    maxWidth: 1100,
+                  ),
+                  itemCount: _questions.length + (_qTotalPages > 1 ? 1 : 0),
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, i) {
+                    if (i >= _questions.length) {
+                      return _PageNav(
+                        page: _qPage,
+                        totalPages: _qTotalPages,
+                        total: _qTotal,
+                        onChanged: (p) => _loadQuestions(page: p),
+                      );
+                    }
+                    return _QuestionCard(
+                      index: (_qPage - 1) * _pageSize + i,
+                      question: _questions[i],
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -491,7 +528,11 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
     return Column(
       children: [
         Padding(
-          padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 8), maxWidth: 1100),
+          padding: centerPad(
+            context,
+            base: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            maxWidth: 1100,
+          ),
           child: AppSearchField(
             controller: _rSearchCtrl,
             onChanged: _onRSearch,
@@ -503,63 +544,92 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
           child: _rLoading
               ? const AppLoadingOverlay()
               : _responses.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          _rQuery.isEmpty
-                              ? 'Belum ada respon untuk form ini.'
-                              : 'Tidak ada respon untuk "$_rQuery"',
-                          style:  TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                          textAlign: TextAlign.center,
-                        ),
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      _rQuery.isEmpty
+                          ? 'Belum ada respon untuk form ini.'
+                          : 'Tidak ada respon untuk "$_rQuery"',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
-                    )
-                  : ListView.separated(
-                      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 16), maxWidth: 1100),
-                      itemCount: _responses.length + (_rTotalPages > 1 ? 1 : 0),
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (context, i) {
-                        if (i >= _responses.length) {
-                          return _PageNav(
-                            page: _rPage,
-                            totalPages: _rTotalPages,
-                            total: _rTotal,
-                            onChanged: (p) => _loadResponses(page: p),
-                          );
-                        }
-                        final r = _responses[i];
-                        return Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.surface,
-                            borderRadius: BorderRadius.circular(kRadius),
-                            boxShadow: softShadow(),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.person_outline, color: Theme.of(context).colorScheme.primary, size: 20),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(r.respondentName ?? 'Anonim',
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 13)),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '${_formatDate(r.submittedAt)} • ${r.status}',
-                                      style:  TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Text('#${r.id}', style: const TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'monospace')),
-                            ],
-                          ),
-                        );
-                      },
+                      textAlign: TextAlign.center,
                     ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: centerPad(
+                    context,
+                    base: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                    maxWidth: 1100,
+                  ),
+                  itemCount: _responses.length + (_rTotalPages > 1 ? 1 : 0),
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (context, i) {
+                    if (i >= _responses.length) {
+                      return _PageNav(
+                        page: _rPage,
+                        totalPages: _rTotalPages,
+                        total: _rTotal,
+                        onChanged: (p) => _loadResponses(page: p),
+                      );
+                    }
+                    final r = _responses[i];
+                    return Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(kRadius),
+                        boxShadow: softShadow(),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.person_outline,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  r.respondentName ?? 'Anonim',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: kFontBold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${_formatDate(r.submittedAt)} • ${r.status}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '#${r.id}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -569,7 +639,11 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
     return Column(
       children: [
         Padding(
-          padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 8), maxWidth: 1100),
+          padding: centerPad(
+            context,
+            base: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            maxWidth: 1100,
+          ),
           child: AppSearchField(
             controller: _fSearchCtrl,
             onChanged: _onFSearch,
@@ -581,70 +655,112 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
           child: _fLoading
               ? const AppLoadingOverlay()
               : _feedbacks.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          _fQuery.isEmpty
-                              ? 'Belum ada feedback untuk form ini.'
-                              : 'Tidak ada feedback untuk "$_fQuery"',
-                          style:  TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                          textAlign: TextAlign.center,
-                        ),
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      _fQuery.isEmpty
+                          ? 'Belum ada feedback untuk form ini.'
+                          : 'Tidak ada feedback untuk "$_fQuery"',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
-                    )
-                  : ListView.separated(
-                      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 8, 20, 16), maxWidth: 1100),
-                      itemCount: _feedbacks.length + (_fTotalPages > 1 ? 1 : 0),
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (context, i) {
-                        if (i >= _feedbacks.length) {
-                          return _PageNav(
-                            page: _fPage,
-                            totalPages: _fTotalPages,
-                            total: _fTotal,
-                            onChanged: (p) => _loadFeedbacks(page: p),
-                          );
-                        }
-                        final fb = _feedbacks[i];
-                        return Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.surface,
-                            borderRadius: BorderRadius.circular(kRadius),
-                            boxShadow: softShadow(),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: centerPad(
+                    context,
+                    base: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                    maxWidth: 1100,
+                  ),
+                  itemCount: _feedbacks.length + (_fTotalPages > 1 ? 1 : 0),
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (context, i) {
+                    if (i >= _feedbacks.length) {
+                      return _PageNav(
+                        page: _fPage,
+                        totalPages: _fTotalPages,
+                        total: _fTotal,
+                        onChanged: (p) => _loadFeedbacks(page: p),
+                      );
+                    }
+                    final fb = _feedbacks[i];
+                    return Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(kRadius),
+                        boxShadow: softShadow(),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(fb.displayName,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 13)),
+                              Expanded(
+                                child: Text(
+                                  fb.displayName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: kFontBold,
+                                    fontSize: 13,
                                   ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).colorScheme.primaryContainer,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(fb.reason,
-                                        style:  TextStyle(fontSize: 10, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: Theme.of(context).colorScheme.primary)),
-                                  ),
-                                ],
+                                ),
                               ),
-                              if (fb.description != null && fb.description!.isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Text(fb.description!, style:  TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface)),
-                              ],
-                              const SizedBox(height: 6),
-                              Text(_formatDate(fb.createdAt), style:  TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primaryContainer,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  fb.reason,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: kFontBold,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
-                        );
-                      },
-                    ),
+                          if (fb.description != null &&
+                              fb.description!.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              fb.description!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 6),
+                          Text(
+                            _formatDate(fb.createdAt),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -656,26 +772,42 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
     void add(IconData icon, String label, String value) {
       rows.add(_infoRow(icon, label, value));
     }
+
     final type = settings['formTypeId'];
     if (type != null) {
-      add(Icons.category_outlined, 'Tipe Form',
-          type == 2 ? 'Ujian' : 'Formulir');
+      add(
+        Icons.category_outlined,
+        'Tipe Form',
+        type == 2 ? 'Ujian' : 'Formulir',
+      );
     }
     if (settings['timerDuration'] != null) {
-      final sec = settings['timerDuration'] is int ? settings['timerDuration'] as int : int.tryParse('${settings['timerDuration']}') ?? 0;
+      final sec = settings['timerDuration'] is int
+          ? settings['timerDuration'] as int
+          : int.tryParse('${settings['timerDuration']}') ?? 0;
       add(Icons.timer_outlined, 'Timer', _formatDuration(sec));
     }
     if (settings['showScore'] is bool) {
-      add(Icons.leaderboard_outlined, 'Tampilkan Nilai',
-          settings['showScore'] ? 'Ya' : 'Tidak');
+      add(
+        Icons.leaderboard_outlined,
+        'Tampilkan Nilai',
+        settings['showScore'] ? 'Ya' : 'Tidak',
+      );
     }
     if (settings['oneResponse'] is bool) {
-      add(Icons.filter_1_outlined, 'Satu Respon',
-          settings['oneResponse'] ? 'Ya' : 'Tidak');
+      add(
+        Icons.filter_1_outlined,
+        'Satu Respon',
+        settings['oneResponse'] ? 'Ya' : 'Tidak',
+      );
     }
     final close = settings['closeFormTime'];
     if (close is String && close.isNotEmpty) {
-      add(Icons.event_busy_outlined, 'Ditutup', _formatDate(DateTime.tryParse(close)));
+      add(
+        Icons.event_busy_outlined,
+        'Ditutup',
+        _formatDate(DateTime.tryParse(close)),
+      );
     }
     return rows;
   }
@@ -710,7 +842,12 @@ class _AdminFormDetailScreenState extends State<AdminFormDetailScreen>
 class _PageNav extends StatelessWidget {
   final int page, totalPages, total;
   final ValueChanged<int> onChanged;
-  const _PageNav({required this.page, required this.totalPages, required this.total, required this.onChanged});
+  const _PageNav({
+    required this.page,
+    required this.totalPages,
+    required this.total,
+    required this.onChanged,
+  });
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -718,7 +855,10 @@ class _PageNav extends StatelessWidget {
       padding: const EdgeInsets.only(top: 8, bottom: 4),
       child: Column(
         children: [
-          Text('$total data • Halaman $page dari $totalPages', style:  TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+          Text(
+            '$total data • Halaman $page dari $totalPages',
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
           const SizedBox(height: 6),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -784,14 +924,14 @@ class _QuestionCard extends StatelessWidget {
               Container(
                 width: 26,
                 height: 26,
-                decoration:  BoxDecoration(
+                decoration: BoxDecoration(
                   color: cs.primaryContainer,
                   shape: BoxShape.circle,
                 ),
                 child: Center(
                   child: Text(
                     '${index + 1}',
-                    style:  TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       fontFamily: kFontBold,
@@ -804,7 +944,7 @@ class _QuestionCard extends StatelessWidget {
               Expanded(
                 child: RichTextView(
                   text: q.question,
-                  style:  TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     fontFamily: kFontBold,
@@ -831,7 +971,7 @@ class _QuestionCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
                   '${String.fromCharCode(65 + i)}. ${options[i].optionText}',
-                  style:  TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                 ),
               ),
           ],
@@ -851,7 +991,12 @@ class _QuestionCard extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: dark ? kPrimaryDark : kAuthPrimary),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          fontFamily: kFontBold,
+          color: dark ? kPrimaryDark : kAuthPrimary,
+        ),
       ),
     );
   }
@@ -881,15 +1026,23 @@ Widget _infoRow(IconData icon, String label, String value) {
         const SizedBox(width: 10),
         SizedBox(
           width: 110,
-          child: Text(label,
-              style: TextStyle(fontSize: 13, color: dark ? const Color(0xFFB9CACA) : Colors.black54)),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: dark ? const Color(0xFFB9CACA) : Colors.black54,
+            ),
+          ),
         ),
         Expanded(
-          child: Text(value,
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: dark ? Colors.white : Colors.black87)),
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: dark ? Colors.white : Colors.black87,
+            ),
+          ),
         ),
       ],
     ),

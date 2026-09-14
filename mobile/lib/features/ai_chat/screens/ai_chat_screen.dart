@@ -158,7 +158,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   double _inputBarHeight = 80;
   final _inputBarKey = GlobalKey();
 
-  // Lampiran pending sebelum dikirim (maks 3 @10MB)
+  // Lampiran pending sebelum dikirim (maks 3 @20MB)
   List<AiAttachment> _pendingAttachments = [];
 
   // Voice rekam → transkrip AI (hanya butuh mic + internet, tidak tergantung OS Speech)
@@ -182,15 +182,46 @@ class _AiChatScreenState extends State<AiChatScreen> {
         withData: true,
       );
       if (result == null || result.files.isEmpty) return;
+      if (!mounted) return;
       final newItems = <AiAttachment>[];
+      var warnedHeic = false;
+      var warnedLegacy = false;
+      var warnedBig = false;
+      void warnOnce(String msg) {
+        if (!mounted) return;
+        showAuthToast(context, msg, isError: true);
+      }
       for (final f in result.files) {
         final bytes = f.bytes;
         if (bytes == null) continue;
         if (bytes.length > AiAttachment.maxBytesPerFile) {
-          showAuthToast(context, '${f.name} melebihi 10MB', isError: true);
+          warnOnce('${f.name} melebihi 20MB');
           continue;
         }
         final ext = f.name.split('.').last.toLowerCase();
+        // HEIC/HEIF tidak didukung Gemini inlineData → gagal 400 + loading
+        // lama. Peringatkan dini agar user konversi ke JPG/PNG dulu.
+        if ((ext == 'heic' || ext == 'heif') && !warnedHeic) {
+          warnedHeic = true;
+          warnOnce(
+            'Foto HEIC sering gagal dibaca AI. Ubah ke JPG/PNG dulu agar cepat.',
+          );
+        }
+        // .doc/.xls lama tidak diekstrak (lihat GeminiService) → AI buta isi.
+        if ((ext == 'doc' || ext == 'xls') && !warnedLegacy) {
+          warnedLegacy = true;
+          warnOnce(
+            'Format .doc/.xls tidak bisa dibaca AI. Simpan sebagai .docx/.xlsx/.pdf.',
+          );
+        }
+        // File >8MB sebagai base64 membuat request belasan MB → mudah
+        // timeout (15 dtk) di koneksi HP. Tetap diizinkan, tapi peringatkan.
+        if (bytes.length > 8 * 1024 * 1024 && !warnedBig) {
+          warnedBig = true;
+          warnOnce(
+            'File besar (>8MB) membuat AI lambat & bisa gagal. Kecilkan dulu bila bisa.',
+          );
+        }
         final mime = AiAttachment.mimeFromExtension(ext);
         newItems.add(AiAttachment(
           id: DateTime.now().microsecondsSinceEpoch.toString() + f.name,
