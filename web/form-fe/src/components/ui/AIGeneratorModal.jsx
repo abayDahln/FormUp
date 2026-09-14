@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
     Sparkles,
     X,
@@ -14,7 +15,6 @@ import {
     Eye,
     EyeOff,
     ExternalLink,
-    Trash2,
     ShieldCheck,
     Cpu,
     Clock,
@@ -25,9 +25,7 @@ import {
 import {
     generateQuestionsWithAI,
     streamGenerateQuestionsWithAI,
-    getGeminiApiKey,
-    saveGeminiApiKey,
-    removeGeminiApiKey,
+    getGeminiApiKeys,
     AVAILABLE_MODELS
 } from '../../services/aiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
@@ -42,14 +40,10 @@ export default function AIGeneratorModal({ isOpen, onClose, onAddQuestions, form
     const [includeMath, setIncludeMath] = useState(false);
     const [includeCode, setIncludeCode] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
-    const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
+    const [selectedModel, setSelectedModel] = useState('gemini-3.6-flash');
 
-    // API Key config (Cached in localStorage ONLY, never sent to database)
-    const [apiKey, setApiKey] = useState('');
-    const [inputKey, setInputKey] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
-    const [showKeyEditor, setShowKeyEditor] = useState(false);
-    const [keySavedToast, setKeySavedToast] = useState(false);
+    // Global Stacked API Keys (Configured in AI Assistant)
+    const [apiKeys, setApiKeys] = useState(() => getGeminiApiKeys());
 
     // Generation state & Friendly status
     const [generating, setGenerating] = useState(false);
@@ -68,10 +62,8 @@ export default function AIGeneratorModal({ isOpen, onClose, onAddQuestions, form
             setError(null);
             setStatusMessage('');
             setElapsedSeconds(0);
-            const saved = getGeminiApiKey();
-            setApiKey(saved);
-            setInputKey(saved);
-            setShowKeyEditor(!saved); // Open key setup automatically if no key is saved
+            const savedKeys = getGeminiApiKeys();
+            setApiKeys(savedKeys);
             if (!topic && formTitle) setTopic(formTitle);
         }
     }, [isOpen, formTitle]);
@@ -93,35 +85,12 @@ export default function AIGeneratorModal({ isOpen, onClose, onAddQuestions, form
 
     if (!isOpen) return null;
 
-    const handleSaveKey = (e) => {
-        if (e) e.preventDefault();
-        const trimmed = inputKey.trim();
-        if (!trimmed) {
-            setError('Masukkan Gemini API Key yang valid dari Google AI Studio.');
-            return;
-        }
-        saveGeminiApiKey(trimmed);
-        setApiKey(trimmed);
-        setShowKeyEditor(false);
-        setError(null);
-        setKeySavedToast(true);
-        setTimeout(() => setKeySavedToast(false), 3000);
-    };
-
-    const handleRemoveKey = () => {
-        removeGeminiApiKey();
-        setApiKey('');
-        setInputKey('');
-        setShowKeyEditor(true);
-    };
-
     const handleGenerate = async (e) => {
         if (e) e.preventDefault();
         
-        const currentKey = apiKey.trim();
-        if (!currentKey) {
-            setShowKeyEditor(true);
-            setError('Silakan masukkan Google Gemini API Key Anda terlebih dahulu.');
+        const currentKeys = getGeminiApiKeys();
+        if (currentKeys.length === 0) {
+            setError('API Key Gemini belum diatur. Silakan tambahkan API Key di menu AI Assistant Chat terlebih dahulu.');
             return;
         }
 
@@ -233,20 +202,21 @@ export default function AIGeneratorModal({ isOpen, onClose, onAddQuestions, form
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                        <button
-                            type="button"
-                            onClick={() => setShowKeyEditor(!showKeyEditor)}
-                            title="Pengaturan API Key"
-                            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold ${
-                                apiKey
-                                    ? 'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 border border-teal-200 dark:border-teal-800'
-                                    : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 border border-amber-200 dark:border-amber-800'
-                            }`}
-                        >
-                            <Key size={13} />
-                            <span>{apiKey ? 'API Key Aktif' : 'Atur API Key'}</span>
-                        </button>
+                    <div className="flex items-center gap-2">
+                        {apiKeys.length > 0 ? (
+                            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 rounded-xl text-xs font-bold border border-teal-200 dark:border-teal-800">
+                                <ShieldCheck size={13} className="text-teal-600" />
+                                <span>{apiKeys.length} API Key Aktif</span>
+                            </span>
+                        ) : (
+                            <Link
+                                to="/ai-chat"
+                                className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 hover:bg-amber-100 rounded-xl text-xs font-bold border border-amber-200 dark:border-amber-800 transition-colors"
+                            >
+                                <Key size={13} />
+                                <span>Atur Key di AI Chat</span>
+                            </Link>
+                        )}
                         <button
                             type="button"
                             onClick={onClose}
@@ -257,81 +227,22 @@ export default function AIGeneratorModal({ isOpen, onClose, onAddQuestions, form
                     </div>
                 </div>
 
-                {/* API Key Setup Panel */}
-                {showKeyEditor && (
-                    <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700/80 space-y-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div>
-                                <h3 className="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                    <Key size={14} className="text-teal-600" />
-                                    Google Gemini API Key
-                                </h3>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
-                                    <ShieldCheck size={12} className="text-emerald-500" />
-                                    Tersimpan aman di browser Anda (tidak disimpan ke server/database).
-                                </p>
-                            </div>
-                            <a
-                                href="https://aistudio.google.com/app/apikey"
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-[11px] text-teal-700 dark:text-teal-300 hover:underline font-bold bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-teal-200 dark:border-teal-800"
-                            >
-                                Dapatkan Key Gratis di Google AI Studio <ExternalLink size={11} />
-                            </a>
-                        </div>
-
-                        <form onSubmit={handleSaveKey} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                            <div className="relative flex-1">
-                                <input
-                                    type={showPassword ? 'text' : 'password'}
-                                    value={inputKey}
-                                    onChange={(e) => setInputKey(e.target.value)}
-                                    placeholder="Tempel API Key Google AI Studio di sini (AIzaSy...)"
-                                    className="w-full pl-3.5 pr-10 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                    required
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                                >
-                                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                                </button>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="submit"
-                                    className="flex-1 sm:flex-initial px-4 py-2 bg-[#00897B] hover:bg-[#00796B] text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                                >
-                                    <Check size={14} /> Simpan
-                                </button>
-                                {apiKey && (
-                                    <button
-                                        type="button"
-                                        onClick={handleRemoveKey}
-                                        title="Hapus Key"
-                                        className="px-3 py-2 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                )}
-                            </div>
-                        </form>
-                    </div>
-                )}
-
-                {/* Toast Notification */}
-                {keySavedToast && (
-                    <div className="px-6 py-2 bg-emerald-50 dark:bg-emerald-950/60 border-b border-emerald-200 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-2">
-                        <CheckCircle2 size={14} />
-                        <span>API Key tersimpan di browser!</span>
-                    </div>
-                )}
-
                 {/* Body Content */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                    {apiKeys.length === 0 && (
+                        <div className="p-3.5 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                            <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-medium">
+                                <Key size={16} className="text-amber-600 shrink-0" />
+                                <span>API Key Gemini belum diatur. Silakan atur API Key di menu AI Assistant Chat.</span>
+                            </div>
+                            <Link
+                                to="/ai-chat"
+                                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold shrink-0 transition-colors inline-flex items-center gap-1"
+                            >
+                                Atur di AI Chat <ExternalLink size={12} />
+                            </Link>
+                        </div>
+                    )}
                     
                     {error && (
                         <div className="p-3.5 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900 rounded-2xl flex items-start gap-2.5 text-xs text-red-700 dark:text-red-300">
@@ -626,13 +537,13 @@ export default function AIGeneratorModal({ isOpen, onClose, onAddQuestions, form
                     {step === 'config' ? (
                         <>
                             <div className="text-xs text-slate-400 dark:text-slate-500">
-                                {apiKey ? (
+                                {apiKeys.length > 0 ? (
                                     <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 font-bold">
-                                        <CheckCircle2 size={13} /> Key: {maskKey(apiKey)}
+                                        <CheckCircle2 size={13} /> {apiKeys.length} API Key Aktif
                                     </span>
                                 ) : (
                                     <span className="text-amber-700 dark:text-amber-300 font-bold">
-                                        ⚠️ Harap masukkan API Key
+                                        ⚠️ Harap atur API Key di Chat AI
                                     </span>
                                 )}
                             </div>

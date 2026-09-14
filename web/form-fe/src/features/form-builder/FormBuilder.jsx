@@ -6,7 +6,7 @@ import {
     Code, Calculator, Eye, EyeOff, X, Sparkles,
     Copy, Undo2, Redo2, FileDown, Wand2, ToggleLeft, ToggleRight,
     ShieldAlert, Palette, CheckSquare, MoreHorizontal, MoreVertical, ChevronDown as ChevDown,
-    Sliders, Share2, HelpCircle, Compass, Loader2
+    Sliders, Share2, HelpCircle, Compass, Loader2, Columns
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import ConfirmModal from '../../components/ui/ConfirmModal';
@@ -19,7 +19,7 @@ import {
     uploadOptionImage,
     templateDownloadUrl, createForm, deleteAllQuestions, previewImportQuestions
 } from '../../services/apiService';
-import { getGeminiApiKey, AVAILABLE_MODELS } from '../../services/aiService';
+import { getGeminiApiKey, AVAILABLE_MODELS, reviseQuestionWithAI, bulkReviseQuestionsWithAI } from '../../services/aiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
 import BlockQuestionEditor from '../../components/ui/BlockQuestionEditor';
 import MathAndCodeModal from '../../components/ui/MathAndCodeModal';
@@ -145,6 +145,7 @@ export default function FormBuilder() {
     const [aiReviseInstruction, setAiReviseInstruction] = useState('');
     const [aiRevising, setAiRevising] = useState(false);
     const [aiReviseError, setAiReviseError] = useState('');
+    const [reviseModel, setReviseModel] = useState(() => { const m = localStorage.getItem('formup_selected_model_chat'); return m && !m.startsWith('gemini-2.5') ? m : 'gemini-3.6-flash'; });
 
     // A-7: Bulk AI revise
     const [bulkReviseMode, setBulkReviseMode] = useState(false);
@@ -156,6 +157,9 @@ export default function FormBuilder() {
 
     // Live preview toggle per question
     const [previewVisibility, setPreviewVisibility] = useState({});
+
+    // Split-Screen Dual View (Side-by-side Editor & Live Preview)
+    const [isSplitPreview, setIsSplitPreview] = useState(false);
 
     // A-2: Actions dropdown menu
     const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
@@ -981,49 +985,28 @@ export default function FormBuilder() {
     // AI-2: Revise question with AI
     const handleAiRevise = async (idx) => {
         const q = questions[idx];
-        const apiKey = getGeminiApiKey();
-        if (!apiKey) { setAiReviseError('API Key Gemini belum diatur.'); return; }
         if (!aiReviseInstruction.trim()) { setAiReviseError('Masukkan instruksi revisi.'); return; }
         setAiRevising(true);
         setAiReviseError('');
         try {
-            const cleanQ = (q.question || '').replace(/<[^>]*>/g, '').trim();
-            const optionsText = (q.options || []).map((o, i) => `${String.fromCharCode(65+i)}. ${o.optionText}${o.isCorrect?' (jawaban benar)':''}`).join('\n');
-            const prompt = `Anda adalah asisten penyusun soal ujian. Revisi soal berikut sesuai instruksi.
-
-Soal asli:
-${cleanQ}
-
-Pilihan jawaban:
-${optionsText || '(tidak ada opsi)'}
-
-Kunci jawaban: ${q.correctAnswer || ''}
-
-Instruksi revisi: ${aiReviseInstruction.trim()}
-
-Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
-{
-  "question": "teks soal yang direvisi",
-  "typeId": ${q.typeId},
-  "isRequired": ${q.isRequired},
-  "isScorable": ${q.isScorable},
-  "correctAnswer": "kunci jawaban",
-  "options": [{"optionText":"...", "isCorrect": false}]
-}`;
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-            const resp = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { responseMimeType: 'application/json', temperature: 0.7 }
-                })
+            const res = await reviseQuestionWithAI({
+                question: q.question,
+                options: q.options || [],
+                correctAnswer: q.correctAnswer,
+                typeId: q.typeId,
+                isRequired: q.isRequired,
+                isScorable: q.isScorable,
+                instruction: aiReviseInstruction,
+                selectedModel: reviseModel,
+                customApiKey: getGeminiApiKey(),
             });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json();
-            let textRes = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            textRes = textRes.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'').replace(/^```\s*/,'');
-            const revised = JSON.parse(textRes);
+
+            if (!res.ok) {
+                setAiReviseError(res.message || 'Gagal merevisi soal.');
+                return;
+            }
+
+            const revised = res.data;
             updateQuestion(idx, 'question', revised.question || q.question);
             if (revised.options && revised.options.length > 0) {
                 setQuestions(prev => prev.map((qq, qi) => qi === idx ? { ...qq, question: revised.question || qq.question, options: revised.options, correctAnswer: revised.correctAnswer || qq.correctAnswer } : qq));
@@ -1042,34 +1025,34 @@ Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
 
     // A-7: Bulk AI Revise handler
     const handleBulkAiRevise = async () => {
-        const apiKey = getGeminiApiKey();
-        if (!apiKey) { showToast('API Key Gemini belum diatur.', 'error'); return; }
         if (!bulkReviseInstruction.trim()) { showToast('Masukkan instruksi revisi.', 'error'); return; }
         if (bulkReviseSelected.size === 0) { showToast('Pilih minimal 1 soal untuk direvisi.', 'error'); return; }
         setBulkRevising(true);
-        const results = [];
-        for (const idx of Array.from(bulkReviseSelected)) {
-            const q = questions[idx];
-            try {
-                const cleanQ = (q.question || '').replace(/<[^>]*>/g, '').trim();
-                const optionsText = (q.options || []).map((o, i) => `${String.fromCharCode(65+i)}. ${o.optionText}${o.isCorrect?' (jawaban benar)':''}`).join('\n');
-                const prompt = `Revisi soal berikut sesuai instruksi. Kembalikan HANYA JSON valid.\n\nSoal: ${cleanQ}\nOpsi:\n${optionsText || '(tidak ada)'}\nKunci: ${q.correctAnswer || ''}\n\nInstruksi: ${bulkReviseInstruction.trim()}\n\nJSON output:\n{"question":"...","typeId":${q.typeId},"isRequired":${q.isRequired},"isScorable":${q.isScorable},"correctAnswer":"...","options":[{"optionText":"...","isCorrect":false}]}`;
-                const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-                const resp = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.7 } }) });
-                if (!resp.ok) continue;
-                const data = await resp.json();
-                let textRes = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                textRes = textRes.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
-                const revised = JSON.parse(textRes);
-                results.push({ idx, original: q, revised });
-            } catch {}
-        }
-        setBulkRevising(false);
-        if (results.length > 0) {
-            setBulkRevisePreview(results);
-            setBulkRevisePreviewOpen(true);
-        } else {
-            showToast('Tidak ada soal yang berhasil direvisi.', 'error');
+        try {
+            const res = await bulkReviseQuestionsWithAI({
+                questions,
+                selectedIndices: Array.from(bulkReviseSelected),
+                instruction: bulkReviseInstruction,
+                selectedModel: reviseModel,
+                customApiKey: getGeminiApiKey(),
+            });
+
+            if (!res.ok) {
+                showToast(res.message || 'Gagal merevisi soal massal.', 'error');
+                return;
+            }
+
+            const results = res.data || [];
+            if (results.length > 0) {
+                setBulkRevisePreview(results);
+                setBulkRevisePreviewOpen(true);
+            } else {
+                showToast('Tidak ada soal yang berhasil direvisi.', 'error');
+            }
+        } catch (err) {
+            showToast('Gagal merevisi: ' + err.message, 'error');
+        } finally {
+            setBulkRevising(false);
         }
     };
 
@@ -1297,7 +1280,7 @@ const ensureOptionSaved = async (idx, oIdx) => {
         <div className="flex min-h-screen w-full bg-[#F4F8F7] dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100 transition-colors">
             <Sidebar />
 
-            <div ref={mainScrollRef} className="flex-1 flex flex-col min-w-0 min-h-screen overflow-y-auto">
+            <div ref={mainScrollRef} className={`flex-1 flex flex-col min-w-0 ${isSplitPreview && activeTab === 'questions' ? 'h-screen overflow-hidden' : 'min-h-screen overflow-y-auto'}`}>
 
                 {/* Top Header */}
                 <div className="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-6 py-3 flex items-center justify-between gap-4 shadow-xs">
@@ -1346,13 +1329,28 @@ const ensureOptionSaved = async (idx, oIdx) => {
                         {/* FEAT-13: Preview button */}
                         <button
                             type="button"
-                            title="Lihat sebagai Responden (Preview)"
+                            title="Lihat sebagai Responden (Preview Tab Baru)"
                             data-tour="builder-preview-btn"
                             onClick={() => window.open(`/f/${form?.formLink}?preview=true&formId=${form?.id}`, '_blank')}
                             className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
                         >
                             <Eye size={14} />
                             <span>Preview</span>
+                        </button>
+
+                        {/* Split-Screen Dual View Button */}
+                        <button
+                            type="button"
+                            title="Dual View: Tampilkan Editor dan Live Preview Berdampingan"
+                            onClick={() => setIsSplitPreview(prev => !prev)}
+                            className={`hidden lg:flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                                isSplitPreview
+                                    ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
+                                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                            }`}
+                        >
+                            <Columns size={14} />
+                            <span>Dual View {isSplitPreview ? 'ON' : 'OFF'}</span>
                         </button>
 
                         {/* FEAT-14: Autosave toggle */}
@@ -1433,12 +1431,14 @@ const ensureOptionSaved = async (idx, oIdx) => {
                     ))}
                 </div>
 
-                <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-6 flex-1">
+                <div className={`p-4 sm:p-6 lg:p-8 mx-auto w-full transition-all ${isSplitPreview && activeTab === 'questions' ? 'max-w-[1700px] flex-1 h-[calc(100vh-120px)] overflow-hidden flex flex-col' : 'max-w-4xl space-y-6 flex-1'}`}>
 
                     {/* ── QUESTIONS TAB ── */}
                     {activeTab === 'questions' && (
-                        <>
-                            {/* Form Header Info Card */}
+                        <div className={`flex flex-col ${isSplitPreview ? 'lg:flex-row gap-6 items-start h-full overflow-hidden' : 'gap-6'}`}>
+                            {/* Left Column: Form Editor */}
+                            <div className={`w-full space-y-6 flex-1 ${isSplitPreview ? 'lg:w-[54%] h-full overflow-y-auto pr-2 pb-24' : ''}`}>
+                                {/* Form Header Info Card */}
                             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-4 shadow-xs">
                                 <div>
                                     <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">Judul Formulir</label>
@@ -1633,6 +1633,7 @@ const ensureOptionSaved = async (idx, oIdx) => {
                                                 {/* AI-2: Revisi AI per soal */}
                                                 <button
                                                     type="button"
+                                                    data-tour={idx === 0 ? 'builder-question-revise' : undefined}
                                                     onClick={() => { setAiReviseOpenIdx(aiReviseOpenIdx === idx ? null : idx); setAiReviseInstruction(''); setAiReviseError(''); }}
                                                     className={`p-1.5 rounded-lg transition-all cursor-pointer ${aiReviseOpenIdx === idx ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400' : 'text-slate-400 hover:text-purple-500 dark:hover:text-purple-400'}`}
                                                     title="Revisi soal dengan AI"
@@ -1766,6 +1767,9 @@ const ensureOptionSaved = async (idx, oIdx) => {
                                                 <p className="text-xs font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1.5">
                                                     <Wand2 size={13} /> Revisi Soal dengan AI
                                                 </p>
+                                                <select value={reviseModel} onChange={e => { setReviseModel(e.target.value); localStorage.setItem('formup_selected_model_chat', e.target.value); }} className="w-full px-3 py-1.5 text-xs border border-purple-200 dark:border-purple-700 rounded-xl bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200">
+                                                    {AVAILABLE_MODELS.map(model => <option key={model.id || model.name} value={model.id || model.name}>{model.name || model.id}</option>)}
+                                                </select>
                                                 {aiReviseError && <p className="text-[11px] text-red-500">{aiReviseError}</p>}
                                                 <div className="flex gap-2">
                                                     <input
@@ -2109,31 +2113,154 @@ const ensureOptionSaved = async (idx, oIdx) => {
                                 </button>
                             </div>
                             {bulkReviseMode && (
-                                <div className="sticky bottom-4 z-20 bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 rounded-2xl shadow-xl p-4 flex flex-wrap items-center gap-3">
+                                <div className="fixed right-5 top-24 z-40 w-[min(430px,calc(100vw-2rem))] bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 rounded-2xl shadow-2xl p-4 space-y-3">
                                     <div className="flex items-center gap-2 text-xs font-bold text-purple-700 dark:text-purple-300">
                                         <Wand2 size={14} />
-                                        <span>{bulkReviseSelected.size} soal dipilih</span>
+                                        <span className="flex-1">Revisi Massal AI · {bulkReviseSelected.size} soal dipilih</span>
                                         <button type="button" onClick={() => setBulkReviseSelected(new Set(questions.map((_, i) => i)))} className="text-purple-500 underline cursor-pointer">Pilih Semua</button>
                                     </div>
+                                    <select value={reviseModel} onChange={e => { setReviseModel(e.target.value); localStorage.setItem('formup_selected_model_chat', e.target.value); }} className="w-full px-3 py-2 text-xs border border-purple-200 dark:border-purple-700 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+                                        {AVAILABLE_MODELS.map(model => <option key={model.id || model.name} value={model.id || model.name}>{model.name || model.id}</option>)}
+                                    </select>
                                     <input
                                         type="text"
                                         value={bulkReviseInstruction}
                                         onChange={e => setBulkReviseInstruction(e.target.value)}
                                         placeholder="Instruksi revisi untuk semua soal terpilih..."
-                                        className="flex-1 min-w-[200px] px-3 py-1.5 text-xs border border-purple-200 dark:border-purple-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                        className="w-full px-3 py-2 text-xs border border-purple-200 dark:border-purple-700 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
                                     />
                                     <button
                                         type="button"
                                         onClick={handleBulkAiRevise}
                                         disabled={bulkRevising || bulkReviseSelected.size === 0 || !bulkReviseInstruction.trim()}
-                                        className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                                        className="w-full justify-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                                     >
                                         {bulkRevising ? <span className="animate-spin">⋯</span> : <Wand2 size={13} />}
                                         {bulkRevising ? 'Merevisi...' : 'Revisi Sekarang'}
                                     </button>
                                 </div>
                             )}
-                        </>
+                        </div>
+
+                            {/* Right Column: Interactive Live Preview (Split View) */}
+                            {isSplitPreview && (
+                                <div className="hidden lg:flex flex-col w-full lg:w-[46%] h-full overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-6 shadow-xl space-y-6">
+                                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Pratinjau</h3>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 font-bold border border-teal-200 dark:border-teal-800">
+                                                {questions.length} Butir Soal
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsSplitPreview(false)}
+                                                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer"
+                                                title="Tutup Dual View"
+                                            >
+                                                <X size={15} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Preview Form Banner */}
+                                    {form?.bannerImage && (
+                                        <div className="w-full h-36 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0">
+                                            <img src={assetUrl(form.bannerImage)} alt="Banner" className="w-full h-full object-cover" />
+                                        </div>
+                                    )}
+
+                                    {/* Preview Form Header */}
+                                    <div className="space-y-2 shrink-0">
+                                        <h1 className="text-xl font-extrabold text-slate-900 dark:text-white">
+                                            {form?.title || 'Judul Formulir'}
+                                        </h1>
+                                        {form?.description && (
+                                            <div className="text-xs text-slate-600 dark:text-slate-400 prose dark:prose-invert max-w-none">
+                                                <RichContentRenderer content={form.description} />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Preview Questions List */}
+                                    <div className="space-y-4 flex-1">
+                                        {questions.length === 0 ? (
+                                            <div className="p-8 text-center text-xs text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                                                Belum ada butir pertanyaan pada formulir ini.
+                                            </div>
+                                        ) : (
+                                            questions.map((q, qIdx) => (
+                                                <div key={q._id || q.id || qIdx} className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-800/40 space-y-3 shadow-2xs">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-start gap-2">
+                                                            <span className="text-teal-600 dark:text-teal-400 font-mono">{qIdx + 1}.</span>
+                                                            <div className="flex-1">
+                                                                <RichContentRenderer content={q.question || 'Pertanyaan belum diisi'} />
+                                                            </div>
+                                                        </div>
+                                                        {q.isScorable !== false && (
+                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 shrink-0">
+                                                                {q.points || 1} Poin
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Question Media */}
+                                                    {q.questionImage && (
+                                                        <div className="max-w-xs rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 my-1">
+                                                            <img src={assetUrl(q.questionImage)} alt="Soal" className="w-full h-auto object-contain max-h-48" />
+                                                        </div>
+                                                    )}
+
+                                                    {/* Options Display */}
+                                                    {q.typeId === 2 && (
+                                                        <div className="space-y-1.5 pl-4">
+                                                            {q.options?.map((opt, oIdx) => (
+                                                                <label key={oIdx} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                                                                    <input type="radio" name={`preview_live_q_${qIdx}`} disabled className="text-teal-600" />
+                                                                    <span>{opt.optionText || `Pilihan ${String.fromCharCode(65 + oIdx)}`}</span>
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {q.typeId === 3 && (
+                                                        <div className="space-y-1.5 pl-4">
+                                                            {q.options?.map((opt, oIdx) => (
+                                                                <label key={oIdx} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                                                                    <input type="checkbox" disabled className="rounded text-teal-600" />
+                                                                    <span>{opt.optionText || `Pilihan ${String.fromCharCode(65 + oIdx)}`}</span>
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {q.typeId === 5 && (
+                                                        <div className="flex items-center gap-4 pl-4 text-xs">
+                                                            <label className="flex items-center gap-1.5 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                                <input type="radio" name={`preview_live_q_${qIdx}`} disabled className="text-teal-600" />
+                                                                <span>Benar</span>
+                                                            </label>
+                                                            <label className="flex items-center gap-1.5 cursor-pointer text-slate-700 dark:text-slate-300">
+                                                                <input type="radio" name={`preview_live_q_${qIdx}`} disabled className="text-teal-600" />
+                                                                <span>Salah</span>
+                                                            </label>
+                                                        </div>
+                                                    )}
+
+                                                    {q.typeId === 1 && (
+                                                        <div className="pl-4">
+                                                            <input type="text" disabled placeholder="Tuliskan jawaban di sini..." className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-400 cursor-not-allowed" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     )}
 
                     {/* ── SETTINGS TAB ── */}
@@ -2589,6 +2716,7 @@ const ensureOptionSaved = async (idx, oIdx) => {
 
         <button
             type="button"
+            data-tour="builder-ai-revise"
             onClick={() => { setFabMenuOpen(false); setBulkReviseMode(prev => !prev); setBulkReviseSelected(new Set()); }}
             className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-xl text-slate-700 dark:text-slate-200 hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:text-purple-700 dark:hover:text-purple-300 transition-colors cursor-pointer"
         >
@@ -2724,6 +2852,15 @@ const ensureOptionSaved = async (idx, oIdx) => {
                         icon: <Plus size={18} />,
                         placement: 'top',
                         badge: 'Editor Soal',
+                        action: () => setActiveTab('questions')
+                    },
+                    {
+                        selector: '[data-tour="builder-question-revise"]',
+                        title: 'Revisi Soal dengan AI',
+                        description: 'Gunakan ikon Wand untuk merevisi satu soal atau aktifkan Revisi Massal AI. Model dan instruksi revisi sekarang tersedia langsung di panel floating kanan.',
+                        icon: <Wand2 size={18} />,
+                        placement: 'left',
+                        badge: 'Revisi AI',
                         action: () => setActiveTab('questions')
                     },
                     {

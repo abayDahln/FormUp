@@ -20,12 +20,13 @@ export default function OnboardingTour({
     const [currentStep, setCurrentStep] = useState(0);
     const [targetRect, setTargetRect] = useState(null);
     const [cardPlacement, setCardPlacement] = useState('bottom');
+    const [showWelcome, setShowWelcome] = useState(true);
 
     const step = steps[currentStep] || null;
 
     // Hitung posisi elemen target
     const updateTargetPosition = useCallback(() => {
-        if (!isOpen || !step) {
+        if (!isOpen || showWelcome || !step) {
             setTargetRect(null);
             return;
         }
@@ -36,8 +37,13 @@ export default function OnboardingTour({
             : selector?.current;
 
         if (!targetElement) {
-            // Target belum ter-render atau tidak ditemukan, fallback ke tengah
+            // Jangan tampilkan card di area kosong. Lewati langkah yang targetnya
+            // sudah tidak ada (misalnya tombol yang berubah karena state UI).
             setTargetRect(null);
+            const nextAvailable = steps.findIndex((candidate, index) => index > currentStep && document.querySelector(candidate.selector));
+            if (nextAvailable >= 0) setCurrentStep(nextAvailable);
+            else if (currentStep < steps.length - 1) setCurrentStep(currentStep + 1);
+            else { onComplete(); onClose(); }
             return;
         }
 
@@ -83,11 +89,12 @@ export default function OnboardingTour({
         } else {
             setCardPlacement('bottom');
         }
-    }, [isOpen, step]);
+    }, [isOpen, showWelcome, step, steps, currentStep]);
 
     useEffect(() => {
         if (!isOpen) {
             setCurrentStep(0);
+            setShowWelcome(true);
             return;
         }
 
@@ -128,7 +135,27 @@ export default function OnboardingTour({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, currentStep, steps.length]);
 
-    if (!isOpen || !step) return null;
+    if (!isOpen) return null;
+
+    if (showWelcome) {
+        return (
+            <div className="fixed inset-0 z-[99990] flex items-center justify-center bg-slate-950/45 p-4">
+                <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 text-slate-800 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                    <div className="space-y-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400">Halo, selamat datang!</p>
+                        <h3 className="text-lg font-extrabold">Siap membuat formulir pertamamu?</h3>
+                        <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">Kami akan menemani kamu mengenal fitur-fitur penting FormUp, dari membuat soal sampai membagikan formulir. Cuma sebentar kok.</p>
+                    </div>
+                    <div className="mt-5 flex justify-end gap-2">
+                        <button type="button" onClick={() => { onComplete(); onClose(); }} className="rounded-xl px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800">Nanti dulu</button>
+                        <button type="button" onClick={() => setShowWelcome(false)} className="rounded-xl bg-teal-600 px-4 py-2 text-xs font-bold text-white hover:bg-teal-700">Yuk, mulai</button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!step) return null;
 
     const isLastStep = currentStep === steps.length - 1;
     const isFirstStep = currentStep === 0;
@@ -299,19 +326,16 @@ export default function OnboardingTour({
                 )}
 
                 {/* Body Card */}
-                <div className="relative bg-gradient-to-br from-slate-900 via-slate-900/98 to-slate-950 text-white p-5 sm:p-6 rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8),0_0_30px_rgba(20,184,166,0.2)] border border-teal-500/40 backdrop-blur-2xl ring-1 ring-white/10 overflow-hidden">
-                    {/* Top gradient glow bar */}
-                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-teal-400 to-emerald-400 opacity-90" />
-
+                <div className="relative bg-white dark:bg-slate-900 text-slate-800 dark:text-white p-4 sm:p-5 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                     {/* Header Card: Progress & Tombol Lewati */}
-                    <div className="flex items-center justify-between gap-2 mb-3.5">
+                    <div className="flex items-center justify-between gap-2 mb-2.5">
                         <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-1 rounded-lg bg-teal-500/20 text-teal-300 font-extrabold text-[11px] border border-teal-400/30 flex items-center gap-1.5 shadow-xs">
-                                <Sparkles size={13} className="text-teal-400 animate-pulse" />
-                                Langkah {currentStep + 1} dari {steps.length}
+                            <span className="px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/50 text-black dark:text-white font-extrabold text-[11px] border border-teal-200 dark:border-teal-800 flex items-center gap-1.5">
+                                <Sparkles size={12} className="text-teal-600 dark:text-teal-400" />
+                                {currentStep + 1}/{steps.length}
                             </span>
                             {step.badge && (
-                                <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-400/30">
+                                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 font-bold text-[10px] border border-slate-200 dark:border-slate-700">
                                     {step.badge}
                                 </span>
                             )}
@@ -319,7 +343,7 @@ export default function OnboardingTour({
                         <button
                             type="button"
                             onClick={handleSkip}
-                            className="text-xs font-bold text-slate-400 hover:text-white px-2.5 py-1 rounded-xl hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-1"
+                            className="text-xs font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white px-2.5 py-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer flex items-center gap-1"
                         >
                             <span>Lewati</span>
                             <X size={14} />
@@ -327,16 +351,16 @@ export default function OnboardingTour({
                     </div>
 
                     {/* Konten Utama */}
-                    <div className="space-y-2 mb-4">
-                        <h4 className="text-base font-extrabold text-white flex items-center gap-2.5 tracking-tight">
+                    <div className="space-y-1.5 mb-3">
+                        <h4 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2 tracking-tight">
                             {step.icon && (
-                                <div className="w-8 h-8 rounded-xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-teal-300 shrink-0 shadow-xs">
+                                <div className="w-7 h-7 rounded-lg bg-teal-50 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800 flex items-center justify-center text-teal-600 dark:text-teal-300 shrink-0">
                                     {step.icon}
                                 </div>
                             )}
                             <span>{step.title}</span>
                         </h4>
-                        <p className="text-xs sm:text-[13px] text-slate-300 leading-relaxed font-normal">
+                        <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-normal">
                             {step.description}
                         </p>
                     </div>
@@ -351,7 +375,7 @@ export default function OnboardingTour({
                                         step.actionButton.onClick();
                                     }
                                 }}
-                                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg hover:shadow-teal-500/25 transition-all transform active:scale-98 cursor-pointer"
+                                className="w-full py-2.5 px-4 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
                             >
                                 {step.actionButton.icon}
                                 <span>{step.actionButton.text}</span>
@@ -361,7 +385,7 @@ export default function OnboardingTour({
                     )}
 
                     {/* Footer Navigasi: Step dots, Tombol Kembali & Lanjut */}
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-800/90 gap-2">
+                    <div className="flex items-center justify-between pt-2.5 border-t border-slate-200 dark:border-slate-800 gap-2">
                         {/* Step Dots Indicator */}
                         <div className="flex items-center gap-1.5">
                             {steps.map((_, idx) => (
@@ -371,10 +395,10 @@ export default function OnboardingTour({
                                     onClick={() => setCurrentStep(idx)}
                                     className={`h-1.5 rounded-full transition-all cursor-pointer ${
                                         idx === currentStep
-                                            ? 'w-6 bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)]'
+                                            ? 'w-6 bg-teal-500'
                                             : idx < currentStep
                                             ? 'w-2 bg-teal-600'
-                                            : 'w-2 bg-slate-700'
+                                            : 'w-2 bg-slate-300 dark:bg-slate-700'
                                     }`}
                                     title={`Ke langkah ${idx + 1}`}
                                 />
@@ -397,9 +421,9 @@ export default function OnboardingTour({
                             <button
                                 type="button"
                                 onClick={handleNext}
-                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg transition-all transform active:scale-95 cursor-pointer hover:shadow-teal-500/25"
+                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-sm transition-colors cursor-pointer"
                             >
-                                <span>{isLastStep ? 'Selesai & Mulai Pakai' : (step.nextBtnText || 'Mengerti')}</span>
+                                    <span>{isLastStep ? 'Selesai' : (step.nextBtnText || 'Lanjut')}</span>
                                 {isLastStep ? <Check size={15} /> : <ChevronRight size={15} />}
                             </button>
                         </div>

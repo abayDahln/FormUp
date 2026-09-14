@@ -4,7 +4,7 @@ import {
     ArrowLeft, Download, Eye, X, BarChart2, Loader2, 
     MessageSquare, AlertTriangle, CheckCircle2, XCircle, 
     MinusCircle, ChevronLeft, ChevronRight, TrendingUp, Calendar, Maximize2,
-    Sliders, Edit2, RotateCcw, Check, Save, Sparkles,
+    Sliders, Edit2, RotateCcw, Check, Save,
     ShieldAlert, ShieldCheck, Activity, Radio, RefreshCw, ChevronDown, ChevronUp,
     Search, Filter, AlertCircle, ArrowRight as ArrowRightIcon, Share2
 } from 'lucide-react';
@@ -18,7 +18,7 @@ import {
     forceSubmitExamSession, resetExamSession, resolveAnswerKey, ResolveAnswerKey, ExamProctorActions,
     stripMathNotation
 } from '../../services/apiService';
-import { getGeminiApiKey } from '../../services/aiService';
+import { getGeminiApiKey, scoreHolisticEssayWithAI, AVAILABLE_MODELS } from '../../services/aiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
 import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
 
@@ -216,6 +216,7 @@ export default function FormResponsesPage() {
     const [aiScoreSuggestions, setAiScoreSuggestions] = useState({});
     // A-8: Holistic scoring state
     const [aiHolisticScoring, setAiHolisticScoring] = useState(false); // loading state for holistic analysis
+    const [aiModel, setAiModel] = useState(() => { const m = localStorage.getItem('formup_selected_model_chat'); return m && !m.startsWith('gemini-2.5') ? m : 'gemini-3.6-flash'; });
     const [aiHolisticResult, setAiHolisticResult] = useState(null); // { essaySuggestions: [{answerId, score, reason, isCorrect}], pgSummary, totalEstimate }
     const [aiHolisticPreviewOpen, setAiHolisticPreviewOpen] = useState(false);
     const [bulkModalOpen, setBulkModalOpen] = useState(false);
@@ -1087,9 +1088,6 @@ export default function FormResponsesPage() {
 
     // A-8: Holistic AI analysis — kirim semua jawaban essay + ringkasan PG sekaligus
     const handleAiHolisticScore = async (respondent) => {
-        const apiKey = getGeminiApiKey();
-        if (!apiKey) { showToast('API Key Gemini belum diatur.', 'error'); return; }
-
         let answers = respondent.answers || [];
         const hasMissingAnswerId = answers.some(a => !a.answerId && !a.id);
         if (hasMissingAnswerId || answers.length === 0) {
@@ -1112,41 +1110,29 @@ export default function FormResponsesPage() {
             }).length;
             const pgTotal = pgAnswers.length;
 
-            const essaySection = essayAnswers.map((a, i) => {
+            const essaySectionAnswers = essayAnswers.map((a) => {
                 const qDef = (formQuestions || []).find(q => Number(q.id) === Number(a.questionId));
-                const text = a.answerText || a.answerValue || '(kosong)';
-                const key = a.correctAnswer || resolveQuestionKey(qDef) || '(tidak ada kunci)';
-                const q = (a.question || '').replace(/<[^>]*>/g, '').substring(0, 200);
-                const aId = a.answerId || a.id;
-                return `Essay #${i+1} (answerId: ${aId}):\nPertanyaan: ${q}\nKunci: ${key}\nJawaban: ${text}`;
-            }).join('\n\n');
+                return {
+                    ...a,
+                    correctAnswer: a.correctAnswer || resolveQuestionKey(qDef) || '(tidak ada kunci)'
+                };
+            });
 
             const pgSection = pgTotal > 0 ? `\n\nRingkasan PG: ${pgCorrect}/${pgTotal} benar (${Math.round((pgCorrect/pgTotal)*100)}%)` : '';
 
-            const prompt = `Anda adalah penilai ujian. Nilai SEMUA soal essay dari satu responden sekaligus secara holistik, dengan mempertimbangkan konteks keseluruhan performa responden.
-${pgSection}
+            const res = await scoreHolisticEssayWithAI({
+                essayAnswers: essaySectionAnswers,
+                pgSection,
+                selectedModel: aiModel,
+                customApiKey: getGeminiApiKey(),
+            });
 
-Data Essay:
-${essaySection}
+            if (!res.ok) {
+                showToast(res.message || 'Gagal menilai essay dengan AI.', 'error');
+                return;
+            }
 
-Kembalikan JSON array — satu objek per essay, HARUS berurutan sesuai Essay #1, #2, dst:
-[
-  {"answerId": <answerId integer dari data essay>, "score": 85, "isCorrect": true, "reason": "Alasan singkat 1 kalimat"}
-]
-
-Panduan penilaian:
-- Nilai berdasarkan kesamaan makna/konsep, bukan kata per kata
-- isCorrect: true jika score >= 70
-- Pertimbangkan konteks: jika PG bagus, cenderung paham materi
-- Score: 0-100`;
-
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-            const resp = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.3 } }) });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json();
-            let textRes = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            textRes = textRes.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'').replace(/^```\s*/,'');
-            const suggestions = JSON.parse(textRes);
+            const suggestions = res.data || [];
 
             // Map suggestions back to answer objects
             const mapped = suggestions.map((s, i) => {
@@ -2238,15 +2224,20 @@ Panduan penilaian:
                             </div>
                             {/* A-8: Holistic AI Analysis button */}
                             {(selectedRespondent.answers || []).some(a => a.typeId === 1) && (
+                                <div className="flex items-center gap-2">
+                                <select value={aiModel} onChange={e => { setAiModel(e.target.value); localStorage.setItem('formup_selected_model_chat', e.target.value); }} className="max-w-36 px-2 py-2 text-[11px] font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200">
+                                    {AVAILABLE_MODELS.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
+                                </select>
                                 <button
                                     type="button"
                                     onClick={() => handleAiHolisticScore(selectedRespondent)}
                                     disabled={aiHolisticScoring}
-                                    className="flex items-center gap-1.5 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-xl text-xs font-bold border border-purple-200 dark:border-purple-800 cursor-pointer disabled:opacity-60 transition-all"
+                                    className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 cursor-pointer disabled:opacity-60 transition-colors"
                                 >
-                                    <Sparkles size={13} />
-                                    {aiHolisticScoring ? 'Menganalisis...' : 'Analisis dengan AI'}
+                                    <CheckCircle2 size={13} />
+                                    {aiHolisticScoring ? 'Menilai...' : 'Penilaian Pintar'}
                                 </button>
+                                </div>
                             )}
                         </div>
 
@@ -2661,8 +2652,8 @@ Panduan penilaian:
                         {/* Header */}
                         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 bg-purple-50/50 dark:bg-purple-950/20">
                             <div className="flex items-center gap-2">
-                                <div className="p-2 bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 rounded-xl">
-                                    <Sparkles size={16} />
+                                    <div className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl">
+                                    <CheckCircle2 size={16} />
                                 </div>
                                 <div>
                                     <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Saran Skor AI — Review Holistic</h3>
@@ -2715,8 +2706,8 @@ Panduan penilaian:
                             <button type="button" onClick={() => setAiHolisticPreviewOpen(false)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
                                 Batal
                             </button>
-                            <button type="button" onClick={handleApplyAllAiScores} className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer flex items-center gap-2">
-                                <Sparkles size={13} />
+                            <button type="button" onClick={handleApplyAllAiScores} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer flex items-center gap-2">
+                                <CheckCircle2 size={13} />
                                 Terapkan Semua Skor AI ({aiHolisticResult.essaySuggestions.length} essay)
                             </button>
                         </div>

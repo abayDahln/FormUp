@@ -6,17 +6,25 @@ import {
     RefreshCw, ExternalLink, HelpCircle, FileText, CornerDownLeft,
     Clock, Layers, Plus, ShieldCheck, Key, CheckSquare, Square,
     Filter, ChevronRight, X, AlertTriangle, UserCheck, ShieldAlert,
-    Mic, MicOff, Paperclip, Upload, FileUp, Check
+    Mic, MicOff, Paperclip, Upload, FileUp, Check,
+    Globe, Video, Link2, Cpu, CheckCircle
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import RichContentRenderer from '../../utils/RichContentRenderer';
+import InteractiveQuizOfferCard from '../../components/ui/InteractiveQuizOfferCard';
 import {
     getGeminiApiKey,
     saveGeminiApiKey,
+    getGeminiApiKeys,
+    saveGeminiApiKeys,
+    getActiveApiKeyIndex,
+    rotateToNextApiKey,
     removeGeminiApiKey,
     AVAILABLE_MODELS,
     generateQuestionsFromDocument,
-    exportQuestionsToCSV
+    exportQuestionsToCSV,
+    extractContentFromUrl,
+    DEFAULT_AI_MODEL
 } from '../../services/aiService';
 import {
     getMyForms,
@@ -28,7 +36,12 @@ import {
     getExamMonitoring,
     getFormAnalytics,
     exportFormResponses,
-    getLocalUser
+    getLocalUser,
+    getMySubmittedResponses,
+    getResponseDetail,
+    getResponseAttempts,
+    getPublicFormByLink,
+    getPublicResponseResult
 } from '../../services/apiService';
 
 export default function AiChatPage() {
@@ -36,6 +49,17 @@ export default function AiChatPage() {
     const [user] = useState(() => getLocalUser());
     const userId = user?.id || 'guest';
     const storageKey = `formup_ai_chat_${userId}`;
+
+    // Model Selector state
+    const [selectedModel, setSelectedModel] = useState(() => {
+        const stored = localStorage.getItem('formup_selected_model_chat');
+        return stored && !stored.startsWith('gemini-2.5') && stored !== 'gemini-3-flash-preview' ? stored : DEFAULT_AI_MODEL;
+    });
+
+    const handleModelChange = (mId) => {
+        setSelectedModel(mId);
+        localStorage.setItem('formup_selected_model_chat', mId);
+    };
 
     // Chat states
     const [messages, setMessages] = useState(() => {
@@ -50,6 +74,8 @@ export default function AiChatPage() {
     const [loading, setLoading] = useState(false);
     const [userForms, setUserForms] = useState([]);
     const [selectedForm, setSelectedForm] = useState(null);
+    const [submittedResponses, setSubmittedResponses] = useState([]);
+    const [selectedHistory, setSelectedHistory] = useState(null);
 
     // C-1: Voice input state (Web Speech API)
     const [isListening, setIsListening] = useState(false);
@@ -76,9 +102,11 @@ export default function AiChatPage() {
     const [bulkExporting, setBulkExporting] = useState(false);
     const [bulkProgress, setBulkProgress] = useState(null);
 
-    // API Key Drawer
-    const [apiKey, setApiKey] = useState('');
-    const [inputKey, setInputKey] = useState('');
+    // API Key Stacking Drawer
+    const [apiKeys, setApiKeys] = useState(() => getGeminiApiKeys());
+    const [activeKeyIdx, setActiveKeyIdx] = useState(() => getActiveApiKeyIndex());
+    const [inputKeysText, setInputKeysText] = useState(() => getGeminiApiKeys().join('\n'));
+    const [apiKey, setApiKey] = useState(() => getGeminiApiKey());
     const [showKeyEditor, setShowKeyEditor] = useState(false);
 
     const messagesEndRef = useRef(null);
@@ -140,9 +168,13 @@ export default function AiChatPage() {
     };
 
     useEffect(() => {
+        const keys = getGeminiApiKeys();
+        setApiKeys(keys);
+        const idx = getActiveApiKeyIndex();
+        setActiveKeyIdx(idx);
+        setInputKeysText(keys.join('\n'));
         const savedKey = getGeminiApiKey();
         setApiKey(savedKey);
-        setInputKey(savedKey);
 
         // Fetch user forms for @mention and context
         getMyForms().then(res => {
@@ -150,6 +182,9 @@ export default function AiChatPage() {
                 setUserForms(res.data);
                 setSelectedFormIdsForExport(res.data.map(f => f.id));
             }
+        }).catch(() => {});
+        getMySubmittedResponses().then(res => {
+            if (res.ok && Array.isArray(res.data)) setSubmittedResponses(res.data);
         }).catch(() => {});
     }, []);
 
@@ -169,12 +204,12 @@ export default function AiChatPage() {
         }
     };
 
-    const handleSaveKey = (e) => {
+    const handleSaveKeys = (e) => {
         if (e) e.preventDefault();
-        const trimmed = inputKey.trim();
-        if (!trimmed) return;
-        saveGeminiApiKey(trimmed);
-        setApiKey(trimmed);
+        const savedKeys = saveGeminiApiKeys(inputKeysText);
+        setApiKeys(savedKeys);
+        setActiveKeyIdx(0);
+        setApiKey(savedKeys[0] || '');
         setShowKeyEditor(false);
     };
 
@@ -209,6 +244,61 @@ export default function AiChatPage() {
         if (inputRef.current) {
             inputRef.current.focus();
         }
+    };
+
+    const handleSelectMentionHistory = (item) => {
+        const textBeforeCursor = input.slice(0, mentionCursorPos);
+        const textAfterCursor = input.slice(mentionCursorPos);
+        const atIndex = textBeforeCursor.lastIndexOf('@');
+        const label = String(item.formTitle || item.title || 'Formulir').replace(/^riwayat jawaban\s+/i, '').trim();
+        setInput(textBeforeCursor.slice(0, atIndex) + `@Riwayat Jawaban ${label} ` + textAfterCursor);
+        setSelectedHistory(item);
+        setSelectedForm(null);
+        setShowMentionMenu(false);
+        inputRef.current?.focus();
+    };
+
+    const buildResponseHistoryContext = async (item) => {
+        let formId = item.formId || item.form?.id;
+        const responseId = item.responseId || item.id;
+        if (!formId && item.formLink) {
+            const formRes = await getPublicFormByLink(item.formLink);
+            formId = formRes?.data?.id || formRes?.data?.formId;
+        }
+        if (!formId || !responseId) return { context: '\n=== RIWAYAT JAWABAN ===\nData riwayat tidak memiliki ID respons yang lengkap.\n', quizQuestions: [] };
+        let [detail, attempts] = await Promise.all([
+            getResponseDetail(formId, responseId),
+            getResponseAttempts(formId, responseId).catch(() => ({ ok: false }))
+        ]);
+        // Some respondent-owned records are not readable through the owner
+        // detail route and return 404. The existing public result route still
+        // exposes the exact answer breakdown used by /result.
+        if (!detail?.ok || detail?.status === 404) {
+            const fallback = await getPublicResponseResult(item.formLink, responseId, item.guestToken);
+            if (fallback?.ok) detail = fallback;
+        }
+        const payload = detail?.data || detail?.response || {};
+        const answers = payload.answers || payload.responses || payload.answerDetails || payload.answerItems || [];
+        const attemptData = attempts?.data || attempts?.attempts || [];
+        const quizQuestions = answers.map(a => {
+            const options = a.options || a.questionOptions || a.choices || [];
+            if (!a.question && !a.questionText || !Array.isArray(options) || options.length < 2) return null;
+            const normalized = options.map(o => typeof o === 'string' ? { text: o } : o);
+            const correctAnswer = a.correctAnswer || a.correctOption || a.correctAnswerText || '';
+            const correctIndex = normalized.findIndex(o => o.isCorrect === true || o.correct === true || (correctAnswer && (o.optionText || o.text) === correctAnswer));
+            if (correctIndex < 0) return null;
+            return { question: a.question || a.questionText, options: normalized.map(o => o.optionText || o.text || ''), correctIndex };
+        }).filter(Boolean).slice(0, 5);
+        return { context: `
+=== RIWAYAT JAWABAN PERSONAL: "${item.formTitle || item.title || 'Formulir'}" ===
+- Form ID: ${formId}
+- Response ID: ${responseId}
+- Skor: ${payload.score ?? item.score ?? 'Tidak tersedia'}
+- Status: ${payload.status || item.status || 'Terkirim'}
+- Detail percobaan: ${JSON.stringify(attemptData).slice(0, 12000)}
+--- JAWABAN PER SOAL (gunakan data ini, jangan menebak) ---
+${answers.length ? answers.map((a, i) => `${i + 1}. Soal: ${a.question || a.questionText || '-'} | Jawaban saya: ${a.optionText || a.answerText || a.answer || a.selectedAnswer || '-'} | Kunci: ${a.correctAnswer || a.correctOption || a.correctAnswerText || '-'} | Status: ${a.isCorrect == null ? (a.correct == null ? 'Tidak tersedia' : a.correct ? 'Benar' : 'Salah') : a.isCorrect ? 'Benar' : 'Salah'}`).join('\n') : 'Endpoint tidak mengembalikan daftar jawaban per soal.'}
+`, quizQuestions };
     };
 
     // Filter forms based on bulkDaysFilter
@@ -521,17 +611,26 @@ Gagal memuat detail mendalam: ${err.message}.
             return;
         }
 
-        // Auto-detect target form if mentioned in query or if single form exists
+        // Explicitly selected form context or explicit @mention in query
         let activeTargetForm = selectedForm;
+        let responseHistoryContext = '';
+        let responseQuizQuestions = [];
+        const explicitHistory = selectedHistory || submittedResponses.find(item => {
+            const title = item.formTitle || item.title || '';
+            return query.toLowerCase().includes(`@riwayat jawaban ${title.toLowerCase()}`);
+        });
+        if (explicitHistory) {
+            try {
+                const historyData = await buildResponseHistoryContext(explicitHistory);
+                responseHistoryContext = historyData.context;
+                responseQuizQuestions = historyData.quizQuestions;
+            }
+            catch (err) { responseHistoryContext = `\n=== RIWAYAT JAWABAN ===\nGagal memuat detail respons: ${err.message}\n`; }
+        }
         if (!activeTargetForm) {
-            const matched = userForms.find(f => 
-                query.toLowerCase().includes(f.title.toLowerCase())
-            );
-            if (matched) {
-                activeTargetForm = matched;
-                setSelectedForm(matched);
-            } else if (userForms.length === 1 && (query.toLowerCase().includes('form') || query.toLowerCase().includes('kuis') || query.toLowerCase().includes('nilai') || query.toLowerCase().includes('curang'))) {
-                activeTargetForm = userForms[0];
+            const explicitMention = userForms.find(f => query.includes(`@${f.title}`));
+            if (explicitMention) {
+                activeTargetForm = explicitMention;
             }
         }
 
@@ -540,12 +639,14 @@ Gagal memuat detail mendalam: ${err.message}.
             sender: 'user',
             text: query,
             formContext: activeTargetForm ? { id: activeTargetForm.id, title: activeTargetForm.title } : null,
+            responseHistoryContext: explicitHistory ? { formTitle: explicitHistory.formTitle || explicitHistory.title } : null,
             timestamp: new Date().toISOString()
         };
 
         setMessages(prev => [...prev, userMsg]);
         setInput('');
         setShowMentionMenu(false);
+        // Keep the selected response history pinned for the next message.
         setLoading(true);
 
         const lowerQuery = query.toLowerCase();
@@ -643,7 +744,26 @@ Gagal memuat detail mendalam: ${err.message}.
             return;
         }
 
-        // ── INTENT 3: DEEP ANALYTICS & SSE STREAMING WITH GEMINI ──────────────
+        // ── INTENT 3: URL / YOUTUBE EXTRACTION OR DEEP ANALYTICS & SSE STREAMING ──
+        const urlMatch = query.match(/https?:\/\/[^\s]+/i);
+        let urlExtractedContext = '';
+        let urlMetadata = null;
+
+        if (urlMatch) {
+            const detectedUrl = urlMatch[0];
+            try {
+                const urlResult = await extractContentFromUrl(detectedUrl, (st) => {
+                    // Update user or status if needed
+                });
+                if (urlResult.ok && urlResult.content) {
+                    urlMetadata = urlResult;
+                    urlExtractedContext = `\n\n=== KONTEN MATERI DARI TAUTAN EKSTERNAL (${urlResult.type.toUpperCase()}) ===\nJudul: ${urlResult.title}\nSumber URL: ${urlResult.url}\nIsi Materi/Transkrip:\n"""\n${urlResult.content.slice(0, 40000)}\n"""\n`;
+                }
+            } catch (err) {
+                console.warn('URL extraction error:', err);
+            }
+        }
+
         let deepContext = '';
         if (activeTargetForm) {
             deepContext = await buildDeepFormContext(activeTargetForm);
@@ -653,14 +773,19 @@ DAFTAR FORMULIR MILIK PENGGUNA (${userForms.length} formulir):
 ${userForms.map((f, i) => `${i + 1}. "${f.title}" (ID: ${f.id}, Status: ${f.status || 'Active'}, Total Respons: ${f.responseCount || 0})`).join('\n')}
 `;
         }
+        if (responseHistoryContext) deepContext += responseHistoryContext;
+
+        if (urlExtractedContext) {
+            deepContext += urlExtractedContext;
+        }
 
         const systemPrompt = `
 PERAN: Anda adalah FormUp AI Assistant cerdas, analitis, dan ramah khusus untuk pendidik, guru, dan pembuat kuis di platform FormUp.
 TUGAS ANDA:
-1. Menjawab pertanyaan pengguna secara TEPAT, SPESIFIK, dan AKURAT menggunakan data formulir aktual yang disediakan di bawah ini.
-2. Jika ditanya tentang nilai tertinggi/terendah/rata-rata, sebutkan nama siswa dan nilai persisnya dari data ranking.
-3. Jika ditanya tentang kecurangan, siswa yang curang, atau log pindah tab, jelaskan data pelanggaran yang tertera di log monitoring.
-4. Jika ditanya tentang analisis soal sulit/mudah, jelaskan berdasarkan data butir soal dan kunci jawaban.
+1. Menjawab pertanyaan pengguna secara TEPAT, SPESIFIK, dan AKURAT menggunakan data formulir aktual atau materi dari URL yang disediakan di bawah ini.
+2. Jika pengguna meminta membuat soal dari link artikel/YouTube yang dilampirkan, buatkan butir soal yang relevan, mendidik, dan berkualitas.
+3. Jika ditanya tentang nilai tertinggi/terendah/rata-rata, sebutkan nama siswa dan nilai persisnya dari data ranking.
+4. Jika ditanya tentang kecurangan, siswa yang curang, atau log pindah tab, jelaskan data pelanggaran yang tertera di log monitoring.
 5. Format jawaban selalu menggunakan Markdown yang rapi (gunakan **bold**, bullet points, numbered list, blockquotes).
 6. Jika menuliskan rumus matematika/fisika, WAJIB gunakan format LaTeX $...$ untuk inline atau $$...$$ untuk baris terpisah.
 
@@ -676,86 +801,110 @@ ${deepContext}
                 sender: 'bot',
                 text: '',
                 formContext: activeTargetForm ? { id: activeTargetForm.id, title: activeTargetForm.title } : null,
+                urlMeta: urlMetadata ? { type: urlMetadata.type, title: urlMetadata.title, url: urlMetadata.url } : null,
+                actionCard: explicitHistory ? { type: 'interactive_quiz', quizId: `history-${explicitHistory.responseId || explicitHistory.id}`, questions: responseQuizQuestions } : null,
+                modelUsed: selectedModel,
                 timestamp: new Date().toISOString()
             }
         ]);
 
+        let currentActiveKey = curKey;
+        let attempt = 0;
+        const maxAttempts = Math.max(1, apiKeys.length);
+
         try {
-            abortControllerRef.current = new AbortController();
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?key=${curKey}&alt=sse`;
-            
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [
-                        { role: 'user', parts: [{ text: `${systemPrompt}\n\nPertanyaan Pengguna: "${query}"` }] }
-                    ],
-                    generationConfig: { temperature: 0.7 }
-                }),
-                signal: abortControllerRef.current.signal
-            });
+            while (attempt < maxAttempts) {
+                attempt++;
+            try {
+                abortControllerRef.current = new AbortController();
+                const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:streamGenerateContent?key=${currentActiveKey}&alt=sse`;
+                
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [
+                            { role: 'user', parts: [{ text: `${systemPrompt}\n\nPertanyaan Pengguna: "${query}"` }] }
+                        ],
+                        generationConfig: { temperature: 0.7 }
+                    }),
+                    signal: abortControllerRef.current.signal
+                });
 
-            if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
-                const errMsg = errData.error?.message || `HTTP ${response.status}`;
-                throw new Error(errMsg);
-            }
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    const errMsg = errData.error?.message || `HTTP ${response.status}`;
+                    if ((response.status === 429 || response.status === 403) && apiKeys.length > 1) {
+                        const rotated = rotateToNextApiKey();
+                        currentActiveKey = rotated.key;
+                        setActiveKeyIdx(rotated.index);
+                        setApiKey(rotated.key);
+                        // Retry next iteration
+                        continue;
+                    }
+                    throw new Error(errMsg);
+                }
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let accumulatedText = '';
-            let buffer = '';
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let accumulatedText = '';
+                let buffer = '';
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
 
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
 
-                for (const line of lines) {
-                    if (!line.startsWith('data: ')) continue;
-                    const dataStr = line.slice(6).trim();
-                    if (dataStr === '[DONE]') continue;
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        const dataStr = line.slice(6).trim();
+                        if (dataStr === '[DONE]') continue;
 
-                    try {
-                        const parsed = JSON.parse(dataStr);
-                        const chunk = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                        if (chunk) {
-                            accumulatedText += chunk;
-                            setMessages(prev =>
-                                prev.map(msg =>
-                                    msg.id === botMessageId
-                                        ? { ...msg, text: accumulatedText }
-                                        : msg
-                                )
-                            );
-                        }
-                    } catch {}
+                        try {
+                            const parsed = JSON.parse(dataStr);
+                            const chunk = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                            if (chunk) {
+                                accumulatedText += chunk;
+                                setMessages(prev =>
+                                    prev.map(msg =>
+                                        msg.id === botMessageId
+                                            ? { ...msg, text: accumulatedText }
+                                            : msg
+                                    )
+                                );
+                            }
+                        } catch {}
+                    }
+                }
+
+                if (!accumulatedText.trim()) {
+                    setMessages(prev =>
+                        prev.map(msg =>
+                            msg.id === botMessageId
+                                ? { ...msg, text: 'Maaf, saya tidak dapat merumuskan tanggapan untuk pertanyaan tersebut.' }
+                                : msg
+                        )
+                    );
+                }
+                break; // successfully finished
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    break;
+                }
+                if (attempt >= maxAttempts) {
+                    setMessages(prev =>
+                        prev.map(msg =>
+                            msg.id === botMessageId
+                                ? { ...msg, text: `Terjadi kendala saat menghubungi AI (${selectedModel}): ${err.message}. Periksa koneksi atau API Key Anda.` }
+                                : msg
+                        )
+                    );
                 }
             }
-
-            if (!accumulatedText.trim()) {
-                setMessages(prev =>
-                    prev.map(msg =>
-                        msg.id === botMessageId
-                            ? { ...msg, text: 'Maaf, saya tidak dapat merumuskan tanggapan untuk pertanyaan tersebut.' }
-                            : msg
-                    )
-                );
-            }
-        } catch (err) {
-            if (err.name !== 'AbortError') {
-                setMessages(prev =>
-                    prev.map(msg =>
-                        msg.id === botMessageId
-                            ? { ...msg, text: `Terjadi kendala saat menghubungi AI: ${err.message}. Periksa koneksi atau API Key Anda.` }
-                            : msg
-                    )
-                );
-            }
+        }
         } finally {
             setLoading(false);
             abortControllerRef.current = null;
@@ -812,6 +961,9 @@ ${deepContext}
     const filteredMentionForms = userForms.filter(f =>
         (f.title || '').toLowerCase().includes(mentionFilter)
     );
+    const filteredMentionHistory = submittedResponses.filter(item =>
+        (item.formTitle || item.title || '').toLowerCase().includes(mentionFilter.replace(/^riwayat jawaban\s*/, ''))
+    );
 
     return (
         <div className="flex h-screen bg-[#F4F8F7] dark:bg-slate-950 font-sans overflow-hidden">
@@ -839,7 +991,23 @@ ${deepContext}
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                            {/* Model Selector Dropdown */}
+                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs">
+                                <Cpu size={13} className="text-teal-600 dark:text-teal-400" />
+                                <select
+                                    value={selectedModel}
+                                    onChange={(e) => handleModelChange(e.target.value)}
+                                    className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+                                >
+                                    {AVAILABLE_MODELS.map(m => (
+                                        <option key={m.id} value={m.id} className="dark:bg-slate-900 text-slate-900 dark:text-white">
+                                            {m.name} {m.badge ? `(${m.badge})` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
                             <button
                                 type="button"
                                 onClick={() => setShowBulkModal(true)}
@@ -853,13 +1021,13 @@ ${deepContext}
                                 type="button"
                                 onClick={() => setShowKeyEditor(!showKeyEditor)}
                                 className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
-                                    apiKey
+                                    apiKeys.length > 0
                                         ? 'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border-teal-200 dark:border-teal-800'
                                         : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800'
                                 }`}
                             >
                                 <Key size={13} />
-                                <span>{apiKey ? 'API Key Siap' : 'Atur API Key'}</span>
+                                <span>{apiKeys.length > 0 ? `Key (${apiKeys.length})` : 'Atur API Key'}</span>
                             </button>
 
                             {messages.length > 0 && (
@@ -875,12 +1043,12 @@ ${deepContext}
                         </div>
                     </div>
 
-                    {/* API Key drawer if opened */}
+                    {/* API Key Stacking Drawer if opened */}
                     {showKeyEditor && (
-                        <div className="p-4 my-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-2 shrink-0">
+                        <div className="p-4 my-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-3 shrink-0">
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                                    <ShieldCheck size={14} className="text-emerald-500" /> Masukkan Google Gemini API Key
+                                    <ShieldCheck size={14} className="text-emerald-500" /> Multi-Key Stacking (Auto-Failover)
                                 </span>
                                 <a
                                     href="https://aistudio.google.com/app/apikey"
@@ -891,20 +1059,28 @@ ${deepContext}
                                     Dapatkan Key Gratis <ExternalLink size={11} />
                                 </a>
                             </div>
-                            <form onSubmit={handleSaveKey} className="flex gap-2">
-                                <input
-                                    type="password"
-                                    value={inputKey}
-                                    onChange={e => setInputKey(e.target.value)}
-                                    placeholder="AIzaSy..."
-                                    className="flex-1 px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-white"
+                            <p className="text-[11px] text-slate-400">
+                                Masukkan satu atau lebih API Key Google Gemini (pisahkan dengan baris baru). Jika limit 429 atau kuota habis tercapai pada Key 1, sistem otomatis beralih ke Key berikutnya.
+                            </p>
+                            <form onSubmit={handleSaveKeys} className="space-y-2">
+                                <textarea
+                                    rows={3}
+                                    value={inputKeysText}
+                                    onChange={e => setInputKeysText(e.target.value)}
+                                    placeholder="AIzaSyKey1...\nAIzaSyKey2..."
+                                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-white"
                                 />
-                                <button
-                                    type="submit"
-                                    className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold cursor-pointer"
-                                >
-                                    Simpan
-                                </button>
+                                <div className="flex items-center justify-between pt-1">
+                                    <span className="text-[11px] text-slate-400">
+                                        Total Key: <b>{apiKeys.length}</b> {apiKeys.length > 0 && `(Aktif: Key #${activeKeyIdx + 1})`}
+                                    </span>
+                                    <button
+                                        type="submit"
+                                        className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold cursor-pointer"
+                                    >
+                                        Simpan Key
+                                    </button>
+                                </div>
                             </form>
                         </div>
                     )}
@@ -1005,6 +1181,12 @@ ${deepContext}
                                             <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-500/20 text-[10px] font-bold">
                                                 <FileText size={10} />
                                                 <span>@{m.formContext.title}</span>
+                                            </div>
+                                        )}
+                                        {m.responseHistoryContext && (
+                                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/20 text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                                                <FileText size={10} />
+                                                <span>@Riwayat Jawaban {m.responseHistoryContext.formTitle}</span>
                                             </div>
                                         )}
 
@@ -1110,6 +1292,9 @@ ${deepContext}
                                                 </Link>
                                             </div>
                                         )}
+                                        {m.actionCard?.type === 'interactive_quiz' && m.text && m.actionCard.questions?.length > 0 && (
+                                            <InteractiveQuizOfferCard quizId={m.actionCard.quizId} questions={m.actionCard.questions} />
+                                        )}
                                     </div>
 
                                     {m.sender === 'user' && (
@@ -1142,11 +1327,26 @@ ${deepContext}
                     </div>
 
                     {/* Mention @ Popover Menu */}
-                    {showMentionMenu && filteredMentionForms.length > 0 && (
-                        <div className="mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-md p-2 max-h-48 overflow-y-auto space-y-1 shrink-0 z-20">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
-                                Pilih Formulir Terkait:
-                            </p>
+                    {showMentionMenu && (filteredMentionForms.length > 0 || filteredMentionHistory.length > 0) && (
+                        <div className="mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-2 max-h-48 overflow-y-auto space-y-1 shrink-0 z-20">
+                            <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 dark:border-slate-800">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                    Pilih Formulir Terkait:
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowMentionMenu(false)}
+                                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-[10px] font-bold cursor-pointer"
+                                >
+                                    Tutup (Esc)
+                                </button>
+                            </div>
+                            {filteredMentionHistory.map(item => (
+                                <button key={`history-${item.responseId || item.id}`} type="button" onClick={() => handleSelectMentionHistory(item)} className="w-full text-left px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded-xl flex items-center justify-between cursor-pointer">
+                                    <span className="truncate">@Riwayat Jawaban {item.formTitle || item.title}</span>
+                                    <span className="text-[10px] text-amber-600 shrink-0 ml-2">Jawaban saya</span>
+                                </button>
+                            ))}
                             {filteredMentionForms.map(f => (
                                 <button
                                     key={f.id}
@@ -1165,18 +1365,28 @@ ${deepContext}
 
                     {/* Active Form Pin Badge */}
                     {selectedForm && (
-                        <div className="mb-2 flex items-center gap-2 px-3 py-1.5 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 rounded-xl w-fit text-xs shrink-0">
-                            <FileText size={12} className="text-teal-600" />
-                            <span className="text-slate-700 dark:text-slate-300">
-                                Konteks aktif: <b className="text-teal-700 dark:text-teal-300">{selectedForm.title}</b>
-                            </span>
+                        <div className="mb-2 flex items-center justify-between gap-3 px-3.5 py-2 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 rounded-2xl text-xs shrink-0 shadow-2xs">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <FileText size={14} className="text-teal-600 shrink-0" />
+                                <span className="text-slate-600 dark:text-slate-300">
+                                    Konteks Formulir: <strong className="text-teal-800 dark:text-teal-200">{selectedForm.title}</strong>
+                                </span>
+                            </div>
                             <button
                                 type="button"
                                 onClick={() => setSelectedForm(null)}
-                                className="text-slate-400 hover:text-red-500 font-bold ml-1 cursor-pointer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-100 hover:bg-red-100 dark:bg-teal-900/60 dark:hover:bg-red-950/60 text-teal-700 hover:text-red-600 dark:text-teal-300 dark:hover:text-red-300 text-[11px] font-bold transition-colors cursor-pointer"
+                                title="Keluar dari konteks formulir ini"
                             >
-                                ×
+                                <X size={12} />
+                                <span>Keluar Konteks</span>
                             </button>
+                        </div>
+                    )}
+                    {selectedHistory && (
+                        <div className="mb-2 flex items-center justify-between gap-3 px-3.5 py-2 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-2xl text-xs shrink-0 shadow-2xs">
+                            <span className="text-amber-800 dark:text-amber-200 truncate">Konteks: <strong>@Riwayat Jawaban {selectedHistory.formTitle || selectedHistory.title}</strong></span>
+                            <button type="button" onClick={() => setSelectedHistory(null)} className="text-[11px] font-bold text-amber-700 dark:text-amber-300">Keluar Konteks</button>
                         </div>
                     )}
 
@@ -1242,7 +1452,9 @@ ${deepContext}
                                 value={input}
                                 onChange={handleInputChange}
                                 onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                    if (e.key === 'Escape') {
+                                        setShowMentionMenu(false);
+                                    } else if (e.key === 'Enter' && !e.shiftKey) {
                                         e.preventDefault();
                                         handleSendMessage(e);
                                     }

@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
     Sparkles, X, Loader2, Key, Check, Eye, EyeOff, ExternalLink,
-    Trash2, ShieldCheck, AlertCircle, CheckCircle2, RotateCcw, Clock,
+    ShieldCheck, AlertCircle, CheckCircle2, RotateCcw, Clock,
     Calculator, Code, ChevronDown, ChevronUp, FileText, Cpu, Layers
 } from 'lucide-react';
 import {
-    getGeminiApiKey,
-    saveGeminiApiKey,
-    removeGeminiApiKey,
+    getGeminiApiKeys,
+    executeWithApiKeyFailover,
     AVAILABLE_MODELS,
     safeJsonParse
 } from '../../services/aiService';
@@ -21,16 +21,13 @@ export default function AIFormBuilderModal({ isOpen, onClose, onFormCreated }) {
     const [questionCount, setQuestionCount] = useState(5);
     const [typePreference, setTypePreference] = useState('2');
     const [difficulty, setDifficulty] = useState('Sedang');
-    const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
+    const [selectedModel, setSelectedModel] = useState('gemini-3.6-flash');
     const [includeMath, setIncludeMath] = useState(false);
     const [includeCode, setIncludeCode] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
 
-    // API Key
-    const [apiKey, setApiKey] = useState('');
-    const [inputKey, setInputKey] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
-    const [showKeyEditor, setShowKeyEditor] = useState(false);
+    // Global Stacked API Keys
+    const [apiKeys, setApiKeys] = useState(() => getGeminiApiKeys());
 
     // Status
     const [generating, setGenerating] = useState(false);
@@ -59,10 +56,7 @@ export default function AIFormBuilderModal({ isOpen, onClose, onFormCreated }) {
         setIncludeMath(false);
         setIncludeCode(false);
         setShowAdvanced(false);
-        const saved = getGeminiApiKey();
-        setApiKey(saved);
-        setInputKey(saved);
-        setShowKeyEditor(!saved);
+        setApiKeys(getGeminiApiKeys());
     }, [isOpen]);
 
     useEffect(() => {
@@ -78,16 +72,6 @@ export default function AIFormBuilderModal({ isOpen, onClose, onFormCreated }) {
     }, [generating, creating]);
 
     if (!isOpen) return null;
-
-    const handleSaveKey = (e) => {
-        if (e) e.preventDefault();
-        const trimmed = inputKey.trim();
-        if (!trimmed) { setError('Masukkan Gemini API Key yang valid.'); return; }
-        saveGeminiApiKey(trimmed);
-        setApiKey(trimmed);
-        setShowKeyEditor(false);
-        setError('');
-    };
 
     const generateSingleForm = async (targetIndex, total, currentApiKey) => {
         const mathCodeInstructions = [];
@@ -173,9 +157,15 @@ Kembalikan HANYA format JSON valid berikut tanpa teks pengantar atau penutup:
     };
 
     const handleGenerate = async () => {
-        const curKey = apiKey.trim();
-        if (!curKey) { setShowKeyEditor(true); setError('Masukkan API Key terlebih dahulu.'); return; }
-        if (!prompt.trim() && !contextText.trim()) { setError('Tulis deskripsi atau materi form yang ingin dibuat.'); return; }
+        const keys = getGeminiApiKeys();
+        if (keys.length === 0) {
+            setError('API Key Gemini belum diatur. Silakan atur API Key di menu AI Assistant Chat terlebih dahulu.');
+            return;
+        }
+        if (!prompt.trim() && !contextText.trim()) {
+            setError('Tulis deskripsi atau materi form yang ingin dibuat.');
+            return;
+        }
 
         setError('');
         setGenerating(true);
@@ -183,14 +173,20 @@ Kembalikan HANYA format JSON valid berikut tanpa teks pengantar atau penutup:
         const results = [];
 
         try {
-            for (let i = 0; i < countToGenerate; i++) {
-                setStatus(`Menyusun formulir ${i + 1} dari ${countToGenerate} dengan ${selectedModel}...`);
-                const formRes = await generateSingleForm(i, countToGenerate, curKey);
-                results.push(formRes);
+            await executeWithApiKeyFailover(async (activeApiKey) => {
+                for (let i = 0; i < countToGenerate; i++) {
+                    setStatus(`Menyusun formulir ${i + 1} dari ${countToGenerate} dengan ${selectedModel}...`);
+                    const formRes = await generateSingleForm(i, countToGenerate, activeApiKey);
+                    results.push(formRes);
+                }
+                return { ok: true };
+            });
+
+            if (results.length > 0) {
+                setStatus('Selesai! Tinjau hasil sebelum disimpan.');
+                setPreviews(results);
+                setActivePreviewIdx(0);
             }
-            setStatus('Selesai! Tinjau hasil sebelum disimpan.');
-            setPreviews(results);
-            setActivePreviewIdx(0);
         } catch (err) {
             setError(err.message || 'Terjadi kesalahan saat memproses formulir.');
         } finally {
@@ -241,7 +237,6 @@ Kembalikan HANYA format JSON valid berikut tanpa teks pengantar atau penutup:
         }
     };
 
-    const maskKey = (key) => (!key || key.length < 8) ? '****' : `${key.substring(0, 6)}...${key.substring(key.length - 4)}`;
     const currentPreview = previews ? previews[activePreviewIdx] : null;
 
     return (
@@ -260,60 +255,43 @@ Kembalikan HANYA format JSON valid berikut tanpa teks pengantar atau penutup:
                             <p className="text-xs text-slate-500 dark:text-slate-400">Deskripsikan form & materi, AI menyusun judul, deskripsi, & butir soal.</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                        <button
-                            type="button"
-                            onClick={() => setShowKeyEditor(!showKeyEditor)}
-                            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 border transition-all cursor-pointer ${
-                                apiKey ? 'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border-teal-200 dark:border-teal-800' : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800'
-                            }`}
-                        >
-                            <Key size={12} />{apiKey ? maskKey(apiKey) : 'Atur Key'}
-                        </button>
+                    <div className="flex items-center gap-2">
+                        {apiKeys.length > 0 ? (
+                            <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 rounded-xl text-xs font-bold border border-teal-200 dark:border-teal-800">
+                                <ShieldCheck size={12} className="text-teal-600" />
+                                {apiKeys.length} API Key
+                            </span>
+                        ) : (
+                            <Link
+                                to="/ai-chat"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 hover:bg-amber-100 rounded-xl text-xs font-bold border border-amber-200 dark:border-amber-800 transition-colors"
+                            >
+                                <Key size={12} /> Atur Key
+                            </Link>
+                        )}
                         <button type="button" onClick={onClose} className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer">
                             <X size={18} />
                         </button>
                     </div>
                 </div>
 
-                {/* API Key Editor Drawer */}
-                {showKeyEditor && (
-                    <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-                                <ShieldCheck size={13} className="text-emerald-500" /> Tersimpan hanya di browser Anda (localStorage)
-                            </p>
-                            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[11px] text-teal-600 dark:text-teal-400 font-bold flex items-center gap-1 hover:underline">
-                                Dapatkan Key Gratis <ExternalLink size={11} />
-                            </a>
-                        </div>
-                        <form onSubmit={handleSaveKey} className="flex gap-2">
-                            <div className="relative flex-1">
-                                <input
-                                    type={showPassword ? 'text' : 'password'}
-                                    value={inputKey}
-                                    onChange={e => setInputKey(e.target.value)}
-                                    placeholder="AIzaSy..."
-                                    className="w-full pl-3 pr-9 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-900 dark:text-white"
-                                />
-                                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 cursor-pointer">
-                                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                                </button>
-                            </div>
-                            <button type="submit" className="px-3 py-2 bg-[#00897B] hover:bg-[#00796B] text-white rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1">
-                                <Check size={13} /> Simpan
-                            </button>
-                            {apiKey && (
-                                <button type="button" onClick={() => { removeGeminiApiKey(); setApiKey(''); setInputKey(''); setShowKeyEditor(true); }} className="px-2.5 py-2 border border-red-200 dark:border-red-900 text-red-500 rounded-xl text-xs cursor-pointer">
-                                    <Trash2 size={13} />
-                                </button>
-                            )}
-                        </form>
-                    </div>
-                )}
-
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                    {apiKeys.length === 0 && (
+                        <div className="p-3.5 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                            <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-medium">
+                                <Key size={15} className="text-amber-600 shrink-0" />
+                                <span>API Key Gemini belum diatur. Silakan atur di AI Assistant Chat.</span>
+                            </div>
+                            <Link
+                                to="/ai-chat"
+                                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold shrink-0 transition-colors inline-flex items-center gap-1"
+                            >
+                                Atur di AI Chat <ExternalLink size={12} />
+                            </Link>
+                        </div>
+                    )}
+
                     {error && (
                         <div className="p-3.5 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900 rounded-2xl flex items-start gap-2.5 text-xs text-red-700 dark:text-red-300">
                             <AlertCircle size={15} className="shrink-0 mt-0.5" />
@@ -598,12 +576,12 @@ Kembalikan HANYA format JSON valid berikut tanpa teks pengantar atau penutup:
                 {/* Footer */}
                 <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                     <div className="text-xs text-slate-400">
-                        {apiKey ? (
+                        {apiKeys.length > 0 ? (
                             <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                                <CheckCircle2 size={13} /> {maskKey(apiKey)}
+                                <CheckCircle2 size={13} /> {apiKeys.length} API Key Aktif
                             </span>
                         ) : (
-                            <span className="text-amber-600 font-bold">⚠ Harap atur API Key</span>
+                            <span className="text-amber-600 font-bold">⚠ Harap atur API Key di Chat AI</span>
                         )}
                     </div>
                     <div className="flex items-center gap-2">
@@ -643,4 +621,3 @@ Kembalikan HANYA format JSON valid berikut tanpa teks pengantar atau penutup:
         </div>
     );
 }
-

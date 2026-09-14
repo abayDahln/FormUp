@@ -503,14 +503,6 @@ const UserHome = () => {
                 onComplete={handleOnboardingComplete}
                 steps={[
                     {
-                        selector: '[data-tour="sidebar-nav"]',
-                        title: 'Navigasi Menu Lengkap',
-                        description: 'Akses cepat ke Dashboard, daftar Formulir Saya, Respons masuk, templat siap pakai, dan Riwayat aktivitas Anda.',
-                        icon: <Compass size={18} />,
-                        placement: 'right',
-                        badge: 'Navigasi'
-                    },
-                    {
                         selector: '[data-tour="create-form-btn"]',
                         title: 'Buat Formulir Baru',
                         description: 'Klik di sini untuk langsung membuat formulir kosong. Anda dapat menambahkan aneka tipe soal pilihan ganda, essay, rumus matematika, dan kunci jawaban.',
@@ -524,7 +516,8 @@ const UserHome = () => {
                         description: 'Cukup deskripsikan topik atau materi kuis Anda, AI FormUp akan otomatis merancang pertanyaan dan opsi kunci jawaban lengkap untuk Anda!',
                         icon: <Sparkles size={18} />,
                         placement: 'bottom',
-                        badge: 'Kecerdasan AI'
+                        badge: 'Kecerdasan AI',
+                        action: () => setCreateDropdownOpen(true)
                     },
                     {
                         selector: '[data-tour="stats-overview"]',
@@ -541,14 +534,6 @@ const UserHome = () => {
                         icon: <FileText size={18} />,
                         placement: 'top',
                         badge: 'Koleksi Form'
-                    },
-                    {
-                        selector: '[data-tour="user-guide-btn"]',
-                        title: 'Panduan Pengguna Kapan Saja',
-                        description: 'Ingin membaca ringkasan fitur atau mengulang tur ini? Klik menu Panduan Pengguna di sidebar ini kapan saja Anda butuhkan!',
-                        icon: <HelpCircle size={18} />,
-                        placement: 'right',
-                        badge: 'Bantuan'
                     },
                     {
                         selector: '[data-tour="create-form-btn"]',

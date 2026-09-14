@@ -1,12 +1,18 @@
 import { useState } from 'react';
 import { Calculator, Code, Check, X } from 'lucide-react';
 import RichContentRenderer from '../../utils/RichContentRenderer';
+import VisualFormulaEditor from './VisualFormulaEditor';
 
 export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
     const [mathInput, setMathInput] = useState('\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}');
     const [mathFormat, setMathFormat] = useState('inline'); // 'inline' or 'block'
     const [codeLanguage, setCodeLanguage] = useState('javascript');
     const [codeInput, setCodeInput] = useState('function calculateSum(a, b) {\n    return a + b;\n}');
+    const [visualMode, setVisualMode] = useState(false);
+    const openVisualEditor = () => {
+        if (mathInput === '\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}') setMathInput('');
+        setVisualMode(true);
+    };
 
     if (!isOpen) return null;
 
@@ -35,7 +41,7 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
 
     return (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full p-6 space-y-4 font-sans text-slate-800 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 font-sans text-slate-800 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-150">
                 
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -57,6 +63,18 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
                         <X size={18} />
                     </button>
                 </div>
+
+                {mode === 'math' && (
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50/70 dark:border-teal-800 dark:bg-teal-950/40 px-3 py-2">
+                        <div>
+                            <p className="text-xs font-extrabold text-teal-800 dark:text-teal-200">Bangun rumus tanpa mengetik LaTeX</p>
+                            <p className="text-[10px] text-teal-700/80 dark:text-teal-300/80">Pilih template matematika atau kimia dengan preview langsung.</p>
+                        </div>
+                        <button type="button" onClick={openVisualEditor} className="shrink-0 px-3 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-extrabold cursor-pointer">
+                            Editor Rumus Visual
+                        </button>
+                    </div>
+                )}
 
                 {/* Mode: MATH */}
                 {mode === 'math' && (
@@ -87,9 +105,10 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
                                     Blok Baris ($$tengah$$)
                                 </button>
                             </div>
+                            <button type="button" onClick={() => visualMode ? setVisualMode(false) : openVisualEditor()} className="px-3 py-1.5 rounded-lg bg-teal-50 text-teal-700 dark:bg-teal-950/50 dark:text-teal-300 text-xs font-bold">{visualMode ? 'Mode Manual' : 'Editor Rumus Visual'}</button>
                         </div>
 
-                        <div>
+                        {visualMode ? <VisualFormulaEditor value={mathInput} onChange={setMathInput} /> : <div>
                             <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">Simbol Cepat LaTeX:</label>
                             <div className="flex flex-wrap gap-1.5">
                                 {[
@@ -113,7 +132,7 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
                                     </button>
                                 ))}
                             </div>
-                        </div>
+                        </div>}
 
                         <div>
                             <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Ekspresi Rumus LaTeX</label>

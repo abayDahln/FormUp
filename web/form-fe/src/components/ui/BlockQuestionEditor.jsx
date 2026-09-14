@@ -7,6 +7,7 @@ import {
     Palette, Highlighter
 } from 'lucide-react';
 import RichContentRenderer from '../../utils/RichContentRenderer';
+import VisualFormulaEditor from './VisualFormulaEditor';
 
 const TEXT_COLORS = [
     { name: 'Default', value: 'inherit', class: 'bg-slate-800 dark:bg-slate-200' },
@@ -117,14 +118,25 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
     const [activeBlockId, setActiveBlockId] = useState(null);
     const [colorPickerOpen, setColorPickerOpen] = useState(null);
     const [highlightPickerOpen, setHighlightPickerOpen] = useState(null);
-    const textareaRefs = useRef({});
+    const [visualFormulaBlockId, setVisualFormulaBlockId] = useState(null);
+    const [visualFormulaValue, setVisualFormulaValue] = useState('');
+    const editorRefs = useRef({});
     const lastEmittedValueRef = useRef(value);
 
     // Sync external value changes
     useEffect(() => {
         if (value !== lastEmittedValueRef.current) {
             lastEmittedValueRef.current = value;
-            setBlocks(parseStringToBlocks(value));
+            const newBlocks = parseStringToBlocks(value);
+            setBlocks(newBlocks);
+            newBlocks.forEach(b => {
+                if (b.type === 'text' && editorRefs.current[b.id]) {
+                    const el = editorRefs.current[b.id];
+                    if (el && el.innerHTML !== (b.content || '') && document.activeElement !== el) {
+                        el.innerHTML = b.content || '';
+                    }
+                }
+            });
         }
     }, [value]);
 
@@ -177,112 +189,86 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
         updateBlocksAndEmit(next);
     };
 
-    // WYSIWYG Formatting Helpers for Textarea Selection
+    // WYSIWYG Formatting Helpers for contentEditable
     const applyFormatting = (blockId, formatType, payload = null) => {
-        const textarea = textareaRefs.current[blockId];
-        const block = blocks.find(b => b.id === blockId);
-        if (!block) return;
+        const editor = editorRefs.current[blockId];
+        if (!editor) return;
 
-        const currentText = block.content || '';
-        let start = 0;
-        let end = currentText.length;
-
-        if (textarea) {
-            start = textarea.selectionStart;
-            end = textarea.selectionEnd;
-        }
-
-        const hasSelection = start !== end;
-        const selectedText = hasSelection ? currentText.substring(start, end) : '';
-        const fallbackText = selectedText || 'teks';
-
-        let replacement = '';
+        editor.focus();
 
         switch (formatType) {
             case 'bold':
-                replacement = `<b>${fallbackText}</b>`;
+                document.execCommand('bold', false, null);
                 break;
             case 'italic':
-                replacement = `<i>${fallbackText}</i>`;
+                document.execCommand('italic', false, null);
                 break;
             case 'underline':
-                replacement = `<u>${fallbackText}</u>`;
+                document.execCommand('underline', false, null);
                 break;
             case 'strike':
-                replacement = `<s>${fallbackText}</s>`;
+                document.execCommand('strikeThrough', false, null);
                 break;
             case 'color':
-                replacement = payload === 'inherit' 
-                    ? fallbackText 
-                    : `<span style="color: ${payload}">${fallbackText}</span>`;
+                document.execCommand('foreColor', false, payload === 'inherit' ? '#1e293b' : payload);
                 break;
             case 'highlight':
-                replacement = payload === 'transparent'
-                    ? fallbackText
-                    : `<mark style="background-color: ${payload}; padding: 0 4px; border-radius: 4px;">${fallbackText}</mark>`;
+                if (payload === 'transparent') {
+                    document.execCommand('removeFormat', false, null);
+                } else {
+                    if (!document.execCommand('hiliteColor', false, payload)) {
+                        document.execCommand('backColor', false, payload);
+                    }
+                }
                 break;
             case 'h2':
-                replacement = `<h2>${fallbackText}</h2>`;
+                document.execCommand('formatBlock', false, '<h2>');
                 break;
             case 'h3':
-                replacement = `<h3>${fallbackText}</h3>`;
+                document.execCommand('formatBlock', false, '<h3>');
                 break;
             case 'small':
-                replacement = `<small>${fallbackText}</small>`;
+                document.execCommand('fontSize', false, '2');
                 break;
             case 'align':
-                replacement = `<div style="text-align: ${payload};">${fallbackText}</div>`;
+                document.execCommand('justify' + (payload === 'center' ? 'Center' : payload === 'right' ? 'Right' : payload === 'justify' ? 'Full' : 'Left'), false, null);
                 break;
             case 'ul':
-                if (hasSelection) {
-                    const items = selectedText.split('\n').filter(Boolean);
-                    replacement = `<ul>\n${items.map(it => `  <li>${it}</li>`).join('\n')}\n</ul>`;
-                } else {
-                    replacement = `<ul>\n  <li>Poin 1</li>\n  <li>Poin 2</li>\n</ul>`;
-                }
+                document.execCommand('insertUnorderedList', false, null);
                 break;
             case 'ol':
-                if (hasSelection) {
-                    const items = selectedText.split('\n').filter(Boolean);
-                    replacement = `<ol>\n${items.map(it => `  <li>${it}</li>`).join('\n')}\n</ol>`;
-                } else {
-                    replacement = `<ol>\n  <li>Langkah 1</li>\n  <li>Langkah 2</li>\n</ol>`;
-                }
+                document.execCommand('insertOrderedList', false, null);
                 break;
             case 'quote':
-                replacement = `<blockquote>${fallbackText}</blockquote>`;
+                document.execCommand('formatBlock', false, '<blockquote>');
                 break;
             case 'code':
-                replacement = `<code>${fallbackText}</code>`;
+                document.execCommand('formatBlock', false, '<pre>');
                 break;
-            case 'math':
-                replacement = `$${fallbackText || 'x^2 + y^2 = r^2'}$`;
+            case 'math': {
+                const sel = window.getSelection();
+                const selText = sel ? sel.toString() : '';
+                document.execCommand('insertHTML', false, `$${selText || 'x^2'}$`);
                 break;
+            }
             case 'link': {
                 const url = window.prompt('Masukkan alamat URL tautan (contoh: https://google.com):', 'https://');
-                if (!url) return;
-                replacement = `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #00897b; text-decoration: underline;">${fallbackText || url}</a>`;
+                if (url) {
+                    document.execCommand('createLink', false, url);
+                }
                 break;
             }
             case 'clear':
-                replacement = fallbackText.replace(/<[^>]*>/g, '');
+                document.execCommand('removeFormat', false, null);
+                document.execCommand('formatBlock', false, '<div>');
                 break;
             default:
                 return;
         }
 
-        const newContent = currentText.substring(0, start) + replacement + currentText.substring(end);
-        handleUpdateBlock(blockId, 'content', newContent);
-
+        handleUpdateBlock(blockId, 'content', editor.innerHTML);
         setColorPickerOpen(null);
         setHighlightPickerOpen(null);
-
-        setTimeout(() => {
-            if (textarea) {
-                textarea.focus();
-                textarea.setSelectionRange(start + replacement.length, start + replacement.length);
-            }
-        }, 50);
     };
 
     return (
@@ -403,7 +389,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                             <div className="space-y-2">
                                 
                                 {/* Rich Formatting Toolbar */}
-                                <div className="flex flex-wrap items-center gap-1 p-1.5 bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300">
+                                <div onMouseDown={e => e.preventDefault()} className="flex flex-wrap items-center gap-1 p-1.5 bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300">
                                     
                                     {/* Text Styles */}
                                     <button
@@ -605,6 +591,13 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     >
                                         $Rumus$
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setVisualFormulaValue(''); setVisualFormulaBlockId(block.id); }}
+                                        className="px-2 py-1 text-[11px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 rounded-lg cursor-pointer"
+                                    >
+                                        Editor Rumus Visual
+                                    </button>
 
                                     <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-0.5" />
 
@@ -618,14 +611,22 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     </button>
                                 </div>
 
-                                {/* Textarea Input */}
-                                <textarea
-                                    ref={el => textareaRefs.current[block.id] = el}
-                                    rows={3}
-                                    value={block.content || ''}
-                                    onChange={e => handleUpdateBlock(block.id, 'content', e.target.value)}
-                                    placeholder={placeholder}
-                                    className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00897B] dark:focus:ring-teal-400 resize-y leading-relaxed transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                                {/* Native rich-text surface: toolbar commands operate on this DOM. */}
+                                <div
+                                    ref={el => {
+                                        editorRefs.current[block.id] = el;
+                                        if (el && document.activeElement !== el && el.innerHTML !== (block.content || '')) {
+                                            el.innerHTML = block.content || '';
+                                        }
+                                    }}
+                                    contentEditable
+                                    suppressContentEditableWarning
+                                    role="textbox"
+                                    aria-multiline="true"
+                                    data-placeholder={placeholder}
+                                    onInput={e => handleUpdateBlock(block.id, 'content', e.currentTarget.innerHTML)}
+                                    onFocus={() => setActiveBlockId(block.id)}
+                                    className="min-h-20 w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00897B] dark:focus:ring-teal-400 leading-relaxed transition-colors empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 dark:empty:before:text-slate-500"
                                 />
                             </div>
                         )}
@@ -688,6 +689,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     placeholder="Ekspresi LaTeX, contoh: \frac{-b \pm \sqrt{b^2-4ac}}{2a}"
                                     className="w-full font-mono border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white bg-slate-50/50 dark:bg-slate-900/60 focus:outline-none focus:ring-2 focus:ring-[#00897B]"
                                 />
+                                <button type="button" onClick={() => { setVisualFormulaValue(block.content || ''); setVisualFormulaBlockId(block.id); }} className="px-2.5 py-1.5 rounded-lg bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 text-[11px] font-bold cursor-pointer">Buka Editor Rumus Visual</button>
                                 <div className="p-3 bg-teal-50/40 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-900/60 rounded-xl flex items-center justify-center">
                                     <RichContentRenderer content={`$$${block.content || '...'}$$`} className="text-sm font-bold" />
                                 </div>
@@ -707,6 +709,26 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                     <Plus size={13} /> Tambah Paragraf Teks
                 </button>
             </div>
+
+            {visualFormulaBlockId && (() => {
+                const target = blocks.find(b => b.id === visualFormulaBlockId);
+                if (!target) return null;
+                return <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto p-5 space-y-4">
+                        <div className="flex items-center justify-between"><h3 className="text-sm font-extrabold">Editor Rumus Visual</h3><button type="button" onClick={() => setVisualFormulaBlockId(null)} className="text-slate-400 cursor-pointer">✕</button></div>
+                        <VisualFormulaEditor value={visualFormulaValue} onChange={setVisualFormulaValue} />
+                        <button type="button" onClick={() => {
+                            if (target.type === 'text') {
+                                const snippet = visualFormulaValue.trim();
+                                if (snippet) handleUpdateBlock(target.id, 'content', `${target.content || ''} $${snippet}$ `);
+                            } else {
+                                handleUpdateBlock(target.id, 'content', visualFormulaValue);
+                            }
+                            setVisualFormulaBlockId(null);
+                        }} className="w-full py-2 rounded-xl bg-teal-600 text-white text-xs font-bold cursor-pointer">Sisipkan ke Soal</button>
+                    </div>
+                </div>;
+            })()}
         </div>
     );
 }

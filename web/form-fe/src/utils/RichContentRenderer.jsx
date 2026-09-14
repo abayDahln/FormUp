@@ -40,7 +40,13 @@ export default function RichContentRenderer({ content, className = '' }) {
 
     if (!content) return null;
 
-    const rawStr = String(content);
+    let rawStr = String(content);
+    // Visual formula blocks may contain a bare LaTeX expression while a
+    // question is being edited. Treat it as math so Dual View and published
+    // previews render it instead of showing `\\frac`, `\\sqrt`, etc.
+    if (!/[\$]/.test(rawStr) && (/\\(?:frac|sqrt|int|sum|prod|lim|alpha|beta|gamma|theta|pi|pm|infty|rightarrow|rightleftharpoons|begin)\b/.test(rawStr) || /[A-Za-z][_^]\{[^}]+\}/.test(rawStr))) {
+        rawStr = `$${rawStr}$`;
+    }
 
     return (
         <div className={`rich-text-content leading-relaxed break-words break-all [overflow-wrap:anywhere] ${className}`}>
@@ -263,6 +269,30 @@ function renderMarkdownBlocks(text, keyPrefix) {
  */
 function renderInlineMarkdownAndMath(text, keyPrefix) {
     if (!text) return null;
+
+    // WYSIWYG fields store real HTML (for example <strong>...</strong> and
+    // <i>...</i>). Keep those tags as markup in every renderer (builder
+    // preview, runner and result) instead of treating them as visible text.
+    // The editor only emits formatting tags; links/scripts are deliberately
+    // excluded from this path.
+    if (/<\/?(strong|b|em|i|u|s|strike|span|p|div|br)(?:\s[^>]*)?>/i.test(text)) {
+        // HTML from the WYSIWYG can wrap a KaTeX token in <p>...</p>.
+        // Strip only the presentation tags here so the math tokenizer still
+        // gets a chance to create MathBlock instead of showing raw $$ text.
+        if (/[\$]/.test(text) || /\\(?:frac|sqrt|int|sum|begin)\b/.test(text)) {
+            return renderInlineMarkdownAndMath(text.replace(/<[^>]+>/g, ''), keyPrefix);
+        }
+        return (
+            <span
+                key={`${keyPrefix}_html`}
+                dangerouslySetInnerHTML={{
+                    __html: text
+                        .replace(/<\/?(strong|b|em|i|u|s|strike|span|p|div|br)(?:\s[^>]*)?>/gi, (tag) => tag)
+                        .replace(/<\/?(script|style|iframe|object|embed)[^>]*>/gi, '')
+                }}
+            />
+        );
+    }
 
     // Split by Math ($$formula$$ or $formula$) and Inline Code (`code`)
     const tokenRegex = /(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|`[^`\n]+?`)/g;

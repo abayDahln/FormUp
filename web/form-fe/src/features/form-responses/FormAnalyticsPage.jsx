@@ -18,7 +18,6 @@ import {
     Check,
     AlertCircle,
     Download,
-    Sparkles
 } from 'lucide-react';
 
 import Sidebar from '../../components/layout/Sidebar';
@@ -28,7 +27,7 @@ import {
     exportFormResponses,
     clearSession
 } from '../../services/apiService';
-import { getGeminiApiKey } from '../../services/aiService';
+import { getGeminiApiKey, analyzeFormAnalyticsWithAI, AVAILABLE_MODELS } from '../../services/aiService';
 import RichContentRenderer from '../../utils/RichContentRenderer';
 
 const PAGE_SIZE = 25;
@@ -54,6 +53,7 @@ export default function FormAnalyticsPage() {
     const [aiAnalyzing, setAiAnalyzing] = useState(false);
     const [aiInsight, setAiInsight] = useState('');
     const [aiError, setAiError] = useState('');
+    const [aiModel, setAiModel] = useState(() => { const m = localStorage.getItem('formup_selected_model_chat'); return m && !m.startsWith('gemini-2.5') ? m : 'gemini-3.6-flash'; });
 
     const handleExport = async (format) => {
         if (!id || exportingFormat !== null) return;
@@ -76,11 +76,6 @@ export default function FormAnalyticsPage() {
 
     // AI-3: Analyze analytics with Gemini
     const handleAiAnalyze = async () => {
-        const apiKey = getGeminiApiKey();
-        if (!apiKey) {
-            setAiError('API Key Gemini belum diatur. Silakan atur di FormBuilder terlebih dahulu.');
-            return;
-        }
         setAiAnalyzing(true);
         setAiInsight('');
         setAiError('');
@@ -108,31 +103,13 @@ Analisis Akurasi Soal (diurutkan dari tersulit):
 ${questionAccuracyMap.slice(0, 10).map(q => `- "${(q.question || '').replace(/<[^>]*>/g, '').substring(0, 80)}": akurasi ${q.accuracy}% (${q.correctCount}/${q.totalAttempts})`).join('\n')}
 `.trim();
 
-            const promptText = `Anda adalah analis pendidikan profesional. Berdasarkan data hasil ujian berikut, berikan analisis mendalam dan rekomendasi perbaikan dalam bahasa Indonesia yang jelas dan mudah dipahami guru.
+            const res = await analyzeFormAnalyticsWithAI({ summary, selectedModel: aiModel, customApiKey: getGeminiApiKey() });
+            if (!res.ok) {
+                setAiError(res.message || 'Gagal menganalisis data kuis.');
+                return;
+            }
 
-${summary}
-
-Berikan analisis yang mencakup:
-1. Identifikasi soal-soal bermasalah (terlalu sulit/mudah) dan saran perbaikannya
-2. Interpretasi distribusi nilai dan apa artinya bagi kualitas pembelajaran
-3. Rekomendasi konkret untuk meningkatkan hasil belajar
-4. Kesimpulan umum tentang kualitas soal dan pemahaman siswa
-
-Format respons dalam paragraf yang terstruktur, maksimal 400 kata.`;
-
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-            const resp = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: promptText }] }],
-                    generationConfig: { temperature: 0.5 }
-                })
-            });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json();
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            setAiInsight(text.trim());
+            setAiInsight(res.data);
         } catch (err) {
             setAiError('Gagal menganalisis: ' + err.message);
         } finally {
@@ -324,7 +301,6 @@ Format respons dalam paragraf yang terstruktur, maksimal 400 kata.`;
                         >
                             <ArrowLeft size={18} />
                         </button>
-
                         <div className="min-w-0">
                             <h1 className="text-base font-extrabold text-slate-900 dark:text-white truncate">
                                 {form?.title || 'Formulir'} — Analisis & Diagram
@@ -337,15 +313,18 @@ Format respons dalam paragraf yang terstruktur, maksimal 400 kata.`;
 
                     {/* 3 Export Buttons + AI Analysis */}
                     <div className="flex items-center gap-2">
-                        {/* AI-3: Analyze with AI button */}
+                        {/* Smart analysis */}
                         <button
                             onClick={handleAiAnalyze}
                             disabled={aiAnalyzing || respondents.length === 0}
-                            className="px-3 py-1.5 text-xs font-bold rounded-xl border border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-400 bg-purple-50/70 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                            className="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                         >
-                            <Sparkles size={14} />
-                            <span>{aiAnalyzing ? 'Menganalisis...' : 'Analisis AI'}</span>
+                            <BarChart3 size={14} />
+                            <span>{aiAnalyzing ? 'Menganalisis...' : 'Analisis Pintar'}</span>
                         </button>
+                        <select aria-label="Model Analisis Pintar" value={aiModel} onChange={e => { setAiModel(e.target.value); localStorage.setItem('formup_selected_model_chat', e.target.value); }} className="max-w-36 px-2 py-1.5 text-[11px] font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200">
+                            {AVAILABLE_MODELS.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
+                        </select>
 
                         <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 select-none cursor-pointer font-medium px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
                             <input
@@ -401,7 +380,7 @@ Format respons dalam paragraf yang terstruktur, maksimal 400 kata.`;
                     <div className="mx-6 mt-4 p-5 rounded-2xl border border-purple-200 dark:border-purple-800 bg-purple-50/60 dark:bg-purple-950/30 space-y-3">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300 font-extrabold text-sm">
-                                <Sparkles size={16} /> Insight AI — Analisis Hasil Ujian
+                                <BarChart3 size={16} /> Analisis Pintar — Hasil Ujian
                             </div>
                             <button type="button" onClick={() => { setAiInsight(''); setAiError(''); }}
                                 className="text-purple-400 hover:text-purple-600 cursor-pointer"><X size={16} /></button>

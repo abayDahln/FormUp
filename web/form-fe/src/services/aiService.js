@@ -5,53 +5,194 @@
 
 export const AVAILABLE_MODELS = [
     { 
-        id: 'gemini-2.5-flash', 
-        name: 'Gemini 2.5 Flash', 
+        id: 'gemini-3.6-flash', 
+        name: 'Gemini 3.6 Flash', 
         desc: 'Paling Cepat & Akurat (Rekomendasi)', 
         badge: 'Rekomendasi' 
     },
     { 
-        id: 'gemini-2.5-flash-lite', 
-        name: 'Gemini 2.5 Flash Lite', 
+        id: 'gemini-3.6-flash-lite', 
+        name: 'Gemini 3.6 Flash Lite', 
         desc: 'Hemat Kuota (Limit 10 RPM) & Responsif', 
         badge: 'Hemat Kuota' 
     },
     { 
-        id: 'gemini-3-flash-preview', 
-        name: 'Gemini 3 Flash', 
+        id: 'gemini-3.6-pro', 
+        name: 'Gemini 3.6 Pro', 
         desc: 'Generasi Baru dengan pemahaman materi luas', 
         badge: 'Generasi Baru' 
     },
-    { 
-        id: 'gemini-2.5-pro', 
-        name: 'Gemini 2.5 Pro', 
-        desc: 'Untuk soal analisis mendalam & studi kasus', 
-        badge: 'Pro' 
-    },
 ];
 
-export const getGeminiApiKey = () => {
+export const DEFAULT_AI_MODEL = 'gemini-3.6-flash';
+export const normalizeAiModel = (model) => {
+    if (!model || model.startsWith('gemini-2.5') || model === 'gemini-3-flash-preview') return DEFAULT_AI_MODEL;
+    return model;
+};
+
+/**
+ * API Key Stacking (Multi-Key with Auto-Failover)
+ */
+export const getGeminiApiKeys = () => {
     if (typeof window !== 'undefined') {
-        const stored = localStorage.getItem('formup_gemini_api_key');
-        if (stored && stored.trim()) return stored.trim();
+        try {
+            const raw = localStorage.getItem('formup_gemini_api_keys');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return parsed.map(k => String(k).trim()).filter(Boolean);
+                }
+            }
+        } catch {}
+        const legacy = localStorage.getItem('formup_gemini_api_key');
+        if (legacy && legacy.trim()) {
+            return [legacy.trim()];
+        }
     }
-    return '';
+    return [];
+};
+
+export const saveGeminiApiKeys = (keysInput) => {
+    if (typeof window !== 'undefined') {
+        let cleanKeys = [];
+        if (Array.isArray(keysInput)) {
+            cleanKeys = keysInput.map(k => String(k).trim()).filter(Boolean);
+        } else if (typeof keysInput === 'string') {
+            cleanKeys = keysInput
+                .split(/[\n,;]+/)
+                .map(k => k.trim())
+                .filter(Boolean);
+        }
+        // Deduplicate while preserving order
+        cleanKeys = Array.from(new Set(cleanKeys));
+
+        if (cleanKeys.length === 0) {
+            localStorage.removeItem('formup_gemini_api_keys');
+            localStorage.removeItem('formup_gemini_api_key');
+            localStorage.removeItem('formup_gemini_active_key_idx');
+        } else {
+            localStorage.setItem('formup_gemini_api_keys', JSON.stringify(cleanKeys));
+            localStorage.setItem('formup_gemini_api_key', cleanKeys[0]);
+            const curIdx = parseInt(localStorage.getItem('formup_gemini_active_key_idx') || '0', 10);
+            if (curIdx >= cleanKeys.length) {
+                localStorage.setItem('formup_gemini_active_key_idx', '0');
+            }
+        }
+        return cleanKeys;
+    }
+    return [];
+};
+
+export const getActiveApiKeyIndex = () => {
+    if (typeof window !== 'undefined') {
+        const idx = parseInt(localStorage.getItem('formup_gemini_active_key_idx') || '0', 10);
+        const keys = getGeminiApiKeys();
+        if (idx >= 0 && idx < keys.length) return idx;
+    }
+    return 0;
+};
+
+export const rotateToNextApiKey = () => {
+    if (typeof window !== 'undefined') {
+        const keys = getGeminiApiKeys();
+        if (keys.length <= 1) return { index: 0, key: keys[0] || '', total: keys.length, rotated: false };
+        const curIdx = getActiveApiKeyIndex();
+        const nextIdx = (curIdx + 1) % keys.length;
+        localStorage.setItem('formup_gemini_active_key_idx', String(nextIdx));
+        localStorage.setItem('formup_gemini_api_key', keys[nextIdx]);
+        return { index: nextIdx, key: keys[nextIdx], total: keys.length, rotated: true };
+    }
+    return { index: 0, key: '', total: 0, rotated: false };
+};
+
+export const getGeminiApiKey = () => {
+    const keys = getGeminiApiKeys();
+    if (keys.length === 0) return '';
+    const idx = getActiveApiKeyIndex();
+    return keys[idx] || keys[0] || '';
 };
 
 export const saveGeminiApiKey = (key) => {
-    if (typeof window !== 'undefined') {
-        if (!key || !key.trim()) {
-            localStorage.removeItem('formup_gemini_api_key');
-        } else {
-            localStorage.setItem('formup_gemini_api_key', key.trim());
+    if (!key || !key.trim()) {
+        saveGeminiApiKeys([]);
+    } else {
+        const existing = getGeminiApiKeys();
+        if (!existing.includes(key.trim())) {
+            saveGeminiApiKeys([key.trim(), ...existing]);
         }
     }
 };
 
 export const removeGeminiApiKey = () => {
-    if (typeof window !== 'undefined') {
-        localStorage.removeItem('formup_gemini_api_key');
+    saveGeminiApiKeys([]);
+};
+
+/**
+ * Execute Gemini API request with automatic multi-key failover rotation.
+ */
+export const executeWithApiKeyFailover = async (requestFn, customApiKey = null) => {
+    if (customApiKey && customApiKey.trim()) {
+        return await requestFn(customApiKey.trim(), 0, 1);
     }
+
+    const keys = getGeminiApiKeys();
+    if (keys.length === 0) {
+        return { ok: false, message: 'API Key Gemini belum diatur. Masukkan API Key dari Google AI Studio.' };
+    }
+
+    let startIdx = getActiveApiKeyIndex();
+    let attempts = 0;
+    const maxAttempts = keys.length;
+
+    while (attempts < maxAttempts) {
+        const currentIdx = (startIdx + attempts) % keys.length;
+        const currentKey = keys[currentIdx];
+
+        try {
+            const result = await requestFn(currentKey, currentIdx, keys.length);
+            
+            // Check if result returned an HTTP rate-limit or key error
+            if (result && result.status && (result.status === 429 || result.status === 400 || result.status === 403)) {
+                if (keys.length > 1 && attempts + 1 < maxAttempts) {
+                    console.warn(`[API Key Stacking]: Key #${currentIdx + 1} hit error (${result.status}). Auto-failing over to next key...`);
+                    rotateToNextApiKey();
+                    attempts++;
+                    continue;
+                }
+            }
+
+            // If response is successful, ensure active index matches working key
+            if (result && result.ok) {
+                if (getActiveApiKeyIndex() !== currentIdx) {
+                    localStorage.setItem('formup_gemini_active_key_idx', String(currentIdx));
+                    localStorage.setItem('formup_gemini_api_key', currentKey);
+                }
+            }
+
+            return result;
+        } catch (err) {
+            const isRateLimitOrAuth = err?.message && (
+                err.message.includes('429') ||
+                err.message.includes('RESOURCE_EXHAUSTED') ||
+                err.message.includes('API_KEY_INVALID') ||
+                err.message.includes('403') ||
+                err.message.includes('quota')
+            );
+
+            if (isRateLimitOrAuth && keys.length > 1 && attempts + 1 < maxAttempts) {
+                console.warn(`[API Key Stacking]: Exception on Key #${currentIdx + 1}. Auto-rotating to next key...`, err);
+                rotateToNextApiKey();
+                attempts++;
+                continue;
+            }
+            throw err;
+        }
+    }
+
+    return {
+        ok: false,
+        message: `Seluruh ${keys.length} API Key telah mencapai batas kuota (Rate Limit 429) atau tidak valid. Silakan tambahkan key baru atau coba lagi nanti.`
+    };
 };
 
 // B2: Guardrail instruction injected into every AI prompt
@@ -102,22 +243,13 @@ export const generateQuestionsWithAI = async ({
     difficulty = 'Sedang',
     includeMath = false,
     includeCode = false,
-    selectedModel = 'gemini-2.5-flash',
+    selectedModel = DEFAULT_AI_MODEL,
     customApiKey = null,
     onStatus = null, // Callback: (statusText) => void
 }) => {
-    const apiKey = (customApiKey || getGeminiApiKey()).trim();
-
     const setStatus = (msg) => {
         if (typeof onStatus === 'function') onStatus(msg);
     };
-
-    if (!apiKey) {
-        return {
-            ok: false,
-            message: 'API Key Gemini belum diatur. Masukkan Gemini API Key dari Google AI Studio terlebih dahulu.',
-        };
-    }
 
     setStatus(`Mempersiapkan pembuatan ${count} butir soal materi "${topic}"...`);
 
@@ -172,146 +304,149 @@ Catatan Penting:
 - Untuk tipe 1 dan 5, options boleh berupa array kosong [].
 `.trim();
 
-    try {
-        const targetModel = selectedModel || 'gemini-2.5-flash';
-        setStatus(`Menghubungkan ke ${targetModel} di Google AI Studio...`);
-
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
-        
-        const startTime = Date.now();
-        setStatus(`AI (${targetModel}) sedang berpikir & menyusun butir soal...`);
-
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: promptText }] }],
-                generationConfig: {
-                    responseMimeType: 'application/json',
-                    temperature: 0.7,
-                },
-            }),
-        });
-
-        const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
-
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            const errMsg = errData.error?.message || `HTTP ${response.status} ${response.statusText}`;
-
-            if (response.status === 429) {
-                return {
-                    ok: false,
-                    message: `Batas penggunaan harian / rate limit Google AI Studio untuk model ${targetModel} telah tercapai. Coba gunakan model lain seperti Gemini 2.5 Flash Lite atau tunggu beberapa saat.`,
-                };
-            }
-
-            if (response.status === 400 || response.status === 403) {
-                return {
-                    ok: false,
-                    message: `API Key Google AI Studio tidak valid atau izin akses ditolak. Periksa kembali API Key Anda. (${errMsg})`,
-                };
-            }
-
-            // B7: Specific 5xx handling
-            if (response.status >= 500) {
-                return {
-                    ok: false,
-                    message: `Server AI Studio sedang tidak tersedia (Error ${response.status}). Coba beberapa menit lagi atau gunakan model lain seperti Gemini 2.5 Flash Lite.`,
-                };
-            }
-
-            return {
-                ok: false,
-                message: `Gagal memanggil model ${targetModel}: ${errMsg}. Coba model lain seperti Gemini 2.5 Flash Lite.`,
-            };
-        }
-
-        setStatus(`Menerima hasil dari AI (${elapsedSec} detik). Memeriksa struktur soal...`);
-
-        const data = await response.json();
-        const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!textResponse) {
-            return {
-                ok: false,
-                message: 'AI tidak mengembalikan teks soal. Silakan coba klik Generate sekali lagi.',
-            };
-        }
-
-        // B7: Use safeJsonParse to tolerate LaTeX formulas
-        let parsedQuestions;
+    return await executeWithApiKeyFailover(async (apiKey) => {
         try {
-            parsedQuestions = safeJsonParse(textResponse);
-        } catch {
-            return { ok: false, message: 'AI mengembalikan format yang tidak valid. Coba klik Generate sekali lagi.' };
-        }
+            const targetModel = normalizeAiModel(selectedModel);
+            setStatus(`Menghubungkan ke ${targetModel} di Google AI Studio...`);
 
-        if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
-            return {
-                ok: false,
-                message: 'Format data dari AI tidak valid. Silakan coba klik Generate lagi.',
-            };
-        }
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+            
+            const startTime = Date.now();
+            setStatus(`AI (${targetModel}) sedang berpikir & menyusun butir soal...`);
 
-        // Normalize questions to match FormBuilder structure
-        const normalized = parsedQuestions.map((q, idx) => {
-            const typeId = parseInt(q.typeId, 10) || 2;
-            let options = Array.isArray(q.options) ? q.options : [];
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: promptText }] }],
+                    generationConfig: {
+                        responseMimeType: 'application/json',
+                        temperature: 0.7,
+                    },
+                }),
+            });
 
-            if ([2, 3].includes(typeId) && options.length === 0) {
-                options = [
-                    { optionText: 'Pilihan A', isCorrect: true },
-                    { optionText: 'Pilihan B', isCorrect: false },
-                    { optionText: 'Pilihan C', isCorrect: false },
-                    { optionText: 'Pilihan D', isCorrect: false },
-                ];
+            const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                const errMsg = errData.error?.message || `HTTP ${response.status} ${response.statusText}`;
+
+                if (response.status === 429) {
+                    return {
+                        ok: false,
+                        status: 429,
+                        message: `Batas penggunaan / rate limit Google AI Studio untuk model ${targetModel} telah tercapai.`,
+                    };
+                }
+
+                if (response.status === 400 || response.status === 403) {
+                    return {
+                        ok: false,
+                        status: response.status,
+                        message: `API Key Google AI Studio tidak valid atau izin akses ditolak. (${errMsg})`,
+                    };
+                }
+
+                if (response.status >= 500) {
+                    return {
+                        ok: false,
+                        status: response.status,
+                        message: `Server AI Studio sedang tidak tersedia (Error ${response.status}). Coba beberapa menit lagi atau gunakan model lain seperti Gemini 2.5 Flash Lite.`,
+                    };
+                }
+
+                return {
+                    ok: false,
+                    status: response.status,
+                    message: `Gagal memanggil model ${targetModel}: ${errMsg}.`,
+                };
             }
 
-            const formattedOptions = options.map((opt, oIdx) => ({
-                optionText: String(opt.optionText || opt.text || `Pilihan ${String.fromCharCode(65 + oIdx)}`),
-                isCorrect: Boolean(opt.isCorrect),
-            }));
+            setStatus(`Menerima hasil dari AI (${elapsedSec} detik). Memeriksa struktur soal...`);
+
+            const data = await response.json();
+            const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!textResponse) {
+                return {
+                    ok: false,
+                    message: 'AI tidak mengembalikan teks soal. Silakan coba klik Generate sekali lagi.',
+                };
+            }
+
+            let parsedQuestions;
+            try {
+                parsedQuestions = safeJsonParse(textResponse);
+            } catch {
+                return { ok: false, message: 'AI mengembalikan format yang tidak valid. Coba klik Generate sekali lagi.' };
+            }
+
+            if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
+                return {
+                    ok: false,
+                    message: 'Format data dari AI tidak valid. Silakan coba klik Generate lagi.',
+                };
+            }
+
+            // Normalize questions to match FormBuilder structure
+            const normalized = parsedQuestions.map((q, idx) => {
+                const typeId = parseInt(q.typeId, 10) || 2;
+                let options = Array.isArray(q.options) ? q.options : [];
+
+                if ([2, 3].includes(typeId) && options.length === 0) {
+                    options = [
+                        { optionText: 'Pilihan A', isCorrect: true },
+                        { optionText: 'Pilihan B', isCorrect: false },
+                        { optionText: 'Pilihan C', isCorrect: false },
+                        { optionText: 'Pilihan D', isCorrect: false },
+                    ];
+                }
+
+                const formattedOptions = options.map((opt, oIdx) => ({
+                    optionText: String(opt.optionText || opt.text || `Pilihan ${String.fromCharCode(65 + oIdx)}`),
+                    isCorrect: Boolean(opt.isCorrect),
+                }));
+
+                return {
+                    _id: `q_ai_${Date.now()}_${idx}`,
+                    id: null,
+                    question: String(q.question || `Pertanyaan ${idx + 1}`),
+                    typeId: typeId,
+                    isRequired: q.isRequired !== undefined ? Boolean(q.isRequired) : true,
+                    isScorable: q.isScorable !== undefined ? Boolean(q.isScorable) : true,
+                    points: null,
+                    correctAnswer: q.correctAnswer ? String(q.correctAnswer) : '',
+                    options: formattedOptions,
+                    questionImage: null,
+                    questionAudio: null,
+                };
+            });
+
+            setStatus(`Selesai! ${normalized.length} butir soal siap.`);
 
             return {
-                _id: `q_ai_${Date.now()}_${idx}`,
-                id: null,
-                question: String(q.question || `Pertanyaan ${idx + 1}`),
-                typeId: typeId,
-                isRequired: q.isRequired !== undefined ? Boolean(q.isRequired) : true,
-                isScorable: q.isScorable !== undefined ? Boolean(q.isScorable) : true,
-                points: null,
-                correctAnswer: q.correctAnswer ? String(q.correctAnswer) : '',
-                options: formattedOptions,
-                questionImage: null,
-                questionAudio: null,
+                ok: true,
+                data: normalized,
+                modelUsed: targetModel,
+                elapsedSec,
             };
-        });
-
-        setStatus(`Selesai! ${normalized.length} butir soal siap.`);
-
-        return {
-            ok: true,
-            data: normalized,
-            modelUsed: targetModel,
-            elapsedSec,
-        };
-    } catch (err) {
-        // B7: Specific error type handling
-        if (err && err.name === 'AbortError') {
-            return { ok: false, message: 'Koneksi ke AI Studio timeout. Periksa koneksi internet Anda lalu coba lagi.' };
+        } catch (err) {
+            if (err && err.name === 'AbortError') {
+                return { ok: false, message: 'Koneksi ke AI Studio timeout. Periksa koneksi internet Anda lalu coba lagi.' };
+            }
+            if (err && err.name === 'TypeError' && err.message && (err.message.includes('fetch') || err.message.includes('network') || err.message.includes('Failed') || err.message.includes('NetworkError'))) {
+                return { ok: false, message: 'Tidak dapat terhubung ke AI Studio. Periksa koneksi internet Anda.' };
+            }
+            if (err instanceof SyntaxError) {
+                return { ok: false, message: 'AI mengembalikan format yang tidak valid. Coba klik Generate sekali lagi.' };
+            }
+            return {
+                ok: false,
+                message: `Terjadi kendala saat memproses AI: ${err?.message || 'Unknown error'}. Coba lagi atau gunakan model lain.`,
+            };
         }
-        if (err && err.name === 'TypeError' && err.message && (err.message.includes('fetch') || err.message.includes('network') || err.message.includes('Failed') || err.message.includes('NetworkError'))) {
-            return { ok: false, message: 'Tidak dapat terhubung ke AI Studio. Periksa koneksi internet Anda.' };
-        }
-        if (err instanceof SyntaxError) {
-            return { ok: false, message: 'AI mengembalikan format yang tidak valid. Coba klik Generate sekali lagi.' };
-        }
-        return {
-            ok: false,
-            message: `Terjadi kendala saat memproses AI: ${err?.message || 'Unknown error'}. Coba lagi atau gunakan model lain.`,
-        };
-    }
+    }, customApiKey);
 };
 
 /**
@@ -329,7 +464,7 @@ export const streamGenerateQuestionsWithAI = async ({
     difficulty = 'Sedang',
     includeMath = false,
     includeCode = false,
-    selectedModel = 'gemini-2.5-flash',
+    selectedModel = DEFAULT_AI_MODEL,
     customApiKey = null,
 }, onQuestion, onStatus, onDone) => {
     const apiKey = (customApiKey || getGeminiApiKey()).trim();
@@ -378,7 +513,7 @@ Kembalikan HANYA array JSON valid tanpa teks atau penjelasan pembuka/penutup.
   }
 ]`.trim();
 
-    const targetModel = selectedModel || 'gemini-2.5-flash';
+            const targetModel = normalizeAiModel(selectedModel);
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:streamGenerateContent?key=${apiKey}&alt=sse`;
     const startTime = Date.now();
     setStatus(`AI (${targetModel}) sedang menyusun soal...`);
@@ -507,16 +642,11 @@ export const generateQuestionsFromDocument = async ({
     count = 5,
     typePreference = '2',
     difficulty = 'Sedang',
-    selectedModel = 'gemini-2.5-flash',
+    selectedModel = DEFAULT_AI_MODEL,
     customApiKey = null,
     onStatus = null,
 }) => {
-    const apiKey = (customApiKey || getGeminiApiKey()).trim();
     const setStatus = (msg) => { if (typeof onStatus === 'function') onStatus(msg); };
-
-    if (!apiKey) {
-        return { ok: false, message: 'API Key Gemini belum diatur. Masukkan Gemini API Key dari Google AI Studio terlebih dahulu.' };
-    }
 
     if (!file) {
         return { ok: false, message: 'Berkas materi belum dipilih.' };
@@ -563,136 +693,138 @@ Catatan:
 - Untuk tipe 1, 4, 5, options boleh kosong [].
 `.trim();
 
-    try {
-        const targetModel = selectedModel || 'gemini-2.5-flash';
-        setStatus(`Menghubungkan ke ${targetModel} di Google AI Studio...`);
-
-        const isPdfOrImage = file.type === 'application/pdf' || file.type.startsWith('image/') || file.name.toLowerCase().endsWith('.pdf');
-        const parts = [{ text: promptText }];
-
-        if (isPdfOrImage) {
-            const base64Data = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    const res = reader.result;
-                    const base64 = typeof res === 'string' ? res.split(',')[1] : '';
-                    resolve(base64);
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
-            parts.push({
-                inlineData: {
-                    mimeType: file.type || 'application/pdf',
-                    data: base64Data,
-                }
-            });
-        } else {
-            const textContent = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result || '');
-                reader.onerror = reject;
-                reader.readAsText(file);
-            });
-            parts.push({
-                text: `\n\n=== ISI DOKUMEN MATERI ("${file.name}") ===\n"""\n${String(textContent).slice(0, 100000)}\n"""`
-            });
-        }
-
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
-        const startTime = Date.now();
-        setStatus(`AI (${targetModel}) sedang membaca materi & menyusun butir soal...`);
-
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts }],
-                generationConfig: {
-                    responseMimeType: 'application/json',
-                    temperature: 0.7,
-                },
-            }),
-        });
-
-        const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
-
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            const errMsg = errData.error?.message || `HTTP ${response.status}`;
-            if (response.status === 429) {
-                return { ok: false, message: `Batas rate limit model ${targetModel} tercapai. Coba lagi dalam beberapa saat.` };
-            }
-            if (response.status === 400 || response.status === 403) {
-                return { ok: false, message: `API Key tidak valid atau akses ditolak. (${errMsg})` };
-            }
-            return { ok: false, message: `Gagal memanggil AI: ${errMsg}` };
-        }
-
-        setStatus(`Menerima hasil soal dari AI (${elapsedSec} detik). Memvalidasi struktur...`);
-
-        const data = await response.json();
-        const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!textResponse) {
-            return { ok: false, message: 'AI tidak mengembalikan hasil teks soal.' };
-        }
-
-        let parsedQuestions;
+    return await executeWithApiKeyFailover(async (apiKey) => {
         try {
-            parsedQuestions = safeJsonParse(textResponse);
-        } catch {
-            return { ok: false, message: 'Format data dari AI tidak valid.' };
-        }
+            const targetModel = normalizeAiModel(selectedModel);
+            setStatus(`Menghubungkan ke ${targetModel} di Google AI Studio...`);
 
-        if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
-            return { ok: false, message: 'Format data dari AI tidak menghasilkan daftar soal.' };
-        }
+            const isPdfOrImage = file.type === 'application/pdf' || file.type.startsWith('image/') || file.name.toLowerCase().endsWith('.pdf');
+            const parts = [{ text: promptText }];
 
-        const normalized = parsedQuestions.map((q, idx) => {
-            const typeId = parseInt(q.typeId, 10) || 2;
-            let options = Array.isArray(q.options) ? q.options : [];
-            if ([2, 3].includes(typeId) && options.length === 0) {
-                options = [
-                    { optionText: 'Pilihan A', isCorrect: true },
-                    { optionText: 'Pilihan B', isCorrect: false },
-                    { optionText: 'Pilihan C', isCorrect: false },
-                    { optionText: 'Pilihan D', isCorrect: false },
-                ];
+            if (isPdfOrImage) {
+                const base64Data = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const res = reader.result;
+                        const base64 = typeof res === 'string' ? res.split(',')[1] : '';
+                        resolve(base64);
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+                parts.push({
+                    inlineData: {
+                        mimeType: file.type || 'application/pdf',
+                        data: base64Data,
+                    }
+                });
+            } else {
+                const textContent = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result || '');
+                    reader.onerror = reject;
+                    reader.readAsText(file);
+                });
+                parts.push({
+                    text: `\n\n=== ISI DOKUMEN MATERI ("${file.name}") ===\n"""\n${String(textContent).slice(0, 100000)}\n"""`
+                });
             }
+
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+            const startTime = Date.now();
+            setStatus(`AI (${targetModel}) sedang membaca materi & menyusun butir soal...`);
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts }],
+                    generationConfig: {
+                        responseMimeType: 'application/json',
+                        temperature: 0.7,
+                    },
+                }),
+            });
+
+            const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                const errMsg = errData.error?.message || `HTTP ${response.status}`;
+                if (response.status === 429) {
+                    return { ok: false, status: 429, message: `Batas rate limit model ${targetModel} tercapai. Coba lagi dalam beberapa saat.` };
+                }
+                if (response.status === 400 || response.status === 403) {
+                    return { ok: false, status: response.status, message: `API Key tidak valid atau akses ditolak. (${errMsg})` };
+                }
+                return { ok: false, status: response.status, message: `Gagal memanggil AI: ${errMsg}` };
+            }
+
+            setStatus(`Menerima hasil soal dari AI (${elapsedSec} detik). Memvalidasi struktur...`);
+
+            const data = await response.json();
+            const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!textResponse) {
+                return { ok: false, message: 'AI tidak mengembalikan hasil teks soal.' };
+            }
+
+            let parsedQuestions;
+            try {
+                parsedQuestions = safeJsonParse(textResponse);
+            } catch {
+                return { ok: false, message: 'Format data dari AI tidak valid.' };
+            }
+
+            if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
+                return { ok: false, message: 'Format data dari AI tidak menghasilkan daftar soal.' };
+            }
+
+            const normalized = parsedQuestions.map((q, idx) => {
+                const typeId = parseInt(q.typeId, 10) || 2;
+                let options = Array.isArray(q.options) ? q.options : [];
+                if ([2, 3].includes(typeId) && options.length === 0) {
+                    options = [
+                        { optionText: 'Pilihan A', isCorrect: true },
+                        { optionText: 'Pilihan B', isCorrect: false },
+                        { optionText: 'Pilihan C', isCorrect: false },
+                        { optionText: 'Pilihan D', isCorrect: false },
+                    ];
+                }
+                return {
+                    _id: `q_doc_ai_${Date.now()}_${idx}`,
+                    id: null,
+                    question: String(q.question || `Pertanyaan ${idx + 1}`),
+                    typeId: typeId,
+                    isRequired: q.isRequired !== undefined ? Boolean(q.isRequired) : true,
+                    isScorable: q.isScorable !== undefined ? Boolean(q.isScorable) : true,
+                    points: q.points != null ? Number(q.points) : 1,
+                    correctAnswer: q.correctAnswer ? String(q.correctAnswer) : '',
+                    options: options.map((opt, oIdx) => ({
+                        optionText: String(opt.optionText || opt.text || `Pilihan ${String.fromCharCode(65 + oIdx)}`),
+                        isCorrect: Boolean(opt.isCorrect),
+                    })),
+                    questionImage: null,
+                    questionAudio: null,
+                };
+            });
+
+            setStatus(`Selesai! Berhasil membuat ${normalized.length} butir soal dari "${file.name}".`);
+
             return {
-                _id: `q_doc_ai_${Date.now()}_${idx}`,
-                id: null,
-                question: String(q.question || `Pertanyaan ${idx + 1}`),
-                typeId: typeId,
-                isRequired: q.isRequired !== undefined ? Boolean(q.isRequired) : true,
-                isScorable: q.isScorable !== undefined ? Boolean(q.isScorable) : true,
-                points: q.points != null ? Number(q.points) : 1,
-                correctAnswer: q.correctAnswer ? String(q.correctAnswer) : '',
-                options: options.map((opt, oIdx) => ({
-                    optionText: String(opt.optionText || opt.text || `Pilihan ${String.fromCharCode(65 + oIdx)}`),
-                    isCorrect: Boolean(opt.isCorrect),
-                })),
-                questionImage: null,
-                questionAudio: null,
+                ok: true,
+                data: normalized,
+                fileName: file.name,
+                modelUsed: targetModel,
+                elapsedSec,
             };
-        });
-
-        setStatus(`Selesai! Berhasil membuat ${normalized.length} butir soal dari "${file.name}".`);
-
-        return {
-            ok: true,
-            data: normalized,
-            fileName: file.name,
-            modelUsed: targetModel,
-            elapsedSec,
-        };
-    } catch (err) {
-        return {
-            ok: false,
-            message: `Terjadi kendala saat membaca materi atau memproses AI: ${err?.message || 'Unknown error'}`,
-        };
-    }
+        } catch (err) {
+            return {
+                ok: false,
+                message: `Terjadi kendala saat membaca materi atau memproses AI: ${err?.message || 'Unknown error'}`,
+            };
+        }
+    }, customApiKey);
 };
 
 /**
@@ -729,4 +861,455 @@ export const exportQuestionsToCSV = (questions, title = 'template-soal-ai') => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+};
+
+/**
+ * Extract text content or transcript from a given URL (Web Article or YouTube Video)
+ */
+export const extractContentFromUrl = async (url, onStatus = null) => {
+    const setStatus = (msg) => { if (typeof onStatus === 'function') onStatus(msg); };
+    if (!url || typeof url !== 'string') return { ok: false, message: 'URL tidak valid' };
+
+    const trimmedUrl = url.trim();
+    setStatus(`Membaca URL: ${trimmedUrl}...`);
+
+    // 1. YouTube URL detection
+    const ytMatch = trimmedUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
+    if (ytMatch && ytMatch[1]) {
+        const videoId = ytMatch[1];
+        setStatus(`Mendeteksi video YouTube (ID: ${videoId}). Mengambil judul & transkrip...`);
+
+        try {
+            // Attempt to fetch oEmbed metadata for title
+            let videoTitle = `YouTube Video (${videoId})`;
+            try {
+                const oembedRes = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+                if (oembedRes.ok) {
+                    const meta = await oembedRes.json();
+                    if (meta.title) videoTitle = meta.title;
+                }
+            } catch {}
+
+            // Attempt public timedtext / subtitles extraction via corsproxy
+            let transcriptText = '';
+            try {
+                const subRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}`);
+                if (subRes.ok) {
+                    const html = await subRes.text();
+                    // Extract captions JSON from initial player response if available
+                    const captionMatch = html.match(/"captionTracks":\s*(\[[^\]]+\])/);
+                    if (captionMatch && captionMatch[1]) {
+                        const tracks = JSON.parse(captionMatch[1]);
+                        const trackUrl = tracks[0]?.baseUrl;
+                        if (trackUrl) {
+                            const trackRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(trackUrl)}`);
+                            if (trackRes.ok) {
+                                const xmlText = await trackRes.text();
+                                transcriptText = xmlText
+                                    .replace(/<text[^>]*>/g, ' ')
+                                    .replace(/<\/text>/g, '\n')
+                                    .replace(/<[^>]+>/g, '')
+                                    .replace(/&amp;/g, '&')
+                                    .replace(/&#39;/g, "'")
+                                    .replace(/&quot;/g, '"')
+                                    .replace(/\s+/g, ' ')
+                                    .trim();
+                            }
+                        }
+                    }
+                }
+            } catch {}
+
+            if (!transcriptText) {
+                // Fallback video summary payload
+                transcriptText = `Video YouTube: "${videoTitle}". URL: https://youtu.be/${videoId}. Silakan analisis materi dan buat soal sesuai topik/judul video ini.`;
+            }
+
+            return {
+                ok: true,
+                type: 'youtube',
+                title: videoTitle,
+                videoId,
+                content: transcriptText.slice(0, 50000),
+                url: trimmedUrl
+            };
+        } catch (err) {
+            return {
+                ok: true,
+                type: 'youtube',
+                title: `Video YouTube (${videoId})`,
+                videoId,
+                content: `Video YouTube: https://youtu.be/${videoId}`,
+                url: trimmedUrl
+            };
+        }
+    }
+
+    // 2. Standard Webpage Article extraction
+    try {
+        setStatus(`Mengambil teks artikel dari webpage...`);
+        let html = '';
+        try {
+            const resp = await fetch(`https://corsproxy.io/?${encodeURIComponent(trimmedUrl)}`);
+            if (resp.ok) {
+                html = await resp.text();
+            }
+        } catch {}
+
+        if (!html) {
+            const directResp = await fetch(trimmedUrl, { mode: 'cors' }).catch(() => null);
+            if (directResp && directResp.ok) {
+                html = await directResp.text();
+            }
+        }
+
+        if (!html) {
+            return { ok: false, message: 'Tidak dapat mengambil konten halaman web. Pastikan URL dapat diakses publik.' };
+        }
+
+        // Clean HTML to pure article text
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        // Remove script, style, nav, footer tags
+        doc.querySelectorAll('script, style, nav, footer, header, noscript, iframe, svg, [role="navigation"]').forEach(el => el.remove());
+
+        const pageTitle = doc.querySelector('title')?.innerText || doc.querySelector('h1')?.innerText || trimmedUrl;
+        
+        // Extract paragraph texts
+        const paragraphs = Array.from(doc.querySelectorAll('article, main, p, h1, h2, h3, h4, li'))
+            .map(el => el.innerText.trim())
+            .filter(t => t.length > 20);
+
+        const fullText = paragraphs.join('\n\n').slice(0, 60000);
+
+        if (!fullText || fullText.length < 50) {
+            return { ok: false, message: 'Teks artikel pada halaman web tersebut terlalu singkat atau tidak dapat diekstrak.' };
+        }
+
+        return {
+            ok: true,
+            type: 'webpage',
+            title: pageTitle.trim(),
+            content: fullText,
+            url: trimmedUrl
+        };
+    } catch (err) {
+        return { ok: false, message: `Gagal membaca URL: ${err.message}` };
+    }
+};
+
+/**
+ * Generate remedial explanation & self-check practice questions for "Pelajari Soal" feature
+ */
+export const generateRemedialExplanation = async ({
+    questionText,
+    questionType = 2,
+    userAnswer = '',
+    correctAnswer = '',
+    options = [],
+    selectedModel = DEFAULT_AI_MODEL,
+    customApiKey = null,
+}) => {
+    return await executeWithApiKeyFailover(async (apiKey) => {
+        const typeLabelMap = { 1: 'Essay', 2: 'Pilihan Ganda', 3: 'Checkbox', 4: 'Tanggal', 5: 'Benar/Salah' };
+        const qTypeName = typeLabelMap[questionType] || 'Pilihan Ganda';
+
+        const promptText = `
+Anda adalah Guru & Tutor Pendamping Cerdas yang ramah, memotivasi, dan solutif.
+Siswa baru saja mengerjakan soal kuis dan ingin mempelajari letak kesalahan serta konsep dasar materinya secara mendalam.
+
+=== DATA SOAL KUIS ===
+- Bentuk Soal: ${qTypeName}
+- Pertanyaan: "${questionText}"
+- Pilihan Opsi yang Tersedia: ${options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o.optionText}`).join(' | ') || '-'}
+- Jawaban yang Dipilih Siswa: "${userAnswer || '(Tidak dijawab / Kosong)'}"
+- Jawaban yang Benar / Kunci: "${correctAnswer}"
+
+TUGAS ANDA:
+1. Jelaskan secara ramah, ringkas, dan jelas mengapa jawaban siswa salah (jika salah) dan mengapa jawaban kunci adalah jawaban yang tepat.
+2. Tuliskan 2-3 poin ringkas materi/rumus kunci yang harus diingat siswa.
+3. Buat 1 BUTIR SOAL LATIHAN SEJENIS (Pilihan Ganda 4 opsi) lengkap dengan kunci jawaban dan pembahasannya agar siswa dapat langsung menguji pemahamannya secara mandiri.
+
+**FORMAT KELUARAN WAJIB (JSON VALID):**
+{
+  "explanation": "Penjelasan ramah dan terstruktur (bisa gunakan Markdown bullet/bold/LaTeX jika ada rumus)",
+  "keyTakeaways": [
+    "Poin kunci 1",
+    "Poin kunci 2"
+  ],
+  "practiceQuestion": {
+    "question": "Teks soal latihan serupa untuk menguji pemahaman",
+    "options": [
+      { "optionText": "Pilihan A", "isCorrect": false },
+      { "optionText": "Pilihan B", "isCorrect": true },
+      { "optionText": "Pilihan C", "isCorrect": false },
+      { "optionText": "Pilihan D", "isCorrect": false }
+    ],
+    "explanation": "Pembahasan singkat untuk soal latihan ini"
+  }
+}
+`.trim();
+
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`;
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: promptText }] }],
+                generationConfig: {
+                    responseMimeType: 'application/json',
+                    temperature: 0.6,
+                },
+            }),
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            const errMsg = errData.error?.message || `HTTP ${response.status}`;
+            return { ok: false, status: response.status, message: errMsg };
+        }
+
+        const data = await response.json();
+        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!rawText) return { ok: false, message: 'AI tidak mengembalikan hasil.' };
+
+        const parsed = safeJsonParse(rawText);
+        if (!parsed || !parsed.explanation) {
+            return { ok: false, message: 'Format respons tutor AI tidak valid.' };
+        }
+
+        return {
+            ok: true,
+            data: parsed,
+            modelUsed: selectedModel,
+        };
+    }, customApiKey);
+};
+
+/**
+ * Revise a single question using Gemini API with failover
+ */
+export const reviseQuestionWithAI = async ({
+    question,
+    options = [],
+    correctAnswer = '',
+    typeId = 2,
+    isRequired = true,
+    isScorable = true,
+    instruction,
+    selectedModel = DEFAULT_AI_MODEL,
+    customApiKey = null,
+}) => {
+    return await executeWithApiKeyFailover(async (apiKey) => {
+        const cleanQ = (question || '').replace(/<[^>]*>/g, '').trim();
+        const optionsText = options.map((o, i) => `${String.fromCharCode(65+i)}. ${o.optionText}${o.isCorrect?' (jawaban benar)':''}`).join('\n');
+        const prompt = `Anda adalah asisten penyusun soal ujian. Revisi soal berikut sesuai instruksi.
+
+Soal asli:
+${cleanQ}
+
+Pilihan jawaban:
+${optionsText || '(tidak ada opsi)'}
+
+Kunci jawaban: ${correctAnswer || ''}
+
+Instruksi revisi: ${instruction.trim()}
+
+Kembalikan HANYA JSON valid (satu objek, bukan array) dengan struktur:
+{
+  "question": "teks soal yang direvisi",
+  "typeId": ${typeId},
+  "isRequired": ${isRequired},
+  "isScorable": ${isScorable},
+  "correctAnswer": "kunci jawaban",
+  "options": [{"optionText":"...", "isCorrect": false}]
+}`;
+            const targetModel = normalizeAiModel(selectedModel);
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+        const resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { responseMimeType: 'application/json', temperature: 0.7 }
+            })
+        });
+        if (!resp.ok) {
+            const errData = await resp.json().catch(() => ({}));
+            const errMsg = errData.error?.message || `HTTP ${resp.status}`;
+            return { ok: false, status: resp.status, message: errMsg };
+        }
+        const data = await resp.json();
+        let textRes = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        textRes = textRes.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'').replace(/^```\s*/,'');
+        const revised = JSON.parse(textRes);
+        return { ok: true, data: revised };
+    }, customApiKey);
+};
+
+/**
+ * Bulk revise multiple questions using Gemini API with failover
+ */
+export const bulkReviseQuestionsWithAI = async ({
+    questions = [],
+    selectedIndices = [],
+    instruction,
+    selectedModel = DEFAULT_AI_MODEL,
+    customApiKey = null,
+}) => {
+    return await executeWithApiKeyFailover(async (apiKey) => {
+            const targetModel = normalizeAiModel(selectedModel);
+        const results = [];
+        let anySuccess = false;
+
+        for (const idx of selectedIndices) {
+            const q = questions[idx];
+            if (!q) continue;
+            try {
+                const cleanQ = (q.question || '').replace(/<[^>]*>/g, '').trim();
+                const optionsText = (q.options || []).map((o, i) => `${String.fromCharCode(65+i)}. ${o.optionText}${o.isCorrect?' (jawaban benar)':''}`).join('\n');
+                const prompt = `Revisi soal berikut sesuai instruksi. Kembalikan HANYA JSON valid.\n\nSoal: ${cleanQ}\nOpsi:\n${optionsText || '(tidak ada)'}\nKunci: ${q.correctAnswer || ''}\n\nInstruksi: ${instruction.trim()}\n\nJSON output:\n{"question":"...","typeId":${q.typeId},"isRequired":${q.isRequired},"isScorable":${q.isScorable},"correctAnswer":"...","options":[{"optionText":"...","isCorrect":false}]}`;
+                const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+                const resp = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { responseMimeType: 'application/json', temperature: 0.7 }
+                    })
+                });
+                if (!resp.ok) {
+                    if (resp.status === 429 || resp.status === 400 || resp.status === 403) {
+                        return { ok: false, status: resp.status, message: `HTTP ${resp.status}` };
+                    }
+                    continue;
+                }
+                const data = await resp.json();
+                let textRes = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                textRes = textRes.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
+                // Gemini can occasionally add a short sentence around the JSON.
+                // Extract the object so one malformed wrapper does not drop a
+                // selected question from the bulk result.
+                const jsonStart = textRes.indexOf('{');
+                const jsonEnd = textRes.lastIndexOf('}');
+                if (jsonStart >= 0 && jsonEnd > jsonStart) textRes = textRes.slice(jsonStart, jsonEnd + 1);
+                const revised = safeJsonParse(textRes);
+                if (!revised || !revised.question) throw new Error('Format JSON revisi tidak valid');
+                results.push({ idx, original: q, revised });
+                anySuccess = true;
+            } catch (err) {
+                console.error(`Error revising question ${idx}:`, err);
+            }
+        }
+
+        if (!anySuccess && selectedIndices.length > 0) {
+            return { ok: false, message: 'Tidak ada soal yang berhasil direvisi oleh AI.' };
+        }
+        return { ok: true, data: results };
+    }, customApiKey);
+};
+
+/**
+ * AI Analytics & Educational Insights
+ */
+export const analyzeFormAnalyticsWithAI = async ({
+    summary,
+    selectedModel = DEFAULT_AI_MODEL,
+    customApiKey = null,
+}) => {
+    return await executeWithApiKeyFailover(async (apiKey) => {
+        const promptText = `Anda adalah analis pendidikan profesional. Berdasarkan data hasil ujian berikut, berikan analisis mendalam dan rekomendasi perbaikan dalam bahasa Indonesia yang jelas dan mudah dipahami guru.
+
+${summary}
+
+Berikan analisis yang mencakup:
+1. Identifikasi soal-soal bermasalah (terlalu sulit/mudah) dan saran perbaikannya
+2. Interpretasi distribusi nilai dan apa artinya bagi kualitas pembelajaran
+3. Rekomendasi konkret untuk meningkatkan hasil belajar
+4. Kesimpulan umum tentang kualitas soal dan pemahaman siswa
+
+Format respons dalam paragraf yang terstruktur, maksimal 400 kata.`;
+
+            const targetModel = normalizeAiModel(selectedModel);
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+        const resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: promptText }] }],
+                generationConfig: { temperature: 0.5 }
+            })
+        });
+
+        if (!resp.ok) {
+            const errData = await resp.json().catch(() => ({}));
+            const errMsg = errData.error?.message || `HTTP ${resp.status}`;
+            return { ok: false, status: resp.status, message: errMsg };
+        }
+
+        const data = await resp.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        return { ok: true, data: text.trim() };
+    }, customApiKey);
+};
+
+/**
+ * AI Holistic Essay Scoring
+ */
+export const scoreHolisticEssayWithAI = async ({
+    essayAnswers = [],
+    pgSection = '',
+    selectedModel = DEFAULT_AI_MODEL,
+    customApiKey = null,
+}) => {
+    return await executeWithApiKeyFailover(async (apiKey) => {
+        const essaySection = essayAnswers.map((a, i) => {
+            const text = a.answerText || a.answerValue || '(kosong)';
+            const key = a.correctAnswer || '(tidak ada kunci)';
+            const q = (a.question || '').replace(/<[^>]*>/g, '').substring(0, 200);
+            const aId = a.answerId || a.id;
+            return `Essay #${i+1} (answerId: ${aId}):\nPertanyaan: ${q}\nKunci: ${key}\nJawaban: ${text}`;
+        }).join('\n\n');
+
+        const prompt = `Anda adalah penilai ujian. Nilai SEMUA soal essay dari satu responden sekaligus secara holistik, dengan mempertimbangkan konteks keseluruhan performa responden.
+${pgSection}
+
+Data Essay:
+${essaySection}
+
+Kembalikan JSON array — satu objek per essay, HARUS berurutan sesuai Essay #1, #2, dst:
+[
+  {"answerId": <answerId integer dari data essay>, "score": 85, "isCorrect": true, "reason": "Alasan singkat 1 kalimat"}
+]
+
+Panduan penilaian:
+- Nilai berdasarkan kesamaan makna/konsep, bukan kata per kata
+- isCorrect: true jika score >= 70
+- Pertimbangkan konteks: jika PG bagus, cenderung paham materi
+- Score: 0-100`;
+
+            const targetModel = normalizeAiModel(selectedModel);
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+        const resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { responseMimeType: 'application/json', temperature: 0.3 }
+            })
+        });
+
+        if (!resp.ok) {
+            const errData = await resp.json().catch(() => ({}));
+            const errMsg = errData.error?.message || `HTTP ${resp.status}`;
+            return { ok: false, status: resp.status, message: errMsg };
+        }
+
+        const data = await resp.json();
+        let textRes = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        textRes = textRes.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'').replace(/^```\s*/,'');
+        const suggestions = JSON.parse(textRes);
+        return { ok: true, data: suggestions };
+    }, customApiKey);
 };

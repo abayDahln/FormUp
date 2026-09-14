@@ -4,7 +4,7 @@ import {
     Clock, Lock, ArrowRight, ArrowLeft,
     AlertCircle, Send, Loader2, Maximize2,
     Sun, Moon, AlertTriangle, X, CheckCircle2, Bookmark, BookmarkCheck, Eye,
-    LayoutGrid
+    LayoutGrid, Wifi, WifiOff
 } from 'lucide-react';
 import {
     getPublicFormByLink, getPublicFormQuestions, submitPublicFormResponse,
@@ -121,7 +121,35 @@ export default function FormRunnerPage() {
     // BUG-5 FIX: sync respondentNameRef on every name change
     useEffect(() => { respondentNameRef.current = respondentName; }, [respondentName]);
 
-    // auto-cache
+    // Offline-First Mode: Track online/offline status and auto-sync
+    const [isOnline, setIsOnline] = useState(() => typeof window !== 'undefined' ? window.navigator.onLine : true);
+    const [showRestoredToast, setShowRestoredToast] = useState(false);
+
+    useEffect(() => {
+        const handleOnline = () => {
+            setIsOnline(true);
+            setShowRestoredToast(true);
+            setTimeout(() => setShowRestoredToast(false), 4000);
+            if (form && answers && Object.keys(answers).length > 0) {
+                const sid = examSessionIdRef.current || getStoredSessionId();
+                if (sid) {
+                    syncExamAnswers(formLink, sid, answers).catch(() => {});
+                }
+            }
+        };
+        const handleOffline = () => {
+            setIsOnline(false);
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, [form, answers, formLink, getStoredSessionId]);
+
+    // auto-cache to local storage on answer change
     useEffect(() => {
         if (formLink && Object.keys(answers).length > 0) {
             try { localStorage.setItem(`formup_cache_${formLink}`, JSON.stringify(answers)); } catch {}
@@ -838,6 +866,28 @@ export default function FormRunnerPage() {
                     </div>
                     <div className={`${isStepLayout ? 'max-w-4xl lg:max-w-5xl' : 'max-w-3xl'} mx-auto w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden`}>
                         <div className="h-full rounded-full transition-all duration-300" style={{ width: `${progressPercent}%`, backgroundColor: primaryColor }} />
+                    </div>
+                </div>
+            )}
+
+            {/* Offline-First: Disconnection & Auto-save warning badge */}
+            {!isOnline && (
+                <div className="fixed top-14 sm:top-16 right-4 sm:right-6 z-50 bg-amber-500 text-white px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2.5 max-w-sm border border-amber-400 font-bold text-xs animate-pulse">
+                    <WifiOff size={16} className="shrink-0" />
+                    <div>
+                        <p>Koneksi Terputus / Buruk</p>
+                        <p className="text-[10px] font-normal opacity-90">{answeredCount} jawaban tersimpan aman di perangkat.</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Offline-First: Reconnected Toast */}
+            {isOnline && showRestoredToast && (
+                <div className="fixed top-14 sm:top-16 right-4 sm:right-6 z-50 bg-emerald-600 text-white px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2.5 max-w-sm border border-emerald-500 font-bold text-xs">
+                    <Wifi size={16} className="shrink-0" />
+                    <div>
+                        <p>Koneksi Pulih</p>
+                        <p className="text-[10px] font-normal opacity-90">Semua jawaban berhasil disinkronisasi!</p>
                     </div>
                 </div>
             )}
