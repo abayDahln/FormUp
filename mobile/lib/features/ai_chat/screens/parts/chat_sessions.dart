@@ -32,6 +32,16 @@ extension _AiChatSessions on _AiChatScreenState {
   Future<void> persistCurrent() async {
     if (_currentSessionId == null) return;
     if (_messages.isEmpty) return;
+    // Simpan bytes lampiran ke disk SEKALI (path di-set ke attachment) —
+    // agar preview gambar tetap bisa dibuka setelah restart/ganti sesi.
+    for (final m in _messages) {
+      for (final a in m.attachments) {
+        if (a.hasBytes && (a.filePath == null || a.filePath!.isEmpty)) {
+          final p = await AiAttachment.saveToDisk(a);
+          if (p != null) a.filePath = p;
+        }
+      }
+    }
     final title = _messages
         .firstWhere((m) => m.role == 'user', orElse: () => _messages.first)
         .text
@@ -162,35 +172,43 @@ extension _AiChatSessions on _AiChatScreenState {
     final all = await AiChatHistoryService.loadAll();
     final target = all.firstWhere((e) => e.id == id, orElse: () => all.first);
     if (!mounted) return;
+    // Pulihkan bytes lampiran dari disk SEBELUM setState (async — tidak
+    // boleh di dalam setState) agar thumbnail/preview gambar langsung ada.
+    final restoredMessages = <ChatMessage>[];
+    for (final m in target.messages) {
+      final msg = ChatMessage(
+        role: m.role,
+        text: m.text,
+        actionJson: m.actionJson,
+      );
+      msg.actionStatus = m.actionStatus ?? '';
+      msg.actionResult = m.actionResult;
+      msg.actionFormId = m.actionFormId;
+      // Flag actionExecuted baru dipersist belakangan — untuk data lama,
+      // status "accepted" memang berarti aksi sudah pernah dijalankan.
+      msg.actionExecuted = m.actionExecuted ?? (m.actionStatus == 'accepted');
+      msg.isError = m.isError ?? false;
+      msg.isTruncated = m.isTruncated ?? false;
+      msg.undoSnapshot = m.undoSnapshot;
+      msg.actionUndone = m.actionUndone ?? false;
+      if (m.attachments != null) {
+        final atts = <AiAttachment>[];
+        for (final meta in m.attachments!) {
+          final a = AiAttachment.tryFromMeta(meta);
+          if (a == null) continue;
+          await a.reloadBytes();
+          atts.add(a);
+        }
+        msg.attachments = atts;
+      }
+      restoredMessages.add(msg);
+    }
     setState(() {
       _currentSessionId = id;
       _pendingAttachments.clear();
       _messages
         ..clear()
-        ..addAll(target.messages.map((m) {
-          final msg = ChatMessage(
-            role: m.role,
-            text: m.text,
-            actionJson: m.actionJson,
-          );
-          msg.actionStatus = m.actionStatus ?? '';
-          msg.actionResult = m.actionResult;
-          msg.actionFormId = m.actionFormId;
-          // Flag actionExecuted baru dipersist belakangan — untuk data lama,
-          // status "accepted" memang berarti aksi sudah pernah dijalankan.
-          msg.actionExecuted = m.actionExecuted ?? (m.actionStatus == 'accepted');
-          msg.isError = m.isError ?? false;
-          msg.isTruncated = m.isTruncated ?? false;
-          msg.undoSnapshot = m.undoSnapshot;
-          msg.actionUndone = m.actionUndone ?? false;
-          if (m.attachments != null) {
-            msg.attachments = m.attachments!
-                .map((a) => AiAttachment.tryFromMeta(a))
-                .whereType<AiAttachment>()
-                .toList();
-          }
-          return msg;
-        }));
+        ..addAll(restoredMessages);
       _showFab = false;
       // Konteks form milik sesi ini (untuk pesan lanjutan tanpa mention).
       _lastFormContext = target.formContext;

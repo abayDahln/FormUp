@@ -438,41 +438,46 @@ class FormRunnerViewState extends State<FormRunnerView>
       if (_guardBusy) return;
       _guardBusy = true;
       try {
-        bool inMulti = false;
-        try {
-          inMulti = await ExamLockService.isInMultiWindowMode();
-        } catch (_) {
-          inMulti = false;
-        }
-        if (inMulti && !_multiWindowFlagged) {
-          _multiWindowFlagged = true;
-          await _reportWindowBlur();
-        } else if (!inMulti) {
-          _multiWindowFlagged = false;
-        }
-        // Pin hanya ada di Android — di desktop dimatikan total (hindari vonis palsu tiap 5 dtk)
-        if (_examActive && !_appInBackground && !isDesktopPlatform) {
-          bool pinned = true;
+        if (!isDesktopPlatform) {
+          // Cek split-screen + pin: ANDROID SAJA. Windows memakai
+          // WindowListener (blur/fokus) sebagai deteksinya — paritas web.
+          bool inMulti = false;
           try {
-            pinned = await ExamLockService.isPinned();
+            inMulti = await ExamLockService.isInMultiWindowMode();
           } catch (_) {
-            pinned = true;
+            inMulti = false;
           }
-          if (!pinned && !_unpinFlagged) {
-            _unpinFlagged = true;
+          if (inMulti && !_multiWindowFlagged) {
+            _multiWindowFlagged = true;
             await _reportWindowBlur();
-            if (mounted) {
-              showAppToast(
-                context,
-                'Pin ujian dilepas — pelanggaran tercatat, pin dipasang ulang',
-                type: ToastType.warning,
-              );
-            }
+          } else if (!inMulti) {
+            _multiWindowFlagged = false;
+          }
+          // Pin hanya ada di Android — di desktop dimatikan total
+          // (hindari vonis palsu tiap 5 dtk).
+          if (_examActive && !_appInBackground) {
+            bool pinned = true;
             try {
-              await ExamLockService.startPin();
-            } catch (_) {}
-          } else if (pinned) {
-            _unpinFlagged = false;
+              pinned = await ExamLockService.isPinned();
+            } catch (_) {
+              pinned = true;
+            }
+            if (!pinned && !_unpinFlagged) {
+              _unpinFlagged = true;
+              await _reportWindowBlur();
+              if (mounted) {
+                showAppToast(
+                  context,
+                  'Pin ujian dilepas — pelanggaran tercatat, pin dipasang ulang',
+                  type: ToastType.warning,
+                );
+              }
+              try {
+                await ExamLockService.startPin();
+              } catch (_) {}
+            } else if (pinned) {
+              _unpinFlagged = false;
+            }
           }
         }
       } finally {
@@ -651,10 +656,12 @@ class FormRunnerViewState extends State<FormRunnerView>
       // server + guard overlay. Sesi server jalan juga untuk form
       // detectTabSwitch-saja (paritas web + aturan terima server).
       if (_examTracking && _c.formLink != null) {
-        if (_examActive) {
-          // FLAG_SECURE + tolak sentuhan overlay + pin (best-effort).
-          // Bila ada lapisan gagal → beri tahu user, JANGAN diam seolah
-          // terkunci penuh (pelanggaran tetap tercatat ke server).
+        if (_examActive && !isDesktopPlatform) {
+          // ANDROID SAJA: FLAG_SECURE + tolak sentuhan overlay + pin.
+          // Desktop (Windows) memakai fullscreen + deteksi fokus window
+          // (DesktopExamGuard) — paritas dengan web; tanpa guard ini
+          // Windows mendapat toast palsu "pin aplikasi" dari channel
+          // yang tidak ada di desktop.
           unawaited(ExamLockService.lock().then((state) {
             if (!mounted || state.fullyLocked) return;
             showAppToast(
