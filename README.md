@@ -118,18 +118,139 @@ FormUp/
 
 Jalankan ketiga bagian secara berurutan: backend dulu, lalu mobile dan/atau web.
 
-### 4.1 Backend API
+### 4.1 Backend API — Panduan Instalasi Lengkap (mulai dari install database)
 
-Prasyarat: [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0), `dotnet-ef` tool, dan SQL Server. Panduan instalasi lengkap per OS (Windows/macOS/Linux): [`api/README.md`](./api/README.md).
+Panduan ini mencakup semuanya dari nol: install database, install tooling, konfigurasi, sampai API berjalan. Untuk detail produksi (IIS/Nginx/HTTPS), lihat [`api/README.md`](./api/README.md) bagian *Deployment*.
+
+#### Langkah 1 — Install .NET SDK 8.0
+
+| OS | Cara |
+|----|------|
+| Windows | `winget install Microsoft.DotNet.SDK.8` (atau download dari https://dotnet.microsoft.com/download/dotnet/8.0) |
+| macOS | `brew install --cask dotnet-sdk` |
+| Ubuntu 22.04/24.04 | `sudo apt-get update && sudo apt-get install -y dotnet-sdk-8.0` |
+
+#### Langkah 2 — Install Database (SQL Server 2019+)
+
+**Windows (paling mudah):**
+
+1. Download **SQL Server Express** gratis di https://www.microsoft.com/sql-server/sql-server-downloads
+2. Jalankan installer, pilih salah satu edisi:
+   - **Basic** → menginstall SQL Server Express + tooling minimum (paling cepat)
+   - **Custom** → centang **LocalDB** jika hanya untuk development tanpa konfigurasi
+3. Selesaikan instalasi (boleh centang "Install SSMS" untuk GUI manajemen database — opsional tapi disarankan)
+4. Pastikan layanan berjalan:
+
+   ```powershell
+   > Get-Service MSSQLSERVER     # status harus Running
+   ```
+
+**macOS / Linux (via Docker):**
 
 ```bash
-cd api
-cp .env.example .env        # lalu isi DB_CONNECTION, JWT_KEY, SMTP_*
-dotnet ef database update   # buat schema database
-dotnet run                  # jalan di http://localhost:5000
+$ docker run -e "ACCEPT_EULA=Y" \
+    -e "MSSQL_SA_PASSWORD=FormUpStrong!123" \
+    -p 1433:1433 --name formup-sqlserver \
+    -d mcr.microsoft.com/mssql/server:2022-latest
 ```
 
-Swagger UI tersedia di `http://localhost:5000/swagger`.
+> Password SA wajib memenuhi kebijakan kompleksitas SQL Server (huruf besar, kecil, angka, simbol, min. 8 karakter). Di mesin ARM (Apple Silicon) tambahkan `--platform linux/amd64`.
+
+#### Langkah 3 — Install dotnet-ef (tool migrasi)
+
+```bash
+$ dotnet tool install --global dotnet-ef
+```
+
+Jika `dotnet ef` tidak dikenali, tambahkan `%USERPROFILE%\.dotnet\tools` (Windows) atau `~/.dotnet/tools` (macOS/Linux) ke `PATH`.
+
+Verifikasi semua tooling:
+
+```bash
+$ dotnet --version      # 8.0.xxx
+$ dotnet ef --version   # 8.0.x
+```
+
+#### Langkah 4 — Clone project & restore dependency
+
+```bash
+$ git clone <url-repo-anda>.git
+$ cd FormUp/api
+$ dotnet restore
+```
+
+#### Langkah 5 — Konfigurasi environment
+
+```bash
+$ cp .env.example .env        # Windows: copy .env.example .env
+```
+
+Isi file `.env`:
+
+```dotenv
+# WAJIB — koneksi SQL Server (pilih sesuai environment Anda):
+# Windows LocalDB:
+DB_CONNECTION=Server=(localdb)\MSSQLLocalDB;Database=FormUpDb;Trusted_Connection=True;TrustServerCertificate=True
+# Windows instance default (hasil install Express/Developer Basic):
+# DB_CONNECTION=Server=localhost;Database=FormUpDb;Trusted_Connection=True;TrustServerCertificate=True
+# macOS/Linux (Docker):
+# DB_CONNECTION=Server=localhost,1433;Database=FormUpDb;User Id=sa;Password=FormUpStrong!123;TrustServerCertificate=True
+
+# WAJIB — kunci signing JWT, minimal 32 karakter acak. Generate:
+#   Linux/macOS : openssl rand -base64 48
+#   Node        : node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
+JWT_KEY=<kunci-acak-minimal-32-karakter>
+
+# WAJIB untuk register & lupa password (kirim OTP email) — pakai App Password Gmail, bukan password akun (buat di https://myaccount.google.com/apppasswords, 2FA harus aktif):
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=email-anda@gmail.com
+SMTP_PASS=<app-password-gmail>
+SMTP_FROM=email-anda@gmail.com
+
+# Opsional — base URL untuk share link form
+PUBLIC_URL=https://formup.my.id
+```
+
+#### Langkah 6 — Buat & migrasi database
+
+```bash
+$ dotnet ef database update
+```
+
+Perintah ini otomatis membuat database `FormUpDb` beserta seluruh tabel sesuai migrasi di `Migrations/` — tidak perlu membuat database manual (kecuali di produksi dengan user SQL khusus, lihat [`api/README.md`](./api/README.md)).
+
+#### Langkah 7 — Jalankan API
+
+```bash
+$ dotnet run
+```
+
+- API: **http://localhost:5000**
+- Swagger UI: **http://localhost:5000/swagger**
+
+#### Langkah 8 — Verifikasi
+
+Buka Swagger UI di browser, atau uji daftar akun via cURL:
+
+```bash
+$ curl -X POST http://localhost:5000/api/auth/register \
+    -H "Content-Type: application/json" \
+    -d '{"fullname":"John Doe","email":"john@example.com","password":"SecurePass123!"}'
+```
+
+Jika OTP verifikasi masuk ke email, instalasi 100% berhasil (API + database + SMTP hidup).
+
+#### Masalah Umum
+
+| Gejala | Solusi |
+|--------|--------|
+| Tidak bisa koneksi ke SQL Server | Cek service berjalan (`Get-Service MSSQLSERVER`) / container up (`docker ps`) |
+| `dotnet ef: command not found` | Install global tool + tambahkan folder tools ke `PATH` |
+| API gagal startup: `JWT_KEY` | Kunci masih default / < 32 karakter — generate kunci acak |
+| OTP tidak terkirim | Pastikan pakai *App Password* Gmail (bukan password akun), 2FA aktif |
+
+Troubleshooting lengkap: [`api/README.md` §Troubleshooting](./api/README.md#5-troubleshooting).
 
 ### 4.2 Aplikasi Mobile
 
