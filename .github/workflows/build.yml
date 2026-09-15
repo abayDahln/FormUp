@@ -46,7 +46,7 @@ jobs:
           API_BASE_URL=__API_BASE_URL__
           GEMINI_API_KEY=__GEMINI_API_KEY__
           ENVEOF
-          sed -i "s#__API_BASE_URL__#${API_BASE_URL:-http://10.0.2.2:5000/api}#" .env
+          sed -i "s#__API_BASE_URL__#${API_BASE_URL:-https://api.formup.my.id/api}#" .env
           sed -i "s#__GEMINI_API_KEY__#${GEMINI_API_KEY:-}#" .env
           echo "--- .env (key disamarkan) ---"
           sed -E 's/(GEMINI_API_KEY=).*/\1***/' .env
@@ -92,7 +92,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           $api = $env:API_BASE_URL
-          if ([string]::IsNullOrWhiteSpace($api)) { $api = 'http://localhost:5000/api' }
+          if ([string]::IsNullOrWhiteSpace($api)) { $api = 'https://api.formup.my.id/api' }
           Set-Content -Path .env -Encoding utf8 -Value @(
             "API_BASE_URL=$api"
             "GEMINI_API_KEY=$($env:GEMINI_API_KEY)"
