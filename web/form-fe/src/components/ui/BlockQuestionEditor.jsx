@@ -120,8 +120,32 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
     const [highlightPickerOpen, setHighlightPickerOpen] = useState(null);
     const [visualFormulaBlockId, setVisualFormulaBlockId] = useState(null);
     const [visualFormulaValue, setVisualFormulaValue] = useState('');
+    const [activeFormats, setActiveFormats] = useState({});
     const editorRefs = useRef({});
     const lastEmittedValueRef = useRef(value);
+
+    const refreshActiveFormats = () => {
+        const selection = window.getSelection();
+        const editor = selection?.anchorNode?.parentElement?.closest?.('[contenteditable="true"]');
+        if (!editor) return;
+        const blockId = Object.keys(editorRefs.current).find(id => editorRefs.current[id] === editor);
+        if (!blockId) return;
+        const formatBlock = String(document.queryCommandValue('formatBlock') || '').toLowerCase().replace(/[<>]/g, '');
+        setActiveFormats({
+            blockId,
+            bold: document.queryCommandState('bold'),
+            italic: document.queryCommandState('italic'),
+            underline: document.queryCommandState('underline'),
+            strike: document.queryCommandState('strikeThrough'),
+            align: ['center', 'right', 'justify'].find(value => document.queryCommandState(`justify${value[0].toUpperCase()}${value.slice(1)}`)) || 'left',
+            heading: formatBlock,
+        });
+    };
+
+    useEffect(() => {
+        document.addEventListener('selectionchange', refreshActiveFormats);
+        return () => document.removeEventListener('selectionchange', refreshActiveFormats);
+    }, []);
 
     // Sync external value changes
     useEffect(() => {
@@ -195,6 +219,8 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
         if (!editor) return;
 
         editor.focus();
+        const currentBlock = String(document.queryCommandValue('formatBlock') || '').toLowerCase().replace(/[<>]/g, '');
+        const currentFontSize = String(document.queryCommandValue('fontSize') || '');
 
         switch (formatType) {
             case 'bold':
@@ -222,13 +248,20 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                 }
                 break;
             case 'h2':
-                document.execCommand('formatBlock', false, '<h2>');
+                document.execCommand('formatBlock', false, currentBlock === 'h2' ? '<div>' : '<h2>');
+                break;
+            case 'h1':
+                document.execCommand('formatBlock', false, currentBlock === 'h1' ? '<div>' : '<h1>');
                 break;
             case 'h3':
-                document.execCommand('formatBlock', false, '<h3>');
+                document.execCommand('formatBlock', false, currentBlock === 'h3' ? '<div>' : '<h3>');
+                break;
+            case 'clearHeading':
+                document.execCommand('formatBlock', false, '<div>');
                 break;
             case 'small':
-                document.execCommand('fontSize', false, '2');
+                if (currentFontSize === '2') document.execCommand('removeFormat', false, null);
+                else document.execCommand('fontSize', false, '2');
                 break;
             case 'align':
                 document.execCommand('justify' + (payload === 'center' ? 'Center' : payload === 'right' ? 'Right' : payload === 'justify' ? 'Full' : 'Left'), false, null);
@@ -267,6 +300,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
         }
 
         handleUpdateBlock(blockId, 'content', editor.innerHTML);
+        setTimeout(refreshActiveFormats, 0);
         setColorPickerOpen(null);
         setHighlightPickerOpen(null);
     };
@@ -395,7 +429,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     <button
                                         type="button"
                                         onClick={() => applyFormatting(block.id, 'bold')}
-                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                                        className={`p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer ${activeFormats.blockId === block.id && activeFormats.bold ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-400' : ''}`}
                                         title="Tebal (Bold)"
                                     >
                                         <Bold size={13} />
@@ -403,7 +437,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     <button
                                         type="button"
                                         onClick={() => applyFormatting(block.id, 'italic')}
-                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                                        className={`p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer ${activeFormats.blockId === block.id && activeFormats.italic ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-400' : ''}`}
                                         title="Miring (Italic)"
                                     >
                                         <Italic size={13} />
@@ -411,7 +445,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     <button
                                         type="button"
                                         onClick={() => applyFormatting(block.id, 'underline')}
-                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                                        className={`p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer ${activeFormats.blockId === block.id && activeFormats.underline ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-400' : ''}`}
                                         title="Garis Bawah (Underline)"
                                     >
                                         <Underline size={13} />
@@ -419,7 +453,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     <button
                                         type="button"
                                         onClick={() => applyFormatting(block.id, 'strike')}
-                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                                        className={`p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer ${activeFormats.blockId === block.id && activeFormats.strike ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-400' : ''}`}
                                         title="Coret (Strikethrough)"
                                     >
                                         <Strikethrough size={13} />
@@ -487,10 +521,12 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-0.5" />
 
                                     {/* Font Size & Headings */}
+                                    <button type="button" onClick={() => applyFormatting(block.id, 'clearHeading')} className={`px-1.5 py-1 text-[10px] font-semibold rounded-lg hover:bg-white dark:hover:bg-slate-800 cursor-pointer ${activeFormats.blockId === block.id && !['h1', 'h2', 'h3'].includes(activeFormats.heading) ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-400' : ''}`} title="Kembali ke teks normal">Normal</button>
+                                    <button type="button" onClick={() => applyFormatting(block.id, 'h1')} className={`px-1.5 py-1 text-xs font-extrabold rounded-lg hover:bg-white dark:hover:bg-slate-800 cursor-pointer ${activeFormats.blockId === block.id && activeFormats.heading === 'h1' ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-400' : ''}`} title="Judul H1">H1</button>
                                     <button
                                         type="button"
                                         onClick={() => applyFormatting(block.id, 'h2')}
-                                        className="px-1.5 py-1 text-[11px] font-extrabold rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        className={`px-1.5 py-1 text-[11px] font-extrabold rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer ${activeFormats.blockId === block.id && activeFormats.heading === 'h2' ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-400' : ''}`}
                                         title="Judul Besar (H2)"
                                     >
                                         H2
@@ -498,7 +534,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     <button
                                         type="button"
                                         onClick={() => applyFormatting(block.id, 'h3')}
-                                        className="px-1.5 py-1 text-[11px] font-extrabold rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        className={`px-1.5 py-1 text-[11px] font-extrabold rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer ${activeFormats.blockId === block.id && activeFormats.heading === 'h3' ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-400' : ''}`}
                                         title="Judul Sedang (H3)"
                                     >
                                         H3
@@ -518,7 +554,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     <button
                                         type="button"
                                         onClick={() => applyFormatting(block.id, 'align', 'left')}
-                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        className={`p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer ${activeFormats.blockId === block.id && activeFormats.align === 'left' ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-400' : ''}`}
                                         title="Rata Kiri"
                                     >
                                         <AlignLeft size={13} />
@@ -526,7 +562,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     <button
                                         type="button"
                                         onClick={() => applyFormatting(block.id, 'align', 'center')}
-                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        className={`p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer ${activeFormats.blockId === block.id && activeFormats.align === 'center' ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-400' : ''}`}
                                         title="Rata Tengah"
                                     >
                                         <AlignCenter size={13} />
@@ -534,7 +570,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     <button
                                         type="button"
                                         onClick={() => applyFormatting(block.id, 'align', 'right')}
-                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        className={`p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer ${activeFormats.blockId === block.id && activeFormats.align === 'right' ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-400' : ''}`}
                                         title="Rata Kanan"
                                     >
                                         <AlignRight size={13} />
@@ -542,7 +578,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     <button
                                         type="button"
                                         onClick={() => applyFormatting(block.id, 'align', 'justify')}
-                                        className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        className={`p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer ${activeFormats.blockId === block.id && activeFormats.align === 'justify' ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-400' : ''}`}
                                         title="Rata Kiri Kanan (Justify)"
                                     >
                                         <AlignJustify size={13} />
@@ -626,7 +662,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     data-placeholder={placeholder}
                                     onInput={e => handleUpdateBlock(block.id, 'content', e.currentTarget.innerHTML)}
                                     onFocus={() => setActiveBlockId(block.id)}
-                                    className="min-h-20 w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00897B] dark:focus:ring-teal-400 leading-relaxed transition-colors empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 dark:empty:before:text-slate-500"
+                                    className="formup-rich-editor min-h-20 w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00897B] dark:focus:ring-teal-400 leading-relaxed transition-colors empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 dark:empty:before:text-slate-500"
                                 />
                             </div>
                         )}

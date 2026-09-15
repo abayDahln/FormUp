@@ -65,7 +65,7 @@ export default function SummernoteEditor({ value, onChange, placeholder = '', cl
                     ['style', ['style']],
                     ['font', ['bold', 'italic', 'underline', 'clear']],
                     ['color', ['color']],
-                    ['para', ['ul', 'ol', 'paragraph']],
+                    ['para', ['ul', 'ol', 'paragraph', 'height']],
                     ['insert', ['link', 'picture', 'video']],
                     ['view', ['codeview', 'help']]
                 ],
@@ -75,6 +75,13 @@ export default function SummernoteEditor({ value, onChange, placeholder = '', cl
                         if (onChange) onChange(contents);
                     }
                 }
+            });
+
+            // Summernote maintains `.active` on commands at the current
+            // selection. Keep focus/selection in the editor so the indicator
+            // remains correct after clicking a toolbar command.
+            $el.next('.note-editor').on('mousedown.formupEditor', '.note-btn', () => {
+                setTimeout(() => $el.summernote('focus'), 0);
             });
 
             if (value && $el.summernote('code') !== value) {
@@ -87,6 +94,7 @@ export default function SummernoteEditor({ value, onChange, placeholder = '', cl
         return () => {
             try {
                 if ($el && $.fn?.summernote) {
+                    $el.next('.note-editor').off('.formupEditor');
                     $el.summernote('destroy');
                 }
             } catch (e) {

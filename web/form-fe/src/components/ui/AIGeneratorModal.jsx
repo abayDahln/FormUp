@@ -115,7 +115,7 @@ export default function AIGeneratorModal({ isOpen, onClose, onAddQuestions, form
                 includeMath,
                 includeCode,
                 selectedModel,
-                customApiKey: currentKey,
+                customApiKey: currentKeys[0],
             },
             (question) => {
                 // B9: Live stream question into preview list

@@ -53,7 +53,7 @@ export default function FormAnalyticsPage() {
     const [aiAnalyzing, setAiAnalyzing] = useState(false);
     const [aiInsight, setAiInsight] = useState('');
     const [aiError, setAiError] = useState('');
-    const [aiModel, setAiModel] = useState(() => { const m = localStorage.getItem('formup_selected_model_chat'); return m && !m.startsWith('gemini-2.5') ? m : 'gemini-3.6-flash'; });
+    const [aiModel, setAiModel] = useState(() => { const m = localStorage.getItem('formup_selected_model_chat'); return m && !m.includes('-pro') && AVAILABLE_MODELS.some(model => model.id === m) ? m : 'gemini-3.6-flash'; });
 
     const handleExport = async (format) => {
         if (!id || exportingFormat !== null) return;

@@ -55,6 +55,21 @@ export default function RichContentRenderer({ content, className = '' }) {
     );
 }
 
+// Keep only presentation HTML emitted by the editor. In particular, preserve
+// alignment/color styles so saved WYSIWYG content remains visually identical,
+// while dropping event handlers and unsafe embedded elements.
+function sanitizeRichHtml(html) {
+    return String(html || '')
+        .replace(/<\/?(script|style|iframe|object|embed)[^>]*>/gi, '')
+        .replace(/\s(?:on\w+)\s*=\s*["'][^"']*["']/gi, '')
+        .replace(/\sstyle\s*=\s*["']([^"']*)["']/gi, (_, style) => {
+            const safe = style.split(';').map(rule => rule.trim()).filter(rule =>
+                /^(text-align|color|background-color|font-size|font-weight|font-style|text-decoration)\s*:/i.test(rule)
+            );
+            return safe.length ? ` style="${safe.join(';')}"` : '';
+        });
+}
+
 // Helper to remove excessive leading tabs/spaces and blank lines from code blocks
 function dedentCode(str) {
     if (!str) return '';
@@ -148,6 +163,16 @@ function parseMixedContent(text) {
  */
 function renderMarkdownBlocks(text, keyPrefix) {
     if (!text) return null;
+
+    // WYSIWYG content is already valid HTML. Do not wrap block elements such
+    // as <h1> or <div> in a generated <p>; that invalid nesting makes the
+    // heading look correct in contentEditable but disappear in previews and
+    // the runner. Render the sanitized block tree as-is.
+    if (/<(?:h[1-6]|p|div|ul|ol|li|blockquote|pre|table|hr)\b/i.test(text)) {
+        return (
+            <div key={`${keyPrefix}_rich_html`} dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(text) }} />
+        );
+    }
 
     const lines = text.split(/\r?\n/);
     const blocks = [];
@@ -275,7 +300,7 @@ function renderInlineMarkdownAndMath(text, keyPrefix) {
     // preview, runner and result) instead of treating them as visible text.
     // The editor only emits formatting tags; links/scripts are deliberately
     // excluded from this path.
-    if (/<\/?(strong|b|em|i|u|s|strike|span|p|div|br)(?:\s[^>]*)?>/i.test(text)) {
+    if (/<\/?(strong|b|em|i|u|s|strike|span|p|div|br|h[1-6]|ul|ol|li|blockquote|a|font|mark|small|sub|sup)(?:\s[^>]*)?>/i.test(text)) {
         // HTML from the WYSIWYG can wrap a KaTeX token in <p>...</p>.
         // Strip only the presentation tags here so the math tokenizer still
         // gets a chance to create MathBlock instead of showing raw $$ text.
@@ -287,8 +312,7 @@ function renderInlineMarkdownAndMath(text, keyPrefix) {
                 key={`${keyPrefix}_html`}
                 dangerouslySetInnerHTML={{
                     __html: text
-                        .replace(/<\/?(strong|b|em|i|u|s|strike|span|p|div|br)(?:\s[^>]*)?>/gi, (tag) => tag)
-                        .replace(/<\/?(script|style|iframe|object|embed)[^>]*>/gi, '')
+                        .replace(/<[^>]+>/g, (tag) => sanitizeRichHtml(tag))
                 }}
             />
         );

@@ -15,7 +15,7 @@ import {
     getFormById, getQuestions, saveQuestions, updateForm,
     togglePublishForm, updateFormSettings, getFormShare,
     uploadFormBanner, clearSession, assetUrl,
-    deleteQuestion, importQuestions, uploadQuestionImage, uploadQuestionAudio,
+    deleteQuestion, uploadQuestionImage, uploadQuestionAudio,
     uploadOptionImage,
     templateDownloadUrl, createForm, deleteAllQuestions, previewImportQuestions
 } from '../../services/apiService';
@@ -115,7 +115,6 @@ export default function FormBuilder() {
     const [shareInfo, setShareInfo] = useState(null);
     const [qrBlobUrl, setQrBlobUrl] = useState(null);
     const [toast, setToast] = useState(null);
-    const [importLoading, setImportLoading] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
     const [lightboxImage, setLightboxImage] = useState(null);
 
@@ -145,7 +144,7 @@ export default function FormBuilder() {
     const [aiReviseInstruction, setAiReviseInstruction] = useState('');
     const [aiRevising, setAiRevising] = useState(false);
     const [aiReviseError, setAiReviseError] = useState('');
-    const [reviseModel, setReviseModel] = useState(() => { const m = localStorage.getItem('formup_selected_model_chat'); return m && !m.startsWith('gemini-2.5') ? m : 'gemini-3.6-flash'; });
+    const [reviseModel, setReviseModel] = useState(() => { const m = localStorage.getItem('formup_selected_model_chat'); return m && !m.includes('-pro') && AVAILABLE_MODELS.some(model => model.id === m) ? m : 'gemini-3.6-flash'; });
 
     // A-7: Bulk AI revise
     const [bulkReviseMode, setBulkReviseMode] = useState(false);
@@ -897,25 +896,27 @@ export default function FormBuilder() {
         pushHistory(fresh);
     };
 
-    const handleImportFile = async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setImportLoading(true);
-        const res = await importQuestions(id, file);
-        setImportLoading(false);
-        if (res.ok) {
-            showToast(`Berhasil mengimpor ${res.data?.totalImported ?? 0} soal!`);
-            await refreshQuestionsList();
-        } else {
-            showToast(res.message || 'Gagal mengimpor berkas', 'error');
-        }
-        e.target.value = '';
-    };
-
     // A-2: Callback after ImportQuestionsModal successfully commits import
     const handleOnImported = async (data = {}) => {
         showToast(`Berhasil mengimpor ${data.totalImported ?? 0} soal!`);
-        await refreshQuestionsList();
+        const imported = Array.isArray(data.questions) ? data.questions : [];
+        if (imported.length === 0) return;
+        pushHistory(questions);
+        const mapped = imported.map((q, index) => {
+            const normalizedOptions = normalizeQuestionOptions(q);
+            return {
+                ...q,
+                id: null,
+                _id: `q_import_${Date.now()}_${index}`,
+                questionOrder: questions.length + index + 1,
+                question: q.question || q.questionText || '',
+                typeId: parseInt(q.typeId, 10) || 2,
+                isRequired: q.isRequired ?? false,
+                isScorable: q.isScorable ?? (normalizedOptions.some(o => o.isCorrect) || Boolean(q.correctAnswer)),
+                options: normalizedOptions,
+            };
+        });
+        setQuestions(prev => [...prev, ...mapped]);
     };
 
     // BUG-2 FIX: Stage deletion locally; only committed on "Simpan Perubahan".
@@ -1549,10 +1550,6 @@ const ensureOptionSaved = async (idx, oIdx) => {
                                             >
                                                 <FileUp size={13} /> Impor File (Preview Dulu)
                                             </button>
-                                            <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0">
-                                                <FileUp size={13} /> {importLoading ? 'Mengimpor...' : 'Impor Langsung'}
-                                                <input type="file" accept=".xlsx,.csv,.docx,.pdf" className="hidden" onChange={handleImportFile} disabled={importLoading} />
-                                            </label>
                                         </div>
                                     </div>
                                 </div>
@@ -1946,6 +1943,7 @@ const ensureOptionSaved = async (idx, oIdx) => {
                                                                     type="file"
                                                                     accept="image/*"
                                                                     className="hidden"
+                                                                    disabled={uploadProgress[`option-${idx}-${oIdx}`] != null}
                                                                     onChange={async e => {
                                                                         const file = e.target.files?.[0];
                                                                         if (!file) return;
@@ -1953,24 +1951,45 @@ const ensureOptionSaved = async (idx, oIdx) => {
                                                                             showToast('Gambar opsi terlalu besar (maks 500KB).', 'error');
                                                                             return;
                                                                         }
+                                                                        const uploadKey = `option-${idx}-${oIdx}`;
+                                                                        setUploadProgress(prev => ({ ...prev, [uploadKey]: 0 }));
                                                                         const ids = await ensureOptionSaved(idx, oIdx);
                                                                         if (!ids) {
                                                                             showToast('Gagal memproses opsi sebelum mengunggah gambar', 'error');
                                                                             e.target.value = '';
+                                                                            setUploadProgress(prev => ({ ...prev, [uploadKey]: null }));
                                                                             return;
                                                                         }
-                                                                        const res = await uploadOptionImage(id, ids.questionId, ids.optionId, file);
-                                                                        if (res.ok) {
-                                                                            pushHistory(questions);
-                                                                            updateOption(idx, oIdx, 'optionImage', res.data?.optionImage ?? res.data?.url ?? null);
-                                                                            showToast('Gambar opsi berhasil diunggah!');
-                                                                        } else {
-                                                                            showToast(res.message || 'Gagal mengunggah gambar opsi', 'error');
+                                                                        try {
+                                                                            const res = await uploadOptionImage(id, ids.questionId, ids.optionId, file, (pct) => {
+                                                                                setUploadProgress(prev => ({ ...prev, [uploadKey]: pct }));
+                                                                            });
+                                                                            if (res.ok) {
+                                                                                pushHistory(questions);
+                                                                                updateOption(idx, oIdx, 'optionImage', res.data?.optionImage ?? res.data?.url ?? null);
+                                                                                showToast('Gambar opsi berhasil diunggah!');
+                                                                            } else {
+                                                                                showToast(res.message || 'Gagal mengunggah gambar opsi', 'error');
+                                                                            }
+                                                                        } catch (err) {
+                                                                            console.error('[Upload Option Image Error]:', err);
+                                                                            showToast('Terjadi kesalahan saat mengunggah gambar opsi', 'error');
+                                                                        } finally {
+                                                                            setUploadProgress(prev => ({ ...prev, [uploadKey]: null }));
                                                                         }
                                                                         e.target.value = '';
                                                                     }}
                                                                 />
                                                             </label>
+                                                            {uploadProgress[`option-${idx}-${oIdx}`] != null && (
+                                                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-teal-600 dark:text-teal-400" title="Mengunggah gambar opsi">
+                                                                    <Loader2 size={12} className="animate-spin" />
+                                                                    <span className="w-16 h-1.5 rounded-full overflow-hidden bg-teal-100 dark:bg-teal-950/60">
+                                                                        <span className="block h-full rounded-full bg-teal-600 transition-all duration-200" style={{ width: `${uploadProgress[`option-${idx}-${oIdx}`]}%` }} />
+                                                                    </span>
+                                                                    {uploadProgress[`option-${idx}-${oIdx}`]}%
+                                                                </span>
+                                                            )}
                                                             </div>
 
                                                             <button onClick={() => removeOption(idx, oIdx)} className="text-red-400 hover:text-red-600 p-1 shrink-0 cursor-pointer">

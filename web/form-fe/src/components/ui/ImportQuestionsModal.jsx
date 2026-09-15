@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import {
     previewImportQuestions,
-    importQuestions,
     templateDownloadUrl
 } from '../../services/apiService';
 
@@ -124,12 +123,15 @@ export default function ImportQuestionsModal({ isOpen, onClose, formId, hasRespo
         setCommitting(true);
         setError(null);
         try {
-            const res = await importQuestions(formId, file);
-            if (res.ok) {
-                if (typeof onImported === 'function') onImported(res.data || {});
+            // Preview is read-only. Return the parsed rows to the builder so
+            // the normal explicit Save action remains the only commit path.
+            if (typeof onImported === 'function') onImported({
+                ...(preview || {}),
+                questions: previewRows,
+                totalImported: previewRows.length,
+            });
+            if (preview) {
                 onClose();
-            } else {
-                setError(res.message || 'Gagal menyimpan soal hasil import.');
             }
         } catch (e) {
             console.error('[Import Commit Error]:', e);

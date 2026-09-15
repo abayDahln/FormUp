@@ -216,7 +216,7 @@ export default function FormResponsesPage() {
     const [aiScoreSuggestions, setAiScoreSuggestions] = useState({});
     // A-8: Holistic scoring state
     const [aiHolisticScoring, setAiHolisticScoring] = useState(false); // loading state for holistic analysis
-    const [aiModel, setAiModel] = useState(() => { const m = localStorage.getItem('formup_selected_model_chat'); return m && !m.startsWith('gemini-2.5') ? m : 'gemini-3.6-flash'; });
+    const [aiModel, setAiModel] = useState(() => { const m = localStorage.getItem('formup_selected_model_chat'); return m && !m.includes('-pro') && AVAILABLE_MODELS.some(model => model.id === m) ? m : 'gemini-3.6-flash'; });
     const [aiHolisticResult, setAiHolisticResult] = useState(null); // { essaySuggestions: [{answerId, score, reason, isCorrect}], pgSummary, totalEstimate }
     const [aiHolisticPreviewOpen, setAiHolisticPreviewOpen] = useState(false);
     const [bulkModalOpen, setBulkModalOpen] = useState(false);

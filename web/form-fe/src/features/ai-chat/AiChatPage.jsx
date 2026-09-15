@@ -53,7 +53,7 @@ export default function AiChatPage() {
     // Model Selector state
     const [selectedModel, setSelectedModel] = useState(() => {
         const stored = localStorage.getItem('formup_selected_model_chat');
-        return stored && !stored.startsWith('gemini-2.5') && stored !== 'gemini-3-flash-preview' ? stored : DEFAULT_AI_MODEL;
+        return stored && !stored.includes('-pro') && AVAILABLE_MODELS.some(model => model.id === stored) ? stored : DEFAULT_AI_MODEL;
     });
 
     const handleModelChange = (mId) => {

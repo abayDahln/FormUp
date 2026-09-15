@@ -126,19 +126,23 @@ Kembalikan HANYA format JSON valid berikut tanpa teks pengantar atau penutup:
 `.trim();
 
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${currentApiKey}`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
         const resp = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
             body: JSON.stringify({
                 contents: [{ parts: [{ text: promptText }] }],
                 generationConfig: { responseMimeType: 'application/json', temperature: 0.7 }
             })
         });
+        clearTimeout(timeoutId);
 
         if (!resp.ok) {
             const errData = await resp.json().catch(() => ({}));
             const errMsg = errData.error?.message || `HTTP ${resp.status}`;
-            if (resp.status === 429) throw new Error(`Rate limit tercapai untuk model ${selectedModel}. Coba pilih Gemini 2.5 Flash Lite.`);
+            if (resp.status === 429) throw new Error(`Rate limit tercapai untuk model ${selectedModel}. Coba pilih Gemini 3.6 Flash Lite.`);
             if (resp.status === 400 || resp.status === 403) throw new Error(`API Key tidak valid atau akses ditolak. (${errMsg})`);
             if (resp.status >= 500) throw new Error(`Server AI Studio tidak tersedia (Error ${resp.status}). Coba lagi nanti.`);
             throw new Error(`Gagal memanggil AI: ${errMsg}`);
@@ -188,7 +192,9 @@ Kembalikan HANYA format JSON valid berikut tanpa teks pengantar atau penutup:
                 setActivePreviewIdx(0);
             }
         } catch (err) {
-            setError(err.message || 'Terjadi kesalahan saat memproses formulir.');
+            setError(err?.name === 'AbortError'
+                ? 'Permintaan AI melewati batas waktu 60 detik. Silakan coba lagi.'
+                : (err.message || 'Terjadi kesalahan saat memproses formulir.'));
         } finally {
             setGenerating(false);
         }

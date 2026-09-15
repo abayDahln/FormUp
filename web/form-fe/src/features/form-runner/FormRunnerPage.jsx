@@ -48,6 +48,7 @@ export default function FormRunnerPage() {
     const [tabSwitchCount, setTabSwitchCount] = useState(0);
     const [violationCount, setViolationCount] = useState(0);
     const [tabSwitchWarning, setTabSwitchWarning] = useState(false);
+    const lastTabSwitchAtRef = useRef(0);
 
     // Persistent sessionId for exam mode (per formLink)
     const getStoredSessionId = useCallback(() => {
@@ -85,6 +86,8 @@ export default function FormRunnerPage() {
         }
         return {};
     });
+    const answersRef = useRef(answers);
+    const questionsRef = useRef(questions);
 
     const [currentStep, setCurrentStep] = useState(0);
     const [lightboxImage, setLightboxImage] = useState(null);
@@ -196,6 +199,27 @@ export default function FormRunnerPage() {
         }
     }, [formLink, navigate]);
 
+    // A reset creates a new attempt on the server. Clear browser-owned attempt
+    // state as soon as the status endpoint reports that the old session no
+    // longer exists, so a reset cannot be mistaken for one-response lockout.
+    const handleSessionReset = useCallback(() => {
+        try {
+            localStorage.removeItem(`formup_cache_${formLink}`);
+            localStorage.removeItem(`formup_timer_deadline_${formLink}`);
+            localStorage.removeItem(`formup_token_${formLink}`);
+            localStorage.removeItem(`formup_submitted_${formLink}`);
+            sessionStorage.removeItem(`formup_exam_session_${formLink}`);
+            sessionStorage.removeItem(`formup_violations_${formLink}`);
+        } catch {}
+        examSessionIdRef.current = null;
+        answersRef.current = {};
+        setAnswers({});
+        setForm(prev => prev ? { ...prev, alreadySubmitted: false, previousResponseId: null } : prev);
+        setTimeLeft(null);
+        setTokenUnlocked(!form?.requiresToken);
+        setError('Sesi Anda telah di-reset oleh pengawas. Anda dapat mulai dari awal.');
+    }, [formLink, form?.requiresToken]);
+
     // Send incremental exam event to server in background.
     // BUG-5 FIX: respondentName is read from respondentNameRef (not captured in
     // closure) so this callback is NOT recreated on every keystroke. That prevents
@@ -290,9 +314,20 @@ export default function FormRunnerPage() {
         const handleVisibilityChange = () => {
             if (isForceSubmittedRef.current || isSubmittingRef.current) return;
             // Anti-double-count: ONLY report on hidden (leaving), never on visible (return)
-            if (document.hidden && isExam) {
-                sendExamEvent('tab_switch');
-            }
+            if (document.hidden && isExam) reportTabSwitch();
+        };
+
+        const reportTabSwitch = () => {
+            if (!isExam || isForceSubmittedRef.current || isSubmittingRef.current) return;
+            const now = Date.now();
+            // blur and visibilitychange can describe the same tab switch.
+            if (now - lastTabSwitchAtRef.current < 1000) return;
+            lastTabSwitchAtRef.current = now;
+            sendExamEvent('tab_switch');
+        };
+
+        const handleWindowBlur = () => {
+            if (document.hidden || isExam) reportTabSwitch();
         };
 
         const handleCopy = (e) => {
@@ -321,6 +356,7 @@ export default function FormRunnerPage() {
 
         if (isExam) {
             document.addEventListener('visibilitychange', handleVisibilityChange);
+            window.addEventListener('blur', handleWindowBlur);
         }
         if (disableCopy) {
             document.addEventListener('copy', handleCopy);
@@ -332,6 +368,7 @@ export default function FormRunnerPage() {
         return () => {
             if (isExam) {
                 document.removeEventListener('visibilitychange', handleVisibilityChange);
+                window.removeEventListener('blur', handleWindowBlur);
             }
             if (disableCopy) {
                 document.removeEventListener('copy', handleCopy);
@@ -342,8 +379,6 @@ export default function FormRunnerPage() {
         };
     }, [form, isPreviewMode, tokenUnlocked, sendExamEvent, isForceSubmitted]);
 
-    const answersRef = useRef(answers);
-    const questionsRef = useRef(questions);
     useEffect(() => { answersRef.current = answers; }, [answers]);
     useEffect(() => { questionsRef.current = questions; }, [questions]);
 
@@ -409,6 +444,13 @@ export default function FormRunnerPage() {
         // FIX: backend membalikan 400 (bukan 410/409) dengan pesan
         // "Sesi sudah disubmit" saat sesi sudah di-force-submit — tambahkan
         // pengecekan itu, karena kondisi sebelumnya tidak pernah cocok.
+        const isReset = res.status === 404 || res.status === 410 && /reset|tidak ditemukan|not found/i.test(res.message || '') ||
+            res.data?.isReset || res.data?.status === 'reset' || res.data?.status === 'reset_by_proctor';
+        if (isReset) {
+            handleSessionReset();
+            return;
+        }
+
         const isTerminated = res.status === 410 || res.status === 409 ||
             (res.status === 400 && /disubmit/i.test(res.message || '')) ||
             res.data?.isForceSubmitted || res.data?.isSubmitted ||
@@ -429,7 +471,7 @@ export default function FormRunnerPage() {
     } finally {
         syncInProgressRef.current = false;
     }
-}, [form, isPreviewMode, tokenUnlocked, formLink, currentUser, getStoredSessionId, questions, handleForceSubmitTermination]);
+}, [form, isPreviewMode, tokenUnlocked, formLink, currentUser, getStoredSessionId, questions, handleForceSubmitTermination, handleSessionReset]);
 
     // Debounced sync answers on answer changes
     useEffect(() => {
@@ -441,7 +483,7 @@ export default function FormRunnerPage() {
         if (!isSubmittingRef.current) {
             syncDraftAnswers(null, true);
         }
-    }, 10000);
+    }, 4000);
 
     return () => clearInterval(interval);
 }, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers]);
@@ -665,15 +707,14 @@ export default function FormRunnerPage() {
 
     const showValidationAlert = (msg) => { setValidationToast(msg); setTimeout(() => setValidationToast(null), 4500); };
 
-    const handleSubmit = async (e, isAuto = false) => {
+    const handleSubmit = async (e, isAuto = false, skipWarnings = false) => {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
         if (isPreviewMode) { window.close(); return; }
         // B10: First check for ragu-ragu questions (only for manual submit)
-        if (!isAuto && markedForReview.size > 0 && !reviewWarningOpen && !submitConfirmOpen) {
+        if (!isAuto && !skipWarnings && markedForReview.size > 0 && !reviewWarningOpen && !submitConfirmOpen) {
             setReviewWarningOpen(true);
             return;
         }
-        if (!isAuto && !submitConfirmOpen) { setSubmitConfirmOpen(true); return; }
         setSubmitConfirmOpen(false);
         if (isSubmittingRef.current) return;
 
@@ -1034,7 +1075,7 @@ export default function FormRunnerPage() {
                             <div className="text-base sm:text-lg lg:text-xl font-bold text-slate-900 dark:text-white leading-relaxed break-words break-all [overflow-wrap:anywhere]">
                                 <RichContentRenderer content={currentQ.question} />
                             </div>
-                            <div className="pt-2">{renderAnswerField(currentQ, answers, handleAnswerChange, handleCheckboxChange, primaryColor)}</div>
+                            <div className="pt-2">{renderAnswerField(currentQ, answers, handleAnswerChange, handleCheckboxChange, primaryColor, setLightboxImage)}</div>
                         </div>
 
                         <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -1076,7 +1117,7 @@ export default function FormRunnerPage() {
                                 )}
                                 {q.questionAudio && <div className="my-2 max-w-md w-full bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs"><audio controls src={assetUrl(q.questionAudio)} className="w-full h-8 rounded-xl outline-none" /></div>}
                                 <div className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-relaxed break-words break-all [overflow-wrap:anywhere]"><RichContentRenderer content={q.question} /></div>
-                                <div className="pt-2">{renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange, primaryColor)}</div>
+                                <div className="pt-2">{renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange, primaryColor, setLightboxImage)}</div>
                             </div>
                         ))}
                         <div className="pt-4 flex justify-end">
@@ -1211,7 +1252,7 @@ export default function FormRunnerPage() {
                                 type="button"
                                 onClick={() => {
                                     setReviewWarningOpen(false);
-                                    setSubmitConfirmOpen(true);
+                                    handleSubmit(null, false, true);
                                 }}
                                 className="flex-1 px-4 py-2.5 text-white text-xs font-bold rounded-xl cursor-pointer"
                                 style={{ backgroundColor: primaryColor }}
@@ -1244,7 +1285,7 @@ export default function FormRunnerPage() {
     );
 }
 
-function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange, primaryColor = '#00897B') {
+function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange, primaryColor = '#00897B', onOpenImage = null) {
     const val = answers[q.id];
 
     if (q.typeId === 1) return (
@@ -1265,7 +1306,12 @@ function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange,
                                 <img
                                     src={assetUrl(optImg)}
                                     alt={opt.optionText || 'Gambar Opsi'}
-                                    className="max-h-48 max-w-full rounded-xl object-contain border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-1"
+                                    className="max-h-48 max-w-full rounded-xl object-contain border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-1 cursor-zoom-in"
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        onOpenImage?.({ src: assetUrl(optImg), alt: opt.optionText || 'Gambar Opsi' });
+                                    }}
                                 />
                             )}
                             <RichContentRenderer content={opt.optionText} />
@@ -1291,8 +1337,13 @@ function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange,
                                 {optImg && (
                                     <img
                                         src={assetUrl(optImg)}
-                                        alt={opt.optionText || 'Gambar Opsi'}
-                                        className="max-h-48 max-w-full rounded-xl object-contain border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-1"
+                                    alt={opt.optionText || 'Gambar Opsi'}
+                                        className="max-h-48 max-w-full rounded-xl object-contain border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-1 cursor-zoom-in"
+                                        onClick={(event) => {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            onOpenImage?.({ src: assetUrl(optImg), alt: opt.optionText || 'Gambar Opsi' });
+                                        }}
                                     />
                                 )}
                                 <RichContentRenderer content={opt.optionText} />

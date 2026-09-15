@@ -5,28 +5,22 @@
 
 export const AVAILABLE_MODELS = [
     { 
-        id: 'gemini-3.6-flash', 
-        name: 'Gemini 3.6 Flash', 
+        id: 'gemini-3.6-flash',
+        name: 'Gemini 3.6 Flash',
         desc: 'Paling Cepat & Akurat (Rekomendasi)', 
         badge: 'Rekomendasi' 
     },
     { 
-        id: 'gemini-3.6-flash-lite', 
-        name: 'Gemini 3.6 Flash Lite', 
+        id: 'gemini-3.6-flash-lite',
+        name: 'Gemini 3.6 Flash Lite',
         desc: 'Hemat Kuota (Limit 10 RPM) & Responsif', 
         badge: 'Hemat Kuota' 
-    },
-    { 
-        id: 'gemini-3.6-pro', 
-        name: 'Gemini 3.6 Pro', 
-        desc: 'Generasi Baru dengan pemahaman materi luas', 
-        badge: 'Generasi Baru' 
     },
 ];
 
 export const DEFAULT_AI_MODEL = 'gemini-3.6-flash';
 export const normalizeAiModel = (model) => {
-    if (!model || model.startsWith('gemini-2.5') || model === 'gemini-3-flash-preview') return DEFAULT_AI_MODEL;
+    if (!model || model.includes('-pro') || model === 'gemini-3-flash-preview' || !AVAILABLE_MODELS.some(item => item.id === model)) return DEFAULT_AI_MODEL;
     return model;
 };
 
@@ -314,9 +308,12 @@ Catatan Penting:
             const startTime = Date.now();
             setStatus(`AI (${targetModel}) sedang berpikir & menyusun butir soal...`);
 
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 60000);
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: promptText }] }],
                     generationConfig: {
@@ -325,6 +322,7 @@ Catatan Penting:
                     },
                 }),
             });
+            clearTimeout(timeoutId);
 
             const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
@@ -352,7 +350,7 @@ Catatan Penting:
                     return {
                         ok: false,
                         status: response.status,
-                        message: `Server AI Studio sedang tidak tersedia (Error ${response.status}). Coba beberapa menit lagi atau gunakan model lain seperti Gemini 2.5 Flash Lite.`,
+                        message: `Server AI Studio sedang tidak tersedia (Error ${response.status}). Coba beberapa menit lagi atau gunakan Gemini 3.6 Flash Lite.`,
                     };
                 }
 
@@ -519,14 +517,18 @@ Kembalikan HANYA array JSON valid tanpa teks atau penjelasan pembuka/penutup.
     setStatus(`AI (${targetModel}) sedang menyusun soal...`);
 
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
             body: JSON.stringify({
                 contents: [{ parts: [{ text: promptText }] }],
                 generationConfig: { temperature: 0.7 },
             }),
         });
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
