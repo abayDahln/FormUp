@@ -120,7 +120,7 @@ extension _AiChatMessaging on _AiChatScreenState {
   /// terpotong (notice + tombol Lanjutkan) bila MAX_TOKENS.
   Future<void> _finalizeAction(ChatMessage botMsg,
       {bool allowUnknownFinish = false}) async {
-    final action = extractActionJson(botMsg.text);
+    final action = parseActionJson(botMsg.text);
     if (action != null) {
       botMsg.actionJson = action;
       botMsg.actionStatus = 'pending';
@@ -175,8 +175,8 @@ extension _AiChatMessaging on _AiChatScreenState {
 
   /// Parse JSON aksi secara toleran (abaikan teks pengiring seperti
   /// "LANJUT: ..." di dalam/luar pagar). Lihat action_json_parse.dart.
-  Map<String, dynamic>? extractActionJson(String text) =>
-      parseActionJson(text);
+  // Map<String, dynamic>? extractActionJson(String text) =>
+  //     parseActionJson(text);
 
   /// Jalankan aksi form dari AI. Mengembalikan formId yang terlibat
   /// (form baru untuk create_form, form target untuk aksi lain) + data
@@ -460,7 +460,7 @@ extension _AiChatMessaging on _AiChatScreenState {
   /// dan tidak ada cache, kirim dibatalkan dengan penjelasan (hindari AI
   /// mengarang id soal dari konteks kedaluwarsa).
   Future<void> _prepareAndStream(String rawText, {List<AiAttachment>? inlineAttachments}) async {
-    final sendAttachments = inlineAttachments != null && inlineAttachments.isNotEmpty ? List<AiAttachment>.from(inlineAttachments) : null;
+    List<AiAttachment>? sendAttachments = inlineAttachments != null && inlineAttachments.isNotEmpty ? List<AiAttachment>.from(inlineAttachments) : null;
     // ensure session exists
     if (_currentSessionId == null) await newSession();
     // Agent: deteksi @mention dan bangun konteks form
@@ -516,6 +516,45 @@ extension _AiChatMessaging on _AiChatScreenState {
     } else if (_lastFormContext != null && _lastFormContext!.isNotEmpty) {
       // Fallback terakhir: konteks cache tanpa form aktif yang diketahui.
       extraContext = _lastFormContext;
+    }
+    // URL reader: ambil isi link yang user sertakan di prompt (maks 3).
+    // Halaman web → blok <URL_CONTEXT> di konteks; PDF/gambar → masuk
+    // jalur lampiran (preview chip + inlineData) sehingga otomatis
+    // tersimpan di history bersama pesan.
+    final urlContexts = StringBuffer();
+    final failedUrls = <String>[];
+    for (final url in extractUrls(rawText).take(3)) {
+      final result = await fetchUrlContext(url);
+      if (result == null) {
+        failedUrls.add(url);
+        continue;
+      }
+      final att = result.attachment;
+      if (att != null) {
+        (sendAttachments ??= []).add(att);
+        continue;
+      }
+      final text = result.textContext;
+      if (text != null && text.isNotEmpty) {
+        urlContexts.writeln();
+        urlContexts.writeln('<URL_CONTEXT url="$url">');
+        urlContexts.writeln(text);
+        urlContexts.write('</URL_CONTEXT>');
+      } else {
+        failedUrls.add(url);
+      }
+    }
+    if (urlContexts.isNotEmpty) {
+      extraContext = '${extraContext ?? ''}$urlContexts'.trim();
+    }
+    if (failedUrls.isNotEmpty && mounted) {
+      showAuthToast(
+        context,
+        failedUrls.length == 1
+            ? 'Link tidak bisa dibuka (offline / butuh login / konten tidak terbaca).'
+            : '${failedUrls.length} link tidak bisa dibuka.',
+        isError: true,
+      );
     }
     final displayText = rawText;
     final sendText =
