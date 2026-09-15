@@ -34,7 +34,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; Seluruh isi folder Release (exe + dll + data) dibundel jadi satu installer.
-Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
+; Path relatif terhadap folder file .iss ini (windows/installer/) —
+; naik 2 level ke mobile/ lalu masuk folder build.
+Source: "..\..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"
