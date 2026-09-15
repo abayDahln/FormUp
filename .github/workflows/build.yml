@@ -104,16 +104,41 @@ jobs:
         working-directory: mobile
         run: flutter pub get
 
+      - name: Ambil versi dari pubspec
+        working-directory: mobile
+        shell: pwsh
+        run: |
+          $line = (Get-Content pubspec.yaml | Select-String -Pattern '^version:').Line
+          $version = ($line -replace 'version:\s*', '').Split('+')[0].Trim()
+          "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Versi: $version"
+
       - name: Build Windows
         working-directory: mobile
         run: flutter build windows --release
 
-      # Upload seluruh folder Release (bukan hanya form_up.exe) karena exe
-      # butuh dll + folder data di sampingnya agar bisa dijalankan.
-      - name: Upload EXE artifact
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw 'ISCC.exe tidak ditemukan' }
+          "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build installer (.exe)
+        working-directory: mobile
+        shell: pwsh
+        run: |
+          & "$env:ISCC" "/DAppVersion=$env:APP_VERSION" 'windows\installer\formup.iss'
+          $setup = "build\windows\installer\FormUp-Setup-$env:APP_VERSION.exe"
+          if (-not (Test-Path $setup)) { throw 'Installer tidak terbentuk' }
+          Get-Item $setup | Select-Object FullName, Length
+
+      # Output akhir: SATU file installer .exe (berisi exe + dll + data).
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: formup-windows-exe
-          path: mobile/build/windows/x64/runner/Release/
+          name: formup-windows-installer
+          path: mobile/build/windows/installer/*.exe
           if-no-files-found: error
           retention-days: 14
