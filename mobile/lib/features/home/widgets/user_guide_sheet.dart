@@ -14,6 +14,7 @@ class UserGuideSheet extends StatefulWidget {
     return AdaptiveSheet.show<void>(
       context: context,
       isScrollControlled: true,
+      selfScrolling: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
