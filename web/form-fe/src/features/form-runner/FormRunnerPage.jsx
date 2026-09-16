@@ -119,9 +119,11 @@ export default function FormRunnerPage() {
         });
     };
 
-    const currentUser = getLocalUser();
+    const currentUserRef = useRef(getLocalUser());
+    const currentUser = currentUserRef.current;
 
-    // BUG-5 FIX: sync respondentNameRef on every name change
+    const examEventSeqRef = useRef(0);
+
     useEffect(() => { respondentNameRef.current = respondentName; }, [respondentName]);
 
     // Offline-First Mode: Track online/offline status and auto-sync
@@ -226,10 +228,12 @@ export default function FormRunnerPage() {
     // the session_start effect from re-firing while the user is typing their name,
     // which was causing a stale/duplicate sessionId race on first submit.
     const sendExamEvent = useCallback(async (eventType) => {
-        if (!form || isPreviewMode || form.isOwner) return;
-        const isExam = form.isExamMode || form.detectTabSwitch;
-        if (!isExam && !form.disableCopyPaste) return;
-        if (isSubmittingRef.current || isForceSubmittedRef.current) return;
+    if (!form || isPreviewMode || form.isOwner) return;
+    const isExam = form.isExamMode || form.detectTabSwitch;
+    if (!isExam && !form.disableCopyPaste) return;
+    if (isSubmittingRef.current || isForceSubmittedRef.current) return;
+
+    const mySeq = ++examEventSeqRef.current;
 
         try {
             const sid = examSessionIdRef.current || getStoredSessionId();
@@ -241,9 +245,6 @@ export default function FormRunnerPage() {
             };
             const res = await postExamEvent(formLink, payload);
 
-            // Check if proctor force-submitted / terminated the session
-            // Status 410 (Gone), 409 (Conflict), or flag isSubmitted/status:'submitted'
-            // TODO: Ensure backend endpoint returns 410/409 on subsequent exam-events/heartbeats when session is force-submitted.
             const isTerminated = res.status === 410 || res.status === 409 ||
                 res.data?.isForceSubmitted || res.data?.isSubmitted ||
                 res.data?.status === 'submitted' || res.data?.status === 'force-submitted' ||
@@ -277,7 +278,6 @@ export default function FormRunnerPage() {
         } catch (err) {
             console.warn('[ExamEvent] Background event report failed:', eventType, err);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [form, formLink, isPreviewMode, currentUser, handleForceSubmitTermination]);
 
     // Exam mode session presence: session_start and periodic heartbeat
