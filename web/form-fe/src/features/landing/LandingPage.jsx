@@ -78,7 +78,8 @@ const FAQS = [
     a: 'Bisa. Rekapitulasi dapat diekspor ke CSV dan XLSX dari halaman respons.' },
 ];
 
-const APK_URL = 'https://github.com/abayDahln/FormUp/releases/download/v1.0.0/FormUp.apk';
+const APK_URL = 'https://github.com/abayDahln/FormUp/releases/download/v1.0.0/formup-android.apk';
+const EXE_URL = 'https://github.com/abayDahln/FormUp/releases/download/v1.0.0/formup-windows-installer.exe';
 
 /* ─────────────────────────────────────────────
    MAGNETIC
@@ -553,16 +554,29 @@ export default function LandingPage() {
               bagikan lewat link atau QR, pantau hasilnya langsung.
             </p>
             <div className="flex flex-col sm:flex-row items-start gap-3.5 mt-9">
+              {/* Tombol download APK */}
               <Magnetic className="hero-cta w-full sm:w-auto">
-                <a href={APK_URL} download="FormUp.apk" target="_blank" rel="noopener noreferrer"
+                <a href={APK_URL} download="formup-android.apk" target="_blank" rel="noopener noreferrer"
                   className="w-full sm:w-auto px-7 py-3.5 text-[#F6F4ED] text-sm font-semibold rounded-full transition-colors duration-300 flex items-center justify-center gap-2"
                   style={{ backgroundColor: GREEN }}
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = GREEN_DEEP)}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = GREEN)}
                 >
-                  <Smartphone size={16} /> Unduh aplikasi <ArrowUpRight size={15} />
+                  <Smartphone size={16} /> Unduh APK (Android) <ArrowUpRight size={15} />
                 </a>
               </Magnetic>
+              {/* Tombol download Windows installer */}
+              <Magnetic className="hero-cta w-full sm:w-auto">
+                <a href={EXE_URL} download="formup-windows-installer.exe" target="_blank" rel="noopener noreferrer"
+                  className="w-full sm:w-auto px-7 py-3.5 text-[#F6F4ED] text-sm font-semibold rounded-full transition-colors duration-300 flex items-center justify-center gap-2"
+                  style={{ backgroundColor: INK }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = DARK)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = INK)}
+                >
+                  <Download size={16} /> Unduh Installer (Windows) <ArrowUpRight size={15} />
+                </a>
+              </Magnetic>
+              {/* Tombol buka di browser */}
               <Magnetic className="hero-cta w-full sm:w-auto" strength={0.25}>
                 <Link to="/login"
                   className="w-full sm:w-auto px-7 py-3.5 text-sm font-semibold rounded-full border transition-all flex items-center justify-center gap-2"
@@ -893,14 +907,26 @@ export default function LandingPage() {
             semua formulirmu sudah menunggu di sana.
           </p>
           <div className="m-reveal flex flex-col sm:flex-row items-center justify-center gap-3.5">
+            {/* Tombol download APK */}
             <Magnetic>
-              <a href={APK_URL} download="FormUp.apk" target="_blank" rel="noopener noreferrer"
+              <a href={APK_URL} download="formup-android.apk" target="_blank" rel="noopener noreferrer"
                 className="px-7 py-3.5 text-sm font-bold rounded-full flex items-center gap-2 transition-colors duration-300"
                 style={{ backgroundColor: GREEN, color: '#F6F4ED' }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = LIGHT)}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = GREEN)}
               >
-                <Download size={16} /> Unduh FormUp.apk
+                <Smartphone size={16} /> Unduh APK (Android)
+              </a>
+            </Magnetic>
+            {/* Tombol download Windows installer */}
+            <Magnetic>
+              <a href={EXE_URL} download="formup-windows-installer.exe" target="_blank" rel="noopener noreferrer"
+                className="px-7 py-3.5 text-sm font-bold rounded-full flex items-center gap-2 transition-colors duration-300"
+                style={{ backgroundColor: INK, color: '#F6F4ED' }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = DARK)}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = INK)}
+              >
+                <Download size={16} /> Unduh Installer (Windows)
               </a>
             </Magnetic>
             <Link to="/register"
