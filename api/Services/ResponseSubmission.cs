@@ -85,6 +85,20 @@ public static class ResponseSubmission
         if (!string.IsNullOrEmpty(ownerClaim) && int.TryParse(ownerClaim, out var ownerUid) && form.UserId == ownerUid)
             return new BadRequestObjectResult(new ApiResponse<object>(400, "Anda tidak dapat mengisi form yang Anda buat sendiri"));
 
+        // Sesi sudah disubmit/diakhiri (force-submit pengawas): tolak agar
+        // tak tercipta respons ganda dan tautan proktor tak tertimpa.
+        // 409 agar client (web/mobile) mengenalinya sebagai terminasi sesi.
+        var submitSessionKey = body.ExamSessionId?.Trim();
+        if (!string.IsNullOrEmpty(submitSessionKey))
+        {
+            var terminatedResponseId = await db.ExamSessions
+                .Where(s => s.FormId == formId && s.SessionId == submitSessionKey)
+                .Select(s => s.SubmittedResponseId)
+                .FirstOrDefaultAsync();
+            if (terminatedResponseId.HasValue)
+                return new ObjectResult(new ApiResponse<object>(409, "Sesi sudah disubmit pengawas.")) { StatusCode = 409 };
+        }
+
         if (form.FormSetting?.OneResponse == true)
         {
             var alreadySubmitted = false;

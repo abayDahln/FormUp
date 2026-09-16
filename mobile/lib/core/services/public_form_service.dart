@@ -288,18 +288,27 @@ class MyAttempt {
   );
 }
 
-/// Hasil POST exam-events: sessionId + hitungan server + flag auto-submit.
+/// Hasil POST exam-events: sessionId + hitungan server + flag auto-submit
+/// + sinyal terminasi (force-submit pengawas).
 class ExamEventResult {
   final String sessionId;
   final int violationCount;
   final int tabSwitchCount;
   final bool shouldAutoSubmit;
+  final bool isSubmitted;
+  final bool isForceSubmitted;
+  final String? status;
+  final int? responseId;
 
   const ExamEventResult({
     required this.sessionId,
     this.violationCount = 0,
     this.tabSwitchCount = 0,
     this.shouldAutoSubmit = false,
+    this.isSubmitted = false,
+    this.isForceSubmitted = false,
+    this.status,
+    this.responseId,
   });
 
   factory ExamEventResult.fromJson(Map<String, dynamic> json) =>
@@ -308,7 +317,18 @@ class ExamEventResult {
         violationCount: json['violationCount'] as int? ?? 0,
         tabSwitchCount: json['tabSwitchCount'] as int? ?? 0,
         shouldAutoSubmit: json['shouldAutoSubmit'] as bool? ?? false,
+        isSubmitted: json['isSubmitted'] as bool? ?? false,
+        isForceSubmitted: json['isForceSubmitted'] as bool? ?? false,
+        status: json['status'] as String?,
+        responseId: (json['responseId'] ?? json['id']) as int?,
       );
+
+  /// True bila sesi sudah disubmit/diakhiri — client wajib berhenti.
+  bool get isTerminated {
+    if (isSubmitted || isForceSubmitted) return true;
+    final s = status?.trim().toLowerCase();
+    return s == 'submitted' || s == 'force-submitted' || s == 'terminated';
+  }
 }
 
 class PublicFormService {

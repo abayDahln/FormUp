@@ -35,7 +35,7 @@ public class ExamMonitoringController : ControllerBase
     /// </summary>
     [HttpPost("api/public/forms/{formLink}/exam-events")]
     [AllowAnonymous]
-    [EnableRateLimiting("submit")]
+    [EnableRateLimiting("presence")]
     public async Task<ActionResult<ApiResponse<object>>> PostExamEvent(
         string formLink, [FromBody] ExamEventRequest request)
     {
@@ -138,12 +138,20 @@ public class ExamMonitoringController : ControllerBase
             .Where(c => c.Key == ExamEventTypes.WindowBlur)
             .Sum(c => c.Count);
 
+        // Sinyal terminasi: sesi sudah disubmit/diakhiri (force-submit
+        // pengawas). Client wajib berhenti (jangan kirim ulang) — paritas
+        // dengan 400 "Sesi sudah disubmit" di endpoint sync-answers.
+        var submitted = session.SubmittedResponseId.HasValue;
+
         return Ok(new ApiResponse<object>(200, "OK", new ExamEventResult
         {
             SessionId = session.SessionId,
             ViolationCount = total,
             TabSwitchCount = tabSwitches,
             ShouldAutoSubmit = ExamViolationTracker.ShouldAutoSubmit(form, tabSwitches, tabSwitches + windowBlurs),
+            IsSubmitted = submitted,
+            Status = submitted ? "submitted" : "in_progress",
+            ResponseId = session.SubmittedResponseId,
         }));
     }
 
@@ -467,6 +475,7 @@ public class ExamMonitoringController : ControllerBase
     /// </summary>
     [HttpPost("api/public/forms/{formLink}/exam-sessions/{sessionId}/sync-answers")]
     [AllowAnonymous]
+    [EnableRateLimiting("presence")]
     public async Task<ActionResult<ApiResponse<object>>> SyncAnswers(
         string formLink, string sessionId, [FromBody] SyncAnswersRequest request)
     {

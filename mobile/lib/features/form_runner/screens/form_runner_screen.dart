@@ -161,6 +161,9 @@ class FormRunnerViewState extends State<FormRunnerView>
   bool _appInBackground = false;
   // Flag sudah release lock — cegah reassert setelah submit (race dialog)
   bool _lockReleased = false;
+  // Sesi sudah diakhiri pengawas — hentikan semua pelaporan + jangan
+  // kirim ulang (jawaban sudah dikumpulkan server). Dijaga sekali jalan.
+  bool _terminatedHandled = false;
 
   // ID soal wajib yang belum dijawab (untuk indikator merah saat submit gagal).
   final Set<int> _errorQuestionIds = {};
@@ -326,6 +329,7 @@ class FormRunnerViewState extends State<FormRunnerView>
   /// Lapor 1x keluar aplikasi ke server; auto-submit bila server meminta.
   /// [cause] membedakan pesan: minimize vs beralih ke aplikasi lain.
   Future<void> _reportTabSwitch({_DesktopLeaveCause? cause}) async {
+    if (_terminatedHandled) return;
     final now = DateTime.now();
     if (_suppressFocusUntil != null && now.isBefore(_suppressFocusUntil!)) return;
     if (_lastTabSwitchAt != null && now.difference(_lastTabSwitchAt!) < _tabSwitchCooldown) return;
@@ -386,6 +390,7 @@ class FormRunnerViewState extends State<FormRunnerView>
   /// (tab_switch + window_blur) — server kini menghitung keduanya.
   Future<void> _reportWindowBlur() async {
     if (!_examTracking || _step != _RunnerStep.fill) return;
+    if (_terminatedHandled) return;
     final now = DateTime.now();
     if (_suppressFocusUntil != null && now.isBefore(_suppressFocusUntil!)) return;
     if (_lastWindowBlurAt != null &&
@@ -692,6 +697,11 @@ class FormRunnerViewState extends State<FormRunnerView>
           // Draft sync (Spec B12): kirim jawaban terkini tiap heartbeat.
           answerProvider: () => _c.store.collectAutoAnswers(_c.questions),
         );
+        // Paritas web: auto-submit juga dari heartbeat/session_start
+        // (bukan hanya dari lapor pelanggaran), + deteksi sesi yang
+        // sudah diakhiri pengawas via sync draft.
+        exam.onShouldAutoSubmit = _autoSubmitFromServer;
+        exam.onSessionTerminated = _handleForceTerminated;
         _exam = exam;
         // Sesi baru: matikan sisa bunyi sesi lama.
         await ExamWarningSound.stop();
@@ -706,6 +716,7 @@ class FormRunnerViewState extends State<FormRunnerView>
           });
         }
         _lockReleased = false;
+        _terminatedHandled = false;
         _suppressFocusUntil = DateTime.now().add(_graceAfterEnter);
         _lastDesktopSwitchAt = null;
         _lastWindowBlurAt = null;
@@ -740,6 +751,66 @@ class FormRunnerViewState extends State<FormRunnerView>
   /// selesai), tidak ada penambahan waktu. Bila karena pelanggaran
   /// mencapai limit ([violationLimit]), volume dimaksimalkan + bunyi
   /// peringatan diputar sebelum mengirim.
+  /// Dipicu server via heartbeat/session_start (paritas web): limit bisa
+  /// tercapai tanpa laporan pelanggaran lokal yang baru.
+  Future<void> _autoSubmitFromServer() async {
+    if (!mounted || _step != _RunnerStep.fill) return;
+    if (_terminatedHandled || _lockReleased) return;
+    await _autoSubmit(violationLimit: true);
+  }
+
+  /// Sesi diakhiri pengawas (force-submit): jawaban SUDAH dikumpulkan
+  /// server, jadi klien wajib TIDAK mengirim ulang — cukup informasikan
+  /// user lalu keluar (paritas handleForceSubmitTermination web).
+  Future<void> _handleForceTerminated() async {
+    if (!mounted || _terminatedHandled) return;
+    if (_step != _RunnerStep.fill) return;
+    // Submit sedang berjalan: biarkan selesai normal agar tak dobel.
+    if (_submitting || _submitLocked) return;
+    _terminatedHandled = true;
+    _exam?.stop();
+    await ExamWarningSound.stop();
+    await _releaseExamLock();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => ResponsiveDialog(
+        child: FormThemeScope(
+          theme: _formTheme,
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20)),
+            title: Text("Sesi Diakhiri Pengawas",
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontFamily: kFontBold,
+                    color: Theme.of(ctx).colorScheme.onSurface)),
+            content: Text("Pengawas telah mengumpulkan jawaban Anda. Anda akan dikembalikan.",
+                style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+            actions: [
+              FilledButton(
+                style: FilledButton.styleFrom(
+                    backgroundColor:
+                        Theme.of(ctx).colorScheme.primary,
+                    foregroundColor:
+                        Theme.of(ctx).colorScheme.onPrimary,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10))),
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Tutup"),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    AppRouter.of(context).pop();
+  }
+
   Future<void> _autoSubmit({bool violationLimit = false}) async {
     if (!_tryAcquireSubmit()) return;
     if (violationLimit) {
@@ -759,9 +830,15 @@ class FormRunnerViewState extends State<FormRunnerView>
       // agar user bisa kirim manual + hentikan bunyi limit.
       _releaseSubmit();
       await ExamWarningSound.stop();
+      if (mounted) setState(() => _submitting = false);
+      // Sesi terminated (force-submit pengawas, 409): jangan toast biasa —
+      // akhiri sesi via dialog terminasi.
+      if (ExamSessionClient.isSessionEndedError(e)) {
+        await _handleForceTerminated();
+        return;
+      }
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
-      if (mounted) setState(() => _submitting = false);
       return;
     } finally {
       _exam?.stop();
@@ -941,6 +1018,13 @@ class FormRunnerViewState extends State<FormRunnerView>
     } catch (e) {
       _releaseSubmit();
       if (!mounted) return false;
+      // Submit manual ditolak karena sesi terminated: akhiri sesi via
+      // dialog terminasi (jangan biarkan user terus mengerjakan).
+      if (ExamSessionClient.isSessionEndedError(e)) {
+        if (mounted) setState(() => _submitting = false);
+        await _handleForceTerminated();
+        return false;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
       return false;
     } finally {

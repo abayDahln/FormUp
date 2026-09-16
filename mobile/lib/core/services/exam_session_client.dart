@@ -7,7 +7,8 @@ import 'package:form_up/core/services/public_form_service.dart';
 /// Protokol (lihat api/documentation/endpoints/exam-monitoring.md):
 /// - Kirim `session_start` sekali saat mulai mengerjakan; sessionId kosong
 ///   pada event pertama → server generate & kembalikan, dipakai ulang.
-/// - `heartbeat` tiap 30 detik agar owner melihat status online.
+/// - `heartbeat` tiap 5 detik agar owner melihat status online dan
+///   runner cepat mendeteksi auto-submit/force-submit (real-time).
 ///   Bila sessionId belum ada (start gagal) dikirim session_start agar
 ///   pulih ke sesi yang sama; gagal 1x dicoba lagi 5 detik kemudian.
 /// - Tepat 1 event `tab_switch` per 1 siklus keluar-masuk (hanya saat
@@ -25,15 +26,71 @@ class ExamSessionClient {
   int tabSwitchCount = 0;
   int violationCount = 0;
   bool shouldAutoSubmit = false;
+
+  /// Dipanggil sekali saat server meminta auto-submit di luar jalur lapor
+  /// pelanggaran (heartbeat/session_start) — paritas web yang mengecek
+  /// shouldAutoSubmit di setiap respons exam-event. Tanpa ini, limit yang
+  /// tercapai tanpa laporan lokal baru tak pernah memicu auto-submit.
+  Future<void> Function()? onShouldAutoSubmit;
+
+  /// Dipanggil sekali saat sesi ternyata sudah disubmit/diakhiri pengawas
+  /// (sync draft balas 400 "Sesi sudah disubmit"). Layar wajib TIDAK
+  /// mengirim ulang — cukup informasikan user lalu keluar.
+  Future<void> Function()? onSessionTerminated;
+
+  bool _notifiedAutoSubmit = false;
+  bool _notifiedTerminated = false;
   bool _started = false;
   bool _stopped = false;
   Timer? _heartbeat;
   // Cegah tick heartbeat tumpang-tindih bila request lambat.
   bool _beatInflight = false;
+  // Interval heartbeat real-time: deteksi auto-submit/force-submit ≤5 dtk.
+  // Aman terhadap rate limiter (12 req/mnt per sesi, batas 60/mnt/IP/form).
+  static const heartbeatInterval = Duration(seconds: 5);
 
   ExamSessionClient({required this.formLink, this.respondentName, this.answerProvider});
 
   bool get isActive => _started && !_stopped;
+
+  /// True bila error berarti sesi sudah disubmit/diakhiri (paritas web:
+  /// sync 400 "Sesi sudah disubmit", submit 409 "Sesi sudah disubmit
+  /// pengawas."). ApiException hanya membawa pesan, jadi deteksi via
+  /// teks seperti web.
+  static bool isSessionEndedError(Object e) {
+    final msg = e.toString().toLowerCase();
+    return msg.contains('disubmit');
+  }
+
+  /// True bila hasil event menandakan sesi sudah disubmit/diakhiri.
+  static bool isTerminatedResult(ExamEventResult res) => res.isTerminated;
+
+  /// Catat hasil event + picu callback terminasi bila sesi sudah berakhir.
+  /// Dipakai semua jalur sukses (start/beat/lapor) agar deteksi force-submit
+  /// maksimal 1 event, bukan menunggu sync berikutnya.
+  Future<void> _noteResult(ExamEventResult res) async {
+    if (isTerminatedResult(res)) await _fireTerminated();
+  }
+
+  Future<void> _fireAutoSubmit() async {
+    if (_notifiedAutoSubmit || _stopped) return;
+    _notifiedAutoSubmit = true;
+    final cb = onShouldAutoSubmit;
+    if (cb == null) return;
+    try {
+      await cb();
+    } catch (_) {}
+  }
+
+  Future<void> _fireTerminated() async {
+    if (_notifiedTerminated || _stopped) return;
+    _notifiedTerminated = true;
+    final cb = onSessionTerminated;
+    if (cb == null) return;
+    try {
+      await cb();
+    } catch (_) {}
+  }
 
   /// Mulai sesi: kirim session_start + jadwalkan heartbeat.
   Future<void> start() async {
@@ -49,11 +106,13 @@ class ExamSessionClient {
       violationCount = res.violationCount;
       tabSwitchCount = res.tabSwitchCount;
       shouldAutoSubmit = res.shouldAutoSubmit;
+      await _noteResult(res);
     } catch (_) {
       // Offline/sesi gagal: pengerjaan tetap jalan (mode lokal).
     }
+    if (shouldAutoSubmit) await _fireAutoSubmit();
     _heartbeat?.cancel();
-    _heartbeat = Timer.periodic(const Duration(seconds: 30), (_) => _beat());
+    _heartbeat = Timer.periodic(heartbeatInterval, (_) => _beat());
   }
 
   /// Satu detak presence: bila belum punya sessionId (session_start awal
@@ -75,6 +134,7 @@ class ExamSessionClient {
       violationCount = res.violationCount;
       tabSwitchCount = res.tabSwitchCount;
       shouldAutoSubmit = res.shouldAutoSubmit;
+      await _noteResult(res);
     } catch (_) {
       try {
         await Future.delayed(const Duration(seconds: 5));
@@ -87,34 +147,40 @@ class ExamSessionClient {
         );
         if (res.sessionId.isNotEmpty) sessionId = res.sessionId;
         // C9: jalur retry samakan 4 field seperti jalur utama —
-        // sebelumnya limit/badge/pantau telat 30 dtk.
+        // sebelumnya limit/badge/pantau telat 1 detak heartbeat.
         violationCount = res.violationCount;
         tabSwitchCount = res.tabSwitchCount;
         shouldAutoSubmit = res.shouldAutoSubmit;
+        await _noteResult(res);
       } catch (_) {}
     } finally {
       _beatInflight = false;
     }
-    // Sync draft jawaban (Spec B12) — best-effort tiap heartbeat (30 dtk).
+    if (shouldAutoSubmit) await _fireAutoSubmit();
+    // Sync draft jawaban (Spec B12) — best-effort tiap heartbeat.
     await syncDraft();
   }
 
   /// Kirim draft jawaban terkini ke server (best-effort, abaikan gagal).
   /// Dipanggil tiap heartbeat + bisa dipanggil manual (mis. tiap ganti soal).
+  /// Selalu ping walau jawaban kosong (paritas web forceCheck): cek
+  /// SubmittedResponseId server jalan sebelum validasi isi, sehingga
+  /// responden idle pun tetap mendeteksi force-submit pengawas.
   Future<void> syncDraft() async {
     final provider = answerProvider;
     final id = sessionId;
     if (_stopped || provider == null || id == null || id.isEmpty) return;
     try {
       final answers = provider();
-      if (answers.isEmpty) return;
       await PublicFormService.syncExamAnswers(
         formLink,
         id,
         respondentName: respondentName,
         answers: answers,
       );
-    } catch (_) {}
+    } catch (e) {
+      if (isSessionEndedError(e)) await _fireTerminated();
+    }
   }
 
   /// Laporkan 1x keluar aplikasi. Mengembalikan true bila server
@@ -133,6 +199,10 @@ class ExamSessionClient {
       violationCount = res.violationCount;
       tabSwitchCount = res.tabSwitchCount;
       shouldAutoSubmit = res.shouldAutoSubmit;
+      // Layar menangani langsung via nilai balik; cegah heartbeat
+      // memicu callback yang sama untuk kedua kalinya.
+      if (res.shouldAutoSubmit) _notifiedAutoSubmit = true;
+      await _noteResult(res);
       return res.shouldAutoSubmit;
     } catch (_) {
       // Fallback lokal bila event gagal terkirim.
@@ -159,6 +229,10 @@ class ExamSessionClient {
       violationCount = res.violationCount;
       tabSwitchCount = res.tabSwitchCount;
       shouldAutoSubmit = res.shouldAutoSubmit;
+      // Layar menangani langsung via nilai balik; cegah heartbeat
+      // memicu callback yang sama untuk kedua kalinya.
+      if (res.shouldAutoSubmit) _notifiedAutoSubmit = true;
+      await _noteResult(res);
       return res.shouldAutoSubmit;
     } catch (_) {
       // C3: offline = pelanggaran hilang. Naikkan counter lokal (belum

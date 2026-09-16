@@ -210,6 +210,26 @@ namespace FormUpAPI
                     });
                 });
 
+                // Presence ujian (exam-events + sync-answers): heartbeat 5 dtk
+                // + sync draft per perangkat = ±24 req/mnt. Budget 600/mnt
+                // per IP+form menampung ±25 perangkat di balik satu IP NAT
+                // (lab sekolah) — dipisah dari "submit" agar heartbeat tak
+                // memakan jatah kirim jawaban dan sebaliknya.
+                options.AddPolicy("presence", context =>
+                {
+                    var formKey = context.Request.RouteValues["formId"]?.ToString()
+                        ?? context.Request.RouteValues["formLink"]?.ToString()
+                        ?? "0";
+                    var key = $"{context.Connection.RemoteIpAddress}:{formKey}";
+                    return RateLimitPartition.GetSlidingWindowLimiter(key, _ => new SlidingWindowRateLimiterOptions
+                    {
+                        PermitLimit = 600,
+                        Window = TimeSpan.FromMinutes(1),
+                        SegmentsPerWindow = 6,
+                        QueueLimit = 0,
+                    });
+                });
+
                 // Download template import soal (file digenerate di server → mahal)
                 options.AddPolicy("template", context =>
                 {

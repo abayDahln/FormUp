@@ -77,6 +77,18 @@ public class ExamEventResult
     /// client harus segera auto-submit jawaban apa adanya.
     /// </summary>
     public bool ShouldAutoSubmit { get; set; }
+
+    /// <summary>
+    /// True bila sesi sudah disubmit/diakhiri (mis. force-submit pengawas).
+    /// Client wajib TIDAK mengirim lagi — cukup informasikan user lalu keluar.
+    /// </summary>
+    public bool IsSubmitted { get; set; }
+
+    /// <summary>Status sesi: "in_progress" atau "submitted".</summary>
+    public string Status { get; set; } = "in_progress";
+
+    /// <summary>Id respons final bila sesi sudah disubmit.</summary>
+    public int? ResponseId { get; set; }
 }
 
 /// <summary>Jenis log khusus saat pengawas memaksa submit sesi ujian.</summary>
