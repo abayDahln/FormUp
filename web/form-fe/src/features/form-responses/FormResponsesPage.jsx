@@ -288,14 +288,14 @@ export default function FormResponsesPage() {
             } else if (type === 'reset') {
                 const res = await resetExamSession(id, sessionId);
                 if (res.ok) {
-                    showToast(res.message || 'Sesi peserta berhasil di-reset.');
+                    showToast(res.message || 'Jawaban peserta berhasil di-reset.');
                     setProctorModal({ isOpen: false, type: null, sessionId: null, respondentName: '', loading: false });
                     fetchExamMonitoring(true);
                     getFormResponses(id, { page: 1, pageSize: PAGE_SIZE }).then(respRes => {
                         if (respRes.ok && respRes.data) setResponses(respRes.data.responses || respRes.data || []);
                     }).catch(() => {});
                 } else {
-                    showToast(res.message || 'Gagal me-reset sesi ujian peserta.', 'error');
+                    showToast(res.message || 'Gagal me-reset jawaban peserta.', 'error');
                     setProctorModal(prev => ({ ...prev, loading: false }));
                 }
             }
@@ -2069,15 +2069,15 @@ export default function FormResponsesPage() {
                                                                                 <span>Force Submit</span>
                                                                             </button>
                                                                         )}
-                                                                        {session.sessionId && (
+                                                                        {session.sessionId && session.status === 'submitted' && (
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => handleOpenResetSession(session)}
                                                                                 className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 rounded-lg transition-all cursor-pointer"
-                                                                                title="Reset sesi ujian agar peserta dapat memulai dari awal"
+                                                                                title="Reset jawaban yang sudah disubmit agar peserta dapat mengisi ulang"
                                                                             >
                                                                                 <RotateCcw size={12} />
-                                                                                <span>Reset Sesi</span>
+                                                                                <span>Reset Jawaban</span>
                                                                             </button>
                                                                         )}
                                                                         <button
@@ -3033,13 +3033,13 @@ export default function FormResponsesPage() {
                 onConfirm={handleConfirmProctorAction}
                 isLoading={proctorModal.loading}
                 variant={proctorModal.type === 'force_submit' ? 'warning' : 'danger'}
-                title={proctorModal.type === 'force_submit' ? 'Selesaikan Paksa Sesi Ujian?' : 'Reset Sesi Ujian Peserta?'}
+                title={proctorModal.type === 'force_submit' ? 'Selesaikan Paksa Sesi Ujian?' : 'Reset Jawaban Peserta?'}
                 message={
                     proctorModal.type === 'force_submit'
                         ? `Apakah Anda yakin ingin menyelesaikan paksa sesi ujian untuk peserta "${proctorModal.respondentName}"? Draft jawaban yang tersinkronisasi akan disimpan dan status sesi akan diubah menjadi submitted.`
-                        : `Apakah Anda yakin ingin me-reset sesi ujian untuk peserta "${proctorModal.respondentName}"? Sesi ini akan dihapus agar peserta dapat mulai baru di halaman ujian.`
+                        : `Apakah Anda yakin ingin me-reset jawaban yang sudah disubmit oleh "${proctorModal.respondentName}"? Data lama dipertahankan dan peserta diberi 1 jatah isi ulang. Hanya sesi yang sudah disubmit yang bisa di-reset.`
                 }
-                confirmText={proctorModal.type === 'force_submit' ? 'Ya, Selesaikan Paksa' : 'Ya, Reset Sesi'}
+                confirmText={proctorModal.type === 'force_submit' ? 'Ya, Selesaikan Paksa' : 'Ya, Reset Jawaban'}
                 cancelText="Batal"
             />
 

@@ -1193,7 +1193,8 @@ class FormService {
   }
 
   /// POST /forms/{formId}/exam-monitoring/sessions/{sessionId}/reset
-  /// Keluarkan/reset peserta ujian — progres kembali ke 0 (owner only). Spec B12.
+  /// Reset jawaban peserta yang SUDAH disubmit + beri 1 jatah isi ulang
+  /// (owner only). Sesi yang masih berjalan ditolak server. Spec B12.
   static Future<void> resetExamSession(int formId, String sessionId) async {
     await AuthService.post('/forms/$formId/exam-monitoring/sessions/$sessionId/reset', {});
     ApiCache.invalidatePrefix('forms:');

@@ -167,6 +167,24 @@ Kolom `tab_switch_count` tersimpan di tabel `Response` dan muncul di:
 
 ---
 
+## 4. Aksi Pengawas (Owner)
+
+`POST /api/forms/{formId}/exam-monitoring/sessions/{sessionId}/force-submit`
+— menyelesaikan paksa sesi yang masih berjalan (`in_progress`): draft
+jawaban difinalisasi menjadi respons tersubmit.
+
+`POST /api/forms/{formId}/exam-monitoring/sessions/{sessionId}/reset`
+— me-reset **jawaban yang sudah disubmit** agar peserta dapat mengisi
+ulang: riwayat submit + sesi dipertahankan, responden diberi 1 jatah
+ulang via `FormAttemptAllowance`, sisa draft `new` dibersihkan.
+Sesi yang masih berjalan (`in_progress`) **ditolak** (`400`) — reset
+bukan untuk menendang peserta yang sedang mengerjakan, dan tidak pernah
+menghapus jawaban yang sedang dikerjakan. ID sesi yang tidak dikenal
+di endpoint responden (`exam-events`, `sync-answers`) selalu diperlakukan
+sebagai sesi baru, bukan sebagai sesi yang di-reset.
+
+---
+
 ## Skema Data Baru
 
 | Tabel | Kolom kunci |

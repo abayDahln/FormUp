@@ -50,21 +50,15 @@ export default function FormRunnerPage() {
     const [tabSwitchWarning, setTabSwitchWarning] = useState(false);
     const lastTabSwitchAtRef = useRef(0);
 
-    // Persistent sessionId for exam mode (per formLink)
+    // Persistent sessionId for exam mode (per formLink).
+    // Kontrak dengan backend: event pertama dikirim TANPA sessionId
+    // (null) agar server yang generate; ID balikan server disimpan dan
+    // dipakai ulang. Jangan pre-generate UUID di klien — ID tak dikenal
+    // tidak lagi diartikan sebagai "sesi di-reset".
     const getStoredSessionId = useCallback(() => {
         if (typeof window === 'undefined') return null;
         try {
-            let sid = sessionStorage.getItem(`formup_exam_session_${formLink}`);
-            if (!sid) {
-                sid = (typeof crypto !== 'undefined' && crypto.randomUUID)
-                    ? crypto.randomUUID()
-                    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-                        const r = Math.random() * 16 | 0;
-                        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-                    });
-                sessionStorage.setItem(`formup_exam_session_${formLink}`, sid);
-            }
-            return sid;
+            return sessionStorage.getItem(`formup_exam_session_${formLink}`);
         } catch {
             return null;
         }
@@ -200,28 +194,6 @@ export default function FormRunnerPage() {
             navigate(`/f/${formLink}/result/${responseId}`);
         }
     }, [formLink, navigate]);
-
-    // A reset creates a new attempt on the server. Clear browser-owned attempt
-    // state as soon as the status endpoint reports that the old session no
-    // longer exists, so a reset cannot be mistaken for one-response lockout.
-    const handleSessionReset = useCallback(() => {
-        try {
-            localStorage.removeItem(`formup_cache_${formLink}`);
-            localStorage.removeItem(`formup_timer_deadline_${formLink}`);
-            localStorage.removeItem(`formup_token_${formLink}`);
-            localStorage.removeItem(`formup_submitted_${formLink}`);
-            sessionStorage.removeItem(`formup_exam_session_${formLink}`);
-            sessionStorage.removeItem(`formup_violations_${formLink}`);
-        } catch {}
-        examSessionIdRef.current = null;
-        answersRef.current = {};
-        setAnswers({});
-        setForm(prev => prev ? { ...prev, alreadySubmitted: false, previousResponseId: null } : prev);
-        setTimeLeft(null);
-        setTokenUnlocked(!form?.requiresToken);
-        setError('Sesi Anda telah di-reset oleh pengawas. Anda dapat mulai dari awal.');
-    }, [formLink, form?.requiresToken]);
-
 
     const sendExamEvent = useCallback(async (eventType) => {
     if (!form || isPreviewMode || form.isOwner) return;
@@ -437,16 +409,13 @@ export default function FormRunnerPage() {
             respondentName: (respondentNameRef.current || '').trim() || currentUser?.fullname || 'Anonim',
         });
 
-        // FIX: backend membalikan 400 (bukan 410/409) dengan pesan
+        // FIX: backend membalikan 404 (bukan 410/409) dengan pesan
         // "Sesi sudah disubmit" saat sesi sudah di-force-submit — tambahkan
         // pengecekan itu, karena kondisi sebelumnya tidak pernah cocok.
-        const isReset = res.status === 404 || res.status === 410 && /reset|tidak ditemukan|not found/i.test(res.message || '') ||
-            res.data?.isReset || res.data?.status === 'reset' || res.data?.status === 'reset_by_proctor';
-        if (isReset) {
-            handleSessionReset();
-            return;
-        }
-
+        // Catatan: tidak ada lagi sinyal "reset" — reset pengawas hanya
+        // berlaku untuk jawaban yang sudah disubmit dan tidak pernah
+        // menghapus jawaban yang sedang dikerjakan, jadi 404 generik
+        // tidak boleh me-reset state lokal.
         const isTerminated = res.status === 410 || res.status === 409 ||
             (res.status === 400 && /disubmit/i.test(res.message || '')) ||
             res.data?.isForceSubmitted || res.data?.isSubmitted ||
@@ -467,7 +436,7 @@ export default function FormRunnerPage() {
     } finally {
         syncInProgressRef.current = false;
     }
-}, [form, isPreviewMode, tokenUnlocked, formLink, currentUser, getStoredSessionId, questions, handleForceSubmitTermination, handleSessionReset]);
+}, [form, isPreviewMode, tokenUnlocked, formLink, currentUser, getStoredSessionId, questions, handleForceSubmitTermination]);
 
     // Debounced sync answers on answer changes
     useEffect(() => {

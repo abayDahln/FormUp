@@ -46,11 +46,16 @@ public class PublicFormsController : ControllerBase
                 if (submitted >= 1 + extra)
                 {
                     alreadySubmitted = true;
-                    previousResponseId = (await _db.Responses
-                        .Where(r => r.FormId == form.Id && r.RespondentId == currentUid)
+                    // Jangan kembalikan id draft "new" sebagai respons sebelumnya.
+                    var newStatusId = await ReferenceCache.GetResponseStatusIdAsync(_db, "new");
+                    var prevQuery = _db.Responses
+                        .Where(r => r.FormId == form.Id && r.RespondentId == currentUid);
+                    if (newStatusId.HasValue)
+                        prevQuery = prevQuery.Where(r => r.StatusId != newStatusId.Value);
+                    previousResponseId = await prevQuery
                         .OrderByDescending(r => r.SubmittedAt)
                         .Select(r => (int?)r.Id)
-                        .FirstOrDefaultAsync());
+                        .FirstOrDefaultAsync();
                 }
             }
         }
@@ -229,9 +234,15 @@ public class PublicFormsController : ControllerBase
 
         if (form.FormSetting?.OneResponse == true && User.Identity?.IsAuthenticated == true && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var currentUid))
         {
-            var alreadySubmitted = await _db.Responses.AnyAsync(r => r.FormId == form.Id && r.RespondentId == currentUid);
-            if (alreadySubmitted)
-                return BadRequest(new ApiResponse<object>(400, "Anda sudah pernah mengerjakan formulir ini (hanya 1 kali pengerjaan)"));
+            // Selaras dengan GetForm + guard submit: draft "new" dikecualikan,
+            // kuota = 1 + jatah isi ulang dari reset owner (FormAttemptAllowance).
+            var submitted = await AttemptAllowance.CountSubmittedAsync(_db, form.Id, currentUid, null);
+            if (submitted > 0)
+            {
+                var extra = await AttemptAllowance.GetExtraAttemptsAsync(_db, form.Id, currentUid, null);
+                if (submitted >= 1 + extra)
+                    return BadRequest(new ApiResponse<object>(400, "Anda sudah pernah mengerjakan formulir ini (hanya 1 kali pengerjaan)"));
+            }
         }
 
         if (!string.IsNullOrEmpty(form.FormSetting?.FormToken))

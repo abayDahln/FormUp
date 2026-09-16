@@ -80,14 +80,13 @@ public class ExamMonitoringController : ControllerBase
         }
         if (session == null)
         {
-            // sessionId eksplisit yang tak dikenal = sesi sudah dihapus
-            // (reset pengawas). Jangan buat diam-diam di bawah kunci lama —
-            // beri sinyal agar client reset state lalu mulai sesi baru.
-            if (!string.IsNullOrEmpty(sessionKey))
-                return NotFound(new ApiResponse<object>(404,
-                    "Sesi telah di-reset oleh pengawas. Silakan mulai ulang.",
-                    new { status = "reset", isReset = true }));
-            sessionKey = Guid.NewGuid().ToString();
+            // Reset pengawas TIDAK menendang sesi yang sedang berjalan —
+            // reset hanya berlaku untuk jawaban yang sudah disubmit
+            // (lihat DoResetSession). ID tak dikenal = sesi baru yang sah:
+            // pakai ID kiriman klien bila ada, generate bila kosong
+            // (sesuai kontrak di documentation/endpoints/exam-monitoring.md).
+            if (string.IsNullOrEmpty(sessionKey))
+                sessionKey = Guid.NewGuid().ToString();
             session = new ExamSession
             {
                 FormId = form.Id,
@@ -439,8 +438,12 @@ public class ExamMonitoringController : ControllerBase
     }
 
     /// <summary>
-    /// Reset/kick sesi peserta (izinkan ujian ulang): hapus sesi + log
-    /// pelanggarannya (cascade) agar peserta dapat memulai sesi baru di /f/{formLink}.
+    /// Reset jawaban peserta yang SUDAH disubmit (izinkan isi ulang):
+    /// riwayat submit + sesi dipertahankan, responden diberi 1 jatah
+    /// ulang via <see cref="FormAttemptAllowance"/> dan sisa draft "new"
+    /// dibersihkan agar percobaan baru mulai bersih.
+    /// Sesi yang masih berjalan (in_progress) DITOLAK — reset bukan
+    /// untuk menendang peserta yang sedang mengerjakan.
     /// Spec B12 (route kanonis): POST /api/forms/{formId}/exam-monitoring/sessions/{sessionId}/reset.
     /// </summary>
     [HttpPost("api/forms/{formId}/exam-monitoring/sessions/{sessionId}/reset")]
@@ -470,8 +473,15 @@ public class ExamMonitoringController : ControllerBase
         if (session == null)
             return NotFound(new ApiResponse<object>(404, "Session not found"));
 
-        // Reset = beri 1 jatah ulang (riwayat submit dipertahankan) + bersihkan
-        // draft "new" agar retry mulai bersih + hapus sesi (cascade log).
+        // Reset hanya untuk jawaban yang sudah disubmit — sesi yang masih
+        // berjalan tidak boleh di-reset dari sini (pakai force-submit
+        // bila peserta harus diselesaikan paksa).
+        if (!session.SubmittedResponseId.HasValue)
+            return BadRequest(new ApiResponse<object>(400,
+                "Reset hanya untuk jawaban yang sudah disubmit. Sesi ini masih berjalan."));
+
+        // Beri 1 jatah ulang (riwayat submit + sesi dipertahankan) +
+        // bersihkan sisa draft "new" agar percobaan baru mulai bersih.
         // Tanpa jatah ini, one-response tetap terkunci oleh respons lama.
         var hasIdentity = session.RespondentId.HasValue || !string.IsNullOrWhiteSpace(session.RespondentName);
         var extra = 0;
@@ -502,11 +512,10 @@ public class ExamMonitoringController : ControllerBase
             }
         }
 
-        _db.ExamSessions.Remove(session);
         await _db.SaveChangesAsync();
         return Ok(new ApiResponse<object>(200, hasIdentity
-            ? $"Sesi peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan."
-            : "Sesi peserta berhasil di-reset."));
+            ? $"Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan."
+            : "Jawaban peserta berhasil di-reset."));
     }
 
     /// <summary>
@@ -537,11 +546,8 @@ public class ExamMonitoringController : ControllerBase
             .FirstOrDefaultAsync(s => s.FormId == form.Id && s.SessionId == sessionId);
         // G1-7: JANGAN save di tengah — satu SaveChanges di akhir.
         // EF merapikan FK identitas sementara (session/draft baru) otomatis.
-        // sessionId eksplisit yang tak dikenal = sesi di-reset pengawas.
-        if (session == null && !string.IsNullOrEmpty(sessionId))
-            return NotFound(new ApiResponse<object>(404,
-                "Sesi telah di-reset oleh pengawas. Silakan mulai ulang.",
-                new { status = "reset", isReset = true }));
+        // ID tak dikenal = sesi baru yang sah, langsung dibuat —
+        // reset pengawas tidak menendang sesi yang sedang berjalan.
         if (session == null)
         {
             session = new ExamSession

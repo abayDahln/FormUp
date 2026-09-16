@@ -210,15 +210,18 @@ public static class ResponseSubmission
 
         var respondentName = respondentId == null ? body.RespondentName : null;
 
-        var newStatusId = await ReferenceCache.GetResponseStatusIdAsync(db, "new")
-            ?? throw new InvalidOperationException("Response status 'new' belum dikonfigurasi");
+        // Respons final yang disubmit berstatus "submitted" (bukan "new"
+        // yang khusus untuk draft sync-answers) agar dihitung oleh
+        // AttemptAllowance.CountSubmittedAsync dan kuota one-response jalan.
+        var submittedStatusId = await ReferenceCache.GetResponseStatusIdAsync(db, "submitted")
+            ?? throw new InvalidOperationException("Response status 'submitted' belum dikonfigurasi");
 
         var response = new Response
         {
             FormId = formId,
             RespondentId = respondentId,
             RespondentName = respondentName,
-            StatusId = newStatusId,
+            StatusId = submittedStatusId,
             SubmittedAt = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow,
         };

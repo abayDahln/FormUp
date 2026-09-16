@@ -703,8 +703,8 @@ class _SessionCardState extends State<_SessionCard> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Reset sesi?'),
-        content: const Text('Hapus sesi + draft peserta dan beri 1 jatah isi ulang? Data yang sudah disubmit tetap tersimpan.'),
+        title: const Text('Reset jawaban?'),
+        content: const Text('Reset jawaban yang sudah disubmit dan beri 1 jatah isi ulang? Data lama tetap tersimpan.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Ya, reset')),
@@ -982,9 +982,10 @@ class _SessionCardState extends State<_SessionCard> {
                   ),
                 ),
               ],
-              // Kontrol owner: paksa submit (hanya sesi aktif) / reset sesi
-              // (aktif maupun sudah disubmit — reset sesi submitted memberi
-              // jatah isi ulang one-response tanpa menghapus data lama).
+              // Kontrol owner: paksa submit (hanya sesi aktif) / reset jawaban
+              // (hanya sesi yang sudah disubmit — memberi jatah isi ulang
+              // one-response tanpa menghapus data lama maupun mengganggu
+              // peserta yang sedang mengerjakan).
               if (s.sessionId != null && s.sessionId!.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Row(
@@ -1008,23 +1009,24 @@ class _SessionCardState extends State<_SessionCard> {
                         ),
                       ),
                     if (!_submitted) const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _acting ? null : _reset,
-                        icon: const Icon(Icons.restart_alt_rounded, size: 16),
-                        label: const Text('Reset sesi',
-                            style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: kFontBold)),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
+                    if (_submitted)
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _acting ? null : _reset,
+                          icon: const Icon(Icons.restart_alt_rounded, size: 16),
+                          label: const Text('Reset jawaban',
+                              style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: kFontBold)),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
                           ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ],

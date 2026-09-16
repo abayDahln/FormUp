@@ -38,15 +38,8 @@ class ExamSessionClient {
   /// mengirim ulang — cukup informasikan user lalu keluar.
   Future<void> Function()? onSessionTerminated;
 
-  /// Dipanggil saat sesi ternyata sudah dihapus pengawas (reset):
-  /// client mereset state lokal lalu layar memulihkan UI agar responden
-  /// bisa mulai baru (sesi baru dibuat otomatis di heartbeat berikut).
-  /// Berbeda dengan terminasi (sudah disubmit → keluar).
-  Future<void> Function()? onSessionReset;
-
   bool _notifiedAutoSubmit = false;
   bool _notifiedTerminated = false;
-  bool _resetNotified = false;
   bool _started = false;
   bool _stopped = false;
   Timer? _heartbeat;
@@ -99,45 +92,14 @@ class ExamSessionClient {
     } catch (_) {}
   }
 
-  /// True bila error berarti sesi sudah di-reset pengawas (404 reset).
-  /// Berbeda dari terminated: sesi hilang, responden boleh mulai baru.
-  static bool isResetError(Object e) {
-    final msg = e.toString().toLowerCase();
-    return msg.contains('reset') && !msg.contains('disubmit');
-  }
-
-  /// Reset state lokal setelah reset pengawas. Sesi baru dibuat otomatis
-  /// (session_start tanpa id) di detak berikutnya.
-  void _resetLocalState() {
-    sessionId = null;
-    tabSwitchCount = 0;
-    violationCount = 0;
-    shouldAutoSubmit = false;
-    _notifiedAutoSubmit = false;
-    _notifiedTerminated = false;
-  }
-
-  Future<void> _fireReset() async {
-    // Satu insiden = satu notifikasi; dibuka lagi setelah sesi baru terbentuk.
-    if (_resetNotified || _stopped) return;
-    _resetNotified = true;
-    final cb = onSessionReset;
-    if (cb == null) return;
-    try {
-      await cb();
-    } catch (_) {}
-  }
-
-  /// Tangani error event/sync: reset (sesi dihapus) vs terminated
-  /// (sudah disubmit) vs gangguan biasa (offline). Mengembalikan true
-  /// bila sudah ditangani sebagai reset/terminated — pemanggil wajib
-  /// melewati fallback counter lokal agar tak menambah pelanggaran hantu.
+  /// Tangani error event/sync: terminated (sudah disubmit) vs gangguan
+  /// biasa (offline). Reset pengawas hanya berlaku untuk jawaban yang
+  /// sudah disubmit dan tidak pernah menendang sesi yang sedang berjalan,
+  /// sehingga tidak ada lagi sinyal reset di jalur ini.
+  /// Mengembalikan true bila sudah ditangani sebagai terminated —
+  /// pemanggil wajib melewati fallback counter lokal agar tak menambah
+  /// pelanggaran hantu.
   Future<bool> _handleEventError(Object e) async {
-    if (isResetError(e)) {
-      _resetLocalState();
-      await _fireReset();
-      return true;
-    }
     if (isSessionEndedError(e)) {
       await _fireTerminated();
       return true;
@@ -160,8 +122,6 @@ class ExamSessionClient {
       tabSwitchCount = res.tabSwitchCount;
       shouldAutoSubmit = res.shouldAutoSubmit;
       await _noteResult(res);
-      // Sesi hidup kembali (baru dibuat) → reset berikutnya boleh notif lagi.
-      _resetNotified = false;
     } catch (e) {
       // Offline/sesi gagal: pengerjaan tetap jalan (mode lokal).
       await _handleEventError(e);
@@ -191,7 +151,6 @@ class ExamSessionClient {
       tabSwitchCount = res.tabSwitchCount;
       shouldAutoSubmit = res.shouldAutoSubmit;
       await _noteResult(res);
-      _resetNotified = false;
     } catch (e) {
       if (await _handleEventError(e)) return;
       try {
@@ -210,7 +169,6 @@ class ExamSessionClient {
         tabSwitchCount = res.tabSwitchCount;
         shouldAutoSubmit = res.shouldAutoSubmit;
         await _noteResult(res);
-        _resetNotified = false;
       } catch (e2) {
         await _handleEventError(e2);
       }
@@ -240,7 +198,7 @@ class ExamSessionClient {
         answers: answers,
       );
     } catch (e) {
-      // Reset/terminated/dibuang hening; offline murni diabaikan (best-effort).
+      // Terminated dibuang hening; offline murni diabaikan (best-effort).
       await _handleEventError(e);
     }
   }
@@ -265,10 +223,9 @@ class ExamSessionClient {
       // memicu callback yang sama untuk kedua kalinya.
       if (res.shouldAutoSubmit) _notifiedAutoSubmit = true;
       await _noteResult(res);
-      _resetNotified = false;
       return res.shouldAutoSubmit;
     } catch (e) {
-      // Reset/terminated sudah ditangani; offline = fallback lokal.
+      // Terminated sudah ditangani; offline = fallback lokal.
       if (await _handleEventError(e)) return false;
       // Fallback lokal bila event gagal terkirim.
       tabSwitchCount++;
@@ -298,10 +255,9 @@ class ExamSessionClient {
       // memicu callback yang sama untuk kedua kalinya.
       if (res.shouldAutoSubmit) _notifiedAutoSubmit = true;
       await _noteResult(res);
-      _resetNotified = false;
       return res.shouldAutoSubmit;
     } catch (e) {
-      // Reset/terminated sudah ditangani; offline = fallback lokal (C3).
+      // Terminated sudah ditangani; offline = fallback lokal (C3).
       if (await _handleEventError(e)) return false;
       // C3: offline = pelanggaran hilang. Naikkan counter lokal (belum
       // tersinkron) seperti reportTabSwitch — diselaraskan ulang dari

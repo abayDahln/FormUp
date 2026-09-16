@@ -702,7 +702,6 @@ class FormRunnerViewState extends State<FormRunnerView>
         // sudah diakhiri pengawas via sync draft.
         exam.onShouldAutoSubmit = _autoSubmitFromServer;
         exam.onSessionTerminated = _handleForceTerminated;
-        exam.onSessionReset = _handleSessionReset;
         _exam = exam;
         // Sesi baru: matikan sisa bunyi sesi lama.
         await ExamWarningSound.stop();
@@ -810,29 +809,6 @@ class FormRunnerViewState extends State<FormRunnerView>
     );
     if (!mounted) return;
     AppRouter.of(context).pop();
-  }
-
-  /// Sesi di-reset pengawas: mulai baru TANPA keluar layar. Jawaban lokal
-  /// dibuang, counter dinolkan, info di-fetch ulang (kuota baru dari
-  /// FormAttemptAllowance), dan heartbeat berikut membuat sesi baru
-  /// otomatis (session_start tanpa id).
-  Future<void> _handleSessionReset() async {
-    if (!mounted || _step != _RunnerStep.fill) return;
-    // Submit sedang berjalan: biarkan selesai; detak berikut memulihkan.
-    if (_submitting || _submitLocked || _terminatedHandled) return;
-    _c.retryInit();
-    _errorQuestionIds.clear();
-    _markedForReview.clear();
-    _tabSwitchCount = 0;
-    _violationCount = 0;
-    // Kuota baru dari server (alreadySubmitted=false setelah jatah reset).
-    try {
-      final link = _c.formLink;
-      if (link != null && link.isNotEmpty) await _c.fetchInfo(link);
-    } catch (_) {}
-    if (!mounted) return;
-    setState(() {});
-    showAuthToast(context, 'Sesi di-reset pengawas — silakan mulai dari awal.');
   }
 
   Future<void> _autoSubmit({bool violationLimit = false}) async {
