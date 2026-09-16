@@ -34,7 +34,6 @@ class RunnerCodeStep extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
-      // Tanpa centerPad: shell sudah cap 720/1020 (double-cap menjepit konten).
       padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

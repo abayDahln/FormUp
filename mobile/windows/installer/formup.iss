@@ -25,6 +25,9 @@ SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName={#AppName}
 WizardStyle=modern
+; Ikon installer & uninstaller — sama dengan ikon aplikasi (hasil make_ico.ps1)
+SetupIconFile=..\runner\resources\app_icon.ico
+UninstallIconFile=..\runner\resources\app_icon.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

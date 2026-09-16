@@ -109,18 +109,15 @@ class RunnerQuestionCard extends StatelessWidget {
                                   : cs.onSurfaceVariant,
                             ),
                             const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                isMarked ? 'Ragu-ragu' : 'Tandai',
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  fontFamily: kFontBold,
-                                  color: isMarked
-                                      ? Colors.white
-                                      : cs.onSurfaceVariant,
-                                ),
+                            Text(
+                              isMarked ? 'Ragu-ragu' : 'Tandai',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: kFontBold,
+                                color: isMarked
+                                    ? Colors.white
+                                    : cs.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -132,9 +129,10 @@ class RunnerQuestionCard extends StatelessWidget {
                   "*",
                   style: TextStyle(color: Color(0xFFC0392B), fontSize: 16),
                 );
-                final questionText = Expanded(
+                final questionTextWidget = Expanded(
                   child: RichTextView(
                     text: q.question,
+                    prefix: '${index + 1}. ',
                     zoom: zoom,
                     style: TextStyle(
                       fontSize: zs(15),
@@ -142,16 +140,6 @@ class RunnerQuestionCard extends StatelessWidget {
                       color: cs.onSurface,
                       height: 1.4,
                     ),
-                  ),
-                );
-                final numberText = Text(
-                  '${index + 1}. ',
-                  style: TextStyle(
-                    fontSize: zs(15),
-                    fontWeight: FontWeight.bold,
-                    fontFamily: kFontBold,
-                    color: cs.onSurface,
-                    height: 1.4,
                   ),
                 );
                 // Layar/kartu sempit (kolom grid desktop yang terjepit,
@@ -164,8 +152,7 @@ class RunnerQuestionCard extends StatelessWidget {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          numberText,
-                          questionText,
+                          questionTextWidget,
                           if (showRequired) requiredMark,
                         ],
                       ),
@@ -180,12 +167,11 @@ class RunnerQuestionCard extends StatelessWidget {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    numberText,
-                    questionText,
+                    questionTextWidget,
                     if (showRequired) requiredMark,
                     if (showMarkButton) ...[
                       const SizedBox(width: 8),
-                      Flexible(child: buildMarkButton()),
+                      buildMarkButton(),
                     ],
                   ],
                 );

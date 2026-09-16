@@ -31,10 +31,20 @@ public static class ExamViolationTracker
         return !string.IsNullOrEmpty(claim) && int.TryParse(claim, out var uid) ? uid : null;
     }
 
+    /// <summary>
+    /// True bila batas "pergi dari ujian" tercapai dan form diset auto-submit.
+    /// Menghitung tab_switch + window_blur (pindah app/Home + floating app/
+    /// overlay/split-screen). Sebelumnya hanya tab_switch sehingga
+    /// pelanggaran floating/overlay tak pernah memicu auto-submit.
+    /// Overload lama dipertahankan agar pemanggil lama tetap kompilasi.
+    /// </summary>
     public static bool ShouldAutoSubmit(Form form, int tabSwitchCount) =>
+        ShouldAutoSubmit(form, tabSwitchCount, tabSwitchCount);
+
+    public static bool ShouldAutoSubmit(Form form, int tabSwitchCount, int leaveCount) =>
         form.FormSetting?.AutoSubmitOnTabSwitch == true
         && (form.FormSetting?.MaxTabSwitch ?? 0) > 0
-        && tabSwitchCount >= form.FormSetting!.MaxTabSwitch;
+        && Math.Max(tabSwitchCount, leaveCount) >= form.FormSetting!.MaxTabSwitch;
 
     /// <summary>
     /// Dipanggil dari ResponseSubmission setelah response dibuat:

@@ -114,6 +114,10 @@ class FormRunnerViewState extends State<FormRunnerView>
   bool _loading = false;
   bool _submitting = false;
   int _tabSwitchCount = 0;
+  // Total pelanggaran (tab_switch + window_blur + lainnya) dari server.
+  // Batas maxTabSwitch kini berlaku untuk total "pergi dari ujian",
+  // bukan hanya tab_switch — floating/overlay ikut dihitung.
+  int _violationCount = 0;
   ExamSessionClient? _exam;
 
   /// Kunci submit tunggal: manual, auto-submit limit, dan timer habis
@@ -132,8 +136,6 @@ class FormRunnerViewState extends State<FormRunnerView>
 
   // Guard pengaman ujian: overlay/floating app & split-screen.
   Timer? _examGuardTimer;
-  bool _sawInactive = false;
-  bool _sawPaused = false;
   bool _multiWindowFlagged = false;
   DateTime? _lastWindowBlurAt;
   static const _windowBlurCooldown = Duration(seconds: 10);
@@ -150,6 +152,10 @@ class FormRunnerViewState extends State<FormRunnerView>
   DateTime? _suppressFocusUntil;
   DateTime? _lastTabSwitchAt;
   static const _tabSwitchCooldown = Duration(seconds: 2);
+  // Dedup inactive→paused: satu kali pergi = satu event. inactive
+  // (window_blur) selalu datang duluan lalu disusul paused (tab_switch)
+  // saat pindah aplikasi — yang kedua disupresi agar tidak double-count.
+  static const _leaveDedup = Duration(seconds: 2);
   static const _graceAfterEnter = Duration(seconds: 3);
   // True bila app sedang di luar (background).
   bool _appInBackground = false;
@@ -178,7 +184,6 @@ class FormRunnerViewState extends State<FormRunnerView>
   bool get _examTracking =>
       _c.info?.isExamMode == true || _c.info?.detectTabSwitch == true;
   bool get _disableCopy => _c.info?.disableCopyPaste == true;
-  bool get _detectSwitch => _c.info?.detectTabSwitch == true;
 
   @override
   void initState() {
@@ -204,14 +209,14 @@ class FormRunnerViewState extends State<FormRunnerView>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_examTracking || _step != _RunnerStep.fill) return;
     if (state == AppLifecycleState.inactive) {
-      // Kemungkinan overlay/floating app menutup fokus (tanpa pause).
-      // Keputusan lapor ditunda sampai resumed: bila ternyata lanjut ke
-      // paused, tab_switch yang melapor (anti double-count).
-      _sawInactive = true;
+      // Pembukaan floating app/overlay menyebabkan status beralih ke inactive.
+      // Langsung catat pelanggaran tanpa menunggu user kembali (resumed).
+      if (!isDesktopPlatform) {
+        _reportWindowBlur();
+      }
       return;
     }
     if (state == AppLifecycleState.paused) {
-      _sawPaused = true;
       _appInBackground = true;
       // Desktop pakai WindowListener saja (hindari dobel dengan blur).
       // Bunyi + laporan ditunda lewat timer maaf di _desktopFocusLost
@@ -225,22 +230,15 @@ class FormRunnerViewState extends State<FormRunnerView>
       }
       // Grace 3 detik setelah enter: abaikan
       if (_suppressFocusUntil != null && DateTime.now().isBefore(_suppressFocusUntil!)) return;
-      // Bunyi hanya keluar saat limit tercapai — tiap keluar app di
-      // sini hanya dicatat sebagai pelanggaran (hening).
-      if (!_detectSwitch) return;
+      // Pelacakan berlaku untuk examMode maupun detectTabSwitch saja
+      // (_examTracking sudah dicek di atas). Gate lama `_detectSwitch`
+      // membuat form exam-only tak pernah menghitung keluar-app.
       // Aturan counting server: 1 event per siklus, hanya saat pergi.
       _reportTabSwitch();
       return;
     }
     if (state == AppLifecycleState.resumed) {
       _appInBackground = false;
-      // Kembali tanpa pernah pause = interupsi overlay/floating semata.
-      // Desktop dikecualikan: WindowListener sudah melapor saat blur
-      // (echo di sini hanya jadi hitungan ganda).
-      final wasOverlayOnly = _sawInactive && !_sawPaused;
-      _sawInactive = false;
-      _sawPaused = false;
-      if (wasOverlayOnly && !isDesktopPlatform) _reportWindowBlur();
     }
   }
 
@@ -331,22 +329,33 @@ class FormRunnerViewState extends State<FormRunnerView>
     final now = DateTime.now();
     if (_suppressFocusUntil != null && now.isBefore(_suppressFocusUntil!)) return;
     if (_lastTabSwitchAt != null && now.difference(_lastTabSwitchAt!) < _tabSwitchCooldown) return;
+    // Dedup inactive→paused: window_blur baru saja dilaporkan untuk
+    // siklus pergi yang sama — jangan tambah tab_switch agar 1 pergi = 1 event.
+    if (_lastWindowBlurAt != null && now.difference(_lastWindowBlurAt!) < _leaveDedup) return;
     _lastTabSwitchAt = now;
     final exam = _exam;
     bool serverAutoSubmit = false;
     if (exam != null && _c.formLink != null) {
       serverAutoSubmit = await exam.reportTabSwitch();
-      if (mounted) setState(() => _tabSwitchCount = exam.tabSwitchCount);
+      if (mounted) {
+        setState(() {
+          _tabSwitchCount = exam.tabSwitchCount;
+          _violationCount = exam.violationCount;
+        });
+      }
     } else {
       _tabSwitchCount++;
+      _violationCount++;
     }
     final maxSwitch = _c.info?.maxTabSwitch;
     final autoSubmit = _c.info?.autoSubmitOnTabSwitch == true;
     if (!mounted) return;
+    // Batas berlaku untuk total "pergi dari ujian" (tab + overlay).
+    final leaveTotal = _violationCount > _tabSwitchCount ? _violationCount : _tabSwitchCount;
     if (serverAutoSubmit ||
         (maxSwitch != null &&
             maxSwitch > 0 &&
-            _tabSwitchCount >= maxSwitch &&
+            leaveTotal >= maxSwitch &&
             autoSubmit)) {
       await _autoSubmit(violationLimit: true);
       if (mounted) {
@@ -360,7 +369,7 @@ class FormRunnerViewState extends State<FormRunnerView>
     }
     if (mounted) {
       final counter =
-          '$_tabSwitchCount${maxSwitch != null && maxSwitch > 0 ? '/$maxSwitch' : ''}';
+          '$leaveTotal${maxSwitch != null && maxSwitch > 0 ? '/$maxSwitch' : ''}';
       showAppToast(
         context,
         cause == _DesktopLeaveCause.minimized
@@ -373,9 +382,8 @@ class FormRunnerViewState extends State<FormRunnerView>
 
   /// Lapor 1x gangguan fokus/overlay ke server; auto-submit bila limit tembus.
   /// Cooldown 10 detik agar interupsi beruntun tidak spam pelanggaran.
-  /// PENTING: cek limit di sisi klien seperti jalur tab_switch — server
-  /// hanya menghitung tab_switch untuk ShouldAutoSubmit, sehingga tanpa
-  /// cek ini floating app tak pernah memicu auto-submit.
+  /// Batas maxTabSwitch berlaku untuk total "pergi dari ujian"
+  /// (tab_switch + window_blur) — server kini menghitung keduanya.
   Future<void> _reportWindowBlur() async {
     if (!_examTracking || _step != _RunnerStep.fill) return;
     final now = DateTime.now();
@@ -390,11 +398,18 @@ class FormRunnerViewState extends State<FormRunnerView>
     bool serverAutoSubmit = false;
     if (exam != null && _c.formLink != null) {
       serverAutoSubmit = await exam.reportWindowBlur();
-      if (mounted) setState(() => _tabSwitchCount = exam.tabSwitchCount);
+      if (mounted) {
+        setState(() {
+          _tabSwitchCount = exam.tabSwitchCount;
+          _violationCount = exam.violationCount;
+        });
+      }
+    } else {
+      _violationCount++;
     }
     if (!mounted) return;
-    // Samakan dengan server: hanya hitung tab_switch untuk ShouldAutoSubmit (info total tetap via violationCount tapi keputusan pakai tabSwitch)
-    final totalViolations = exam?.tabSwitchCount ?? _tabSwitchCount;
+    final totalViolations =
+        _violationCount > _tabSwitchCount ? _violationCount : _tabSwitchCount;
     final maxSwitch = _c.info?.maxTabSwitch;
     final autoSubmit = _c.info?.autoSubmitOnTabSwitch == true;
     if (serverAutoSubmit ||
@@ -684,7 +699,12 @@ class FormRunnerViewState extends State<FormRunnerView>
         _appInBackground = false;
         unawaited(ExamWarningSound.prime());
         await exam.start();
-        if (mounted) setState(() => _tabSwitchCount = exam.tabSwitchCount);
+        if (mounted) {
+          setState(() {
+            _tabSwitchCount = exam.tabSwitchCount;
+            _violationCount = exam.violationCount;
+          });
+        }
         _lockReleased = false;
         _suppressFocusUntil = DateTime.now().add(_graceAfterEnter);
         _lastDesktopSwitchAt = null;
@@ -1031,13 +1051,15 @@ class FormRunnerViewState extends State<FormRunnerView>
           onLoadQuestions: _loadQuestions,
         ),
       _RunnerStep.fill => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_examActive)
               // Strip status ujian (jam kiri, baterai kanan, hitungan
-              // pelanggaran). Section banner merah dihapus — tidak perlu.
+              // pelanggaran). Tampil untuk semua mode terlacak (examMode
+              // maupun detectTabSwitch saja) agar batas terlihat.
               ExamLockStatusBar(
-                violationLabel: _detectSwitch
-                    ? '$_tabSwitchCount${_c.info?.maxTabSwitch != null && _c.info!.maxTabSwitch! > 0 ? '/${_c.info!.maxTabSwitch}' : ''}'
+                violationLabel: _examTracking
+                    ? '${_violationCount > _tabSwitchCount ? _violationCount : _tabSwitchCount}${_c.info?.maxTabSwitch != null && _c.info!.maxTabSwitch! > 0 ? '/${_c.info!.maxTabSwitch}' : ''}'
                     : null,
               ),
             Expanded(child: fillWidget),
