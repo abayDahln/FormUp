@@ -47,6 +47,8 @@ public partial class FormUpDbContext : DbContext
 
     public virtual DbSet<RegistrationOtp> RegistrationOtps { get; set; }
 
+    public virtual DbSet<FormAttemptAllowance> FormAttemptAllowances { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Form>(entity =>
@@ -652,6 +654,43 @@ public partial class FormUpDbContext : DbContext
                 .HasDefaultValueSql("(getutcdate())")
                 .HasColumnType("datetime")
                 .HasColumnName("created_at");
+        });
+
+        modelBuilder.Entity<FormAttemptAllowance>(entity =>
+        {
+            entity.ToTable("FormAttemptAllowance");
+            entity.HasKey(e => e.Id);
+
+            // Lookup jatah per responden (login dan guest).
+            entity.HasIndex(e => new { e.FormId, e.RespondentId }, "IX__FormAttemptAllowance__form_user");
+            entity.HasIndex(e => new { e.FormId, e.RespondentName }, "IX__FormAttemptAllowance__form_name");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.FormId).HasColumnName("form_id");
+            entity.Property(e => e.RespondentId).HasColumnName("respondent_id");
+            entity.Property(e => e.RespondentName)
+                .HasMaxLength(100)
+                .HasColumnName("respondent_name");
+            entity.Property(e => e.ExtraAttempts)
+                .HasDefaultValue(0)
+                .HasColumnName("extra_attempts");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasColumnType("datetime")
+                .HasColumnName("updated_at");
+
+            entity.HasOne(e => e.Form)
+                .WithMany()
+                .HasForeignKey(e => e.FormId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Respondent)
+                .WithMany()
+                .HasForeignKey(e => e.RespondentId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         OnModelCreatingPartial(modelBuilder);

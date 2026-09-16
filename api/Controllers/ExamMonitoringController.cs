@@ -80,7 +80,14 @@ public class ExamMonitoringController : ControllerBase
         }
         if (session == null)
         {
-            sessionKey = string.IsNullOrEmpty(sessionKey) ? Guid.NewGuid().ToString() : sessionKey;
+            // sessionId eksplisit yang tak dikenal = sesi sudah dihapus
+            // (reset pengawas). Jangan buat diam-diam di bawah kunci lama —
+            // beri sinyal agar client reset state lalu mulai sesi baru.
+            if (!string.IsNullOrEmpty(sessionKey))
+                return NotFound(new ApiResponse<object>(404,
+                    "Sesi telah di-reset oleh pengawas. Silakan mulai ulang.",
+                    new { status = "reset", isReset = true }));
+            sessionKey = Guid.NewGuid().ToString();
             session = new ExamSession
             {
                 FormId = form.Id,
@@ -463,9 +470,43 @@ public class ExamMonitoringController : ControllerBase
         if (session == null)
             return NotFound(new ApiResponse<object>(404, "Session not found"));
 
+        // Reset = beri 1 jatah ulang (riwayat submit dipertahankan) + bersihkan
+        // draft "new" agar retry mulai bersih + hapus sesi (cascade log).
+        // Tanpa jatah ini, one-response tetap terkunci oleh respons lama.
+        var hasIdentity = session.RespondentId.HasValue || !string.IsNullOrWhiteSpace(session.RespondentName);
+        var extra = 0;
+        if (hasIdentity)
+        {
+            extra = await AttemptAllowance.GrantExtraAttemptAsync(
+                _db, formId, session.RespondentId, session.RespondentName);
+
+            var newStatusId = await ReferenceCache.GetResponseStatusIdAsync(_db, "new");
+            if (newStatusId.HasValue)
+            {
+                var drafts = await _db.Responses
+                    .Where(r => r.FormId == formId
+                        && r.StatusId == newStatusId.Value
+                        && (session.RespondentId.HasValue
+                            ? r.RespondentId == session.RespondentId
+                            : r.RespondentId == null && r.RespondentName == session.RespondentName))
+                    .ToListAsync();
+                if (drafts.Count > 0)
+                {
+                    var draftIds = drafts.Select(d => d.Id).ToList();
+                    var draftAnswers = await _db.RespondentAnswers
+                        .Where(a => draftIds.Contains(a.ResponseId))
+                        .ToListAsync();
+                    _db.RespondentAnswers.RemoveRange(draftAnswers);
+                    _db.Responses.RemoveRange(drafts);
+                }
+            }
+        }
+
         _db.ExamSessions.Remove(session);
         await _db.SaveChangesAsync();
-        return Ok(new ApiResponse<object>(200, "Sesi peserta berhasil di-reset."));
+        return Ok(new ApiResponse<object>(200, hasIdentity
+            ? $"Sesi peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan."
+            : "Sesi peserta berhasil di-reset."));
     }
 
     /// <summary>
@@ -496,6 +537,11 @@ public class ExamMonitoringController : ControllerBase
             .FirstOrDefaultAsync(s => s.FormId == form.Id && s.SessionId == sessionId);
         // G1-7: JANGAN save di tengah — satu SaveChanges di akhir.
         // EF merapikan FK identitas sementara (session/draft baru) otomatis.
+        // sessionId eksplisit yang tak dikenal = sesi di-reset pengawas.
+        if (session == null && !string.IsNullOrEmpty(sessionId))
+            return NotFound(new ApiResponse<object>(404,
+                "Sesi telah di-reset oleh pengawas. Silakan mulai ulang.",
+                new { status = "reset", isReset = true }));
         if (session == null)
         {
             session = new ExamSession

@@ -704,7 +704,7 @@ class _SessionCardState extends State<_SessionCard> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Reset sesi?'),
-        content: const Text('Keluarkan peserta dan reset progres ke 0? Peserta harus mengulang dari awal.'),
+        content: const Text('Hapus sesi + draft peserta dan beri 1 jatah isi ulang? Data yang sudah disubmit tetap tersimpan.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Ya, reset')),
@@ -716,7 +716,7 @@ class _SessionCardState extends State<_SessionCard> {
     try {
       await FormService.resetExamSession(widget.formId, id);
       widget.onChanged?.call();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sesi peserta di-reset')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sesi di-reset, jatah ulang diberikan')));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e')));
     } finally {
@@ -982,29 +982,32 @@ class _SessionCardState extends State<_SessionCard> {
                   ),
                 ),
               ],
-              // Kontrol owner: paksa submit / reset sesi (hanya sesi aktif).
-              if (!_submitted && s.sessionId != null && s.sessionId!.isNotEmpty) ...[
+              // Kontrol owner: paksa submit (hanya sesi aktif) / reset sesi
+              // (aktif maupun sudah disubmit — reset sesi submitted memberi
+              // jatah isi ulang one-response tanpa menghapus data lama).
+              if (s.sessionId != null && s.sessionId!.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Expanded(
-                      child: FilledButton.tonalIcon(
-                        onPressed: _acting ? null : _forceSubmit,
-                        icon: const Icon(Icons.upload_rounded, size: 16),
-                        label: const Text('Paksa submit',
-                            style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: kFontBold)),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
+                    if (!_submitted)
+                      Expanded(
+                        child: FilledButton.tonalIcon(
+                          onPressed: _acting ? null : _forceSubmit,
+                          icon: const Icon(Icons.upload_rounded, size: 16),
+                          label: const Text('Paksa submit',
+                              style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: kFontBold)),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
+                    if (!_submitted) const SizedBox(width: 10),
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _acting ? null : _reset,

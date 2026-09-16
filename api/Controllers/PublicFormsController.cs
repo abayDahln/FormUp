@@ -37,15 +37,21 @@ public class PublicFormsController : ControllerBase
 
         if (form.FormSetting?.OneResponse == true && User.Identity?.IsAuthenticated == true && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var currentUid))
         {
-            var prevResponse = await _db.Responses
-                .Where(r => r.FormId == form.Id && r.RespondentId == currentUid)
-                .OrderByDescending(r => r.SubmittedAt)
-                .FirstOrDefaultAsync();
-
-            if (prevResponse != null)
+            // Selaras dengan guard submit: hanya yang tersubmit dihitung,
+            // kuota = 1 + jatah reset owner (FormAttemptAllowance).
+            var submitted = await AttemptAllowance.CountSubmittedAsync(_db, form.Id, currentUid, null);
+            if (submitted > 0)
             {
-                alreadySubmitted = true;
-                previousResponseId = prevResponse.Id;
+                var extra = await AttemptAllowance.GetExtraAttemptsAsync(_db, form.Id, currentUid, null);
+                if (submitted >= 1 + extra)
+                {
+                    alreadySubmitted = true;
+                    previousResponseId = (await _db.Responses
+                        .Where(r => r.FormId == form.Id && r.RespondentId == currentUid)
+                        .OrderByDescending(r => r.SubmittedAt)
+                        .Select(r => (int?)r.Id)
+                        .FirstOrDefaultAsync());
+                }
             }
         }
 

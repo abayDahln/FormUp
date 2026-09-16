@@ -107,8 +107,14 @@ public static class ResponseSubmission
             {
                 var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var userId))
-                    alreadySubmitted = await db.Responses
-                        .AnyAsync(r => r.FormId == formId && r.RespondentId == userId);
+                {
+                    // Hanya respons tersubmit yang dihitung (draft "new"
+                    // dikecualikan — kalau ikut, sync pertama sudah mengunci).
+                    // Reset owner menambah jatah via FormAttemptAllowance.
+                    var submitted = await AttemptAllowance.CountSubmittedAsync(db, formId, userId, null);
+                    var extra = await AttemptAllowance.GetExtraAttemptsAsync(db, formId, userId, null);
+                    alreadySubmitted = submitted >= 1 + extra;
+                }
             }
 
             if (alreadySubmitted)
