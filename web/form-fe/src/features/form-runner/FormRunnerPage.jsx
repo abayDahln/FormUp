@@ -222,11 +222,7 @@ export default function FormRunnerPage() {
         setError('Sesi Anda telah di-reset oleh pengawas. Anda dapat mulai dari awal.');
     }, [formLink, form?.requiresToken]);
 
-    // Send incremental exam event to server in background.
-    // BUG-5 FIX: respondentName is read from respondentNameRef (not captured in
-    // closure) so this callback is NOT recreated on every keystroke. That prevents
-    // the session_start effect from re-firing while the user is typing their name,
-    // which was causing a stale/duplicate sessionId race on first submit.
+
     const sendExamEvent = useCallback(async (eventType) => {
     if (!form || isPreviewMode || form.isOwner) return;
     const isExam = form.isExamMode || form.detectTabSwitch;
