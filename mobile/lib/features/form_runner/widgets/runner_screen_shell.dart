@@ -52,10 +52,21 @@ class RunnerScreenShell extends StatelessWidget {
             ),
         ],
       ),
-      // Konten runner selalu selebar mobile (maks 720, terpusat) di semua
-      // lebar layar — desktop/tablet tidak lagi melebar.
-      body: AuthBackground(plain: true,
-        child: SafeArea(child: ResponsiveCenter(maxWidth: 720, child: child)),
+      // Konten runner: di desktop/tablet lebar konten dibatasi 720 dp dan
+      // dipusatkan dengan tight height (stretch) agar Column+Expanded di
+      // FormRunnerView mendapat constraint valid. Jangan pakai Center
+      // polos — ia memberi loose height sehingga Expanded gagal / child
+      // menciut ke intrinsic.
+      body: AuthBackground(
+        plain: true,
+        child: SafeArea(
+          child: ResponsiveCenter(
+            maxWidth: 720,
+            padding: EdgeInsets.zero,
+            fillHeight: true,
+            child: child,
+          ),
+        ),
       ),
     );
   }

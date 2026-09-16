@@ -92,7 +92,7 @@ class RunnerFillStep extends StatelessWidget {
     final canGoBack = currentQuestion > 0;
     return ListView(
       physics: physics ?? const AlwaysScrollableScrollPhysics(),
-      padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 12, 20, 20), wideMaxWidth: 720),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       children: [
         _buildQuestionCard(currentQuestion),
         const SizedBox(height: 16),

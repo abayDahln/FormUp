@@ -81,11 +81,16 @@ EdgeInsets centerPad(
 
 /// Center content dengan maxWidth di tablet, phone return child apa adanya.
 /// [wideMaxWidth] dipakai di layar ekstra-lebar (≥1400).
+/// [fillHeight]: true untuk konten Column+Expanded (mis. FormRunnerView) —
+/// child diberi tight height (stretch) via Align+ConstrainedBox agar Expanded
+/// dapat constraint valid. False (default) untuk konten scroll/intrinsic
+/// (mis. AuthCard) agar perilaku lama tidak berubah.
 class ResponsiveCenter extends StatelessWidget {
   final Widget child;
   final double maxWidth;
   final double? wideMaxWidth;
   final EdgeInsetsGeometry? padding;
+  final bool fillHeight;
 
   const ResponsiveCenter({
     super.key,
@@ -93,6 +98,7 @@ class ResponsiveCenter extends StatelessWidget {
     this.maxWidth = 720,
     this.wideMaxWidth,
     this.padding,
+    this.fillHeight = false,
   });
 
   @override
@@ -103,14 +109,50 @@ class ResponsiveCenter extends StatelessWidget {
         ? wideMaxWidth!
         : maxWidth;
     final pw = w >= kExpandedBreakpoint ? 32.0 : 24.0;
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: cap),
-        child: Padding(
-          padding: padding ?? EdgeInsets.symmetric(horizontal: pw),
-          child: child,
+    final pad = padding ?? EdgeInsets.symmetric(horizontal: pw);
+    if (!fillHeight) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: cap),
+          child: Padding(
+            padding: pad,
+            child: child,
+          ),
         ),
-      ),
+      );
+    }
+    // Mode stretch: child butuh tight height (Column+Expanded).
+    // LayoutBuilder dipakai agar tinggi mengikuti parent aktual, bukan
+    // asumsi MediaQuery. Jika height unbounded (di dalam scroll),
+    // fallback ke perilaku Center agar tidak crash minHeight infinite.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!constraints.hasBoundedHeight) {
+          return Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: cap),
+              child: Padding(
+                padding: pad,
+                child: child,
+              ),
+            ),
+          );
+        }
+        return Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: cap,
+              minHeight: constraints.maxHeight,
+              maxHeight: constraints.maxHeight,
+            ),
+            child: Padding(
+              padding: pad,
+              child: child,
+            ),
+          ),
+        );
+      },
     );
   }
 }

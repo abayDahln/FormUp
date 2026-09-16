@@ -132,8 +132,6 @@ class FormRunnerViewState extends State<FormRunnerView>
 
   // Guard pengaman ujian: overlay/floating app & split-screen.
   Timer? _examGuardTimer;
-  bool _sawInactive = false;
-  bool _sawPaused = false;
   bool _multiWindowFlagged = false;
   DateTime? _lastWindowBlurAt;
   static const _windowBlurCooldown = Duration(seconds: 10);
@@ -204,14 +202,14 @@ class FormRunnerViewState extends State<FormRunnerView>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_examTracking || _step != _RunnerStep.fill) return;
     if (state == AppLifecycleState.inactive) {
-      // Kemungkinan overlay/floating app menutup fokus (tanpa pause).
-      // Keputusan lapor ditunda sampai resumed: bila ternyata lanjut ke
-      // paused, tab_switch yang melapor (anti double-count).
-      _sawInactive = true;
+      // Pembukaan floating app/overlay menyebabkan status beralih ke inactive.
+      // Langsung catat pelanggaran tanpa menunggu user kembali (resumed).
+      if (!isDesktopPlatform) {
+        _reportWindowBlur();
+      }
       return;
     }
     if (state == AppLifecycleState.paused) {
-      _sawPaused = true;
       _appInBackground = true;
       // Desktop pakai WindowListener saja (hindari dobel dengan blur).
       // Bunyi + laporan ditunda lewat timer maaf di _desktopFocusLost
@@ -234,13 +232,6 @@ class FormRunnerViewState extends State<FormRunnerView>
     }
     if (state == AppLifecycleState.resumed) {
       _appInBackground = false;
-      // Kembali tanpa pernah pause = interupsi overlay/floating semata.
-      // Desktop dikecualikan: WindowListener sudah melapor saat blur
-      // (echo di sini hanya jadi hitungan ganda).
-      final wasOverlayOnly = _sawInactive && !_sawPaused;
-      _sawInactive = false;
-      _sawPaused = false;
-      if (wasOverlayOnly && !isDesktopPlatform) _reportWindowBlur();
     }
   }
 
@@ -1031,6 +1022,7 @@ class FormRunnerViewState extends State<FormRunnerView>
           onLoadQuestions: _loadQuestions,
         ),
       _RunnerStep.fill => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_examActive)
               // Strip status ujian (jam kiri, baterai kanan, hitungan
