@@ -1,12 +1,20 @@
-name: Build Mobile (Android APK + Windows EXE)
+name: CI + Build Mobile (Android APK + Windows EXE)
 
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
+  # Samakan dengan Flutter lokal (cek via `flutter --version` di mobile/).
   FLUTTER_VERSION: '3.47.1'
+  DOTNET_VERSION: '8.0.x'
+  NODE_VERSION: '22'
 
 concurrency:
   group: build-mobile-${{ github.ref }}
@@ -14,11 +22,89 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Android - APK
+  # Gate: analisa + test mobile (gagal di sini = artifact tidak dibangun)
   # ---------------------------------------------------------------------------
+  mobile-check:
+    name: Mobile check (analyze + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Flutter analyze
+        working-directory: mobile
+        run: flutter analyze
+
+      - name: Flutter test
+        working-directory: mobile
+        run: flutter test
+
+  # ---------------------------------------------------------------------------
+  # Gate: backend .NET tetap kompilasi
+  # ---------------------------------------------------------------------------
+  backend-build:
+    name: Backend build (dotnet)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: dotnet build
+        working-directory: api
+        run: dotnet build --nologo -v q -p:UseAppHost=false
+
+  # ---------------------------------------------------------------------------
+  # Gate: web frontend tetap kompilasi
+  # ---------------------------------------------------------------------------
+  web-build:
+    name: Web build (vite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/form-fe/package-lock.json
+
+      - name: npm ci
+        working-directory: web/form-fe
+        run: npm ci
+
+      - name: npm run lint
+        working-directory: web/form-fe
+        run: npm run lint
+
+      - name: npm run build
+        working-directory: web/form-fe
+        run: npm run build
+
+  # ---------------------------------------------------------------------------
+  # Android - APK (debug-signed, untuk QA/internal — BUKAN untuk Play Store)
+  # ---------------------------------------------------------------------------
+  # CATATAN RILIS:
+  # - APK ini ditandatangani debug key (lihat android/app/build.gradle.kts).
+  #   Untuk Play Store: tambahkan signing config + secrets keystore, dan
+  #   ganti applicationId com.example.form_up (masih TODO) sebelum rilis.
   android-apk:
     name: Android APK
     runs-on: ubuntu-latest
+    needs: [mobile-check]
+    # Hemat menit CI: artifact hanya dibangun di push main / manual,
+    # sedangkan PR cukup divalidasi gate di atas.
+    if: github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
 
@@ -57,7 +143,9 @@ jobs:
 
       - name: Build APK
         working-directory: mobile
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release
+          echo '::notice::APK ini debug-signed (QA/internal). Jangan upload ke Play Store.'
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -73,6 +161,10 @@ jobs:
   windows-exe:
     name: Windows EXE
     runs-on: windows-latest
+    needs: [mobile-check]
+    # Hemat menit CI: artifact hanya dibangun di push main / manual,
+    # sedangkan PR cukup divalidasi gate di atas.
+    if: github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
 

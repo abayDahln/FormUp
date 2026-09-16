@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';

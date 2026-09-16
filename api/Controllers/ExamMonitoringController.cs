@@ -131,13 +131,19 @@ public class ExamMonitoringController : ControllerBase
         var tabSwitches = counts
             .Where(c => c.Key == ExamEventTypes.TabSwitch)
             .Sum(c => c.Count);
+        // Batas "pergi dari ujian": tab_switch + window_blur (floating app,
+        // overlay, split-screen). window_blur saja tak pernah memicu
+        // auto-submit bila hanya tab_switch yang dihitung.
+        var windowBlurs = counts
+            .Where(c => c.Key == ExamEventTypes.WindowBlur)
+            .Sum(c => c.Count);
 
         return Ok(new ApiResponse<object>(200, "OK", new ExamEventResult
         {
             SessionId = session.SessionId,
             ViolationCount = total,
             TabSwitchCount = tabSwitches,
-            ShouldAutoSubmit = ExamViolationTracker.ShouldAutoSubmit(form, tabSwitches),
+            ShouldAutoSubmit = ExamViolationTracker.ShouldAutoSubmit(form, tabSwitches, tabSwitches + windowBlurs),
         }));
     }
 
