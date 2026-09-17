@@ -1,5 +1,38 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: 'Plus Jakarta Sans', 'Inter', sans-serif;
+}
+
+/* 2. Import File Font */
+@font-face {
+  font-family: 'Inter';
+  src: url('./Inter/Inter_18pt-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('./Inter/Inter_18pt-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('./PlusJakartaSans/PlusJakartaSans-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('./PlusJakartaSans/PlusJakartaSans-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+}
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
@@ -27,6 +60,7 @@
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   }
 }
+
 
 /* Custom scrollbar for clean UI */
 ::-webkit-scrollbar {
@@ -80,3 +114,33 @@
 .rich-text-content ol { list-style: decimal; padding-left: 1.5rem; }
 .rich-text-content blockquote { border-left: 3px solid #14b8a6; padding-left: .75rem; margin: .5rem 0; }
 .rich-text-content font[size="2"] { font-size: .8em; }
+
+/* Styling & Theming Global untuk Material Web Components */
+@layer components {
+  /* Dynamic Variables alignment with App Theme */
+  md-outlined-text-field,
+  md-filled-text-field {
+    width: 100%;
+    /* Mengikuti variabel warna bawaan Anda */
+    --md-sys-color-primary: #0d9488; /* Teal-600 */
+    --md-sys-color-on-surface: var(--text-primary);
+    --md-sys-color-on-surface-variant: var(--text-secondary);
+    --md-sys-color-outline: var(--border-color);
+    --md-sys-color-surface: var(--bg-card);
+    --md-outlined-text-field-container-shape: 12px;
+  }
+
+  md-filled-button,
+  md-outlined-button,
+  md-text-button {
+    --md-sys-color-primary: #0d9488;
+    --md-filled-button-container-color: #0d9488;
+    --md-filled-button-label-text-color: #ffffff;
+    --md-filled-button-container-shape: 12px;
+  }
+
+  md-checkbox {
+    --md-sys-color-primary: #0d9488;
+    --md-sys-color-on-surface-variant: var(--text-secondary);
+  }
+}

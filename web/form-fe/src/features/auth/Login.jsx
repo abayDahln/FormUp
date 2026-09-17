@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { login, saveSession, isAuthenticated } from '../../services/apiService';
-import { FileText, ArrowRight, Lock, Mail, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Lock, Mail, Loader2, Eye, EyeOff, FileText, CheckCircle2, TrendingUp, ArrowRight, AlertCircle, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Login = () => {
     const [showPassword, setShowPassword] = useState(false);
@@ -22,6 +23,16 @@ const Login = () => {
             setError('Sesi Anda telah berakhir. Silakan login kembali.');
         }
     }, [navigate, searchParams]);
+
+    useEffect(() => {
+    if (error) {
+        const timer = setTimeout(() => {
+            setError('');
+        }, 5000); 
+
+        return () => clearTimeout(timer); // Bersihkan timer jika error berganti/unmount
+        }
+    }, [error]);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -46,10 +57,13 @@ const Login = () => {
     };
 
     return (
-<div className="h-screen max-h-screen w-full bg-[#004D4E] flex items-center justify-center p-4 sm:p-6 lg:p-12 relative overflow-hidden select-none touch-none">            <div 
+        <div className="min-h-screen h-full w-full bg-[#003839] flex flex-col justify-between items-center p-4 sm:p-6 lg:p-8 relative overflow-hidden select-none font-sans"> 
+            
+            {/* Background Gradient Base */}
+            <div 
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                    background: 'linear-gradient(200deg, #2ED8C3 0%, #0FA89E 35%, #018081 75%, #004D4E 100%)'
+                    background: 'linear-gradient(200deg, #1fa393 0%, #0d7069 40%, #004D4E 75%, #002b2c 100%)'
                 }}
             />
 
@@ -61,8 +75,8 @@ const Login = () => {
                     height: 'clamp(350px, 45vw, 750px)',
                     top: '-10%',
                     left: '-10%',
-                    background: 'linear-gradient(-143deg, #2ED8C3 0%, rgba(10, 95, 110, 0.7) 100%)',
-                    opacity: 0.6,
+                    background: 'radial-gradient(circle, rgba(46, 216, 195, 0.45) 0%, rgba(10, 95, 110, 0) 70%)',
+                    filter: 'blur(40px)',
                     zIndex: 1
                 }}
             />
@@ -75,144 +89,230 @@ const Login = () => {
                     height: 'clamp(350px, 45vw, 750px)',
                     bottom: '-10%',
                     right: '-10%',
-                    background: 'linear-gradient(135deg, #2ED8C3 0%, rgba(10, 29, 93, 0.7) 100%)',
-                    opacity: 0.8,
+                    background: 'radial-gradient(circle, rgba(46, 216, 195, 0.35) 0%, rgba(10, 29, 93, 0) 70%)',
+                    filter: 'blur(40px)',
                     zIndex: 1
                 }}
             />
 
-            {/* Container Utama */}
-            <div className="relative z-10 w-full max-w-6xl flex flex-col lg:flex-row items-center justify-between gap-8 lg:gap-12 my-auto">
-                
-                {/* Left side branding */}
-                <div className="w-full lg:w-1/2 text-white space-y-4 text-center lg:text-left">
-                    <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight text-white">
-                        Buat Tanpa Limit!
-                    </h1>
-                    <p className="text-base sm:text-lg text-white/95 font-medium leading-relaxed max-w-lg mx-auto lg:mx-0">
-                        Buat formulir, kuis interaktif, survei, dan evaluasi dengan pengalaman yang cepat, fleksibel, dan responsif.
-                    </p>
-                </div>
+            {/* ================= FLOATING ALERT NOTIFICATION (DENGAN ANIMASI) ================= */}
+            <AnimatePresence>
+                {error && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: -50, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                        className="fixed top-5 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-lg"
+                    >
+                        <div className="flex items-center justify-between gap-3 p-4 rounded-2xl bg-red-950/80 border border-red-500/50 backdrop-blur-xl text-red-100 shadow-[0_10px_30px_rgba(239,68,68,0.3)]">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-xl bg-red-500/20 text-red-400 shrink-0">
+                                    <AlertCircle size={20} />
+                                </div>
+                                <p className="text-xs sm:text-sm font-semibold tracking-wide">{error}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setError('')}
+                                className="p-1.5 rounded-lg text-red-300 hover:text-white hover:bg-red-500/20 transition-colors shrink-0 cursor-pointer"
+                                aria-label="Tutup alert"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
-                {/* Right side form card */}
-            <div className="w-full lg:w-1/2 max-w-md">
-                {/* Mengubah background dari bg-white/20 menjadi bg-black/40 agar lebih gelap */}
-                <div className="w-full bg-black/40 backdrop-blur-[20px] border border-white/10 rounded-[28px] p-6 sm:p-10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] space-y-6">
-                    <div>
-                        {/* Mengubah warna teks judul & deskripsi ke nuansa putih */}
-                        <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-                            Selamat Datang!
-                        </h2>
-                        <p className="text-xs sm:text-sm font-medium text-white/70 mt-1">
-                            Masuk ke akun Anda untuk mengakses formulir dan respons
-                        </p>
+
+            {/* Main Content */}
+            <main className="relative z-10 w-full max-w-7xl my-auto py-6 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+                
+                {/* ================= SEBELAH KIRI: VISUAL ================= */}
+                <div className="hidden lg:flex lg:col-span-7 flex-col justify-center space-y-8 pr-6">
+                    
+                    {/* Judul Ringkas */}
+                    <div className="space-y-3">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/30 backdrop-blur-md border border-[#2ED8C3]/30 text-xs font-semibold text-[#2ED8C3]">
+                            Platform Formulir Generasi Baru
+                        </div>
+                        <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight drop-shadow-md">
+                            Solusi Cerdas <br />
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#2ED8C3] via-teal-100 to-white">
+                                Pengelolaan Form.
+                            </span>
+                        </h1>
                     </div>
 
-                    {error && (
-                        <div className="p-3.5 bg-red-500/20 border border-red-500/30 rounded-xl">
-                            <p className="text-xs font-bold text-red-300 text-center">{error}</p>
-                        </div>
-                    )}
-
-                    <form onSubmit={handleLogin} className="space-y-4">
-                        <div>
-                            {/* Mengubah warna label menjadi putih */}
-                            <label className="block text-xs font-semibold text-white/90 mb-1.5">
-                                Email
-                            </label>
-                            <div className="relative">
-                                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/50 pointer-events-none" />
-                                {/* Input menggunakan background gelap transparan (bg-black/30) dengan teks putih */}
-                                <input
-                                    type="email"
-                                    placeholder="nama@email.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-white/10 bg-black/30 text-white placeholder:text-white/40 font-medium focus:outline-none focus:bg-black/50 focus:border-[#2ED8C3] focus:ring-1 focus:ring-[#2ED8C3] text-xs sm:text-sm transition-all shadow-inner"
-                                />
+                    {/* Mockup Card */}
+                    <div className="w-full max-w-lg pt-2">
+                        <div className="p-6 rounded-3xl bg-black/40 border border-white/20 backdrop-blur-xl shadow-2xl space-y-5">
+                            
+                            {/* Card Top Header */}
+                            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-[#2ED8C3]/20 flex items-center justify-center text-[#2ED8C3]">
+                                        <TrendingUp size={18} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xs font-bold text-white">Survei Kepuasan Pelanggan</h4>
+                                        <p className="text-[10px] text-teal-100/70">Aktif • 1,240 Tanggapan</p>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#2ED8C3]/20 text-[#2ED8C3]">
+                                    +12% Jam Ini
+                                </span>
                             </div>
+
+                            {/* Progress Bar */}
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-xs text-teal-100 font-medium">
+                                    <span>Target Respon</span>
+                                    <span className="text-[#2ED8C3] font-bold">85%</span>
+                                </div>
+                                <div className="h-2 w-full bg-black/50 rounded-full overflow-hidden border border-white/10">
+                                    <div className="h-full bg-gradient-to-r from-[#0FA89E] to-[#2ED8C3] rounded-full w-[85%]" />
+                                </div>
+                            </div>
+
+                            {/* Feature List */}
+                            <div className="grid grid-cols-2 gap-3 pt-1">
+                                <div className="flex items-center gap-2 text-xs text-teal-100">
+                                    <CheckCircle2 size={14} className="text-[#2ED8C3]" />
+                                    <span>Analitik Real-time</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-teal-100">
+                                    <CheckCircle2 size={14} className="text-[#2ED8C3]" />
+                                    <span>Keamanan Enkripsi</span>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+
+                {/* ================= SEBELAH KANAN (Card Login) ================= */}
+                <div className="w-full lg:col-span-5 flex justify-center lg:justify-end">
+                    <div className="w-full max-w-md bg-black/45 backdrop-blur-2xl border border-white/20 rounded-[28px] p-6 sm:p-9 shadow-[0_25px_50px_rgba(0,0,0,0.7)] space-y-6">
+                        
+                        {/* Header Kartu */}
+                        <div className="text-center lg:text-left">
+                            <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                                Selamat Datang
+                            </h2>
+                            <p className="text-xs sm:text-sm font-medium text-teal-100/80 mt-1">
+                                Masuk untuk mengelola formulir Anda
+                            </p>
                         </div>
 
-                        <div>
-                            <label className="block text-xs font-semibold text-white/90 mb-1.5">
-                                Password
-                            </label>
-                            <div className="relative">
-                                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/50 pointer-events-none" />
-                                <input
-                                    type={showPassword ? "text" : "password"}
-                                    placeholder="••••••••"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                    className="w-full pl-10 pr-10 py-3 rounded-xl border border-white/10 bg-black/30 text-white placeholder:text-white/40 font-medium focus:outline-none focus:bg-black/50 focus:border-[#2ED8C3] focus:ring-1 focus:ring-[#2ED8C3] text-xs sm:text-sm transition-all shadow-inner"
-                                />
-                                
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors cursor-pointer p-0.5 focus:outline-none"
-                                    tabIndex="-1"
+                        <form onSubmit={handleLogin} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-teal-100 mb-1.5">
+                                    Email
+                                </label>
+                                <div className="relative">
+                                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-teal-200/60 pointer-events-none" />
+                                    <input
+                                        type="email"
+                                        placeholder="Email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        required
+                                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-teal-500/30 bg-black/60 text-white placeholder:text-teal-200/40 font-medium focus:outline-none focus:bg-black/80 focus:border-[#2ED8C3] focus:ring-1 focus:ring-[#2ED8C3] text-xs sm:text-sm transition-all shadow-inner"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-teal-100 mb-1.5">
+                                    Password
+                                </label>
+                                <div className="relative">
+                                    <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-teal-200/60 pointer-events-none" />
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        placeholder="Kata sandi"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        required
+                                        className="w-full pl-10 pr-10 py-3 rounded-xl border border-teal-500/30 bg-black/60 text-white placeholder:text-white-300/40 font-medium focus:outline-none focus:bg-black/80 focus:border-[#2ED8C3] focus:ring-1 focus:ring-[#2ED8C3] text-xs sm:text-sm transition-all shadow-inner"
+                                    />
+                                    
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white-500/40 hover:text-white transition-colors cursor-pointer p-0.5 focus:outline-none"
+                                        tabIndex="-1"
+                                    >   
+                                        {showPassword ? (
+                                            <EyeOff size={16} />
+                                        ) : (
+                                            <Eye size={16} />
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1">
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={rememberMe}
+                                        onChange={(e) => setRememberMe(e.target.checked)}
+                                        className="w-4 h-4 rounded text-[#0FA89E] focus:ring-[#0FA89E] accent-[#0FA89E] bg-black/60 border-teal-500/40 cursor-pointer"
+                                    />
+                                    <span className="text-xs font-medium text-teal-100/90">Ingat Saya</span>
+                                </label>
+                                <Link
+                                    to="/forgot-password"
+                                    className="text-xs font-medium text-teal-200 hover:text-[#2ED8C3] transition-colors underline-offset-2 hover:underline"
                                 >
-                                    {showPassword ? (
-                                        <EyeOff size={16} />
-                                    ) : (
-                                        <Eye size={16} />
-                                    )}
-                                </button>
+                                    Lupa password?
+                                </Link>
                             </div>
-                        </div>
 
-                        <div className="flex items-center justify-between pt-1">
-                            <label className="flex items-center gap-2 cursor-pointer select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={rememberMe}
-                                    onChange={(e) => setRememberMe(e.target.checked)}
-                                    className="w-4 h-4 rounded text-[#0FA89E] focus:ring-[#0FA89E] accent-[#0FA89E] bg-black/40 border-white/20 cursor-pointer"
-                                />
-                                <span className="text-xs font-medium text-white/80">Ingat Saya</span>
-                            </label>
-                            <Link
-                                to="/forgot-password"
-                                className="text-xs font-medium text-white/80 hover:text-[#2ED8C3] transition-colors"
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full mt-4 py-3.5 px-6 bg-[#0FA89E] hover:bg-[#12bdae] active:scale-[0.98] text-white font-bold rounded-full transition-all duration-200 text-xs sm:text-sm tracking-wide disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
                             >
-                                Lupa password?
+                                {loading ? (
+                                    <>
+                                        <Loader2 size={16} className="animate-spin" />
+                                        <span>Memproses...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span>Masuk</span>
+                                        <ArrowRight size={16} />
+                                    </>
+                                )}
+                            </button>
+                        </form>
+
+                        <div className="text-center pt-3 border-t border-white/10">
+                            <span className="text-xs font-medium text-teal-100/70">Belum punya akun? </span>
+                            <Link
+                                to="/register"
+                                className="text-xs ml-1 font-bold text-[#2ED8C3] hover:underline transition-all"
+                            >
+                                Daftar Sekarang
                             </Link>
                         </div>
 
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full mt-4 py-3.5 px-6 bg-[#0FA89E] hover:bg-[#0d968d] active:scale-[0.98] text-white font-bold rounded-full shadow-[0_6px_20px_rgba(15,168,158,0.4)] transition-all duration-200 text-xs sm:text-sm tracking-wide disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
-                        >
-                            {loading ? (
-                                <>
-                                    <Loader2 size={16} className="animate-spin" />
-                                    <span>Memproses...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <span>Masuk ke Akun</span>
-                                </>
-                            )}
-                        </button>
-                    </form>
-
-                    <div className="text-center pt-3 border-t border-white/10">
-                        <span className="text-xs font-medium text-white/70">Belum punya akun? </span>
-                        <Link
-                            to="/register"
-                            className="text-xs font-bold text-[#2ED8C3] hover:underline transition-all"
-                        >
-                            Daftar Sekarang
-                        </Link>
                     </div>
-
                 </div>
-            </div>
-            </div>
+
+            </main>
+
+            {/* Footer */}
+            <footer className="relative z-10 w-full text-center py-2">
+                <p className="text-xs font-medium text-teal-100/60">
+                    &copy; {new Date().getFullYear()} FormUp. All rights reserved.
+                </p>
+            </footer>
         </div>
     );
 };
