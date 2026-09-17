@@ -248,6 +248,16 @@ class ResponsiveDialog extends StatelessWidget {
 /// sekarang (semua param gaya diteruskan agar render identik),
 /// tablet/desktop = dialog terpusat berlebar tetap. [builder] menerima
 /// ScrollController agar DraggableScrollableSheet tetap bisa dipakai.
+<<<<<<< HEAD
+=======
+///
+/// [selfScrolling]: isi [builder] mengelola scroll sendiri (mis.
+/// `DraggableScrollableSheet`, atau `ListView` di dalam `Expanded`). Di
+/// desktop/tablet konten TIDAK lagi dibungkus `SingleChildScrollView`, karena
+/// pembungkus itu memberi tinggi tak terbatas — `DraggableScrollableSheet`
+/// (`FractionallySizedBox`) dan `Expanded` langsung gagal layout sehingga
+/// kontennya tampil kosong (mis. preview impor soal di Windows).
+>>>>>>> origin/main
 class AdaptiveSheet {
   static Future<T?> show<T>({
     required BuildContext context,
@@ -259,6 +269,10 @@ class AdaptiveSheet {
     double maxWidth = kDialogMaxWidth,
     bool isDismissible = true,
     bool isScrollControlled = false,
+<<<<<<< HEAD
+=======
+    bool selfScrolling = false,
+>>>>>>> origin/main
     Color? backgroundColor,
     double? elevation,
     ShapeBorder? shape,
@@ -286,11 +300,26 @@ class AdaptiveSheet {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           insetPadding:
               const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+<<<<<<< HEAD
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxWidth),
             child: SingleChildScrollView(
               child: builder(ctx, ScrollController()),
             ),
+=======
+          // Tinggi dibatasi eksplisit: DraggableScrollableSheet/Expanded pada
+          // [selfScrolling] butuh constraint tinggi terbatas agar bisa layout.
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: maxWidth,
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.9,
+            ),
+            child: selfScrolling
+                ? builder(ctx, ScrollController())
+                : SingleChildScrollView(
+                    child: builder(ctx, ScrollController()),
+                  ),
+>>>>>>> origin/main
           ),
         );
       },

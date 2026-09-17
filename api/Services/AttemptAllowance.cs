@@ -73,4 +73,46 @@ public static class AttemptAllowance
         await db.SaveChangesAsync();
         return row.ExtraAttempts;
     }
+<<<<<<< HEAD
+=======
+
+    /// <summary>
+    /// Reset untuk pengerjaan ulang one-response: tambah 1 jatah ulang +
+    /// bersihkan sisa draft status "new" milik responden agar percobaan baru
+    /// (sesi baru) mulai bersih. Respons yang sudah tersubmit TIDAK dihapus —
+    /// tetap tersimpan sebagai riwayat di daftar respons form, riwayat
+    /// responden, dan endpoint attempts. Mengembalikan total extra attempts.
+    /// Dipakai oleh reset sesi exam-monitoring maupun reset per-respons
+    /// (form non-exam yang tidak punya sesi ujian).
+    /// </summary>
+    public static async Task<int> ResetForRetakeAsync(
+        FormUpDbContext db, int formId, int? respondentId, string? respondentName)
+    {
+        var extra = await GrantExtraAttemptAsync(db, formId, respondentId, respondentName);
+
+        var newStatusId = await ReferenceCache.GetResponseStatusIdAsync(db, "new");
+        if (newStatusId.HasValue)
+        {
+            var drafts = await db.Responses
+                .Where(r => r.FormId == formId
+                    && r.StatusId == newStatusId.Value
+                    && (respondentId.HasValue
+                        ? r.RespondentId == respondentId
+                        : r.RespondentId == null && r.RespondentName == respondentName))
+                .ToListAsync();
+            if (drafts.Count > 0)
+            {
+                var draftIds = drafts.Select(d => d.Id).ToList();
+                var draftAnswers = await db.RespondentAnswers
+                    .Where(a => draftIds.Contains(a.ResponseId))
+                    .ToListAsync();
+                db.RespondentAnswers.RemoveRange(draftAnswers);
+                db.Responses.RemoveRange(drafts);
+                await db.SaveChangesAsync();
+            }
+        }
+
+        return extra;
+    }
+>>>>>>> origin/main
 }

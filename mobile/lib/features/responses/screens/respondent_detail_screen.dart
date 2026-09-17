@@ -36,6 +36,11 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
   PublicFormResult? _result;
   List<MyAttempt> _attempts = [];
   late int _selectedResponseId;
+<<<<<<< HEAD
+=======
+  bool _oneResponse = false;
+  bool _resetting = false;
+>>>>>>> origin/main
 
   @override
   void initState() {
@@ -50,11 +55,23 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
       final results = await Future.wait([
         FormService.getResponseResult(widget.formId, _selectedResponseId, refresh: refresh),
         FormService.getRespondentAttempts(widget.formId, widget.responseId, refresh: refresh),
+<<<<<<< HEAD
       ]);
       if (!mounted) return;
       setState(() {
         _result = results[0] as PublicFormResult;
         _attempts = results[1] as List<MyAttempt>;
+=======
+        FormService.getForm(widget.formId, refresh: refresh),
+      ]);
+      if (!mounted) return;
+      final formMap = results[2] as Map<String, dynamic>;
+      final settings = formMap['settings'] as Map<String, dynamic>?;
+      setState(() {
+        _result = results[0] as PublicFormResult;
+        _attempts = results[1] as List<MyAttempt>;
+        _oneResponse = settings?['oneResponse'] as bool? ?? false;
+>>>>>>> origin/main
         _loading = false;
       });
     } catch (e) {
@@ -85,6 +102,51 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
     }
   }
 
+<<<<<<< HEAD
+=======
+  /// Reset pengerjaan ulang untuk respons yang sedang ditampilkan.
+  /// Server menjaga riwayat + memberi 1 jatah isi ulang (sesi baru).
+  Future<void> _confirmReset() async {
+    final displayName = widget.respondentName.trim().isNotEmpty
+        ? widget.respondentName.trim()
+        : 'Responden';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Jawaban Peserta?'),
+        content: Text(
+          'Data lama milik "$displayName" dipertahankan sebagai riwayat dan '
+          'peserta diberi 1 jatah isi ulang untuk mengerjakan kembali.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Ya, Reset'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _resetting = true);
+    try {
+      final msg = await FormService.resetFormResponse(
+          widget.formId, _selectedResponseId);
+      if (!mounted) return;
+      showAuthToast(context, msg);
+      await _load(refresh: true);
+    } catch (e) {
+      if (!mounted) return;
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    } finally {
+      if (mounted) setState(() => _resetting = false);
+    }
+  }
+
+>>>>>>> origin/main
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -114,6 +176,28 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
             color: cs.onSurface,
           ),
         ),
+<<<<<<< HEAD
+=======
+        actions: [
+          // Reset pengerjaan ulang (khusus form one-response): respons lama
+          // dipertahankan sebagai riwayat, responden diberi 1 jatah isi ulang.
+          if (_oneResponse)
+            IconButton(
+              tooltip: 'Reset agar responden dapat mengerjakan kembali',
+              onPressed: _resetting ? null : _confirmReset,
+              icon: _resetting
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: cs.primary,
+                      ),
+                    )
+                  : Icon(Icons.restart_alt, color: cs.onSurface),
+            ),
+        ],
+>>>>>>> origin/main
       ),
       body: _loading && _result == null
           ? const AppLoadingOverlay()

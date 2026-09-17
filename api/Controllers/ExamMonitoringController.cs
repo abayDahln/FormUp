@@ -483,6 +483,7 @@ public class ExamMonitoringController : ControllerBase
         // Beri 1 jatah ulang (riwayat submit + sesi dipertahankan) +
         // bersihkan sisa draft "new" agar percobaan baru mulai bersih.
         // Tanpa jatah ini, one-response tetap terkunci oleh respons lama.
+<<<<<<< HEAD
         var hasIdentity = session.RespondentId.HasValue || !string.IsNullOrWhiteSpace(session.RespondentName);
         var extra = 0;
         if (hasIdentity)
@@ -516,6 +517,31 @@ public class ExamMonitoringController : ControllerBase
         return Ok(new ApiResponse<object>(200, hasIdentity
             ? $"Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan."
             : "Jawaban peserta berhasil di-reset."));
+=======
+        // Sesi lama tetap tertaut ke respons lama sebagai riwayat;
+        // pengerjaan ulang memakai SESI BARU (sessionId baru dari klien).
+        // Identitas diambil dari respons yang disubmit (bukan semata sesi)
+        // karena sesi bisa dibuat sebelum login / tanpa identitas lengkap —
+        // jatah yang tercatat di kunci identitas yang salah membuat
+        // responden tetap terkunci 400 sesudah reset.
+        var submittedResponse = await _db.Responses
+            .FirstOrDefaultAsync(r => r.Id == session.SubmittedResponseId.Value && r.FormId == formId);
+
+        var respondentId = submittedResponse?.RespondentId ?? session.RespondentId;
+        var respondentName = !string.IsNullOrWhiteSpace(submittedResponse?.RespondentName)
+            ? submittedResponse!.RespondentName
+            : session.RespondentName;
+
+        if (!respondentId.HasValue && string.IsNullOrWhiteSpace(respondentName))
+            return BadRequest(new ApiResponse<object>(400,
+                "Responden sesi ini tidak memiliki identitas (akun/nama) sehingga jatah isi ulang tidak dapat diberikan."));
+
+        var extra = await AttemptAllowance.ResetForRetakeAsync(
+            _db, formId, respondentId, respondentName);
+
+        return Ok(new ApiResponse<object>(200,
+            $"Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan. Peserta dapat mengerjakan kembali dengan sesi baru."));
+>>>>>>> origin/main
     }
 
     /// <summary>

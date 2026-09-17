@@ -10,6 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+<<<<<<< HEAD
+=======
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.7.0",
+>>>>>>> origin/main
     "@studio-freight/lenis": "^1.0.42",
     "@tailwindcss/vite": "^4.3.3",
     "gsap": "^3.15.0",
@@ -17,10 +22,19 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",
+<<<<<<< HEAD
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+=======
+    "tailwindcss": "^4.3.3",
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
+>>>>>>> origin/main
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",

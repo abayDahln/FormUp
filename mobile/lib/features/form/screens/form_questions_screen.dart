@@ -404,6 +404,10 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
     return AdaptiveSheet.show<bool>(
       context: context,
       isScrollControlled: true,
+<<<<<<< HEAD
+=======
+      selfScrolling: true,
+>>>>>>> origin/main
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),

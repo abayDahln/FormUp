@@ -177,11 +177,28 @@ jawaban difinalisasi menjadi respons tersubmit.
 — me-reset **jawaban yang sudah disubmit** agar peserta dapat mengisi
 ulang: riwayat submit + sesi dipertahankan, responden diberi 1 jatah
 ulang via `FormAttemptAllowance`, sisa draft `new` dibersihkan.
+<<<<<<< HEAD
 Sesi yang masih berjalan (`in_progress`) **ditolak** (`400`) — reset
 bukan untuk menendang peserta yang sedang mengerjakan, dan tidak pernah
 menghapus jawaban yang sedang dikerjakan. ID sesi yang tidak dikenal
 di endpoint responden (`exam-events`, `sync-answers`) selalu diperlakukan
 sebagai sesi baru, bukan sebagai sesi yang di-reset.
+=======
+Identitas jatah diambil dari **respons yang disubmit** (fallback ke sesi)
+agar tidak salah kunci bila sesi dibuat sebelum login.
+Sesi yang masih berjalan (`in_progress`) **ditolak** (`400`) — reset bukan
+untuk menendang peserta yang sedang mengerjakan, dan tidak pernah
+menghapus jawaban yang sedang dikerjakan. Pengerjaan ulang memakai
+**sesi baru** (sesi lama tetap tertaut ke respons lama sebagai riwayat).
+ID sesi yang tidak dikenal di endpoint responden (`exam-events`,
+`sync-answers`) selalu diperlakukan sebagai sesi baru, bukan sebagai sesi
+yang di-reset.
+
+Untuk form **non-exam** (tanpa sesi ujian) pakai reset per-respons:
+`POST /api/forms/{formId}/responses/{responseId}/reset`
+(lihat `responses.md` §6) — khusus form `one-response`, respons lama
+tetap menjadi riwayat.
+>>>>>>> origin/main
 
 ---
 
