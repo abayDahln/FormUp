@@ -631,7 +631,16 @@ function PhoneRig({ progressRef, sceneIndex }) {
 /* ─────────────────────────────────────────────────────────────
    CONTINUOUS SKY TIER (Clouds & Islands Floating Upwards)
 ───────────────────────────────────────────────────────────── */
-function ContinuousSkyLayer({ texture, basePos, scale, opacity = 1, speed = 1.0, progressRef, drift = 0 }) {
+function ContinuousSkyLayer({
+  texture,
+  basePos,
+  scale,
+  opacity = 1,
+  speed = 1.0,
+  progressRef,
+  drift = 0,
+  fadeRange = null,
+}) {
   const ref = useRef();
   const mouse = useMouseRef();
   const time = useRef(Math.random() * 10);
@@ -652,6 +661,13 @@ function ContinuousSkyLayer({ texture, basePos, scale, opacity = 1, speed = 1.0,
 
     ref.current.position.x += (tx - ref.current.position.x) * 0.035;
     ref.current.position.y += (ty - ref.current.position.y) * 0.035;
+
+    if (fadeRange) {
+      const [start, peak] = fadeRange;
+      const factor = Math.max(0, Math.min(1, (p - start) / (peak - start)));
+      ref.current.material.opacity = opacity * factor;
+      ref.current.visible = factor > 0.005;
+    }
   });
 
   return (
@@ -660,8 +676,7 @@ function ContinuousSkyLayer({ texture, basePos, scale, opacity = 1, speed = 1.0,
       <meshBasicMaterial
         map={texture}
         transparent
-        alphaTest={0.01}
-        opacity={opacity}
+        opacity={fadeRange ? 0 : opacity}
         depthWrite={false}
       />
     </mesh>
@@ -890,7 +905,7 @@ function FallingSkyCanvas({ progressRef, sceneIndex }) {
         <meshBasicMaterial map={sky} transparent opacity={1} toneMapped={false} />
       </mesh>
 
-      {/* ── TIER 1: HIGH ALTITUDE (Left-aligned, pristine) ── */}
+      {/* ── TIER 1: HIGH ALTITUDE (Pristine Celestial Sky & Floating Islands) ── */}
       <ContinuousSkyLayer
         texture={islandMulti}
         basePos={[-7.2, -2.4, -15]}
@@ -902,12 +917,12 @@ function FallingSkyCanvas({ progressRef, sceneIndex }) {
       />
       <ContinuousSkyLayer
         texture={clouds}
-        basePos={[-2.5, -0.8, -11]}
-        scale={18}
-        opacity={0.38}
-        speed={0.85}
+        basePos={[-5.8, -3.8, -14]}
+        scale={12.0}
+        opacity={0.14}
+        speed={0.75}
         progressRef={progressRef}
-        drift={0.04}
+        drift={0.03}
       />
 
       {/* ── TIER 2: MID ALTITUDE ISLAND SANCTUARY ── */}
@@ -922,12 +937,12 @@ function FallingSkyCanvas({ progressRef, sceneIndex }) {
       />
       <ContinuousSkyLayer
         texture={clouds}
-        basePos={[3.8, -2.4, -4.5]}
-        scale={16}
-        opacity={0.42}
-        speed={1.55}
+        basePos={[6.0, -4.2, -10]}
+        scale={13.0}
+        opacity={0.16}
+        speed={1.25}
         progressRef={progressRef}
-        drift={0.05}
+        drift={0.04}
       />
 
       {/* Procedural Realistic Phone */}
@@ -935,7 +950,7 @@ function FallingSkyCanvas({ progressRef, sceneIndex }) {
         <PhoneRig progressRef={progressRef} sceneIndex={sceneIndex} />
       </Suspense>
 
-      {/* ── TIER 3: LOWER CLOUDS & ISLANDS ── */}
+      {/* ── TIER 3: APPROACHING THE CLOUD DECK (Fades in dynamically p >= 0.48) ── */}
       <ContinuousSkyLayer
         texture={islandMulti}
         basePos={[-5.5, -4.8, -10]}
@@ -956,59 +971,65 @@ function FallingSkyCanvas({ progressRef, sceneIndex }) {
       />
       <ContinuousSkyLayer
         texture={clouds}
-        basePos={[2.8, -4.5, -3.0]}
-        scale={18}
-        opacity={0.55}
+        basePos={[3.2, -5.2, -3.5]}
+        scale={16}
+        opacity={0.35}
         speed={2.1}
         progressRef={progressRef}
-        drift={0.06}
+        drift={0.05}
+        fadeRange={[0.48, 0.68]}
       />
       <ContinuousSkyLayer
         texture={clouds}
-        basePos={[-3.2, -5.2, -1.8]}
-        scale={18}
-        opacity={0.60}
-        speed={2.4}
-        progressRef={progressRef}
-        drift={0.07}
-      />
-
-      {/* ── TIER 4: MASSIVE TRANSITION CLOUD DECK (p > 0.65 -> 1.0) ── */}
-      <ContinuousSkyLayer
-        texture={clouds}
-        basePos={[0, -5.5, -2.5]}
-        scale={28}
-        opacity={0.85}
-        speed={3.2}
+        basePos={[-3.6, -5.6, -2.5]}
+        scale={16}
+        opacity={0.38}
+        speed={2.3}
         progressRef={progressRef}
         drift={0.05}
+        fadeRange={[0.48, 0.68]}
       />
+
+      {/* ── TIER 4: TRANSITION CLOUD DECK (Soft plunge into clouds p >= 0.56 -> 0.95) ── */}
       <ContinuousSkyLayer
         texture={clouds}
-        basePos={[-4.0, -6.8, -1.5]}
-        scale={26}
-        opacity={0.92}
-        speed={3.6}
-        progressRef={progressRef}
-        drift={0.07}
-      />
-      <ContinuousSkyLayer
-        texture={clouds}
-        basePos={[4.0, -6.8, -1.5]}
-        scale={26}
-        opacity={0.92}
-        speed={3.6}
-        progressRef={progressRef}
-        drift={0.07}
-      />
-      <ContinuousSkyLayer
-        texture={clouds}
-        basePos={[0, -8.0, -1.0]}
-        scale={32}
-        opacity={0.96}
-        speed={4.2}
+        basePos={[0, -5.0, -2.2]}
+        scale={24}
+        opacity={0.65}
+        speed={3.2}
         progressRef={progressRef}
         drift={0.04}
+        fadeRange={[0.56, 0.76]}
+      />
+      <ContinuousSkyLayer
+        texture={clouds}
+        basePos={[-3.8, -6.0, -1.5]}
+        scale={22}
+        opacity={0.70}
+        speed={3.5}
+        progressRef={progressRef}
+        drift={0.05}
+        fadeRange={[0.58, 0.78]}
+      />
+      <ContinuousSkyLayer
+        texture={clouds}
+        basePos={[3.8, -6.0, -1.5]}
+        scale={22}
+        opacity={0.70}
+        speed={3.5}
+        progressRef={progressRef}
+        drift={0.05}
+        fadeRange={[0.58, 0.78]}
+      />
+      <ContinuousSkyLayer
+        texture={clouds}
+        basePos={[0, -7.0, -1.0]}
+        scale={26}
+        opacity={0.75}
+        speed={4.0}
+        progressRef={progressRef}
+        drift={0.03}
+        fadeRange={[0.60, 0.82]}
       />
 
       {/* ── INTENSE WIND: 110 Upward Streaks + 360 Fast Particles ── */}
