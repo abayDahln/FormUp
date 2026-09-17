@@ -671,6 +671,17 @@ export const resetExamSession = async (formId, sessionId) => {
     return parseResponse(res);
 };
 
+// Backend: [HttpPost("api/forms/{formId}/responses/{responseId}/reset")]
+// Reset pengerjaan ulang one-response per respons (untuk form non-exam
+// yang tidak punya sesi ujian; berlaku juga untuk exam). Respons lama
+// tetap tersimpan sebagai riwayat; responden mendapat 1 jatah isi ulang.
+export const resetFormResponse = async (formId, responseId) => {
+    const res = await authFetch(`${API_BASE_URL}/api/forms/${formId}/responses/${responseId}/reset`, {
+        method: 'POST',
+    });
+    return parseResponse(res);
+};
+
 // Backend: [HttpPost("api/public/forms/{formLink}/exam-sessions/{sessionId}/sync-answers")]
 // Note: syncExamAnswers is used by guest (no auth token expected); tetap pakai fetch manual tanpa wrapper karena Content-Type di-set custom tanpa auth header influence.
 export const syncExamAnswers = async (formLink, sessionId, { answers, respondentName }) => {

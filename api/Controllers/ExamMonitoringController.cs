@@ -483,39 +483,29 @@ public class ExamMonitoringController : ControllerBase
         // Beri 1 jatah ulang (riwayat submit + sesi dipertahankan) +
         // bersihkan sisa draft "new" agar percobaan baru mulai bersih.
         // Tanpa jatah ini, one-response tetap terkunci oleh respons lama.
-        var hasIdentity = session.RespondentId.HasValue || !string.IsNullOrWhiteSpace(session.RespondentName);
-        var extra = 0;
-        if (hasIdentity)
-        {
-            extra = await AttemptAllowance.GrantExtraAttemptAsync(
-                _db, formId, session.RespondentId, session.RespondentName);
+        // Sesi lama tetap tertaut ke respons lama sebagai riwayat;
+        // pengerjaan ulang memakai SESI BARU (sessionId baru dari klien).
+        // Identitas diambil dari respons yang disubmit (bukan semata sesi)
+        // karena sesi bisa dibuat sebelum login / tanpa identitas lengkap —
+        // jatah yang tercatat di kunci identitas yang salah membuat
+        // responden tetap terkunci 400 sesudah reset.
+        var submittedResponse = await _db.Responses
+            .FirstOrDefaultAsync(r => r.Id == session.SubmittedResponseId.Value && r.FormId == formId);
 
-            var newStatusId = await ReferenceCache.GetResponseStatusIdAsync(_db, "new");
-            if (newStatusId.HasValue)
-            {
-                var drafts = await _db.Responses
-                    .Where(r => r.FormId == formId
-                        && r.StatusId == newStatusId.Value
-                        && (session.RespondentId.HasValue
-                            ? r.RespondentId == session.RespondentId
-                            : r.RespondentId == null && r.RespondentName == session.RespondentName))
-                    .ToListAsync();
-                if (drafts.Count > 0)
-                {
-                    var draftIds = drafts.Select(d => d.Id).ToList();
-                    var draftAnswers = await _db.RespondentAnswers
-                        .Where(a => draftIds.Contains(a.ResponseId))
-                        .ToListAsync();
-                    _db.RespondentAnswers.RemoveRange(draftAnswers);
-                    _db.Responses.RemoveRange(drafts);
-                }
-            }
-        }
+        var respondentId = submittedResponse?.RespondentId ?? session.RespondentId;
+        var respondentName = !string.IsNullOrWhiteSpace(submittedResponse?.RespondentName)
+            ? submittedResponse!.RespondentName
+            : session.RespondentName;
 
-        await _db.SaveChangesAsync();
-        return Ok(new ApiResponse<object>(200, hasIdentity
-            ? $"Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan."
-            : "Jawaban peserta berhasil di-reset."));
+        if (!respondentId.HasValue && string.IsNullOrWhiteSpace(respondentName))
+            return BadRequest(new ApiResponse<object>(400,
+                "Responden sesi ini tidak memiliki identitas (akun/nama) sehingga jatah isi ulang tidak dapat diberikan."));
+
+        var extra = await AttemptAllowance.ResetForRetakeAsync(
+            _db, formId, respondentId, respondentName);
+
+        return Ok(new ApiResponse<object>(200,
+            $"Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan. Peserta dapat mengerjakan kembali dengan sesi baru."));
     }
 
     /// <summary>

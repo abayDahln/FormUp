@@ -1200,6 +1200,17 @@ class FormService {
     ApiCache.invalidatePrefix('forms:');
   }
 
+  /// POST /forms/{formId}/responses/{responseId}/reset
+  /// Reset pengerjaan ulang one-response per respons — untuk form non-exam
+  /// yang tidak punya sesi ujian (berlaku juga untuk exam). Respons lama
+  /// tetap tersimpan sebagai riwayat; responden diberi 1 jatah isi ulang
+  /// untuk mengerjakan kembali dengan sesi baru (owner only).
+  static Future<String> resetFormResponse(int formId, int responseId) async {
+    final json = await AuthService.post('/forms/$formId/responses/$responseId/reset', {});
+    ApiCache.invalidatePrefix('forms:');
+    return json['message'] as String? ?? 'Jawaban peserta berhasil di-reset.';
+  }
+
   /// GET /forms/{id}/share
   static Future<Map<String, dynamic>> getShareInfo(int formId) async {
     final json = await AuthService.get('/forms/$formId/share');

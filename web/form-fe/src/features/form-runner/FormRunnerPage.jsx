@@ -552,6 +552,13 @@ export default function FormRunnerPage() {
                 setForm(f);
                 if (currentUser?.fullname) setRespondentName(currentUser.fullname);
 
+                // Reset owner: server menyatakan kuota masih ada (belum
+                // terkunci) → buang penanda submit lokal yang basi agar
+                // peserta tidak terkunci selamanya di layar "Terkunci".
+                if (f.oneResponse && !f.alreadySubmitted) {
+                    try { localStorage.removeItem(`formup_submitted_${formLink}`); } catch { /* abaikan: storage boleh tidak tersedia */ }
+                }
+
                 // A-5: preview bypasses all gates
                 if (isPreviewMode) {
                     setTokenUnlocked(true);

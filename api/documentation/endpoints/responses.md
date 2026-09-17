@@ -190,7 +190,35 @@ Daftar semua attempt responden yang sama pada form yang sama — dicocokkan via 
 
 ---
 
-## 6. Update Status Response (Owner)
+## 6. Reset Pengerjaan Ulang One-Response (Owner)
+
+`POST /api/forms/{formId}/responses/{responseId}/reset`
+
+**Headers:** `Authorization: Bearer <token>` (pemilik form atau ADMIN)
+
+Dipakai untuk form **one-response non-exam** yang tidak punya sesi ujian
+(berlaku juga untuk exam — alternatif reset per-sesi di exam-monitoring).
+Respons lama **tetap tersimpan** sebagai riwayat di daftar respons form,
+riwayat responden (`my-responses`), dan endpoint attempts; responden diberi
+1 jatah isi ulang via `FormAttemptAllowance` + sisa draft `new`
+dibersihkan sehingga dapat mengerjakan kembali dengan **sesi baru**.
+
+**Validasi:**
+- Form harus `one-response` → kalau tidak `400`
+- Respons harus sudah tersubmit (draft `new` → `400`)
+- Respons harus punya identitas responden (akun/nama) → kalau tidak `400`
+
+**Response 200:**
+```json
+{
+  "status": 200,
+  "message": "Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-1 diberikan. Peserta dapat mengerjakan kembali dengan sesi baru."
+}
+```
+
+---
+
+## 7. Update Status Response (Owner)
 
 `PUT /api/responses/{id}/status`
 
@@ -217,7 +245,7 @@ Status: 1=new, 2=reviewed, 3=flagged.
 
 ---
 
-## 7. Export Responses (Owner)
+## 8. Export Responses (Owner)
 
 `GET /api/forms/{formId}/responses/export`
 

@@ -260,6 +260,56 @@ public class ResponsesController : ControllerBase
         return Ok(new ApiResponse<object>(200, "OK", attempts));
     }
 
+    /// <summary>
+    /// Reset pengerjaan ulang one-response per respons (dipakai untuk form
+    /// non-exam yang tidak punya sesi ujian, tapi berlaku juga untuk exam):
+    /// respons lama TETAP tersimpan sebagai riwayat di daftar respons form,
+    /// riwayat responden, dan endpoint attempts; responden diberi 1 jatah
+    /// ulang via <see cref="FormAttemptAllowance"/> + sisa draft "new"
+    /// dibersihkan sehingga responden dapat mengerjakan kembali dengan
+    /// sesi baru.
+    /// </summary>
+    [HttpPost("api/forms/{formId}/responses/{responseId}/reset")]
+    public async Task<ActionResult<ApiResponse<object>>> ResetAttempt(int formId, int responseId)
+    {
+        var user = await GetCurrentUser();
+        if (user == null)
+            return Unauthorized(new ApiResponse<object>(401, "User not found"));
+
+        var form = await _db.Forms
+            .Include(f => f.FormSetting)
+            .FirstOrDefaultAsync(f => f.Id == formId && f.DeletedAt == null);
+
+        if (form == null)
+            return NotFound(new ApiResponse<object>(404, "Form not found"));
+
+        if (form.UserId != user.Id && user.Role != "ADMIN")
+            return NotFound(new ApiResponse<object>(404, "Form not found"));
+
+        if (form.FormSetting?.OneResponse != true)
+            return BadRequest(new ApiResponse<object>(400, "Reset hanya untuk form dengan one-response."));
+
+        var target = await _db.Responses
+            .FirstOrDefaultAsync(r => r.Id == responseId && r.FormId == formId);
+
+        if (target == null)
+            return NotFound(new ApiResponse<object>(404, "Response not found"));
+
+        var newStatusId = await ReferenceCache.GetResponseStatusIdAsync(_db, "new");
+        if (newStatusId.HasValue && target.StatusId == newStatusId.Value)
+            return BadRequest(new ApiResponse<object>(400, "Respons ini masih berupa draft (belum disubmit)."));
+
+        if (!target.RespondentId.HasValue && string.IsNullOrWhiteSpace(target.RespondentName))
+            return BadRequest(new ApiResponse<object>(400,
+                "Respons ini tidak memiliki identitas responden sehingga jatah isi ulang tidak dapat diberikan."));
+
+        var extra = await AttemptAllowance.ResetForRetakeAsync(
+            _db, formId, target.RespondentId, target.RespondentName);
+
+        return Ok(new ApiResponse<object>(200,
+            $"Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan. Peserta dapat mengerjakan kembali dengan sesi baru."));
+    }
+
     [HttpPut("api/responses/{id}/status")]
     public async Task<ActionResult<ApiResponse<object>>> UpdateStatus(int id, [FromBody] UpdateResponseStatusRequest request)
     {

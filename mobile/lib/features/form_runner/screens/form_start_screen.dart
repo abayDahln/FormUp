@@ -142,7 +142,11 @@ class _FormStartScreenState extends State<FormStartScreen> {
     final info = _formInfo!;
 
     // C2: pengaman ganda bila tombol terkunci terlewat (mis. state balapan).
-    if (info.oneResponse && (info.alreadySubmitted || _myAttempts.isNotEmpty)) {
+    // Kunci HANYA dari sinyal server (alreadySubmitted, sudah memperhitungkan
+    // jatah isi ulang dari reset owner) — BUKAN dari riwayat attempts, karena
+    // riwayat sengaja dipertahankan setelah reset agar peserta bisa
+    // mengerjakan kembali.
+    if (info.oneResponse && info.alreadySubmitted) {
       showAuthToast(context, "Anda sudah mengerjakan form ini", isError: true);
       return;
     }
@@ -350,12 +354,13 @@ class _FormStartScreenState extends State<FormStartScreen> {
             const SizedBox(height: 12),
           ],
 
-          // C2: oneResponse + sudah submit (sinyal server alreadySubmitted
-          // atau riwayat attempts) → tombol dikunci dengan label jujur,
-          // bukan lolos lalu 400 di ujung.
+          // C2: oneResponse + sudah submit (sinyal server alreadySubmitted,
+          // yang sudah memperhitungkan jatah isi ulang dari reset owner) →
+          // tombol dikunci dengan label jujur, bukan lolos lalu 400 di ujung.
+          // Riwayat attempts TIDAK dipakai sebagai kunci karena dipertahankan
+          // setelah reset agar peserta bisa mengerjakan kembali.
           Builder(builder: (context) {
-            final submitted =
-                info.oneResponse && (info.alreadySubmitted || _myAttempts.isNotEmpty);
+            final submitted = info.oneResponse && info.alreadySubmitted;
             if (submitted) {
               return AuthPrimaryButton(
                 label: "Sudah Mengerjakan",
