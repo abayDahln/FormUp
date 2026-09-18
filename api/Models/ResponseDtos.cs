@@ -40,6 +40,12 @@ public class ResponseListItem
     public string Status { get; set; } = null!;
     public DateTime SubmittedAt { get; set; }
     public int TabSwitchCount { get; set; }
+    /// <summary>
+    /// True bila ini respons tersubmit TERBARU respondennya dan jatah reset
+    /// untuk upaya itu belum dipakai (E &lt; S). Tombol reset owner hanya
+    /// tampil bila true — sekali klik per upaya.
+    /// </summary>
+    public bool CanReset { get; set; }
 }
 
 public class ResponseDetail
@@ -115,6 +121,8 @@ public class MyAttemptDto
     public double? Score { get; set; }
     public int CorrectCount { get; set; }
     public int WrongCount { get; set; }
+    /// <summary>Lihat <see cref="ResponseListItem.CanReset"/>.</summary>
+    public bool CanReset { get; set; }
 }
 
 public class UpdateAnswerScoreRequest

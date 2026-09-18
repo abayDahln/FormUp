@@ -110,7 +110,7 @@ class _QrcodeScannerScreenState extends State<QrcodeScannerScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      _showErrorToast(AuthService.errorMessage(e));
+      _showErrorToast(AuthService.formLookupErrorMessage(e));
     }
   }
 

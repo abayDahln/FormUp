@@ -59,6 +59,9 @@ public class ResponsesController : ControllerBase
                 (r.RespondentName != null && r.RespondentName.Contains(s)));
         }
 
+        // CanReset per respons: terbaru per responden + jatah belum dipakai.
+        var canResetMap = await ComputeCanResetMapAsync(formId);
+
         var query = baseQuery
             .OrderByDescending(r => r.SubmittedAt)
             .Select(r => new ResponseListItem
@@ -79,6 +82,8 @@ public class ResponsesController : ControllerBase
                 .Skip((p - 1) * ps)
                 .Take(ps)
                 .ToListAsync();
+            foreach (var it in items)
+                it.CanReset = canResetMap.TryGetValue(it.Id, out var c) && c;
 
             return Ok(new ApiResponse<object>(200, "OK", new
             {
@@ -90,7 +95,29 @@ public class ResponsesController : ControllerBase
         }
 
         var all = await query.ToListAsync();
+        foreach (var it in all)
+            it.CanReset = canResetMap.TryGetValue(it.Id, out var c) && c;
         return Ok(new ApiResponse<object>(200, "OK", all));
+    }
+
+    /// <summary>
+    /// Peta CanReset (responseId → boleh di-reset) untuk seluruh respons form.
+    /// </summary>
+    private async Task<Dictionary<int, bool>> ComputeCanResetMapAsync(int formId)
+    {
+        var newStatusId = await ReferenceCache.GetResponseStatusIdAsync(_db, "new");
+        var rows = await _db.Responses
+            .Where(r => r.FormId == formId)
+            .Select(r => new { r.Id, r.RespondentId, r.RespondentName, r.StatusId, r.SubmittedAt, r.CreatedAt })
+            .ToListAsync();
+        var allowances = await _db.FormAttemptAllowances
+            .Where(a => a.FormId == formId)
+            .Select(a => new { a.RespondentId, a.RespondentName, a.ExtraAttempts })
+            .ToListAsync();
+        return AttemptAllowance.ComputeCanReset(
+            rows.Select(r => (r.Id, r.RespondentId, r.RespondentName, r.StatusId, r.SubmittedAt, r.CreatedAt)).ToList(),
+            allowances.Select(a => (a.RespondentId, a.RespondentName, a.ExtraAttempts)).ToList(),
+            newStatusId);
     }
 
     [HttpGet("api/forms/{formId}/responses/{id}")]
@@ -231,6 +258,11 @@ public class ResponsesController : ControllerBase
             })
             .ToListAsync();
 
+        // CanReset per attempt (dipakai tombol reset mobile).
+        var attemptMap = await ComputeCanResetMapAsync(formId);
+        foreach (var a in attempts)
+            a.CanReset = attemptMap.TryGetValue(a.ResponseId, out var ac) && ac;
+
         // Skor per attempt (butuh koreksi jawaban).
         if (showScore)
         {
@@ -304,6 +336,27 @@ public class ResponsesController : ControllerBase
         if (!target.RespondentId.HasValue && string.IsNullOrWhiteSpace(target.RespondentName))
             return BadRequest(new ApiResponse<object>(400,
                 "Respons ini tidak memiliki identitas responden sehingga jatah isi ulang tidak dapat diberikan."));
+
+        // Sekali klik per upaya: hanya respons terbaru + jatah belum dipakai.
+        var submittedIds = target.RespondentId.HasValue
+            ? await _db.Responses
+                .Where(r => r.FormId == formId && r.RespondentId == target.RespondentId
+                    && (!newStatusId.HasValue || r.StatusId != newStatusId.Value))
+                .OrderBy(r => r.SubmittedAt ?? r.CreatedAt).ThenBy(r => r.Id)
+                .Select(r => r.Id).ToListAsync()
+            : await _db.Responses
+                .Where(r => r.FormId == formId && r.RespondentId == null && r.RespondentName == target.RespondentName
+                    && (!newStatusId.HasValue || r.StatusId != newStatusId.Value))
+                .OrderBy(r => r.SubmittedAt ?? r.CreatedAt).ThenBy(r => r.Id)
+                .Select(r => r.Id).ToListAsync();
+        if (submittedIds.Count == 0 || submittedIds[^1] != responseId)
+            return BadRequest(new ApiResponse<object>(400,
+                "Hanya respons terbaru responden yang bisa di-reset."));
+        var usedExtra = await AttemptAllowance.GetExtraAttemptsAsync(
+            _db, formId, target.RespondentId, target.RespondentName);
+        if (usedExtra >= submittedIds.Count)
+            return BadRequest(new ApiResponse<object>(400,
+                "Jatah reset untuk upaya ini sudah dipakai. Tombol reset muncul lagi setelah ada respons baru."));
 
         var extra = await AttemptAllowance.ResetForRetakeAsync(
             _db, formId, target.RespondentId, target.RespondentName);

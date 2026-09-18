@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/responsive.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
+import 'package:form_up/core/widgets/empty_state.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/search_field.dart';
 import 'package:form_up/core/services/form_service.dart';
@@ -391,7 +392,11 @@ class _ResponseScreenState extends State<ResponseScreen> {
             const SizedBox(height: 14),
             Expanded(
               child: _loading && _history.isEmpty && _myForms.isEmpty
-                  ? const AppLoadingOverlay()
+                  ? const SingleChildScrollView(
+                      physics: NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      child: SkeletonList.tiles(itemCount: 4),
+                    )
                   : TabBarView(
                       children: [
                         _buildHistoryTab(),
@@ -587,18 +592,17 @@ class _ResponseScreenState extends State<ResponseScreen> {
               hasScrollBody: false,
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.history, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 40),
-                      const SizedBox(height: 10),
-                      Text(
-                        _historyQuery.isEmpty ? 'Belum ada riwayat pengerjaan' : 'Tidak ada hasil untuk "${_historySearchController.text}"',
-                        textAlign: TextAlign.center,
-                        style:  TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                      ),
-                    ],
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                  child: EmptyState(
+                    icon: Icons.history,
+                    title: _historyQuery.isEmpty
+                        ? 'Belum ada riwayat'
+                        : 'Tidak ada hasil',
+                    message: _historyQuery.isEmpty
+                        ? 'Form yang Anda kerjakan akan tercatat di sini.'
+                        : 'Tidak ada hasil untuk "${_historySearchController.text}".',
+                    bare: true,
                   ),
                 ),
               ),
@@ -656,18 +660,17 @@ class _ResponseScreenState extends State<ResponseScreen> {
               hasScrollBody: false,
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.bar_chart, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 40),
-                      const SizedBox(height: 10),
-                      Text(
-                        _analyticsQuery.isEmpty ? 'Belum ada form untuk dianalisis' : 'Tidak ada hasil untuk "${_analyticsSearchController.text}"',
-                        textAlign: TextAlign.center,
-                        style:  TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                      ),
-                    ],
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                  child: EmptyState(
+                    icon: Icons.bar_chart,
+                    title: _analyticsQuery.isEmpty
+                        ? 'Belum ada form'
+                        : 'Tidak ada hasil',
+                    message: _analyticsQuery.isEmpty
+                        ? 'Buat form agar analisisnya muncul di sini.'
+                        : 'Tidak ada hasil untuk "${_analyticsSearchController.text}".',
+                    bare: true,
                   ),
                 ),
               ),

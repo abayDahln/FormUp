@@ -268,6 +268,8 @@ class MyAttempt {
   final double? score;
   final int correctCount;
   final int wrongCount;
+  /// True bila ini upaya terbaru & jatah resetnya belum dipakai (owner).
+  final bool canReset;
 
   const MyAttempt({
     required this.responseId,
@@ -276,6 +278,7 @@ class MyAttempt {
     this.score,
     this.correctCount = 0,
     this.wrongCount = 0,
+    this.canReset = false,
   });
 
   factory MyAttempt.fromJson(Map<String, dynamic> json) => MyAttempt(
@@ -285,6 +288,7 @@ class MyAttempt {
     score: (json['score'] as num?)?.toDouble(),
     correctCount: json['correctCount'] as int? ?? 0,
     wrongCount: json['wrongCount'] as int? ?? 0,
+    canReset: json['canReset'] as bool? ?? false,
   );
 }
 
@@ -374,9 +378,13 @@ class PublicFormService {
     });
   }
 
-  /// POST /public/forms/{formLink}/responses — debounce 300ms anti spam submit
+  /// POST submit respons. Utamakan jalur `formId` (identitas stabil) bila
+  /// diketahui — sehingga pengerjaan yang sudah berjalan tetap bisa disubmit
+  /// walau owner mengganti `formLink` di tengah pengerjaan. Fallback ke jalur
+  /// `formLink` untuk pemanggil lama.
   static Future<Map<String, dynamic>> submit(
     String formLink, {
+    int? formId,
     String? token,
     String? respondentName,
     required List<Map<String, dynamic>> answers,
@@ -388,7 +396,10 @@ class PublicFormService {
     if (!AppDebouncer.tryAcquire('public:submit:$formLink')) {
       throw const ApiException('Terlalu cepat, tunggu sebentar.');
     }
-    final json = await AuthService.post('/public/forms/$formLink/responses', {
+    final path = (formId != null && formId > 0)
+        ? '/forms/$formId/responses'
+        : '/public/forms/$formLink/responses';
+    final json = await AuthService.post(path, {
       if (token != null && token.isNotEmpty) 'token': token,
       if (respondentName != null && respondentName.trim().isNotEmpty)
         'respondentName': respondentName.trim(),

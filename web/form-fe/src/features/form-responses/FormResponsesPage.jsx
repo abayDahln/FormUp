@@ -15,7 +15,7 @@ import {
     getResponseResult, getQuestions, getResponseDetail, getResponseAttempts,
     updateResponseStatus, clearSession, exportFormResponses, getFormFeedbacks, assetUrl,
     overrideAnswerScore, bulkOverrideAnswerScores, getExamMonitoring,
-    forceSubmitExamSession, resetExamSession, resetFormResponse, resolveAnswerKey, ResolveAnswerKey, ExamProctorActions,
+    forceSubmitExamSession, resetFormResponse, resolveAnswerKey, ResolveAnswerKey, ExamProctorActions,
     stripMathNotation
 } from '../../services/apiService';
 import { getGeminiApiKey, scoreHolisticEssayWithAI, AVAILABLE_MODELS } from '../../services/aiService';
@@ -241,7 +241,7 @@ export default function FormResponsesPage() {
     // Proctoring action modal state
     const [proctorModal, setProctorModal] = useState({
         isOpen: false,
-        type: null, // 'force_submit' | 'reset' | 'reset_response'
+        type: null, // 'force_submit' | 'reset_response'
         sessionId: null,
         responseId: null,
         respondentName: '',
@@ -252,17 +252,6 @@ export default function FormResponsesPage() {
         setProctorModal({
             isOpen: true,
             type: 'force_submit',
-            sessionId: session.sessionId,
-            responseId: null,
-            respondentName: session.respondentName || 'Anonim',
-            loading: false,
-        });
-    };
-
-    const handleOpenResetSession = (session) => {
-        setProctorModal({
-            isOpen: true,
-            type: 'reset',
             sessionId: session.sessionId,
             responseId: null,
             respondentName: session.respondentName || 'Anonim',
@@ -289,7 +278,12 @@ export default function FormResponsesPage() {
         const refreshLists = () => {
             fetchExamMonitoring(true);
             getFormResponses(id, { page: 1, pageSize: PAGE_SIZE }).then(respRes => {
-                if (respRes.ok && respRes.data) setResponses(respRes.data.responses || respRes.data || []);
+                if (respRes.ok && respRes.data) {
+                    const list = Array.isArray(respRes.data)
+                        ? respRes.data
+                        : (respRes.data?.items || respRes.data?.responses || []);
+                    setResponses(Array.isArray(list) ? list : []);
+                }
             }).catch(() => {
                 // ponytail: refresh daftar respons gagal tanpa toast (toast utama sudah tampil)
             });
@@ -325,16 +319,6 @@ export default function FormResponsesPage() {
                     refreshLists();
                 } else {
                     showToast(res.message || 'Gagal menyelesaikan paksa sesi ujian.', 'error');
-                    setProctorModal(prev => ({ ...prev, loading: false }));
-                }
-            } else if (type === 'reset') {
-                const res = await resetExamSession(id, sessionId);
-                if (res.ok) {
-                    showToast(res.message || 'Jawaban peserta berhasil di-reset.');
-                    closeProctorModal();
-                    refreshLists();
-                } else {
-                    showToast(res.message || 'Gagal me-reset jawaban peserta.', 'error');
                     setProctorModal(prev => ({ ...prev, loading: false }));
                 }
             }
@@ -606,10 +590,22 @@ export default function FormResponsesPage() {
 
     // Merge respondent data from analytics with response list
     const respondentsList = useMemo(() => {
+        // canReset dari GET /responses (punya info reset server); analytics
+        // tidak membawanya — gabung via responseId.
+        // Guard: responses harus array — state korup (objek pagination)
+        // tidak boleh meledakkan seluruh halaman.
+        const safeResponses = Array.isArray(responses) ? responses : [];
+        const canResetById = new Map(
+            safeResponses.map(r => [Number(r.id ?? r.responseId), r.canReset === true])
+        );
+        const withCanReset = (list) => list.map(r => ({
+            ...r,
+            canReset: canResetById.get(Number(r.responseId)) === true,
+        }));
         if (analytics?.respondents && analytics.respondents.length > 0) {
-            return analytics.respondents;
+            return withCanReset(analytics.respondents);
         }
-        return (responses || []).map(r => ({
+        return withCanReset(safeResponses.map(r => ({
             responseId: r.id,
             respondentName: r.respondentName,
             submittedAt: r.submittedAt,
@@ -620,7 +616,7 @@ export default function FormResponsesPage() {
             wrongCount: 0,
             score: null,
             answers: []
-        }));
+        })));
     }, [analytics, responses]);
 
     const handleExport = async (formId, format = 'csv') => {
@@ -751,7 +747,7 @@ export default function FormResponsesPage() {
         const res = await updateResponseStatus(responseId, statusId);
         if (res.ok) {
             const statusLabel = STATUS_OPTIONS.find(s => s.id === statusId)?.code ?? 'new';
-            setResponses(prev => prev.map(r =>
+            setResponses(prev => (Array.isArray(prev) ? prev : []).map(r =>
                 r.id === responseId
                     ? { ...r, status: statusLabel }
                     : r
@@ -1840,11 +1836,11 @@ export default function FormResponsesPage() {
                                                             </td>
                                                             <td className="py-3.5 px-4 text-right">
                                                                 <div className="inline-flex items-center gap-1.5 justify-end">
-                                                                    {form?.settings?.oneResponse && (
+                                                                    {form?.settings?.oneResponse && r.canReset && (
                                                                         <button
                                                                             onClick={() => handleOpenResetResponse(r)}
                                                                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-all cursor-pointer"
-                                                                            title="Reset agar responden dapat mengerjakan kembali (data lama dipertahankan)"
+                                                                            title="Reset agar responden dapat mengerjakan kembali (sekali per upaya; data lama dipertahankan)"
                                                                         >
                                                                             <RotateCcw size={13} /> Reset
                                                                         </button>
@@ -2148,17 +2144,7 @@ export default function FormResponsesPage() {
                                                                                 <span>Force Submit</span>
                                                                             </button>
                                                                         )}
-                                                                        {session.sessionId && session.status === 'submitted' && (
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => handleOpenResetSession(session)}
-                                                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 rounded-lg transition-all cursor-pointer"
-                                                                                title="Reset jawaban yang sudah disubmit agar peserta dapat mengisi ulang"
-                                                                            >
-                                                                                <RotateCcw size={12} />
-                                                                                <span>Reset Jawaban</span>
-                                                                            </button>
-                                                                        )}
+                                                                        {/* Reset sesi dipindah ke tab Respons (per respons terbaru) */}
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => toggleSessionExpand(session.sessionId || `session-${idx}`)}
@@ -3116,9 +3102,7 @@ export default function FormResponsesPage() {
                 message={
                     proctorModal.type === 'force_submit'
                         ? `Apakah Anda yakin ingin menyelesaikan paksa sesi ujian untuk peserta "${proctorModal.respondentName}"? Draft jawaban yang tersinkronisasi akan disimpan dan status sesi akan diubah menjadi submitted.`
-                        : proctorModal.type === 'reset_response'
-                            ? `Apakah Anda yakin ingin me-reset jawaban "${proctorModal.respondentName}" (respons #${proctorModal.responseId})? Data lama dipertahankan sebagai riwayat dan peserta diberi 1 jatah isi ulang untuk mengerjakan kembali.`
-                            : `Apakah Anda yakin ingin me-reset jawaban yang sudah disubmit oleh "${proctorModal.respondentName}"? Data lama dipertahankan dan peserta diberi 1 jatah isi ulang. Hanya sesi yang sudah disubmit yang bisa di-reset.`
+                        : `Apakah Anda yakin ingin me-reset jawaban "${proctorModal.respondentName}" (respons #${proctorModal.responseId})? Data lama dipertahankan sebagai riwayat dan peserta diberi 1 jatah isi ulang untuk mengerjakan kembali. Tombol ini hanya tersedia sekali per upaya.`
                 }
                 confirmText={proctorModal.type === 'force_submit' ? 'Ya, Selesaikan Paksa' : 'Ya, Reset Jawaban'}
                 cancelText="Batal"
