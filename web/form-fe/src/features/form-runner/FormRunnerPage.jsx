@@ -166,6 +166,9 @@ export default function FormRunnerPage() {
 
     const [isForceSubmitted, setIsForceSubmitted] = useState(false);
     const isForceSubmittedRef = useRef(false);
+    // P0-3: Disqualification on anti-cheat threshold reached
+    const [isDisqualified, setIsDisqualified] = useState(false);
+    const isDisqualifiedRef = useRef(false);
 
     // B12 Proctoring: Handle proctor force submit / session termination
     const handleForceSubmitTermination = useCallback((responseId = null) => {
@@ -239,8 +242,17 @@ export default function FormRunnerPage() {
                 if (eventType !== 'session_start' && eventType !== 'heartbeat') {
                     setTabSwitchWarning(true);
                 }
-                if (res.data.shouldAutoSubmit && !isSubmittingRef.current) {
-                    setTimeout(() => handleSubmit(null, true), 1000);
+                // P0-3: When cheat threshold is reached, disqualify and auto-set score 0
+                const currentSw = typeof res.data.tabSwitchCount === 'number' ? res.data.tabSwitchCount : tabSwitchCount;
+                const maxSw = form?.maxTabSwitch || form?.settings?.maxTabSwitch || 3;
+                const shouldDisqualify = res.data.shouldAutoSubmit || (form?.autoSubmitOnTabSwitch && currentSw >= maxSw);
+
+                if (shouldDisqualify && !isSubmittingRef.current && !isDisqualifiedRef.current) {
+                    isDisqualifiedRef.current = true;
+                    setIsDisqualified(true);
+                    isSubmittingRef.current = true;
+                    if (timerRef.current) clearInterval(timerRef.current);
+                    setTimeout(() => handleSubmit(null, true, true, true), 300);
                 }
             }
         } catch (err) {
@@ -726,7 +738,7 @@ export default function FormRunnerPage() {
 
     const showValidationAlert = (msg) => { setValidationToast(msg); setTimeout(() => setValidationToast(null), 4500); };
 
-    const handleSubmit = async (e, isAuto = false, skipWarnings = false) => {
+    const handleSubmit = async (e, isAuto = false, skipWarnings = false, disqualified = false) => {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
         if (isPreviewMode) { window.close(); return; }
         // B10: First check for ragu-ragu questions (only for manual submit)
@@ -735,12 +747,13 @@ export default function FormRunnerPage() {
             return;
         }
         setSubmitConfirmOpen(false);
-        if (isSubmittingRef.current) return;
+        if (isSubmittingRef.current && !disqualified) return;
 
+        const isActuallyDisqualified = Boolean(disqualified || isDisqualifiedRef.current);
         const currentQuestions = questionsRef.current?.length ? questionsRef.current : questions;
         const currentAnswers = answersRef.current || answers;
 
-        if (!isAuto) {
+        if (!isAuto && !isActuallyDisqualified) {
             const unanswered = currentQuestions.filter(q => {
                 if (!q.isRequired) return false;
                 const val = currentAnswers[q.id];
@@ -775,7 +788,11 @@ export default function FormRunnerPage() {
             const res = await submitPublicFormResponse(formLink, {
                 token: tokenInput ? tokenInput.trim() : null,
                 respondentName: respondentName.trim() || 'Anonim',
-                isAutoSubmit: Boolean(isAuto), IsAutoSubmit: Boolean(isAuto),
+                isAutoSubmit: Boolean(isAuto || isActuallyDisqualified),
+                IsAutoSubmit: Boolean(isAuto || isActuallyDisqualified),
+                isDisqualified: isActuallyDisqualified,
+                IsDisqualified: isActuallyDisqualified,
+                score: isActuallyDisqualified ? 0 : undefined,
                 answers: formattedAnswers,
                 examSessionId: examSessionIdRef.current || null,
                 tabSwitchCount: typeof tabSwitchCount === 'number' ? tabSwitchCount : null,
@@ -791,7 +808,16 @@ export default function FormRunnerPage() {
                     sessionStorage.removeItem(`formup_exam_session_${formLink}`);
                     sessionStorage.removeItem(`formup_violations_${formLink}`);
                 } catch {}
-                navigate(`/f/${formLink}/result/${responseId}`, { state: { guestToken: d?.guestToken || null } });
+                if (isActuallyDisqualified) {
+                    setIsDisqualified(true);
+                    return;
+                }
+                navigate(`/f/${formLink}/result/${responseId}`, {
+                    state: {
+                        guestToken: d?.guestToken || null,
+                        isDisqualified: isActuallyDisqualified,
+                    }
+                });
             } else {
                 isSubmittingRef.current = false; setSubmitting(false);
                 const errText = res.message || 'Gagal mengirimkan respons formulir.';
@@ -820,6 +846,52 @@ export default function FormRunnerPage() {
             </div>
         </div>
     );
+
+    // P0-3: Dedicated Violation Detected Card when cheat threshold is reached
+    if (isDisqualified) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-red-50/40 dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">
+                <div className="bg-white dark:bg-slate-900 border-2 border-red-500/80 dark:border-red-600 rounded-3xl p-8 max-w-md w-full text-center space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                    <div className="w-20 h-20 bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+                        <AlertTriangle size={40} />
+                    </div>
+                    <div className="space-y-2">
+                        <span className="inline-block px-3 py-1 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded-full text-xs font-black uppercase tracking-wider">
+                            Ujian Dihentikan
+                        </span>
+                        <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                            Pelanggaran Terdeteksi
+                        </h2>
+                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                            Aktivitas yang tidak diizinkan telah melebihi batas toleransi ujian. Ujian Anda telah dihentikan secara otomatis oleh sistem anti-cheat.
+                        </p>
+                    </div>
+
+                    <div className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/80 rounded-2xl space-y-1">
+                        <div className="text-[11px] font-extrabold text-red-600 dark:text-red-400 uppercase tracking-wider">
+                            Status Penilaian
+                        </div>
+                        <div className="text-3xl font-black text-red-700 dark:text-red-400">
+                            Skor: 0
+                        </div>
+                        <p className="text-[11px] text-red-600/80 dark:text-red-400/80 font-bold">
+                            Didiskualifikasi karena pelanggaran sistem ujian
+                        </p>
+                    </div>
+
+                    <div className="pt-2">
+                        <button
+                            type="button"
+                            onClick={() => navigate('/')}
+                            className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
+                        >
+                            Kembali ke Beranda
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (isForceSubmitted) {
         return (
