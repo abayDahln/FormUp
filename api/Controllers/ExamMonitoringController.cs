@@ -501,6 +501,26 @@ public class ExamMonitoringController : ControllerBase
             return BadRequest(new ApiResponse<object>(400,
                 "Responden sesi ini tidak memiliki identitas (akun/nama) sehingga jatah isi ulang tidak dapat diberikan."));
 
+        // Sekali klik per upaya: sesi yang bukan upaya terbaru responden,
+        // atau upaya yang jatah resetnya sudah dipakai, ditolak.
+        var newStatusId = await ReferenceCache.GetResponseStatusIdAsync(_db, "new");
+        var submittedQuery = _db.Responses.Where(r => r.FormId == formId
+            && (!newStatusId.HasValue || r.StatusId != newStatusId.Value));
+        submittedQuery = respondentId.HasValue
+            ? submittedQuery.Where(r => r.RespondentId == respondentId)
+            : submittedQuery.Where(r => r.RespondentId == null && r.RespondentName == respondentName);
+        var submittedIds = await submittedQuery
+            .OrderBy(r => r.SubmittedAt ?? r.CreatedAt).ThenBy(r => r.Id)
+            .Select(r => r.Id).ToListAsync();
+        if (submittedIds.Count == 0 || submittedIds[^1] != session.SubmittedResponseId.Value)
+            return BadRequest(new ApiResponse<object>(400,
+                "Hanya sesi upaya terbaru responden yang bisa di-reset."));
+        var usedExtra = await AttemptAllowance.GetExtraAttemptsAsync(
+            _db, formId, respondentId, respondentName);
+        if (usedExtra >= submittedIds.Count)
+            return BadRequest(new ApiResponse<object>(400,
+                "Jatah reset untuk upaya ini sudah dipakai. Reset tersedia lagi setelah ada respons baru."));
+
         var extra = await AttemptAllowance.ResetForRetakeAsync(
             _db, formId, respondentId, respondentName);
 

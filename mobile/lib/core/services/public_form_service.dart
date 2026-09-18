@@ -268,6 +268,8 @@ class MyAttempt {
   final double? score;
   final int correctCount;
   final int wrongCount;
+  /// True bila ini upaya terbaru & jatah resetnya belum dipakai (owner).
+  final bool canReset;
 
   const MyAttempt({
     required this.responseId,
@@ -276,6 +278,7 @@ class MyAttempt {
     this.score,
     this.correctCount = 0,
     this.wrongCount = 0,
+    this.canReset = false,
   });
 
   factory MyAttempt.fromJson(Map<String, dynamic> json) => MyAttempt(
@@ -285,6 +288,7 @@ class MyAttempt {
     score: (json['score'] as num?)?.toDouble(),
     correctCount: json['correctCount'] as int? ?? 0,
     wrongCount: json['wrongCount'] as int? ?? 0,
+    canReset: json['canReset'] as bool? ?? false,
   );
 }
 

@@ -91,6 +91,15 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
     }
   }
 
+  /// canReset untuk respons yang sedang ditampilkan (false bila attempts
+  /// belum dimuat — tombol disembunyikan sampai data siap).
+  bool get _selectedCanReset {
+    for (final a in _attempts) {
+      if (a.responseId == _selectedResponseId) return a.canReset;
+    }
+    return false;
+  }
+
   /// Reset pengerjaan ulang untuk respons yang sedang ditampilkan.
   /// Server menjaga riwayat + memberi 1 jatah isi ulang (sesi baru).
   Future<void> _confirmReset() async {
@@ -103,7 +112,8 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
         title: const Text('Reset Jawaban Peserta?'),
         content: Text(
           'Data lama milik "$displayName" dipertahankan sebagai riwayat dan '
-          'peserta diberi 1 jatah isi ulang untuk mengerjakan kembali.',
+          'peserta diberi 1 jatah isi ulang untuk mengerjakan kembali. '
+          'Reset hanya bisa dipakai sekali untuk upaya ini.',
         ),
         actions: [
           TextButton(
@@ -165,7 +175,9 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
         actions: [
           // Reset pengerjaan ulang (khusus form one-response): respons lama
           // dipertahankan sebagai riwayat, responden diberi 1 jatah isi ulang.
-          if (_oneResponse)
+          // Sekali klik per upaya: hanya upaya terbaru yang jatahnya belum
+          // dipakai (canReset dari server) yang menampilkan tombol.
+          if (_oneResponse && _selectedCanReset)
             IconButton(
               tooltip: 'Reset agar responden dapat mengerjakan kembali',
               onPressed: _resetting ? null : _confirmReset,

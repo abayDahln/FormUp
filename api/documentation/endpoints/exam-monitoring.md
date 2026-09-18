@@ -190,7 +190,9 @@ yang di-reset.
 Untuk form **non-exam** (tanpa sesi ujian) pakai reset per-respons:
 `POST /api/forms/{formId}/responses/{responseId}/reset`
 (lihat `responses.md` §6) — khusus form `one-response`, respons lama
-tetap menjadi riwayat.
+tetap menjadi riwayat. Tombol reset di web hanya ada di tab Respons
+(pada respons terbaru tiap responden, sekali klik per upaya); tab
+monitoring hanya untuk pantauan + force-submit.
 
 ---
 

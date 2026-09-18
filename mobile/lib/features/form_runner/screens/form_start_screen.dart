@@ -139,6 +139,18 @@ class _FormStartScreenState extends State<FormStartScreen> {
   }
 
   Future<void> _startForm() async {
+    // State layar bisa basi (mis. kembali setelah mengerjakan) — segarkan
+    // info + attempts dari server dulu agar tombol "Sudah Mengerjakan"
+    // langsung akurat; gagal refresh = pakai state lama (fail-open ke
+    // validasi server berikutnya).
+    try {
+      final fresh =
+          await PublicFormService.getFormInfo(widget.formLink, refresh: true);
+      if (!mounted) return;
+      setState(() => _formInfo = fresh);
+      await _loadCompletionState();
+    } catch (_) {}
+    if (!mounted || _formInfo == null) return;
     final info = _formInfo!;
 
     // C2: pengaman ganda bila tombol terkunci terlewat (mis. state balapan).
@@ -147,6 +159,8 @@ class _FormStartScreenState extends State<FormStartScreen> {
     // riwayat sengaja dipertahankan setelah reset agar peserta bisa
     // mengerjakan kembali.
     if (info.oneResponse && info.alreadySubmitted) {
+      // Selaraskan tampilan tombol dengan status terbaru.
+      setState(() {});
       showAuthToast(context, "Anda sudah mengerjakan form ini", isError: true);
       return;
     }

@@ -112,4 +112,53 @@ public static class AttemptAllowance
 
         return extra;
     }
+
+    /// <summary>
+    /// Kunci grup responden: "id:5" untuk akun login, "name:budi" (lowercase,
+    /// trim) untuk guest. "" bila tanpa identitas (tak bisa di-reset).
+    /// </summary>
+    public static string GroupKey(int? respondentId, string? respondentName)
+    {
+        if (respondentId.HasValue) return $"id:{respondentId.Value}";
+        var name = (respondentName ?? "").Trim().ToLowerInvariant();
+        return name.Length == 0 ? "" : $"name:{name}";
+    }
+
+    /// <summary>
+    /// Hitung CanReset per responseId: true hanya untuk respons tersubmit
+    /// TERBARU tiap responden yang jatah resetnya belum dipakai untuk upaya
+    /// itu (E &lt; S). Sekali klik per upaya: setelah reset (E==S) tombol
+    /// hilang sampai ada submit baru (S bertambah).
+    /// </summary>
+    public static Dictionary<int, bool> ComputeCanReset(
+        List<(int Id, int? RespondentId, string? RespondentName, int StatusId, DateTime? SubmittedAt, DateTime? CreatedAt)> responses,
+        List<(int? RespondentId, string? RespondentName, int ExtraAttempts)> allowances,
+        int? newStatusId)
+    {
+        var result = new Dictionary<int, bool>();
+        var groups = responses
+            .Select(r => new { R = r, Key = GroupKey(r.RespondentId, r.RespondentName) })
+            .Where(x => x.Key != "")
+            .GroupBy(x => x.Key);
+        foreach (var g in groups)
+        {
+            var submitted = g.Select(x => x.R)
+                .Where(r => !newStatusId.HasValue || r.StatusId != newStatusId.Value)
+                .OrderBy(r => r.SubmittedAt ?? r.CreatedAt ?? DateTime.MinValue)
+                .ThenBy(r => r.Id)
+                .ToList();
+            var extra = allowances
+                .Where(a => GroupKey(a.RespondentId, a.RespondentName) == g.Key)
+                .Sum(a => a.ExtraAttempts);
+            var latestId = submitted.Count > 0 ? submitted[^1].Id : (int?)null;
+            foreach (var x in g)
+            {
+                var isSubmitted = !newStatusId.HasValue || x.R.StatusId != newStatusId.Value;
+                result[x.R.Id] = isSubmitted && latestId == x.R.Id && extra < submitted.Count;
+            }
+        }
+        foreach (var r in responses)
+            if (!result.ContainsKey(r.Id)) result[r.Id] = false;
+        return result;
+    }
 }

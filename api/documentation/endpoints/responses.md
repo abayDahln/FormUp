@@ -203,6 +203,12 @@ riwayat responden (`my-responses`), dan endpoint attempts; responden diberi
 1 jatah isi ulang via `FormAttemptAllowance` + sisa draft `new`
 dibersihkan sehingga dapat mengerjakan kembali dengan **sesi baru**.
 
+**Sekali klik per upaya:** tombol reset (web tab Respons) hanya tampil pada
+respons **terbaru** tiap responden yang jatahnya belum dipakai — dihitung
+server sebagai `canReset` (`E < S`, E = total jatah, S = total tersubmit)
+di `GET /responses`, `GET .../attempts`, dan ditolak `400` bila dipaksa
+via API. Setelah reset, tombol hilang sampai ada submit baru.
+
 **Validasi:**
 - Form harus `one-response` → kalau tidak `400`
 - Respons harus sudah tersubmit (draft `new` → `400`)
