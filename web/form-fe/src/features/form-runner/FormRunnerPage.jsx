@@ -279,23 +279,63 @@ export default function FormRunnerPage() {
         const isExam = form.isExamMode || form.detectTabSwitch;
         const disableCopy = form.disableCopyPaste || isExam;
 
-        const handleVisibilityChange = () => {
-            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
-            // Anti-double-count: ONLY report on hidden (leaving), never on visible (return)
-            if (document.hidden && isExam) reportTabSwitch();
+        let hiddenTimer = null;
+        let blurTimer = null;
+
+        const clearTimers = () => {
+            if (hiddenTimer) {
+                clearTimeout(hiddenTimer);
+                hiddenTimer = null;
+            }
+            if (blurTimer) {
+                clearTimeout(blurTimer);
+                blurTimer = null;
+            }
         };
 
         const reportTabSwitch = () => {
             if (!isExam || isForceSubmittedRef.current || isSubmittingRef.current) return;
             const now = Date.now();
-            // blur and visibilitychange can describe the same tab switch.
-            if (now - lastTabSwitchAtRef.current < 1000) return;
+            if (now - lastTabSwitchAtRef.current < 1500) return;
             lastTabSwitchAtRef.current = now;
             sendExamEvent('tab_switch');
         };
 
+        const handleVisibilityChange = () => {
+            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
+            // Primary signal: visibilityState hidden.
+            // Require it to stay hidden for >= 400ms to avoid flicker / native dialog glitches.
+            if (document.hidden && document.visibilityState === 'hidden') {
+                if (!hiddenTimer) {
+                    hiddenTimer = setTimeout(() => {
+                        hiddenTimer = null;
+                        if (document.hidden && document.visibilityState === 'hidden') {
+                            reportTabSwitch();
+                        }
+                    }, 400);
+                }
+            } else {
+                clearTimers();
+            }
+        };
+
         const handleWindowBlur = () => {
-            if (document.hidden || isExam) reportTabSwitch();
+            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
+            // Native browser dialogs (password save, OS notifs, print) cause blur without visibilityState hidden.
+            // Wait 500ms and check if document is actually hidden and lacks focus.
+            if (!blurTimer) {
+                blurTimer = setTimeout(() => {
+                    blurTimer = null;
+                    if (document.visibilityState === 'hidden' && !document.hasFocus()) {
+                        reportTabSwitch();
+                    }
+                }, 500);
+            }
+        };
+
+        const handleWindowFocus = () => {
+            // Regained focus quickly -> cancel any pending blur check
+            clearTimers();
         };
 
         const handleCopy = (e) => {
@@ -325,6 +365,7 @@ export default function FormRunnerPage() {
         if (isExam) {
             document.addEventListener('visibilitychange', handleVisibilityChange);
             window.addEventListener('blur', handleWindowBlur);
+            window.addEventListener('focus', handleWindowFocus);
         }
         if (disableCopy) {
             document.addEventListener('copy', handleCopy);
@@ -334,9 +375,11 @@ export default function FormRunnerPage() {
         }
 
         return () => {
+            clearTimers();
             if (isExam) {
                 document.removeEventListener('visibilitychange', handleVisibilityChange);
                 window.removeEventListener('blur', handleWindowBlur);
+                window.removeEventListener('focus', handleWindowFocus);
             }
             if (disableCopy) {
                 document.removeEventListener('copy', handleCopy);
@@ -552,8 +595,6 @@ export default function FormRunnerPage() {
                 setForm(f);
                 if (currentUser?.fullname) setRespondentName(currentUser.fullname);
 
-<<<<<<< HEAD
-=======
                 // Reset owner: server menyatakan kuota masih ada (belum
                 // terkunci) → buang penanda submit lokal yang basi agar
                 // peserta tidak terkunci selamanya di layar "Terkunci".
@@ -561,7 +602,6 @@ export default function FormRunnerPage() {
                     try { localStorage.removeItem(`formup_submitted_${formLink}`); } catch { /* abaikan: storage boleh tidak tersedia */ }
                 }
 
->>>>>>> origin/main
                 // A-5: preview bypasses all gates
                 if (isPreviewMode) {
                     setTokenUnlocked(true);
