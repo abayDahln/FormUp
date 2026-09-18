@@ -248,24 +248,28 @@ export default function FormRunnerPage() {
         }
     }, [form, formLink, isPreviewMode, currentUser, handleForceSubmitTermination]);
 
-    // Exam mode session presence: session_start and periodic heartbeat
+    // P0-4: Exam mode session presence: session_start (once) and periodic heartbeat
+    const sessionStartedRef = useRef(false);
     useEffect(() => {
         if (!form || isPreviewMode || form.isOwner) return;
         if (!form.isExamMode && !form.detectTabSwitch) return;
         if (form.requiresToken && !tokenUnlocked) return;
 
-        // Start session on server
-        sendExamEvent('session_start');
+        // Start session on server exactly once to avoid duplicate monitoring entries
+        if (!sessionStartedRef.current) {
+            sessionStartedRef.current = true;
+            sendExamEvent('session_start');
+        }
 
         // Periodic heartbeat every 30 seconds
         const heartbeatTimer = setInterval(() => {
-            if (!isSubmittingRef.current) {
+            if (!isSubmittingRef.current && !isForceSubmittedRef.current) {
                 sendExamEvent('heartbeat');
             }
         }, 30000);
 
         return () => clearInterval(heartbeatTimer);
-    }, [form, isPreviewMode, tokenUnlocked, sendExamEvent]);
+    }, [form?.id, form?.isExamMode, form?.detectTabSwitch, form?.requiresToken, tokenUnlocked, isPreviewMode, sendExamEvent]);
 
     // Exam mode violation detection (Real-time incremental report, anti double-count)
     // BUG-2 FIX: Guard with tokenUnlocked so the visibilitychange / copy / paste
