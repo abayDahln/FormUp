@@ -20,7 +20,8 @@ import 'package:form_up/core/services/user_service.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/widgets/onboarding_tour.dart';
 import 'package:form_up/core/widgets/responsive.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/empty_state.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/form_card.dart';
 import 'package:form_up/features/home/widgets/user_guide_sheet.dart';
 
@@ -368,19 +369,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 12),
                     if (_loading && _myForms.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 30),
-                        child: AppLoadingOverlay(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: SkeletonList.cards(itemCount: formCount),
                       )
                     else if (_myForms.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24),
-                        child: Text(
-                          'Belum ada form. Tekan + Baru untuk membuat.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              fontSize: 13, color: cs.onSurfaceVariant),
-                        ),
+                      const EmptyState(
+                        icon: Icons.description_outlined,
+                        title: 'Belum ada form',
+                        message: 'Tekan + Baru untuk membuat form pertama Anda.',
+                        bare: true,
                       )
                     else
                       ResponsiveGrid(

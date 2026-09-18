@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/empty_state.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
-import 'package:form_up/features/home/widgets/home_empty_card.dart';
 
 /// Section "Aktivitas Respons Terbaru" pada beranda.
 /// [limit] = jumlah item tampil (default 3, phone/tablet identik).
@@ -28,15 +28,25 @@ class HomeRecentActivity extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     if (loading && responses.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: AppLoadingOverlay(),
+      const skeleton = Padding(
+        padding: EdgeInsets.symmetric(vertical: 4),
+        child: SkeletonList.tiles(itemCount: 3),
+      );
+      if (bare) return skeleton;
+      return Container(
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: skeleton,
       );
     }
     if (responses.isEmpty) {
-      return const HomeEmptyCard(
+      return EmptyState(
         icon: Icons.history,
-        message: 'Belum ada aktivitas respons.',
+        title: 'Belum ada aktivitas',
+        message: 'Respons yang Anda kerjakan akan muncul di sini.',
+        bare: bare,
       );
     }
     final items = responses.take(limit).toList();

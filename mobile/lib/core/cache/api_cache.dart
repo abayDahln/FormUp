@@ -77,12 +77,12 @@ class ApiCache {
   // Poin 7: jangan persist data sensitif ke disk (SharedPreferences plaintext).
   // Data live (monitoring/hasil/attempt) juga dikecualikan agar tidak
   // disajikan basi berhari-hari dari disk saat offline/stale.
+  // Profil (/users/me, /users/me/stats) BOLEH persist: hanya nama/email/foto
+  // (tanpa password/token, disetujui pemilik) agar tampil instan setelah
+  // restart; logout selalu menghapus seluruh disk cache via clear().
   static bool _isSensitiveKey(String key) {
     final k = key.toLowerCase();
-    // D6: key berbentuk 'http:get:<scope>:/users/me' — cocokkan '/users/me'
-    // (bentuk 'users:me' lama tak pernah cocok sehingga profil ikut
-    // dipersist ke disk dan disajikan basi).
-    return k.contains('responses') || k.contains('analytics') || k.contains('attempts') || k.contains('response') || k.contains('admin') || k.contains('/users/me') || k.contains('monitoring') || k.contains('result');
+    return k.contains('responses') || k.contains('analytics') || k.contains('attempts') || k.contains('response') || k.contains('admin') || k.contains('monitoring') || k.contains('result');
   }
 
   static Future<void> _persistValue(

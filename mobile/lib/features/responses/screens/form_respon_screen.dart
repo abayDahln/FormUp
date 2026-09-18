@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
 import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
+import 'package:form_up/core/widgets/empty_state.dart';
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -296,25 +297,20 @@ class _FormResponScreenState extends State<FormResponScreen>
                   child: AuthBackground(plain: true,
                   child: SafeArea(
                     child: _responses.isEmpty
-                        ? Center(
-                            child: Container(
-                              padding: const EdgeInsets.all(32),
-                              decoration: BoxDecoration(
-                                color: cs.surface,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child:  Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.inbox_outlined,
-                                      color: Colors.grey, size: 36),
-                                  SizedBox(height: 10),
-                                  Text(
-                                    'Belum ada respon.',
-                                    style: TextStyle(
-                                        fontSize: 13, color: cs.onSurfaceVariant),
-                                  ),
-                                ],
+                        ? AppRefreshIndicator(
+                            onRefresh: () => _load(refresh: true),
+                            indicatorColor: cs.primary,
+                            child: SingleChildScrollView(
+                              physics:
+                                  const AlwaysScrollableScrollPhysics(),
+                              padding: centerPad(context,
+                                  base: const EdgeInsets.fromLTRB(
+                                      20, 12, 20, 24)),
+                              child: const EmptyState(
+                                icon: Icons.inbox_outlined,
+                                title: 'Belum ada respons',
+                                message:
+                                    'Bagikan form agar responden dapat mulai mengisi.',
                               ),
                             ),
                           )

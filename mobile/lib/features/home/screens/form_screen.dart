@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/responsive.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/empty_state.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/form_card.dart';
@@ -11,7 +12,6 @@ import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/home/controllers/form_sort_filter.dart';
-import 'package:form_up/features/home/widgets/form_empty_state.dart';
 import 'package:form_up/features/home/widgets/form_filter_sheet_content.dart';
 import 'package:form_up/features/home/widgets/form_search_bar.dart';
 
@@ -272,11 +272,19 @@ class _FormScreenState extends State<FormScreen> {
 
             if (_loadingForms && _myForms.isEmpty)
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 30),
-                child: AppLoadingOverlay(),
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: SkeletonList.cards(itemCount: 4),
               )
             else if (all.isEmpty)
-              FormEmptyState(hasFilter: hasFilter)
+              EmptyState(
+                icon: hasFilter
+                    ? Icons.search_off
+                    : Icons.description_outlined,
+                title: hasFilter ? 'Tidak ada form yang cocok' : 'Belum ada form',
+                message: hasFilter
+                    ? 'Coba ubah kata kunci atau filter Anda.'
+                    : 'Buat form pertama Anda dengan tombol +.',
+              )
             // Mobile 1 kolom, tablet/desktop 2/3/4 (satu ambang via formGridColumns).
             else
               ResponsiveGrid(

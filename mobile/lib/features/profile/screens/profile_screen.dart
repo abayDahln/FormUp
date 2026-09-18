@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
+import 'package:form_up/core/widgets/empty_state.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -31,6 +32,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   UserStats? _stats;
   List<MyResponseItem> _recent = [];
   bool _loading = true;
+  // Guard agar swipe/spam/tick-online bersamaan tidak menumpuk request
+  // (ApiCache juga dedup yang benar-benar bersamaan via _pending).
+  bool _refreshing = false;
 
   @override
   void initState() {
@@ -40,17 +44,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _onOnline() {
+    // Tanpa refresh paksa: cache fresh (≤2 mnt) = nol request, basi = fetch.
     if (mounted && NetworkStatus.isOnline) _load();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  /// [refresh]=true melewati cache (swipe-refresh & setelah edit profil).
+  /// Refresh senyap bila data sudah tampil: tidak ada full-loader,
+  /// indikator hanya spinner bawaan AppRefreshIndicator.
+  Future<void> _load({bool refresh = false}) async {
+    if (_refreshing) return;
+    _refreshing = true;
+    final showLoader = _profile == null;
+    if (showLoader) setState(() => _loading = true);
     try {
       final results = await Future.wait([
-        UserService.getProfile(),
-        UserService.getStats(),
+        UserService.getProfile(refresh: refresh),
+        UserService.getStats(refresh: refresh),
         // 1c: rekap aktivitas untuk panel kanan desktop (best-effort).
-        FormService.getMyResponses().catchError((_) => <MyResponseItem>[]),
+        FormService.getMyResponses(refresh: refresh).catchError((_) => <MyResponseItem>[]),
       ]);
       if (!mounted) return;
       setState(() {
@@ -60,15 +71,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      // Refresh senyap gagal saat data lama masih tampil: cukup toast,
+      // jangan timpa layar dengan error (data cache tetap berguna).
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      _refreshing = false;
+      if (mounted && showLoader) setState(() => _loading = false);
     }
   }
 
   Future<void> _openEditProfile() async {
     await AppRouter.of(context).push(AppPage.editProfile);
-    if (mounted) _load();
+    if (mounted) _load(refresh: true);
   }
 
   @override
@@ -106,7 +120,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (!mounted) return;
         Navigator.of(context).pop();
         showAuthToast(context, 'Foto profil diperbarui');
-        await _load();
+        await _load(refresh: true);
       } catch (e) {
         if (!mounted) return;
         Navigator.of(context).pop();
@@ -259,10 +273,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 8),
               if (_recent.isEmpty)
-                Text(
-                  'Belum ada aktivitas respons.',
-                  style:
-                      TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                const EmptyState(
+                  icon: Icons.history,
+                  title: 'Belum ada aktivitas',
+                  message: 'Respons yang Anda kerjakan akan muncul di sini.',
+                  bare: true,
                 )
               else
                 for (var i = 0; i < _recent.length; i++) ...[
@@ -354,7 +369,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return SafeArea(
       child: AppRefreshIndicator(
-        onRefresh: _load,
+        onRefresh: () => _load(refresh: true),
         indicatorColor: cs.primary,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),

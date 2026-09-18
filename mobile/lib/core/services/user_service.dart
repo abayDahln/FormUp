@@ -58,17 +58,44 @@ class UserStats {
 }
 
 class UserService {
-  /// GET /users/me — tanpa cache 30 menit: profil selalu fresh
-  /// (network-first; layar pemanggil mengatur pull-to-refresh sendiri).
-  static Future<UserProfile> getProfile() async {
-    final json = await AuthService.get('/users/me', useCache: false);
-    return UserProfile.fromJson(json['data'] as Map<String, dynamic>);
+  static const _profileKey = 'users:me:profile';
+  static const _statsKey = 'users:me:stats';
+
+  /// GET /users/me — cache memory 2 menit + persist disk (stale-while-revalidate).
+  /// [refresh]=true melewati cache (dipakai swipe-refresh & setelah edit profil).
+  /// Disimpan sebagai Map mentah agar bisa di-encode ke disk.
+  static Future<UserProfile> getProfile({bool refresh = false}) async {
+    if (refresh) ApiCache.invalidate(_profileKey);
+    final data = await ApiCache.get<Map<String, dynamic>>(
+      _profileKey,
+      const Duration(minutes: 2),
+      () async {
+        final json = await AuthService.get('/users/me', useCache: false);
+        return Map<String, dynamic>.from(json['data'] as Map);
+      },
+    );
+    return UserProfile.fromJson(data);
   }
 
-  /// GET /users/me/stats — tanpa cache 30 menit (alasan sama).
-  static Future<UserStats> getStats() async {
-    final json = await AuthService.get('/users/me/stats', useCache: false);
-    return UserStats.fromJson(json['data'] as Map<String, dynamic>);
+  /// GET /users/me/stats — cache & refresh sama seperti profil.
+  static Future<UserStats> getStats({bool refresh = false}) async {
+    if (refresh) ApiCache.invalidate(_statsKey);
+    final data = await ApiCache.get<Map<String, dynamic>>(
+      _statsKey,
+      const Duration(minutes: 2),
+      () async {
+        final json = await AuthService.get('/users/me/stats', useCache: false);
+        return Map<String, dynamic>.from(json['data'] as Map);
+      },
+    );
+    return UserStats.fromJson(data);
+  }
+
+  /// Satu pintu invalidate cache profil (dipakai setelah tulis profil).
+  static void invalidateProfileCache() {
+    ApiCache.invalidate(_profileKey);
+    ApiCache.invalidate(_statsKey);
+    ApiCache.invalidateContaining('/users/me');
   }
 
   /// PUT /users/me — semua field opsional, hanya yang non-null yang dikirim
@@ -89,7 +116,7 @@ class UserService {
     if (body.isEmpty) throw const ApiException('Tidak ada perubahan untuk disimpan');
     final json = await AuthService.put('/users/me', body);
     // D6: profil berubah — jangan sajikan cache basi.
-    ApiCache.invalidateContaining('/users/me');
+    invalidateProfileCache();
     return UserProfile.fromJson(json['data'] as Map<String, dynamic>);
   }
 
@@ -106,8 +133,8 @@ class UserService {
       response = await _upload(uri, bytes, filename);
     }
     final path = _profileImageOf(response);
-    // D6: avatar baru tidak boleh tertutup cache profil 30 menit.
-    ApiCache.invalidateContaining('/users/me');
+    // D6: avatar baru tidak boleh tertutup cache profil basi.
+    invalidateProfileCache();
     return path;
   }
 
