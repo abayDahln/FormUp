@@ -278,7 +278,12 @@ export default function FormResponsesPage() {
         const refreshLists = () => {
             fetchExamMonitoring(true);
             getFormResponses(id, { page: 1, pageSize: PAGE_SIZE }).then(respRes => {
-                if (respRes.ok && respRes.data) setResponses(respRes.data.responses || respRes.data || []);
+                if (respRes.ok && respRes.data) {
+                    const list = Array.isArray(respRes.data)
+                        ? respRes.data
+                        : (respRes.data?.items || respRes.data?.responses || []);
+                    setResponses(Array.isArray(list) ? list : []);
+                }
             }).catch(() => {
                 // ponytail: refresh daftar respons gagal tanpa toast (toast utama sudah tampil)
             });
@@ -563,8 +568,11 @@ export default function FormResponsesPage() {
     const respondentsList = useMemo(() => {
         // canReset dari GET /responses (punya info reset server); analytics
         // tidak membawanya — gabung via responseId.
+        // Guard: responses harus array — state korup (objek pagination)
+        // tidak boleh meledakkan seluruh halaman.
+        const safeResponses = Array.isArray(responses) ? responses : [];
         const canResetById = new Map(
-            (responses || []).map(r => [Number(r.id ?? r.responseId), r.canReset === true])
+            safeResponses.map(r => [Number(r.id ?? r.responseId), r.canReset === true])
         );
         const withCanReset = (list) => list.map(r => ({
             ...r,
@@ -573,7 +581,7 @@ export default function FormResponsesPage() {
         if (analytics?.respondents && analytics.respondents.length > 0) {
             return withCanReset(analytics.respondents);
         }
-        return withCanReset((responses || []).map(r => ({
+        return withCanReset(safeResponses.map(r => ({
             responseId: r.id,
             respondentName: r.respondentName,
             submittedAt: r.submittedAt,
@@ -710,7 +718,7 @@ export default function FormResponsesPage() {
         const res = await updateResponseStatus(responseId, statusId);
         if (res.ok) {
             const statusLabel = STATUS_OPTIONS.find(s => s.id === statusId)?.code ?? 'new';
-            setResponses(prev => prev.map(r =>
+            setResponses(prev => (Array.isArray(prev) ? prev : []).map(r =>
                 r.id === responseId
                     ? { ...r, status: statusLabel }
                     : r
