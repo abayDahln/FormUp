@@ -683,10 +683,12 @@ export default function FormResponsesPage() {
                 return `"${str.replace(/"/g, '""')}"`;
             };
 
+            // P1-1: Include Nilai / Skor column next to Respondent
             const headerRow = [
                 'Response ID',
                 'Submitted At',
                 'Respondent',
+                'Nilai / Skor',
                 ...Array.from(questionMap.values()).map(stripMathNotation)
             ];
 
@@ -700,6 +702,7 @@ export default function FormResponsesPage() {
                     'KUNCI',
                     'JAWABAN',
                     '-',
+                    '-',
                     ...Array.from(questionMap.keys()).map(qId => {
                         const qDef = (formQuestions || []).find(q => q.id === qId);
                         return stripMathNotation(resolveAnswerKey(qDef));
@@ -710,11 +713,13 @@ export default function FormResponsesPage() {
 
             const dataRows = (respondentsList || []).map(r => {
                 const answerByQ = new Map((r.answers || []).map(a => [a.questionId, a.answerText || a.answerValue || a.optionText || '']));
+                const scoreDisplay = r.score != null ? `${r.score}%` : '-';
 
                 return [
                     r.responseId,
                     r.submittedAt ? formatDate(r.submittedAt) : '-',
                     r.respondentName || 'Anonim',
+                    scoreDisplay,
                     ...Array.from(questionMap.keys()).map(qId => stripMathNotation(answerByQ.get(qId) || ''))
                 ].map(escapeCsv).join(',');
             });
