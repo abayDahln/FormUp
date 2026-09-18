@@ -297,10 +297,39 @@ class AuthService {
 
   /// Pesan error untuk user
   static String errorMessage(Object e) => switch (e) {
-        ApiException(:final message) => message,
+        ApiException(:final message) => _translateServerMessage(message),
         OfflineCacheException(:final message) => message,
         _ => 'Terjadi kesalahan yang tidak diketahui.',
       };
+
+  /// Terjemahan pesan error Inggris dari API ke Bahasa Indonesia.
+  /// Hanya pesan yang dikenal persis (case-insensitive, tanpa titik akhir);
+  /// sisanya diteruskan apa adanya agar pesan baru server tetap terlihat.
+  static String _translateServerMessage(String message) {
+    final key =
+        message.trim().toLowerCase().replaceAll(RegExp(r'\.+$'), '');
+    return switch (key) {
+      'form not found' => 'Form tidak ditemukan.',
+      'form not found or unavailable' =>
+        'Form tidak ditemukan atau belum tersedia.',
+      'response not found' => 'Respons tidak ditemukan.',
+      'user not found' => 'Pengguna tidak ditemukan.',
+      _ => message,
+    };
+  }
+
+  /// Pesan khusus alur Masuk Form (kode/QR): kode salah dari API terbaca
+  /// "form not found" — ubah menjadi Bahasa Indonesia yang jelas.
+  static String formLookupErrorMessage(Object e) {
+    final raw = e is ApiException ? e.message : '';
+    final key = raw.trim().toLowerCase().replaceAll(RegExp(r'\.+$'), '');
+    if (key == 'form not found' ||
+        key == 'form not found or unavailable' ||
+        key == 'form tidak ditemukan') {
+      return 'Kode form tidak ditemukan. Periksa kembali kode form.';
+    }
+    return errorMessage(e);
+  }
 
   static bool isValidEmail(String email) =>
       RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(email);

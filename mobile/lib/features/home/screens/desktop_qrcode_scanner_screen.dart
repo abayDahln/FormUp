@@ -198,7 +198,7 @@ class _DesktopQrcodeScannerScreenState
       );
     } catch (e) {
       if (!mounted) return;
-      _fail(AuthService.errorMessage(e));
+      _fail(AuthService.formLookupErrorMessage(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

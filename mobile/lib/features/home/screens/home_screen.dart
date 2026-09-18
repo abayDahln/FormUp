@@ -266,7 +266,8 @@ class _HomeScreenState extends State<HomeScreen> {
       AppRouter.of(context).push(AppPage.formStart, {'formLink': code});
     } catch (e) {
       if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      showAuthToast(context, AuthService.formLookupErrorMessage(e),
+          isError: true);
     } finally {
       if (mounted) setState(() => _validatingCode = false);
     }
