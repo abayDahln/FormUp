@@ -99,6 +99,9 @@ class FormRunnerController {
     }
     final data = await PublicFormService.submit(
       link,
+      // formId = identitas stabil: pengerjaan tetap bisa disubmit walau
+      // formLink diubah owner di tengah sesi (tidak ada kendala).
+      formId: info?.id,
       token: tokenController.text.trim().isEmpty
           ? null
           : tokenController.text.trim(),

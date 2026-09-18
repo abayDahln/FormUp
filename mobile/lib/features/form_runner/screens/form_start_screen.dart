@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/theme/form_theme.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -71,15 +72,6 @@ class _FormStartScreenState extends State<FormStartScreen> {
       // Masuk info form = selalu fresh agar update pemilik langsung terlihat.
       final info = await PublicFormService.getFormInfo(widget.formLink, refresh: true);
 
-      // Cek apakah pemilik
-      if (info.isOwner && mounted) {
-        setState(() {
-          _error = "Anda tidak dapat mengisi form yang Anda buat sendiri";
-          _loading = false;
-        });
-        return;
-      }
-
       if (!mounted) return;
 
       setState(() {
@@ -89,6 +81,12 @@ class _FormStartScreenState extends State<FormStartScreen> {
       await _loadCompletionState();
     } catch (e) {
       if (!mounted) return;
+      // Link form berubah / form dihapus di server (404) → kembali ke
+      // beranda dengan pesan jelas; jangan biarkan layar info menggantung.
+      if (_isFormNotFound(e)) {
+        _leaveWithLinkChangedMessage();
+        return;
+      }
       setState(() {
         _error = AuthService.errorMessage(e);
         _loading = false;
@@ -97,6 +95,37 @@ class _FormStartScreenState extends State<FormStartScreen> {
     }
 
     if (mounted) setState(() => _loading = false);
+  }
+
+  /// Swipe-to-refresh: ambil ulang info form + status pengerjaan dari server.
+  /// Bila link berubah/dihapus (404) → kembali ke beranda dengan pesan.
+  Future<void> _refreshInfo() async {
+    try {
+      final info =
+          await PublicFormService.getFormInfo(widget.formLink, refresh: true);
+      if (!mounted) return;
+      setState(() => _formInfo = info);
+      await _loadCompletionState();
+    } catch (e) {
+      if (!mounted) return;
+      if (_isFormNotFound(e)) {
+        _leaveWithLinkChangedMessage();
+        return;
+      }
+      // Gagal lain (offline, server down): toast saja, state lama dipakai.
+      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+    }
+  }
+
+  static bool _isFormNotFound(Object e) =>
+      e is ApiException &&
+      e.message.toLowerCase().contains('tidak ditemukan');
+
+  void _leaveWithLinkChangedMessage() {
+    if (!mounted) return;
+    showAuthToast(context, 'Link form telah berubah. Kembali ke beranda.',
+        isError: true);
+    AppRouter.of(context).pop();
   }
 
   Future<void> _loadCompletionState() async {
@@ -158,6 +187,10 @@ class _FormStartScreenState extends State<FormStartScreen> {
     // jatah isi ulang dari reset owner) — BUKAN dari riwayat attempts, karena
     // riwayat sengaja dipertahankan setelah reset agar peserta bisa
     // mengerjakan kembali.
+    if (info.isOwner) {
+      showAuthToast(context, "Anda tidak dapat mengisi form yang Anda buat sendiri", isError: true);
+      return;
+    }
     if (info.oneResponse && info.alreadySubmitted) {
       // Selaraskan tampilan tombol dengan status terbaru.
       setState(() {});
@@ -315,7 +348,15 @@ class _FormStartScreenState extends State<FormStartScreen> {
     }
 
     final info = _formInfo!;
-    return SingleChildScrollView(
+    // Kunci one-response HANYA dari sinyal server (alreadySubmitted, selalu
+    // fresh via getFormInfo refresh:true). Riwayat attempts TIDAK dipakai
+    // sebagai kunci: riwayat dipertahankan permanen oleh server bahkan
+    // setelah owner me-reset (reset hanya menambah jatah ulang), sehingga
+    // guard history akan mengunci user selamanya pasca-reset.
+    final alreadyDone = info.oneResponse && info.alreadySubmitted;
+    return AppRefreshIndicator(
+      onRefresh: _refreshInfo,
+      child: SingleChildScrollView(
       padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24), wideMaxWidth: 1000),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -350,7 +391,9 @@ class _FormStartScreenState extends State<FormStartScreen> {
 
           if (_myAttempts.isNotEmpty) ...[
              Text(
-              "Anda sudah menyelesaikan form ini.",
+              alreadyDone
+                  ? "Anda sudah menyelesaikan form ini."
+                  : "Kamu punya riwayat pengerjaan di form ini.",
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
@@ -368,21 +411,25 @@ class _FormStartScreenState extends State<FormStartScreen> {
             const SizedBox(height: 12),
           ],
 
-          // C2: oneResponse + sudah submit (sinyal server alreadySubmitted,
-          // yang sudah memperhitungkan jatah isi ulang dari reset owner) →
-          // tombol dikunci dengan label jujur, bukan lolos lalu 400 di ujung.
-          // Riwayat attempts TIDAK dipakai sebagai kunci karena dipertahankan
-          // setelah reset agar peserta bisa mengerjakan kembali.
+          // C2: status terkunci ditampilkan di sini (bukan diblokir di home):
+          // owner tidak boleh mengisi form sendiri; oneResponse yang sudah
+          // dikerjakan (sudah memperhitungkan jatah isi ulang dari reset
+          // owner) → tombol disabled dengan label jujur.
           Builder(builder: (context) {
-            final submitted = info.oneResponse && info.alreadySubmitted;
-            if (submitted) {
+            if (info.isOwner) {
+              return AuthPrimaryButton(
+                label: "Form Milik Anda",
+                onPressed: null,
+              );
+            }
+            if (alreadyDone) {
               return AuthPrimaryButton(
                 label: "Sudah Mengerjakan",
                 onPressed: null,
               );
             }
             return AuthPrimaryButton(
-              label: _myAttempts.isNotEmpty ? "Kerjakan Ulang" : "Mulai Mengerjakan",
+              label: "Mulai Mengerjakan",
               loading: _validatingToken,
               onPressed: _validatingToken ? null : _startForm,
             );
@@ -535,6 +582,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
               ),
           ],
         ],
+        ),
       ),
     );
   }

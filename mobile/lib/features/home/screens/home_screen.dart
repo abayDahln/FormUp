@@ -229,7 +229,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _start() async {
-    if (!AppDebouncer.tryAcquire('home:start')) return;
+    // Debounce 3 detik: tombol selalu fetch API (refresh:true), tapi tidak
+    // boleh di-spam — jendela lebih panjang dari default 300ms karena setiap
+    // tekan memicu request info form ke server.
+    if (!AppDebouncer.tryAcquire('home:start', window: const Duration(seconds: 3))) {
+      return;
+    }
     if (_validatingCode) return;
     final code = _extractFormLink(_codeController.text);
     if (code.isEmpty) {
@@ -238,31 +243,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     setState(() => _validatingCode = true);
     try {
-      final info = await PublicFormService.getFormInfo(code, refresh: true);
+      // Selalu fetch info form (refresh:true) supaya kegagalan (404 / link
+      // berubah) langsung terlihat, lalu SELALU masuk ke info form screen —
+      // status terkunci (owner / jadwal / login / one-response sudah diisi)
+      // ditampilkan di sana dengan tombol disabled + pesan jelas.
+      await PublicFormService.getFormInfo(code, refresh: true);
       if (!mounted) return;
-      if (info.isOwner) {
-        showAuthToast(context, "Anda tidak dapat mengisi form yang Anda buat sendiri", isError: true);
-        return;
-      }
-      // A6: gagal-cepat di home memakai PublicFormInfo — jangan biarkan
-      // user jalan sampai runner baru gagal 401/403/409 di ujung.
-      final now = DateTime.now();
-      if (info.openFormTime != null && now.isBefore(info.openFormTime!)) {
-        showAuthToast(context, "Form belum dibuka", isError: true);
-        return;
-      }
-      if (info.closeFormTime != null && now.isAfter(info.closeFormTime!)) {
-        showAuthToast(context, "Form sudah ditutup", isError: true);
-        return;
-      }
-      if (info.requiresLogin && AuthService.token == null) {
-        showAuthToast(context, "Form ini membutuhkan login", isError: true);
-        return;
-      }
-      if (info.oneResponse && info.alreadySubmitted) {
-        showAuthToast(context, "Anda sudah mengerjakan form ini", isError: true);
-        return;
-      }
       AppRouter.of(context).push(AppPage.formStart, {'formLink': code});
     } catch (e) {
       if (!mounted) return;
