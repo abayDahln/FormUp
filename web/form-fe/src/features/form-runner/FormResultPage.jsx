@@ -157,7 +157,10 @@ export default function FormResultPage() {
         </div>
     );
 
-    const showScore = form?.showScore || form?.settings?.showScore || result?.showScore;
+    // P0-2: Live form setting takes strict precedence over submission snapshot (retroactive)
+    const showScore = form
+        ? Boolean(form.showScore ?? form.settings?.showScore ?? form.formSetting?.showScore ?? false)
+        : Boolean(result?.showScore);
     const score = result?.score;
 
     return (
@@ -191,6 +194,12 @@ export default function FormResultPage() {
                             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                                 Penilaian otomatis berdasarkan kunci jawaban.
                             </p>
+                        </div>
+                    )}
+
+                    {!showScore && (
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium text-center">
+                            Anda sudah submit. Terima kasih.
                         </div>
                     )}
 
@@ -335,8 +344,8 @@ export default function FormResultPage() {
                             </div>
                             )}
 
-                {/* Detailed Answer Review Section */}
-                {result?.answers && result.answers.length > 0 && (
+                {/* Detailed Answer Review Section - only visible when showScore is enabled */}
+                {showScore && result?.answers && result.answers.length > 0 && (
                     <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-4">
                         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
                             <div>
