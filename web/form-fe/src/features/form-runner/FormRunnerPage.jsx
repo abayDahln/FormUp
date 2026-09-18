@@ -198,6 +198,14 @@ export default function FormRunnerPage() {
         }
     }, [formLink, navigate]);
 
+    // P1-2: Play violation sound on genuine violation
+    const playViolationSound = useCallback(() => {
+        try {
+            const audio = new Audio('/sound/exam-warning.mp3');
+            audio.play().catch(() => {});
+        } catch {}
+    }, []);
+
     const sendExamEvent = useCallback(async (eventType) => {
     if (!form || isPreviewMode || form.isOwner) return;
     const isExam = form.isExamMode || form.detectTabSwitch;
@@ -238,9 +246,10 @@ export default function FormRunnerPage() {
                 if (typeof res.data.violationCount === 'number') {
                     setViolationCount(res.data.violationCount);
                 }
-                // Only show warning banner when an actual violation event occurs, not on presence (session_start / heartbeat)
+                // Only show warning banner & sound when an actual violation event occurs, not on presence (session_start / heartbeat)
                 if (eventType !== 'session_start' && eventType !== 'heartbeat') {
                     setTabSwitchWarning(true);
+                    playViolationSound();
                 }
                 // P0-3: When cheat threshold is reached, disqualify and auto-set score 0
                 const currentSw = typeof res.data.tabSwitchCount === 'number' ? res.data.tabSwitchCount : tabSwitchCount;
