@@ -107,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           OnboardingStep(
             anchorKey: _fabKey,
+            extraAnchorKeys: [FormScreen.createTourKey],
             title: '2. Buat Form',
             description:
                 'Ketuk + untuk membuat form baru, lalu kelola soal, kunci jawaban, dan pengaturannya.',
@@ -141,6 +142,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 'Ubah data lewat Edit Profil dan ganti kata sandi lewat Ubah Kata Sandi.',
             icon: Icons.person_outline,
             onEnter: () => _goTab(4),
+            // Profil first-install masih loading network (cache kosong) saat
+            // tab dibuka — beri jeda kunci ulang lebih lama agar lubang
+            // tidak terkunci prematur sebelum menu ter-layout.
+            settleMs: 600,
           ),
         ],
         onComplete: () async {

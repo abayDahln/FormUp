@@ -199,6 +199,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Column(
             children: [
               _MenuTile(
+                key: ProfileScreen.editTourKey,
                 icon: Icons.person_outline,
                 label: 'Edit Profil',
                 onTap: _openEditProfile,
@@ -207,6 +208,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const Divider(height: 1, indent: 52, color: Colors.black12),
               const SizedBox(height: 8),
               _MenuTile(
+                key: ProfileScreen.passwordTourKey,
                 icon: Icons.lock_outline,
                 label: 'Ubah Kata Sandi',
                 onTap: () =>

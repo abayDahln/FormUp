@@ -19,6 +19,10 @@ import 'package:form_up/features/home/widgets/form_search_bar.dart';
 class FormScreen extends StatefulWidget {
   const FormScreen({super.key});
 
+  /// Anchor tur panduan (desktop): tombol "Buat Form Baru" di header.
+  /// Dipakai sebagai fallback saat FAB disembunyikan di desktop (≥1200).
+  static final createTourKey = GlobalKey();
+
   @override
   State<FormScreen> createState() => _FormScreenState();
 }
@@ -207,6 +211,7 @@ class _FormScreenState extends State<FormScreen> {
                 if (isDesktopWidth(context)) ...[
                   const SizedBox(width: 12),
                   FilledButton.icon(
+                    key: FormScreen.createTourKey,
                     onPressed: () => AppRouter.of(context)
                         .push(AppPage.formTemplateChooser),
                     icon: const Icon(Icons.add, size: 18),

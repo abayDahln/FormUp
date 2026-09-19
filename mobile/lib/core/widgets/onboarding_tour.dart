@@ -55,13 +55,27 @@ class _OnboardingTourState extends State<OnboardingTour> {
   List<Rect> _targetRects = const [];
   bool _placeAbove = false;
   bool _done = false;
-  int _locateTries = 0;
+  // Polling anchor yang telat muncul (mis. tab Profil masih loading network
+  // saat pertama install — cache kosong sehingga butuh detik, bukan frame).
+  // Post-frame retry lama (8x) habis sebelum list menu ter-layout.
+  int _waitMs = 0;
+  int _gen = 0;
+  static const _maxWaitMs = 6000;
+  static const _pollIntervalMs = 150;
 
   @override
   void initState() {
     super.initState();
     widget.steps[_index].onEnter?.call();
     WidgetsBinding.instance.addPostFrameCallback((_) => _locate());
+  }
+
+  @override
+  void dispose() {
+    // Batalkan polling tertunda agar callback telat tidak setState.
+    _done = true;
+    _gen++;
+    super.dispose();
   }
 
   void _finish() {
@@ -97,6 +111,8 @@ class _OnboardingTourState extends State<OnboardingTour> {
 
   void _locate({bool resettle = true}) {
     if (!mounted || _done) return;
+    final gen = _gen;
+    final idx = _index;
     final step = widget.steps[_index];
     final screen = MediaQuery.of(context).size;
     final rects = <Rect>[];
@@ -108,13 +124,18 @@ class _OnboardingTourState extends State<OnboardingTour> {
       final rect = _boxRect(key, screen, step.spotlightPadding);
       if (rect != null) rects.add(rect);
     }
-    if (rects.isEmpty && keys.isNotEmpty && _locateTries < 8) {
-      // Anchor belum ter-layout (mis. baru pindah tab) — coba lagi frame berikut.
-      _locateTries++;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _locate());
+    if (rects.isEmpty && keys.isNotEmpty && _waitMs < _maxWaitMs) {
+      // Anchor belum ter-layout (tab baru pindah / Profil masih loading
+      // network saat first-install) — polling tiap 150ms hingga 6 detik
+      // agar lubang muncul sendiri tanpa user harus Lanjut/Kembali.
+      _waitMs += _pollIntervalMs;
+      Future.delayed(const Duration(milliseconds: _pollIntervalMs), () {
+        if (!mounted || _done || _gen != gen || _index != idx) return;
+        _locate();
+      });
       return;
     }
-    _locateTries = 0;
+    _waitMs = 0;
     if (!mounted) return;
     final union = rects.isEmpty
         ? null
@@ -139,6 +160,8 @@ class _OnboardingTourState extends State<OnboardingTour> {
 
   void _go(int next) {
     if (next < 0 || next >= widget.steps.length) return;
+    _gen++;
+    _waitMs = 0;
     widget.steps[next].onEnter?.call();
     setState(() {
       _index = next;
@@ -172,16 +195,22 @@ class _OnboardingTourState extends State<OnboardingTour> {
               ),
             ),
           ),
-          // Card penjelasan.
+          // Card penjelasan — lebar dibatasi (max 520) agar tidak full-screen
+          // di tablet/desktop; phone (<560) tetap selebar layar - 40.
           Positioned(
-            left: 20,
-            right: 20,
+            left: 0,
+            right: 0,
             top: rect == null
                 ? size.height * 0.35
                 : (_placeAbove
                     ? (rect.top - 290).clamp(60.0, size.height - 320)
                     : (rect.bottom + 12).clamp(60.0, size.height - 320)),
-            child: Container(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: cs.surface,
@@ -314,7 +343,10 @@ class _OnboardingTourState extends State<OnboardingTour> {
                   ),
                 ],
               ),
+                ),
+              ),
             ),
+          ),
           ),
         ],
       ),
