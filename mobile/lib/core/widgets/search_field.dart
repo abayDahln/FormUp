@@ -74,7 +74,18 @@ class _AppSearchFieldState extends State<AppSearchField> {
   void _refreshOptions() {
     final inner = _inner;
     if (inner == null || !mounted) return;
-    inner.value = inner.value.copyWith();
+    // RawAutocomplete._onChangedField hanya menghitung ulang opsi bila TEKS
+    // berubah (gate `value.text != _lastFieldText`), dan didUpdateWidget-nya
+    // tidak menghitung ulang saat optionsBuilder berganti. Akibatnya:
+    // `inner.value = inner.value.copyWith()` tidak mempan (equal →
+    // ValueNotifier skip notify) dan notifyListeners() mentah pun mental
+    // di gate teks. Jadi sentil teks sesaat (spasi ujung — di-trim oleh
+    // _optionsFor) lalu kembalikan persis: keduanya notify, recompute final
+    // berjalan dengan query yang benar. Sinkron dalam satu event → tanpa
+    // flicker, seleksi/kursor utuh, dan tidak memicu onChanged konsumen.
+    final current = inner.value;
+    inner.value = current.copyWith(text: '${current.text} ');
+    inner.value = current;
   }
 
   void _submit(String value) {
