@@ -188,7 +188,7 @@ flutter build windows --release     # Windows .exe portable (isi folder build/wi
   (tanpa ini build gagal di `flutter_secure_storage_windows`: `atlstr.h` tidak ditemukan).
 - UI adaptif: breakpoint 600/840/1200/1400 (`core/widgets/responsive.dart`) — kartu auth terpusat,
   `NavigationRail` di ≥840 (extended di ≥1200), bottom-sheet menjadi dialog, AI chat two-pane,
-  grid 1/2/3/4 kolom, home dua kolom + galeri template 4 kolom di 1920×1080.
+  grid 1/2/3/4 kolom, home dua kolom di 1920×1080.
   Layout phone (<600px) tidak berubah.
 - Keterbatasan desktop: tanpa kamera `image_picker` (opsi "Ambil Foto" disembunyikan),
   QR via layar khusus kamera+`zxing2` (bukan `mobile_scanner`), gambar remote tanpa cache disk.

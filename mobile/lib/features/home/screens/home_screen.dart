@@ -785,7 +785,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget? _railFab() {
     if (_currentIndex != 1) return null;
     void onAdd() {
-      AppRouter.of(context).push(AppPage.formTemplateChooser);
+      AppRouter.of(context).push(AppPage.formMaker);
     }
     // Phone: perilaku lama tanpa padding tambahan.
     if (!isTablet(context)) {

@@ -1,20 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:form_up/core/widgets/loading_indicator.dart';
-import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
-import 'package:form_up/core/utils/action_debouncer.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
-import 'package:form_up/core/widgets/responsive.dart';
-import 'package:form_up/core/widgets/rich_editor.dart';
-import 'package:form_up/core/services/auth_service.dart';
-import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/router/app_router.dart';
-import 'package:form_up/features/form/controllers/form_maker_controller.dart';
+import 'package:form_up/features/form/widgets/form_settings_panel.dart';
 import 'package:form_up/features/form/widgets/form_confirm_dialogs.dart';
-import 'package:form_up/features/form/widgets/form_maker_header_card.dart';
-import 'package:form_up/features/form/widgets/question_image_source_sheet.dart';
 
 /// Edit informasi & pengaturan form (judul, deskripsi, banner, setting).
+/// Phone: layar tunggal (panel pengaturan saja).
+/// Tablet/desktop: [FormEditorScreen] dual panel (pengaturan + soal).
 class FormMakerScreen extends StatefulWidget {
   final int? formId;
 
@@ -25,27 +17,11 @@ class FormMakerScreen extends StatefulWidget {
 }
 
 class _FormMakerScreenState extends State<FormMakerScreen> {
-  final FormMakerController _form = FormMakerController();
+  final GlobalKey<FormSettingsPanelState> _panelKey =
+      GlobalKey<FormSettingsPanelState>();
   AppRouterDelegate? _router;
-  bool _loading = false;
-  bool _saving = false;
-  double? _progress;
 
   bool get _isEdit => widget.formId != null;
-
-  final ScrollController _scrollController = ScrollController();
-  final FocusNode _titleFocusNode = FocusNode();
-  final GlobalKey _titleFieldKey = GlobalKey();
-
-  @override
-  void initState() {
-    super.initState();
-    if (_isEdit) {
-      _loadForm();
-    } else {
-      _form.baseline = _form.snapshot();
-    }
-  }
 
   @override
   void didChangeDependencies() {
@@ -57,153 +33,37 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
   @override
   void dispose() {
     _router?.popBackGuard();
-    _scrollController.dispose();
-    _titleFocusNode.dispose();
-    _form.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadForm() async {
-    setState(() => _loading = true);
-    try {
-      final form = await FormService.getForm(widget.formId!);
-      if (!mounted) return;
-      setState(() => _form.applyForm(form));
-    } catch (e) {
-      if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
   }
 
   /// Konfirmasi keluar: simpan / buang draf / batal (hanya jika ada perubahan).
   Future<bool> _confirmExit() async {
-    if (!_form.hasChanges) return true;
+    final panel = _panelKey.currentState;
+    if (panel == null || !panel.hasChanges) return true;
     final choice = await showFormExitConfirmDialog(context);
     if (!mounted) return false;
     if (choice == 'discard') return true;
     if (choice == 'save') {
-      await _save();
-      return false; // _save yang menutup screen.
+      await panel.save();
+      return false; // save yang menutup screen via onSaved.
     }
     return false;
   }
 
-  Future<void> _save() async {
-    if (!AppDebouncer.tryAcquire('form:saveMaker')) return;
-    if (_saving) return;
-    final title = _form.titleController.text.trim();
-    if (title.isEmpty) {
-      showAuthToast(context, "Judul form wajib diisi", isError: true);
-      // Auto-scroll + fokus ke field judul yang masih kosong
-      final ctx = _titleFieldKey.currentContext;
-      if (ctx != null) {
-        await Scrollable.ensureVisible(
-          ctx,
-          duration: const Duration(milliseconds: 300),
-          alignment: 0.2,
-        );
-        _titleFocusNode.requestFocus();
-      }
-      return;
-    }
-    final newBanner = _form.newBanner;
-    if (newBanner != null && exceedsUploadLimit(newBanner)) {
-      showAuthToast(context, "Banner maksimal 10 MB", isError: true);
-      return;
-    }
-
-    final settingsPayload = _form.buildSettingsPayload();
-
-    setState(() => _saving = true);
-    void setProgress(double p) {
-      if (mounted) setState(() => _progress = p);
-    }
-
-    // B5: lacak form baru agar bisa dibersihkan bila langkah lanjutan gagal
-    // (tanpa ini retry = duplikat, DB = draf yatim).
-    int? createdFormId;
-    try {
-      final customLink = sanitizeFormLink(_form.customLinkController.text);
-      final int formId;
-      if (_isEdit) {
-        formId = widget.formId!;
-        await FormService.updateForm(
-          formId,
-          title: _form.titleController.text.trim(),
-          description: encodeRichText(_form.descController),
-          formLink: customLink.isEmpty ? null : customLink,
-        );
-      } else {
-        formId = await FormService.createForm(
-          title: _form.titleController.text.trim(),
-          description: encodeRichText(_form.descController),
-        );
-        createdFormId = formId;
-        if (customLink.isNotEmpty) {
-          await FormService.updateForm(formId, formLink: customLink);
-        }
-      }
-      setProgress(0.4);
-      await FormService.updateSettings(formId, settingsPayload);
-      setProgress(0.7);
-
-      if (_form.newBanner != null) {
-        await FormService.uploadBanner(formId, _form.newBanner!, 'banner.jpg');
-      } else if (_form.bannerCleared && _isEdit) {
-        await FormService.updateForm(formId, bannerImage: '');
-      }
-      setProgress(1.0);
-
+  /// Navigasi pasca-simpan (replika alur lama): form baru lanjut kelola
+  /// soal, edit langsung kembali.
+  Future<void> _onSaved(int formId) async {
+    if (!mounted) return;
+    if (_isEdit) {
+      AppRouter.of(context).pop(formId);
+    } else {
+      // Form baru: lanjut kelola soal.
+      await AppRouter.of(context).push(AppPage.formQuestions, {
+        'formId': formId,
+      });
       if (!mounted) return;
-      // _invalidateCaches() di FormService sudah bump formsVersion -> auto-refresh
-      if (_isEdit) {
-        AppRouter.of(context).pop(formId);
-        showAuthToast(
-          context,
-          "Form berhasil diperbarui",
-        );
-      } else {
-        // Form baru: lanjut kelola soal.
-        await AppRouter.of(context).push(AppPage.formQuestions, {
-          'formId': formId,
-          'isNew': true,
-        });
-        if (!mounted) return;
-        AppRouter.of(context).pop(formId);
-        showAuthToast(context, "Form berhasil dibuat");
-      }
-    } catch (e) {
-      if (!mounted) return;
-      // B5: form baru + gagal di settings/banner/link = draf yatim.
-      // Tawarkan hapus (dengan konfirmasi) atau lanjutkan nanti.
-      final orphanId = (!_isEdit) ? createdFormId : null;
-      if (orphanId != null) {
-        final choice = await showOrphanFormDialog(context, e);
-        if (!mounted) return;
-        if (choice == 'delete') {
-          try {
-            await FormService.deleteForm(orphanId);
-            if (!mounted) return;
-            showAuthToast(context, "Draf kosong dihapus");
-          } catch (_) {
-            if (!mounted) return;
-            showAuthToast(context, "Draf tersimpan (id $orphanId), lanjutkan nanti", isError: true);
-          }
-        } else {
-          showAuthToast(context, "Draf tersimpan, lanjutkan nanti dari daftar form", isError: true);
-        }
-      } else {
-        showAuthToast(context, AuthService.errorMessage(e), isError: true);
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _saving = false;
-          _progress = null;
-        });
-      }
+      AppRouter.of(context).pop(formId);
+      showAuthToast(context, "Form berhasil dibuat");
     }
   }
 
@@ -237,130 +97,11 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
           },
         ),
       ),
-      body: _loading
-          ? const LoadingOverlay(contained: true)
-          : AbsorbPointer(
-              absorbing: _saving,
-              child: Column(
-                children: [
-                  if (_saving)
-                    progress.ProgressIndicator.linear(
-                      value: _progress,
-                      semanticsLabel: 'Menyimpan form',
-                    ),
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        AuthBackground(
-                    plain: true,
-                    child: SafeArea(
-                      child: ValueListenableBuilder<ActiveRichEditor?>(
-                        valueListenable: activeRichEditor,
-                        builder: (context, active, _) {
-                          final toolbarVisible = active != null;
-                          return SingleChildScrollView(
-                            controller: _scrollController,
-                            padding: centerPad(
-                              context,
-                              base: EdgeInsets.fromLTRB(
-                                22,
-                                16,
-                                22,
-                                toolbarVisible ? 110 : 24,
-                              ),
-                              wideMaxWidth: 960,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                FormMakerHeaderCard(
-                                  titleController: _form.titleController,
-                                  descController: _form.descController,
-                                  bannerImage: _form.bannerImage,
-                                  newBanner: _form.newBanner,
-                                  onPickBanner: _pickBanner,
-                                  titleFocusNode: _titleFocusNode,
-                                  titleFieldKey: _titleFieldKey,
-                                  settingsController: _form,
-                                  onSettingsChanged: () => setState(() {}),
-                                  onPickOpenTime: _pickOpenTime,
-                                  onPickCloseTime: _pickCloseTime,
-                                ),
-                                const SizedBox(height: 24),
-                                AuthPrimaryButton(
-                                  label: _saving
-                                      ? "Menyimpan..."
-                                      : (_isEdit ? "Simpan Form" : "Simpan & Kelola Soal"),
-                                  loading: _saving,
-                                  progress: _progress,
-                                  onPressed: _save,
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                        const FloatingRichToolbar(),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+      body: FormSettingsPanel(
+        key: _panelKey,
+        formId: widget.formId,
+        onSaved: _onSaved,
+      ),
     );
-  }
-
-  Future<void> _pickOpenTime() async {
-    final picked = await _pickDateTime(_form.openFormTime);
-    if (picked != null) setState(() => _form.openFormTime = picked);
-  }
-
-  Future<void> _pickCloseTime() async {
-    final picked = await _pickDateTime(_form.closeFormTime);
-    if (picked != null) setState(() => _form.closeFormTime = picked);
-  }
-
-  Future<DateTime?> _pickDateTime(DateTime? initial) async {
-    final now = DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial ?? now,
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 5),
-    );
-    if (date == null) return null;
-    if (!mounted) return null;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initial ?? now),
-    );
-    if (time == null) return null;
-    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
-  }
-
-  Future<void> _pickBanner() async {
-    final source = await showQuestionImageSourceSheet(context);
-    if (source == null || !mounted) return;
-    try {
-      final picked = await ImagePicker().pickImage(
-        source: source,
-        maxWidth: 1600,
-        maxHeight: 600,
-        imageQuality: 85,
-      );
-      if (picked == null) return;
-      final bytes = await picked.readAsBytes();
-      if (!mounted) return;
-      if (exceedsUploadLimit(bytes)) {
-        showAuthToast(context, "Banner maksimal 10 MB", isError: true);
-        return;
-      }
-      setState(() => _form.newBanner = bytes);
-    } catch (e) {
-      if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
-    }
   }
 }

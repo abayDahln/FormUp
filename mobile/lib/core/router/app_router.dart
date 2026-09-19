@@ -9,7 +9,7 @@ import 'package:form_up/features/auth/screens/otp_screen.dart';
 import 'package:form_up/features/auth/screens/reset_password_screen.dart';
 import 'package:form_up/features/home/screens/home_screen.dart';
 import 'package:form_up/features/form/screens/form_maker_screen.dart';
-import 'package:form_up/features/form/screens/form_template_chooser_screen.dart';
+import 'package:form_up/features/form/screens/form_builder_screen.dart';
 import 'package:form_up/features/form_runner/screens/form_runner_screen.dart';
 import 'package:form_up/features/form/screens/form_history_detail_screen.dart';
 import 'package:form_up/features/form/screens/history_form_detail_screen.dart';
@@ -47,7 +47,6 @@ enum AppPage {
   otp,
   resetPassword,
   home,
-  formTemplateChooser,
   formMaker,
   formQuestions,
   formQuestionEdit,
@@ -155,7 +154,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   List<AppRoute> get stack => List.unmodifiable(_stack);
 
   List<Page<void>> get _pages =>
-      [for (final route in _stack) AppPageBuilder(route, (_) => _build(route))];
+      [for (final route in _stack) AppPageBuilder(route, (context) => _build(route, context))];
 
   @override
   Widget build(BuildContext context) {
@@ -313,7 +312,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   }
 
 
-  Widget _build(AppRoute route) {
+  Widget _build(AppRoute route, BuildContext context) {
     // D3: halaman admin hanya untuk ADMIN (deep-link/push langsung ditolak
     // di UI, bukan menunggu 403 server).
     if (_RouteGuardScreen.isAdminPage(route.page) &&
@@ -341,15 +340,18 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
         );
       case AppPage.home:
         return HomeScreen(username: _username);
-      case AppPage.formTemplateChooser:
-        return const FormTemplateChooserScreen();
       case AppPage.formMaker:
-        return FormMakerScreen(formId: route.args['formId'] as int?);
+        final makerId = route.args['formId'] as int?;
+        // Tablet/desktop: screen builder all-in-one (settings + accordion soal).
+        if (isTablet(context)) return FormBuilderScreen(formId: makerId);
+        return FormMakerScreen(formId: makerId);
       case AppPage.formQuestions:
-        return FormQuestionsScreen(
-          formId: route.args['formId'] as int?,
-          isNew: route.args['isNew'] == true,
-        );
+        final questionFormId = route.args['formId'] as int?;
+        // Tablet/desktop: screen builder all-in-one (settings + accordion soal).
+        if (isTablet(context)) {
+          return FormBuilderScreen(formId: questionFormId);
+        }
+        return FormQuestionsScreen(formId: questionFormId);
       case AppPage.formQuestionEdit:
         final editDraft = route.args['draft'];
         if (editDraft is! QuestionDraft) {
@@ -479,7 +481,6 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       'otp' => const AppRoute(AppPage.otp),
       'reset-password' => const AppRoute(AppPage.resetPassword),
       'form-maker' => const AppRoute(AppPage.formMaker),
-      'form-template-chooser' => const AppRoute(AppPage.formTemplateChooser),
       'form-questions' => const AppRoute(AppPage.formQuestions),
       'form-question-edit' => const AppRoute(AppPage.formQuestionEdit),
       'form-runner' => const AppRoute(AppPage.formRunner),
@@ -511,7 +512,6 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       AppPage.otp => 'otp',
       AppPage.resetPassword => 'reset-password',
       AppPage.home => 'home',
-      AppPage.formTemplateChooser => 'form-template-chooser',
       AppPage.formMaker => 'form-maker',
       AppPage.formQuestions => 'form-questions',
       AppPage.formQuestionEdit => 'form-question-edit',
