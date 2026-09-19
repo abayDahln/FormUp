@@ -111,7 +111,8 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   final List<AppRoute> _stack = <AppRoute>[];
   // Completer per entri stack (bukan per jenis halaman) agar push halaman
   // yang sama dua kali tidak saling menimpa future penyelesaiannya.
-  final Map<AppRoute, Completer<void>> _popCompleters = {};
+  // Object? = result opsional dari pop (mis. true bila form di-submit).
+  final Map<AppRoute, Completer<Object?>> _popCompleters = {};
   String _username = '';
   bool _initialSet = false;
 
@@ -246,18 +247,20 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
       ..clear()
       ..add(AppRoute(_rootPage));
     notifyListeners();
-    // Push form deep link tertunda
+    // Push form deep link tertunda → selalu via Informasi Form agar status
+    // tombol (sudah mengerjakan / milik sendiri) tampil dengan benar.
     final pending = _pendingFormCode;
     if (pending != null && pending.isNotEmpty) {
       _pendingFormCode = null;
-      push(AppPage.formRunner, {'code': pending});
+      push(AppPage.formStart, {'formLink': pending});
     }
   }
 
-  /// Push halaman, selesai saat di-pop
-  Future<void> push(AppPage page, [Map<String, dynamic> args = const {}]) {
+  /// Push halaman, selesai saat di-pop.
+  /// Mengembalikan result dari pop (null bila batal / back sistem).
+  Future<Object?> push(AppPage page, [Map<String, dynamic> args = const {}]) {
     final entry = AppRoute(page, args);
-    final completer = Completer<void>();
+    final completer = Completer<Object?>();
     _popCompleters[entry] = completer;
     _stack.add(entry);
     notifyListeners();
@@ -277,7 +280,10 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   void pop([Object? result]) {
     if (_stack.length > 1) {
       final removed = _stack.removeLast();
-      _popCompleters.remove(removed)?.complete();
+      final completer = _popCompleters.remove(removed);
+      if (completer != null && !completer.isCompleted) {
+        completer.complete(result);
+      }
       notifyListeners();
     } else if (_viaDeepLink) {
       // Root dari deep link → fallback ke halaman root sesuai role
@@ -461,9 +467,10 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
   ) async {
     final segments = routeInformation.uri.pathSegments;
     final first = segments.isEmpty ? '' : segments.first;
-    // Deep link form publik /f /q
+    // Deep link form publik /f /q → selalu via Informasi Form (bukan
+    // runner langsung) agar tombol disabled tampil bila sudah mengerjakan.
     if ((first == 'f' || first == 'q') && segments.length >= 2) {
-      return AppRoute(AppPage.formRunner, {'code': segments[1]});
+      return AppRoute(AppPage.formStart, {'formLink': segments[1]});
     }
     return switch (first) {
       'home' => const AppRoute(AppPage.home),
