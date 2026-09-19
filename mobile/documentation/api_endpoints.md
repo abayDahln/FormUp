@@ -1429,7 +1429,7 @@ Daftar semua attempt responden yang sama pada form yang sama — dicocokkan via 
 }
 ```
 
-Status (kanonik, read-only di UI): 1=new (draft), 5=submitted.
+Status (read-only di UI): `new` = draft, `submitted` = hasil sah.
 Transisi keluar/masuk `new` ditolak server (400).
 
 **Response 200:**

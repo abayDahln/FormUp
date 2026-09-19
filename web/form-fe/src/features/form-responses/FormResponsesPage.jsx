@@ -25,14 +25,16 @@ import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
 // Label status respons — hanya dua status yang dipakai: "new" (draft)
 // dan "submitted" (terkirim). Kolom status bersifat read-only (badge);
 // pengubahan status dihapus agar kuota reset tidak bisa dirusak.
-const statusLabel = (status) => {
+// Baris agregat analytics tidak membawa field status — fallback ke
+// waktu submit bila ada (agregat hanya berisi upaya yang terkirim).
+const statusLabel = (status, submittedAt) => {
     switch (String(status || '').toLowerCase()) {
         case 'submitted':
         case 'terkirim': return 'Terkirim';
         case 'new':
         case 'baru':
         case 'draft': return 'Draft';
-        default: return status || '—';
+        default: return submittedAt ? 'Terkirim' : '—';
     }
 };
 
@@ -1782,7 +1784,7 @@ export default function FormResponsesPage() {
                                                                     className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold ${statusStyle(r.status)}`}
                                                                     title="Status respons (read-only)"
                                                                 >
-                                                                    {statusLabel(r.status)}
+                                                                    {statusLabel(r.status, r.submittedAt)}
                                                                 </span>
                                                             </td>
                                                             <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 text-xs">

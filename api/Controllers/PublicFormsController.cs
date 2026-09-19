@@ -37,13 +37,14 @@ public class PublicFormsController : ControllerBase
 
         if (form.FormSetting?.OneResponse == true && User.Identity?.IsAuthenticated == true && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var currentUid))
         {
-            // Selaras dengan guard submit: hanya yang tersubmit dihitung,
-            // kuota = 1 + jatah reset owner (FormAttemptAllowance).
+            // Selaras dengan guard submit: sudah pernah submit sah (draft
+            // "new" dikecualikan) DAN tak memegang token buka dari reset
+            // owner → terkunci. Token = dibuka kembali seolah belum isi.
             var submitted = await AttemptAllowance.CountSubmittedAsync(_db, form.Id, currentUid, null);
             if (submitted > 0)
             {
-                var extra = await AttemptAllowance.GetExtraAttemptsAsync(_db, form.Id, currentUid, null);
-                if (submitted >= 1 + extra)
+                var token = await AttemptAllowance.GetRetakeTokenAsync(_db, form.Id, currentUid, null);
+                if (!token)
                 {
                     alreadySubmitted = true;
                     // Jangan kembalikan id draft "new" sebagai respons sebelumnya.
@@ -234,13 +235,13 @@ public class PublicFormsController : ControllerBase
 
         if (form.FormSetting?.OneResponse == true && User.Identity?.IsAuthenticated == true && int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var currentUid))
         {
-            // Selaras dengan GetForm + guard submit: draft "new" dikecualikan,
-            // kuota = 1 + jatah isi ulang dari reset owner (FormAttemptAllowance).
+            // Selaras dengan GetForm + guard submit: draft "new"
+            // dikecualikan; token buka dari reset owner = boleh isi 1x lagi.
             var submitted = await AttemptAllowance.CountSubmittedAsync(_db, form.Id, currentUid, null);
             if (submitted > 0)
             {
-                var extra = await AttemptAllowance.GetExtraAttemptsAsync(_db, form.Id, currentUid, null);
-                if (submitted >= 1 + extra)
+                var retakeToken = await AttemptAllowance.GetRetakeTokenAsync(_db, form.Id, currentUid, null);
+                if (!retakeToken)
                     return BadRequest(new ApiResponse<object>(400, "Anda sudah pernah mengerjakan formulir ini (hanya 1 kali pengerjaan)"));
             }
         }
