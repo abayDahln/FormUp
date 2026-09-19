@@ -115,7 +115,7 @@ Satu submission dari form oleh responden.
 | respondent_id | int | Tidak | FK ke User (null untuk anonymous/guest) |
 | respondent_name | string(100) | Tidak | Nama tamu dari responden tanpa login (opsional) |
 | guest_token | string(64) | Tidak | Token pengenal guest (client generate / server auto). Dipakai untuk one-response guest & ambil hasil via endpoint publik |
-| status_id | int | Ya | FK ke ResponseStatus (1=In Progress, 2=Submitted, 3=new) |
+| status_id | int | Ya | FK ke ResponseStatus (kanonik: 1=new/draft, 5=submitted) |
 | submitted_at | datetime | Ya | Waktu respon disubmit |
 | created_at | datetime | Ya | Waktu dibuat |
 | updated_at | datetime | Ya | Waktu terakhir diubah |
@@ -160,13 +160,20 @@ Tabel-tabel ini diisi saat migrasi dan hanya dibaca (read-only).
 | 4 | Date Time | Input tanggal/waktu |
 | 5 | True False | Benar/Salah |
 
-### ResponseStatus
+### ResponseStatus (kanonik — kontrak id, dijamin migrasi `SeedResponseStatusCanonical`)
 
 | ID | Status | Keterangan |
 |----|--------|-----------|
-| 1 | In Progress | Masih dikerjakan |
-| 2 | Submitted | Sudah dikirim |
-| 3 | new | Respon baru (status awal saat submit, dipakai kode) |
+| 1 | new | Draft (khusus draft `sync-answers` exam; dikecualikan dari kuota one-response) |
+| 5 | submitted | Sudah dikirim (status submit; dihitung sebagai submit) |
+
+> Hanya dua status di atas yang dipakai. Status grading lama
+> (`reviewed`/`accepted`/`rejected`) dipetakan ke `submitted` oleh migrasi
+> `BackfillSubmittedStatusForLegacyResponses` lalu baris referensinya
+> dihapus. Kolom status di UI bersifat read-only (badge); endpoint
+> `PUT /api/responses/{id}/status` menolak transisi keluar/masuk `new`
+> agar kuota reset tidak rusak — finalisasi draft hanya lewat force-submit
+> pengawas, jatah ulang hanya lewat endpoint reset.
 
 ### FormType
 

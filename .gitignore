@@ -71,3 +71,6 @@ package.json
 package-lock.json
 
 plan/
+deploy-migration.bat
+deploy-update.bat
+restart-services.bat

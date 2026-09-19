@@ -1,34 +1,23 @@
 import 'dart:ui';
 
-/// Opsi status respons
-const responseStatusOptions = <(int, String)>[
-  (1, 'New'),
-  (2, 'Reviewed'),
-  (3, 'Accepted'),
-  (4, 'Rejected'),
-];
-
-int responseStatusIdOf(String? status) {
+/// Hanya dua status respons yang dipakai: "new" (draft) dan "submitted"
+/// (terkirim). Kolom status bersifat read-only — pengubahan status
+/// dihapus agar kuota reset tidak bisa dirusak.
+String responseStatusLabel(String? status) {
   switch (status?.toLowerCase()) {
-    case 'reviewed':
-      return 2;
-    case 'accepted':
-      return 3;
-    case 'rejected':
-      return 4;
+    case 'submitted':
+      return 'Submitted';
+    case 'new':
     default:
-      return 1;
+      return 'New';
   }
 }
 
 (String, Color, Color) responseStatusStyle(String status) {
   switch (status.toLowerCase()) {
-    case 'reviewed':
-      return ('Reviewed', const Color(0xFFB26A00), const Color(0xFFFFF3DE));
-    case 'accepted':
-      return ('Accepted', const Color(0xFF2E7D32), const Color(0xFFE3F4E8));
-    case 'rejected':
-      return ('Rejected', const Color(0xFFC0392B), const Color(0xFFFDE8E6));
+    case 'submitted':
+      return ('Submitted', const Color(0xFF00897B), const Color(0xFFE0F2F1));
+    case 'new':
     default:
       return ('New', const Color(0xFF2E7D32), const Color(0xFFE3F4E8));
   }

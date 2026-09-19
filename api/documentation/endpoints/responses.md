@@ -214,6 +214,12 @@ via API. Setelah reset, tombol hilang sampai ada submit baru.
 - Respons harus sudah tersubmit (draft `new` → `400`)
 - Respons harus punya identitas responden (akun/nama) → kalau tidak `400`
 
+> Batas draft: `PUT /api/responses/{id}/status` menolak mengubah draft
+> `new` menjadi status tersubmit (dan sebaliknya). Jangan akali tombol
+> reset yang hilang dengan mengganti status — tombol hilang berarti baris
+> itu draft/bukan upaya terbaru; ubah status justru menggelembungkan
+> hitungan submit sehingga responden tetap terkunci walau reset "berhasil".
+
 **Response 200:**
 ```json
 {
@@ -237,7 +243,8 @@ via API. Setelah reset, tombol hilang sampai ada submit baru.
 }
 ```
 
-Status: 1=new, 2=reviewed, 3=flagged.
+Status (kanonik, read-only di UI): 1=new (draft, dikecualikan dari kuota),
+5=submitted. Transisi keluar/masuk `new` ditolak server (400).
 
 > **Catatan UI:** opsi ubah status (accept/reject) sudah dihapus dari aplikasi mobile; endpoint ini masih tersedia untuk kompatibilitas.
 

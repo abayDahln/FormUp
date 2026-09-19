@@ -13,7 +13,7 @@ import ConfirmModal from '../../components/ui/ConfirmModal';
 import {
     getFormById, getFormResponses, getFormAnalytics,
     getResponseResult, getQuestions, getResponseDetail, getResponseAttempts,
-    updateResponseStatus, clearSession, exportFormResponses, getFormFeedbacks, assetUrl,
+    clearSession, exportFormResponses, getFormFeedbacks, assetUrl,
     overrideAnswerScore, bulkOverrideAnswerScores, getExamMonitoring,
     forceSubmitExamSession, resetFormResponse, resolveAnswerKey, ResolveAnswerKey, ExamProctorActions,
     stripMathNotation
@@ -22,12 +22,19 @@ import { getGeminiApiKey, scoreHolisticEssayWithAI, AVAILABLE_MODELS } from '../
 import RichContentRenderer from '../../utils/RichContentRenderer';
 import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
 
-const STATUS_OPTIONS = [
-    { id: 1, label: 'Baru', code: 'new' },
-    { id: 2, label: 'Ditinjau', code: 'reviewed' },
-    { id: 3, label: 'Diterima', code: 'accepted' },
-    { id: 4, label: 'Ditolak', code: 'rejected' },
-];
+// Label status respons — hanya dua status yang dipakai: "new" (draft)
+// dan "submitted" (terkirim). Kolom status bersifat read-only (badge);
+// pengubahan status dihapus agar kuota reset tidak bisa dirusak.
+const statusLabel = (status) => {
+    switch (String(status || '').toLowerCase()) {
+        case 'submitted':
+        case 'terkirim': return 'Terkirim';
+        case 'new':
+        case 'baru':
+        case 'draft': return 'Draft';
+        default: return status || '—';
+    }
+};
 
 const PAGE_SIZE = 25;
 
@@ -187,7 +194,6 @@ export default function FormResponsesPage() {
     const [responses, setResponses] = useState([]);
     const [analytics, setAnalytics] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [statusUpdating, setStatusUpdating] = useState(null);
     const [toast, setToast] = useState(null);
     const [exporting, setExporting] = useState(false);
     const [lightboxImage, setLightboxImage] = useState(null);
@@ -713,37 +719,18 @@ export default function FormResponsesPage() {
         }
     };
 
-    const handleStatusChange = async (responseId, statusId) => {
-        setStatusUpdating(responseId);
-        const res = await updateResponseStatus(responseId, statusId);
-        if (res.ok) {
-            const statusLabel = STATUS_OPTIONS.find(s => s.id === statusId)?.code ?? 'new';
-            setResponses(prev => (Array.isArray(prev) ? prev : []).map(r =>
-                r.id === responseId
-                    ? { ...r, status: statusLabel }
-                    : r
-            ));
-            showToast('Status respons berhasil diperbarui');
-        } else {
-            showToast(res.message || 'Gagal memperbarui status', 'error');
-        }
-        setStatusUpdating(null);
-    };
-
     const formatDate = (d) => d
         ? new Date(d).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
         : '—';
 
     const statusStyle = (status) => {
+        // Hanya dua status: new (draft) dan submitted (terkirim).
         switch (status?.toLowerCase()) {
-            case 'new': 
-            case 'baru': return 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400';
-            case 'reviewed': 
-            case 'ditinjau': return 'bg-yellow-50 text-yellow-600 dark:bg-yellow-950/60 dark:text-yellow-400';
-            case 'accepted': 
-            case 'diterima': return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400';
-            case 'rejected': 
-            case 'ditolak': return 'bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-400';
+            case 'new':
+            case 'baru':
+            case 'draft': return 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400';
+            case 'submitted':
+            case 'terkirim': return 'bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300';
             default: return 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
         }
     };
@@ -1791,16 +1778,12 @@ export default function FormResponsesPage() {
                                                                 )}
                                                             </td>
                                                             <td className="py-3.5 px-4">
-                                                                <select
-                                                                    value={STATUS_OPTIONS.find(s => s.code === r.status?.toLowerCase())?.id ?? 1}
-                                                                    onChange={e => handleStatusChange(r.responseId, parseInt(e.target.value))}
-                                                                    disabled={statusUpdating === r.responseId}
-                                                                    className={`text-[11px] font-bold px-2.5 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-400 disabled:opacity-60 ${statusStyle(r.status)}`}
+                                                                <span
+                                                                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold ${statusStyle(r.status)}`}
+                                                                    title="Status respons (read-only)"
                                                                 >
-                                                                    {STATUS_OPTIONS.map(s => (
-                                                                        <option key={s.id} value={s.id}>{s.label}</option>
-                                                                    ))}
-                                                                </select>
+                                                                    {statusLabel(r.status)}
+                                                                </span>
                                                             </td>
                                                             <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 text-xs">
                                                                 {formatDate(r.submittedAt)}

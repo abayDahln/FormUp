@@ -1429,7 +1429,8 @@ Daftar semua attempt responden yang sama pada form yang sama — dicocokkan via 
 }
 ```
 
-Status: 1=new, 2=reviewed, 3=flagged.
+Status (kanonik, read-only di UI): 1=new (draft), 5=submitted.
+Transisi keluar/masuk `new` ditolak server (400).
 
 **Response 200:**
 ```json

@@ -363,6 +363,25 @@ public class ResponsesController : ControllerBase
             $"Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan. Peserta dapat mengerjakan kembali dengan sesi baru."));
     }
 
+    [HttpGet("api/response-statuses")]
+    public async Task<ActionResult<ApiResponse<object>>> GetStatuses()
+    {
+        var user = await GetCurrentUser();
+        if (user == null)
+            return Unauthorized(new ApiResponse<object>(401, "User not found"));
+
+        // Daftar referensi kanonik (id + nama): hanya "new" (draft) dan
+        // "submitted" (hasil sah). Klien (web) membangun opsi dari sini agar
+        // tidak menebak id di sisi klien (lihat migrasi
+        // SeedResponseStatusCanonical).
+        var items = await _db.ResponseStatuses
+            .OrderBy(s => s.Id)
+            .Select(s => new { id = s.Id, status = s.Status })
+            .ToListAsync();
+
+        return Ok(new ApiResponse<object>(200, "OK", items));
+    }
+
     [HttpPut("api/responses/{id}/status")]
     public async Task<ActionResult<ApiResponse<object>>> UpdateStatus(int id, [FromBody] UpdateResponseStatusRequest request)
     {
@@ -380,9 +399,32 @@ public class ResponsesController : ControllerBase
         if (response.Form == null || response.Form.UserId != user.Id)
             return Forbid();
 
-        var statusExists = await _db.ResponseStatuses.AnyAsync(s => s.Id == request.StatusId);
-        if (!statusExists)
+        var target = await _db.ResponseStatuses
+            .FirstOrDefaultAsync(s => s.Id == request.StatusId);
+        if (target == null)
             return BadRequest(new ApiResponse<object>(400, "Invalid status ID"));
+
+        // Guard batas draft: status "new" adalah draft sync-answers yang
+        // dikecualikan dari kuota one-response. Mengubah draft menjadi
+        // status tersubmit (atau sebaliknya) lewat endpoint ini merusak
+        // invarian reset (E < S): tombol reset muncul untuk baris yang
+        // seharusnya draft, reset "berhasil" tetapi responden tetap
+        // terkunci. Finalisasi draft hanya lewat force-submit pengawas;
+        // jatah ulang hanya lewat endpoint reset.
+        var current = await _db.ResponseStatuses
+            .Where(s => s.Id == response.StatusId)
+            .Select(s => s.Status)
+            .FirstOrDefaultAsync();
+        var currentIsNew = string.Equals(current, "new", StringComparison.OrdinalIgnoreCase);
+        var targetIsNew = string.Equals(target.Status, "new", StringComparison.OrdinalIgnoreCase);
+        if (currentIsNew != targetIsNew)
+        {
+            if (currentIsNew)
+                return BadRequest(new ApiResponse<object>(400,
+                    "Status draft (new) tidak dapat diubah langsung menjadi status tersubmit. Gunakan tombol Reset agar jatah isi ulang tercatat dengan benar."));
+            return BadRequest(new ApiResponse<object>(400,
+                "Respons yang sudah tersubmit tidak dapat dikembalikan menjadi draft (new)."));
+        }
 
         response.StatusId = request.StatusId;
         response.UpdatedAt = DateTime.UtcNow;
