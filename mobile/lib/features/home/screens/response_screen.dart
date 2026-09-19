@@ -7,6 +7,7 @@ import 'package:form_up/core/widgets/empty_state.dart';
 import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/search_field.dart';
+import 'package:form_up/core/widgets/filter_pill_button.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/router/app_router.dart';
@@ -495,7 +496,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: isDesktopWidth(context)
+          child: isTablet(context)
               ? Row(
                   children: [
                     Expanded(
@@ -511,10 +512,9 @@ class _ResponseScreenState extends State<ResponseScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    FilledButton.tonalIcon(
+                    FilterPillButton(
                       onPressed: _openHistoryFilterSheet,
-                      icon: const Icon(Icons.tune, size: 18),
-                      label: Text(filterActive ? 'Filter aktif' : 'Filter'),
+                      active: filterActive,
                     ),
                   ],
                 )
@@ -541,7 +541,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: isDesktopWidth(context)
+          child: isTablet(context)
               ? Row(
                   children: [
                     Expanded(
@@ -557,10 +557,9 @@ class _ResponseScreenState extends State<ResponseScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    FilledButton.tonalIcon(
+                    FilterPillButton(
                       onPressed: _openAnalyticsFilterSheet,
-                      icon: const Icon(Icons.tune, size: 18),
-                      label: Text(filterActive ? 'Filter aktif' : 'Filter'),
+                      active: filterActive,
                     ),
                   ],
                 )

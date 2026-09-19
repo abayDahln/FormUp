@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/responsive.dart';
+import 'package:form_up/core/widgets/adaptive_fab.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
 import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/utils/action_debouncer.dart';
@@ -1144,42 +1145,59 @@ class _FormQuestionsScreenState extends State<FormQuestionsScreen> {
                 ),
               ),
             ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Shortcut AI chat: buka chat dengan form ini otomatis di-mention.
-          FloatingActionButton.small(
-            key: _aiKey,
-            heroTag: 'aiChatForForm',
-            onPressed: widget.formId == null
-                ? null
-                : () => AppRouter.of(context)
-                    .push(AppPage.aiChat, {'formId': widget.formId}),
-            backgroundColor: cs.surface,
-            foregroundColor: cs.primary,
-            elevation: 3,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            tooltip: 'Tanya AI tentang form ini',
-            child:  AiChatIcon(size: 18, color: cs.primary, filled: true),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: 68,
-            height: 68,
-            child: FloatingActionButton(
-              key: _addKey,
-              onPressed: (_saving || _importing) ? null : _addQuestion,
-              backgroundColor: kPrimary,
-              foregroundColor: Colors.white,
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              tooltip: 'Tambah Soal',
-              child: const Icon(Icons.add, size: 32),
-            ),
-          ),
-        ],
-      ),
+      floatingActionButton: _buildQuestionFab(cs),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  /// FAB kelola soal — satu definisi untuk semua layout.
+  /// Phone (<600): shortcut AI kecil + lingkaran 68px margin L1=16 (identik).
+  /// Tablet/desktop: tombol tambah menjadi Extended FAB M3 (tinggi & ikon
+  /// disamakan 68px/32, plus label "Tambah Soal") dengan margin kanan ==
+  /// bawah berlevel (tablet L1–L2, desktop L2–L5 mengikuti ukuran window).
+  Widget _buildQuestionFab(ColorScheme cs) {
+    final disabled = _saving || _importing;
+    final aiFab = FloatingActionButton.small(
+      key: _aiKey,
+      heroTag: 'aiChatForForm',
+      onPressed: widget.formId == null
+          ? null
+          : () => AppRouter.of(context)
+              .push(AppPage.aiChat, {'formId': widget.formId}),
+      backgroundColor: cs.surface,
+      foregroundColor: cs.primary,
+      elevation: 3,
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      tooltip: 'Tanya AI tentang form ini',
+      child: AiChatIcon(size: 18, color: cs.primary, filled: true),
+    );
+    final Widget addFab = isTablet(context)
+        ? buildExtendedAddFab(
+            key: _addKey,
+            onPressed: disabled ? null : _addQuestion,
+            label: 'Tambah Soal',
+            tooltip: 'Tambah Soal',
+          )
+        : buildCircleAddFab(
+            key: _addKey,
+            onPressed: disabled ? null : _addQuestion,
+            tooltip: 'Tambah Soal',
+          );
+    final column = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // Shortcut AI chat: buka chat dengan form ini otomatis di-mention.
+        aiFab,
+        const SizedBox(height: 12),
+        addFab,
+      ],
+    );
+    if (!isTablet(context)) return column;
+    return Padding(
+      padding: fabPad(context),
+      child: column,
     );
   }
 

@@ -14,14 +14,11 @@ import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/home/controllers/form_sort_filter.dart';
 import 'package:form_up/features/home/widgets/form_filter_sheet_content.dart';
 import 'package:form_up/features/home/widgets/form_search_bar.dart';
+import 'package:form_up/core/widgets/filter_pill_button.dart';
 
 /// Tab Form: kelola form saya
 class FormScreen extends StatefulWidget {
   const FormScreen({super.key});
-
-  /// Anchor tur panduan (desktop): tombol "Buat Form Baru" di header.
-  /// Dipakai sebagai fallback saat FAB disembunyikan di desktop (≥1200).
-  static final createTourKey = GlobalKey();
 
   @override
   State<FormScreen> createState() => _FormScreenState();
@@ -207,23 +204,16 @@ class _FormScreenState extends State<FormScreen> {
                       ),
                     ],
                   ),
-                // 3b: desktop — tombol di header (ganti FAB melayang).
-                if (isDesktopWidth(context)) ...[
-                  const SizedBox(width: 12),
-                  FilledButton.icon(
-                    key: FormScreen.createTourKey,
-                    onPressed: () => AppRouter.of(context)
-                        .push(AppPage.formTemplateChooser),
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Buat Form Baru'),
-                  ),
-                ],
+                // CTA tambah form hanya via Extended FAB melayang
+                // (tablet/desktop) / FAB lingkaran (phone) — tanpa duplikat
+                // tombol di header agar satu pintu aksi.
               ],
             ),
             const SizedBox(height: 16),
 
-            // 3c: desktop — search 480px + tombol filter, full width between.
-            if (isDesktopWidth(context))
+            // Tablet/desktop — search 480px + tombol filter pil,
+            // full width between. Phone memakai search + filter inline.
+            if (isTablet(context))
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -249,14 +239,9 @@ class _FormScreenState extends State<FormScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  FilledButton.tonalIcon(
+                  FilterPillButton(
                     onPressed: _openFilterSheet,
-                    icon: const Icon(Icons.tune, size: 18),
-                    label: Text(
-                      (_filterDate != null || _sort != FormSort.newest)
-                          ? 'Filter aktif'
-                          : 'Filter',
-                    ),
+                    active: _filterDate != null || _sort != FormSort.newest,
                   ),
                 ],
               )

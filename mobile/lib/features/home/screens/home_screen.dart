@@ -20,6 +20,7 @@ import 'package:form_up/core/services/user_service.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/widgets/onboarding_tour.dart';
 import 'package:form_up/core/widgets/responsive.dart';
+import 'package:form_up/core/widgets/adaptive_fab.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
 import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/form_card.dart';
@@ -107,7 +108,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           OnboardingStep(
             anchorKey: _fabKey,
-            extraAnchorKeys: [FormScreen.createTourKey],
             title: '2. Buat Form',
             description:
                 'Ketuk + untuk membuat form baru, lalu kelola soal, kunci jawaban, dan pengaturannya.',
@@ -716,6 +716,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
+        // Desktop: Extended FAB "Buat Form" (pengganti tombol header) —
+        // inset dinamis menempel kolom konten 1400, bukan pojok jendela.
+        floatingActionButton: _railFab(),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       );
     }
     // Tablet (semua orientasi, termasuk portrait <840) + layar lebar (≥840)
@@ -773,24 +777,30 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// FAB tambah form — dipakai phone maupun rail agar satu definisi.
-  /// Desktop (≥1200): disembunyikan karena tombol ada di header Form Saya.
+  /// FAB tambah form — satu definisi untuk semua layout.
+  /// Phone (<600): lingkaran 68px margin L1=16 (render identik).
+  /// Tablet/desktop: Extended FAB M3 (tinggi & ikon disamakan 68px/32,
+  /// plus label "Buat Form") dengan margin kanan == bawah berlevel
+  /// (tablet L1–L2, desktop L2–L5 mengikuti ukuran window).
   Widget? _railFab() {
     if (_currentIndex != 1) return null;
-    if (isDesktopWidth(context)) return null;
-    return SizedBox(
-      width: 68,
-      height: 68,
-      child: FloatingActionButton(
+    void onAdd() {
+      AppRouter.of(context).push(AppPage.formTemplateChooser);
+    }
+    // Phone: perilaku lama tanpa padding tambahan.
+    if (!isTablet(context)) {
+      return buildCircleAddFab(
         key: _fabKey,
-        onPressed: () {
-          AppRouter.of(context).push(AppPage.formTemplateChooser);
-        },
-        backgroundColor: kPrimary,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: const Icon(Icons.add, size: 32),
+        onPressed: onAdd,
+      );
+    }
+    return Padding(
+      padding: fabPad(context),
+      child: buildExtendedAddFab(
+        key: _fabKey,
+        onPressed: onAdd,
+        label: 'Buat Form',
+        tooltip: 'Buat form baru',
       ),
     );
   }
