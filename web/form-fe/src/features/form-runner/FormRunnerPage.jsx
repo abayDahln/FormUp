@@ -22,6 +22,11 @@ export default function FormRunnerPage() {
     const isPreviewMode = searchParams.get('preview') === 'true';
 
     const [form, setForm] = useState(null);
+    const localSubmittedId = typeof window !== 'undefined' ? localStorage.getItem(`formup_submitted_${formLink}`) : null;
+    const isLocked = !isPreviewMode && Boolean(
+        (form?.oneResponse && (form.alreadySubmitted || localSubmittedId)) ||
+        ((form?.isExamMode || form?.detectTabSwitch) && localSubmittedId)
+    );
     const [questions, setQuestions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -126,6 +131,7 @@ export default function FormRunnerPage() {
 
     useEffect(() => {
         const handleOnline = () => {
+            if (isLocked) return;
             setIsOnline(true);
             setShowRestoredToast(true);
             setTimeout(() => setShowRestoredToast(false), 4000);
@@ -146,7 +152,7 @@ export default function FormRunnerPage() {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
-    }, [form, answers, formLink, getStoredSessionId]);
+    }, [form, answers, formLink, getStoredSessionId, isLocked]);
 
     // auto-cache to local storage on answer change
     useEffect(() => {
@@ -198,14 +204,6 @@ export default function FormRunnerPage() {
         }
     }, [formLink, navigate]);
 
-    // P1-2: Play violation sound on genuine violation
-    const playViolationSound = useCallback(() => {
-        try {
-            const audio = new Audio('/sound/exam-warning.mp3');
-            audio.play().catch(() => {});
-        } catch {}
-    }, []);
-
     const sendExamEvent = useCallback(async (eventType) => {
     if (!form || isPreviewMode || form.isOwner) return;
     const isExam = form.isExamMode || form.detectTabSwitch;
@@ -246,10 +244,9 @@ export default function FormRunnerPage() {
                 if (typeof res.data.violationCount === 'number') {
                     setViolationCount(res.data.violationCount);
                 }
-                // Only show warning banner & sound when an actual violation event occurs, not on presence (session_start / heartbeat)
+                // Only show warning banner when an actual violation event occurs, not on presence (session_start / heartbeat)
                 if (eventType !== 'session_start' && eventType !== 'heartbeat') {
                     setTabSwitchWarning(true);
-                    playViolationSound();
                 }
                 // P0-3: When cheat threshold is reached, disqualify and auto-set score 0
                 const currentSw = typeof res.data.tabSwitchCount === 'number' ? res.data.tabSwitchCount : tabSwitchCount;
@@ -269,34 +266,32 @@ export default function FormRunnerPage() {
         }
     }, [form, formLink, isPreviewMode, currentUser, handleForceSubmitTermination]);
 
-    // P0-4: Exam mode session presence: session_start (once) and periodic heartbeat
-    const sessionStartedRef = useRef(false);
+    // Exam mode session presence: session_start and periodic heartbeat
     useEffect(() => {
+        if (isLocked) return;
         if (!form || isPreviewMode || form.isOwner) return;
         if (!form.isExamMode && !form.detectTabSwitch) return;
         if (form.requiresToken && !tokenUnlocked) return;
 
-        // Start session on server exactly once to avoid duplicate monitoring entries
-        if (!sessionStartedRef.current) {
-            sessionStartedRef.current = true;
-            sendExamEvent('session_start');
-        }
+        // Start session on server
+        sendExamEvent('session_start');
 
         // Periodic heartbeat every 30 seconds
         const heartbeatTimer = setInterval(() => {
-            if (!isSubmittingRef.current && !isForceSubmittedRef.current) {
+            if (!isSubmittingRef.current) {
                 sendExamEvent('heartbeat');
             }
         }, 30000);
 
         return () => clearInterval(heartbeatTimer);
-    }, [form?.id, form?.isExamMode, form?.detectTabSwitch, form?.requiresToken, tokenUnlocked, isPreviewMode, sendExamEvent]);
+    }, [form, isPreviewMode, tokenUnlocked, sendExamEvent, isLocked]);
 
     // Exam mode violation detection (Real-time incremental report, anti double-count)
     // BUG-2 FIX: Guard with tokenUnlocked so the visibilitychange / copy / paste
     // listeners are only attached AFTER the user has passed the token screen and
     // is actually on the question page.
     useEffect(() => {
+        if (isLocked) return;
         if (!form || isPreviewMode || form.isOwner || isForceSubmitted) return;
         // Do NOT attach violation listeners until the exam has actually started
         if (form.requiresToken && !tokenUnlocked) return;
@@ -304,63 +299,23 @@ export default function FormRunnerPage() {
         const isExam = form.isExamMode || form.detectTabSwitch;
         const disableCopy = form.disableCopyPaste || isExam;
 
-        let hiddenTimer = null;
-        let blurTimer = null;
-
-        const clearTimers = () => {
-            if (hiddenTimer) {
-                clearTimeout(hiddenTimer);
-                hiddenTimer = null;
-            }
-            if (blurTimer) {
-                clearTimeout(blurTimer);
-                blurTimer = null;
-            }
+        const handleVisibilityChange = () => {
+            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
+            // Anti-double-count: ONLY report on hidden (leaving), never on visible (return)
+            if (document.hidden && isExam) reportTabSwitch();
         };
 
         const reportTabSwitch = () => {
             if (!isExam || isForceSubmittedRef.current || isSubmittingRef.current) return;
             const now = Date.now();
-            if (now - lastTabSwitchAtRef.current < 1500) return;
+            // blur and visibilitychange can describe the same tab switch.
+            if (now - lastTabSwitchAtRef.current < 1000) return;
             lastTabSwitchAtRef.current = now;
             sendExamEvent('tab_switch');
         };
 
-        const handleVisibilityChange = () => {
-            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
-            // Primary signal: visibilityState hidden.
-            // Require it to stay hidden for >= 400ms to avoid flicker / native dialog glitches.
-            if (document.hidden && document.visibilityState === 'hidden') {
-                if (!hiddenTimer) {
-                    hiddenTimer = setTimeout(() => {
-                        hiddenTimer = null;
-                        if (document.hidden && document.visibilityState === 'hidden') {
-                            reportTabSwitch();
-                        }
-                    }, 400);
-                }
-            } else {
-                clearTimers();
-            }
-        };
-
         const handleWindowBlur = () => {
-            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
-            // Native browser dialogs (password save, OS notifs, print) cause blur without visibilityState hidden.
-            // Wait 500ms and check if document is actually hidden and lacks focus.
-            if (!blurTimer) {
-                blurTimer = setTimeout(() => {
-                    blurTimer = null;
-                    if (document.visibilityState === 'hidden' && !document.hasFocus()) {
-                        reportTabSwitch();
-                    }
-                }, 500);
-            }
-        };
-
-        const handleWindowFocus = () => {
-            // Regained focus quickly -> cancel any pending blur check
-            clearTimers();
+            if (document.hidden || isExam) reportTabSwitch();
         };
 
         const handleCopy = (e) => {
@@ -390,7 +345,6 @@ export default function FormRunnerPage() {
         if (isExam) {
             document.addEventListener('visibilitychange', handleVisibilityChange);
             window.addEventListener('blur', handleWindowBlur);
-            window.addEventListener('focus', handleWindowFocus);
         }
         if (disableCopy) {
             document.addEventListener('copy', handleCopy);
@@ -400,11 +354,9 @@ export default function FormRunnerPage() {
         }
 
         return () => {
-            clearTimers();
             if (isExam) {
                 document.removeEventListener('visibilitychange', handleVisibilityChange);
                 window.removeEventListener('blur', handleWindowBlur);
-                window.removeEventListener('focus', handleWindowFocus);
             }
             if (disableCopy) {
                 document.removeEventListener('copy', handleCopy);
@@ -413,7 +365,7 @@ export default function FormRunnerPage() {
                 document.removeEventListener('contextmenu', handleContextMenu);
             }
         };
-    }, [form, isPreviewMode, tokenUnlocked, sendExamEvent, isForceSubmitted]);
+    }, [form, isPreviewMode, tokenUnlocked, sendExamEvent, isForceSubmitted, isLocked]);
 
     useEffect(() => { answersRef.current = answers; }, [answers]);
     useEffect(() => { questionsRef.current = questions; }, [questions]);
@@ -423,6 +375,7 @@ export default function FormRunnerPage() {
     const lastSyncedHashRef = useRef('');
 
     const syncDraftAnswers = useCallback(async (customAnswers = null, forceCheck = false) => {
+    if (isLocked) return;
     if (!form || isPreviewMode || form.isOwner || isForceSubmittedRef.current) return;
     const isExam = form.isExamMode || form.detectTabSwitch;
     if (!isExam) return;
@@ -504,10 +457,11 @@ export default function FormRunnerPage() {
     } finally {
         syncInProgressRef.current = false;
     }
-}, [form, isPreviewMode, tokenUnlocked, formLink, currentUser, getStoredSessionId, questions, handleForceSubmitTermination]);
+}, [form, isPreviewMode, tokenUnlocked, formLink, currentUser, getStoredSessionId, questions, handleForceSubmitTermination, isLocked]);
 
     // Debounced sync answers on answer changes
     useEffect(() => {
+    if (isLocked) return;
     if (!form || isPreviewMode || form.isOwner) return;
     if (!form.isExamMode && !form.detectTabSwitch) return;
     if (form.requiresToken && !tokenUnlocked) return;
@@ -519,10 +473,11 @@ export default function FormRunnerPage() {
     }, 4000);
 
     return () => clearInterval(interval);
-}, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers]);
+}, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers, isLocked]);
 
     // Periodic sync answers every 30 seconds
     useEffect(() => {
+        if (isLocked) return;
         if (!form || isPreviewMode || form.isOwner) return;
         if (!form.isExamMode && !form.detectTabSwitch) return;
         if (form.requiresToken && !tokenUnlocked) return;
@@ -534,7 +489,7 @@ export default function FormRunnerPage() {
         }, 30000);
 
         return () => clearInterval(interval);
-    }, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers]);
+    }, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers, isLocked]);
 
     const loadQuestionsInternal = async (token) => {
         const res = await getPublicFormQuestions(formLink, { token, name: '' });
@@ -635,7 +590,7 @@ export default function FormRunnerPage() {
                 }
 
                 const localSub = localStorage.getItem(`formup_submitted_${formLink}`);
-                if (f.oneResponse && (f.alreadySubmitted || localSub)) return;
+                if ((f.oneResponse && (f.alreadySubmitted || localSub)) || ((f.isExamMode || f.detectTabSwitch) && localSub)) return;
 
                 let savedToken = '';
                 try { savedToken = localStorage.getItem(`formup_token_${formLink}`) || ''; } catch {}
@@ -817,10 +772,9 @@ export default function FormRunnerPage() {
                     sessionStorage.removeItem(`formup_exam_session_${formLink}`);
                     sessionStorage.removeItem(`formup_violations_${formLink}`);
                 } catch {}
-<<<<<<< HEAD
                 if (isActuallyDisqualified) {
                     setIsDisqualified(true);
-                    return;
+                    return true;
                 }
                 navigate(`/f/${formLink}/result/${responseId}`, {
                     state: {
@@ -828,9 +782,6 @@ export default function FormRunnerPage() {
                         isDisqualified: isActuallyDisqualified,
                     }
                 });
-            } else {
-=======
-                navigate(`/f/${formLink}/result/${responseId}`, { state: { guestToken: d?.guestToken || null } });
                 return true;
             };
             const res = await submitPublicFormResponse(formLink, payload);
@@ -857,7 +808,6 @@ export default function FormRunnerPage() {
                         }
                     }
                 } catch { /* abaikan: lanjut ke pesan terkunci */ }
->>>>>>> 095c2ebf8341912d618d7db42037ed2c784fae43
                 isSubmittingRef.current = false; setSubmitting(false);
                 const errText = 'Sesi ujian Anda telah diselesaikan pengawas dan jatah pengerjaan sudah habis.';
                 setError(errText); showValidationAlert(errText);
@@ -966,8 +916,7 @@ export default function FormRunnerPage() {
     }
 
     // A-5: skip locked screen in preview
-    const localSubmittedId = typeof window !== 'undefined' ? localStorage.getItem(`formup_submitted_${formLink}`) : null;
-    if (!isPreviewMode && form && form.oneResponse && (form.alreadySubmitted || localSubmittedId)) {
+    if (isLocked && form) {
         const previousId = form.previousResponseId || localSubmittedId;
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#F4F8F7] dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">
