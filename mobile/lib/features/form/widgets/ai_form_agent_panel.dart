@@ -1380,7 +1380,15 @@ ${_draftSnapshot(s, questions)}''';
               onChanged: (_) => setState(() {}),
               keyboardType: TextInputType.multiline,
               textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration.collapsed(
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+                isDense: true,
                 hintText: 'Tulis perintah untuk draf...',
               ),
               style: TextStyle(fontSize: 15, color: cs.onSurface, height: 1.35),
