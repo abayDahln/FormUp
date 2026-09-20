@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/router/app_router.dart';
@@ -14,6 +16,7 @@ import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/features/form/controllers/question_validation.dart';
 import 'package:form_up/features/form/controllers/questions_persist.dart';
+import 'package:form_up/features/form/widgets/ai_draft_agent_panel.dart';
 import 'package:form_up/features/form/widgets/form_settings_panel.dart';
 import 'package:form_up/features/form/widgets/question_accordion_card.dart';
 import 'package:form_up/features/form/widgets/question_import_mixin.dart';
@@ -52,6 +55,10 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
 
   /// Indeks kartu soal yang terbuka (accordion single-open).
   int? _openIndex;
+
+  /// True = panel asisten AI tampil (kartu ketiga di ≥1400px, overlay
+  /// panel kanan di lebar lebih sempit).
+  bool _aiOpen = false;
 
   // --- QuestionImportMixin accessors ---
   @override
@@ -340,12 +347,13 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
       heroTag: 'aiChatForFormBuilder',
       onPressed: _formId == null
           ? null
-          : () => _router!.push(AppPage.aiChat, {'formId': _formId}),
-      backgroundColor: cs.surface,
+          : () => setState(() => _aiOpen = !_aiOpen),
+      backgroundColor:
+          _aiOpen ? cs.primaryContainer : cs.surface,
       foregroundColor: cs.primary,
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      tooltip: 'Tanya AI tentang form ini',
+      tooltip: _aiOpen ? 'Tutup asisten AI' : 'Tanya AI tentang form ini',
       child: AiChatIcon(size: 18, color: cs.primary, filled: true),
     );
     final Widget addFab = isTablet(context)
@@ -360,17 +368,14 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
             onPressed: disabled ? null : _addQuestion,
             tooltip: 'Tambah Soal',
           );
-    return Padding(
-      padding: fabPad(context),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          aiFab,
-          const SizedBox(height: 12),
-          addFab,
-        ],
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        aiFab,
+        const SizedBox(height: 12),
+        addFab,
+      ],
     );
   }
 
@@ -437,8 +442,6 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
         ],
       ),
       body: _buildBody(cs),
-      floatingActionButton: _buildFab(cs),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -464,32 +467,128 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
                 // Dua kartu berdampingan di layar lebar: kiri pengaturan
                 // form, kanan daftar soal. Di bawah breakpoint expanded,
                 // susun vertikal (tetap satu screen, satu tombol Simpan).
+                // Desktop fullscreen (≥1400) + sidebar AI terbuka: kedua
+                // kartu bergeser ke kiri (konten diberi padding kanan
+                // selebar sidebar) — sidebar pinned di Stack, tidak ikut
+                // scroll. Lebar lebih sempit: overlay panel kanan.
                 final twoColumn = isExpanded(context);
-                return SingleChildScrollView(
-                  padding: centerPad(
+                final pushLayout = _aiOpen && isWide(context);
+                final sidebarWidth = pushLayout ? 380.0 : 0.0;
+                final w = MediaQuery.sizeOf(context).width;
+                final EdgeInsets padding;
+                if (pushLayout) {
+                  // Konten di-center di zona kiri sidebar, dengan cap lebar
+                  // + margin horizontal agar tidak menempel ke tepi window.
+                  final zoneLeft = 24.0;
+                  final avail =
+                      w - sidebarWidth - 16 - zoneLeft; // zona konten
+                  final cap = twoColumn ? 1400.0 : 960.0;
+                  final contentW = min(avail, cap);
+                  final sideMargin =
+                      max(24.0, (avail - contentW) / 2);
+                  padding = EdgeInsets.fromLTRB(
+                    sideMargin,
+                    16,
+                    sidebarWidth + 16 + sideMargin,
+                    toolbarVisible ? 110 : 24,
+                  );
+                } else {
+                  final capped = centerPad(
                     context,
-                    base: EdgeInsets.fromLTRB(
-                      22,
-                      16,
-                      22,
-                      toolbarVisible ? 110 : 24,
-                    ),
-                    // Full width di window sempit (~840-1400); margin sisi
-                    // hanya muncul di window ≥1400 (centerPad memakai
-                    // wideMaxWidth hanya saat w ≥ kWideBreakpoint).
+                    base: const EdgeInsets.fromLTRB(22, 16, 22, 0),
                     maxWidth: twoColumn ? 1400 : 960,
                     wideMaxWidth: twoColumn ? 1400 : 960,
+                  );
+                  padding = capped.copyWith(
+                    bottom: toolbarVisible ? 110 : 24,
+                  );
+                }
+                return SingleChildScrollView(
+                  padding: padding,
+                  child: SizedBox(
+                    width: max(0, w - padding.left - padding.right),
+                    child: twoColumn
+                        ? _twoColumnContent(cs)
+                        : _stackedContent(cs),
                   ),
-                  child: twoColumn
-                      ? _twoColumnContent(cs)
-                      : _stackedContent(cs),
                 );
               },
             ),
           ),
         ),
         const FloatingRichToolbar(),
+        // FAB (AI toggle + Tambah Soal): di kanan bawah; saat sidebar AI
+        // terbuka, bergeser ke KIRI sidebar agar tidak menutupi panel.
+        Positioned(
+          right: _aiOpen ? 412 : 16,
+          bottom: 16,
+          child: _buildFab(cs),
+        ),
+        // Sidebar kanan asisten AI. Desktop fullscreen (≥1400): pinned,
+        // konten digeser kiri via padding (pushLayout). Lebar lebih sempit
+        // (tablet/mobile): overlay melayang di atas konten.
+        if (_aiOpen)
+          Positioned(
+            top: 12,
+            right: 12,
+            bottom: 12,
+            width: 380,
+            child: _aiCard(context, cs),
+          ),
       ],
+    );
+  }
+
+  /// Kartu panel AI (chat embed) — dipakai sidebar pinned maupun overlay.
+  /// Konsisten dengan kartu pengaturan form: container border + rounded,
+  /// header "Asisten AI" + tombol tutup.
+  Widget _aiCard(BuildContext context, ColorScheme cs) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+            child: Row(
+              children: [
+                Icon(Icons.auto_awesome_outlined,
+                    size: 18, color: cs.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Asisten AI',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: kFontBold,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, size: 20, color: cs.onSurface),
+                  tooltip: 'Tutup asisten AI',
+                  onPressed: () => setState(() => _aiOpen = false),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: cs.outlineVariant),
+          Expanded(
+            child: AiDraftAgentPanel(
+              settings: () => _settingsKey.currentState?.formController,
+              questions: () => _questions,
+              onChanged: () => setState(() {}),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

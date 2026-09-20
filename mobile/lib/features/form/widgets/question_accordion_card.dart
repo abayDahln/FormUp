@@ -52,6 +52,10 @@ class QuestionAccordionCard extends StatefulWidget {
 
 class _QuestionAccordionCardState extends State<QuestionAccordionCard> {
   bool _uploading = false;
+
+  /// True = isi section Pengaturan (wajib + media) terbuka. Default tutup
+  /// agar kartu soal tidak terlalu panjang ke bawah.
+  bool _settingsOpen = false;
   QuestionDraft get q => widget.draft;
 
   Future<void> _pickQuestionImage() async {
@@ -311,6 +315,47 @@ class _QuestionAccordionCardState extends State<QuestionAccordionCard> {
   }
 
   Widget _expandedBody(BuildContext context, ColorScheme cs) {
+    // Section Pengaturan berbentuk dropdown (header bisa diklik) agar
+    // kartu tidak terlalu panjang ke bawah.
+    final settingsSection = Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: EdgeInsets.zero,
+        initiallyExpanded: _settingsOpen,
+        onExpansionChanged: (v) => setState(() => _settingsOpen = v),
+        leading: Icon(Icons.tune, size: 18, color: cs.primary),
+        title: Text(
+          'Pengaturan',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            fontFamily: kFontBold,
+            color: cs.onSurface,
+          ),
+        ),
+        children: [
+          QuestionRequiredSwitch(
+            value: q.isRequired,
+            onChanged: (v) {
+              // Samakan web: isRequired independen dari isScorable/kunci/poin.
+              q.isRequired = v;
+              widget.onChanged();
+            },
+          ),
+          const Divider(height: 32),
+          _sectionTitle(Icons.attach_file, 'Media', cs),
+          const SizedBox(height: 14),
+          QuestionMediaSection(
+            draft: q,
+            uploading: _uploading,
+            onPickImage: _pickQuestionImage,
+            onPickAudio: _pickQuestionAudio,
+            onChanged: widget.onChanged,
+          ),
+        ],
+      ),
+    );
     final textAndAnswer = [
       QuestionTextSection(
         draft: q,
@@ -327,26 +372,7 @@ class _QuestionAccordionCardState extends State<QuestionAccordionCard> {
       ),
     ];
     final settingsAndMedia = [
-      _sectionTitle(Icons.tune, 'Pengaturan', cs),
-      const SizedBox(height: 14),
-      QuestionRequiredSwitch(
-        value: q.isRequired,
-        onChanged: (v) {
-          // Samakan web: isRequired independen dari isScorable/kunci/poin.
-          q.isRequired = v;
-          widget.onChanged();
-        },
-      ),
-      const Divider(height: 32),
-      _sectionTitle(Icons.attach_file, 'Media', cs),
-      const SizedBox(height: 14),
-      QuestionMediaSection(
-        draft: q,
-        uploading: _uploading,
-        onPickImage: _pickQuestionImage,
-        onPickAudio: _pickQuestionAudio,
-        onChanged: widget.onChanged,
-      ),
+      settingsSection,
     ];
     if (isExpanded(context)) {
       return Row(

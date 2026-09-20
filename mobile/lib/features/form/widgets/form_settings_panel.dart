@@ -60,6 +60,10 @@ class FormSettingsPanelState extends State<FormSettingsPanel> {
   /// Ada perubahan vs baseline (dipakai guard keluar gabungan).
   bool get hasChanges => _form.hasChanges;
 
+  /// Controller pengaturan form — dipakai panel agent AI draf (sidebar
+  /// builder) untuk mengubah draf lokal secara langsung.
+  FormMakerController get formController => _form;
+
   bool get isSaving => _saving;
 
   final ScrollController _scrollController = ScrollController();
