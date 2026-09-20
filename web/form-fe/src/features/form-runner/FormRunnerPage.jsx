@@ -54,6 +54,7 @@ export default function FormRunnerPage() {
     const [violationCount, setViolationCount] = useState(0);
     const [tabSwitchWarning, setTabSwitchWarning] = useState(false);
     const lastTabSwitchAtRef = useRef(0);
+    const blurTimerRef = useRef(null);
 
     // Persistent sessionId for exam mode (per formLink).
     // Kontrak dengan backend: event pertama dikirim TANPA sessionId
@@ -301,8 +302,19 @@ export default function FormRunnerPage() {
 
         const handleVisibilityChange = () => {
             if (isForceSubmittedRef.current || isSubmittingRef.current) return;
-            // Anti-double-count: ONLY report on hidden (leaving), never on visible (return)
-            if (document.hidden && isExam) reportTabSwitch();
+            if (document.hidden && isExam) {
+                if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+                blurTimerRef.current = setTimeout(() => {
+                    if (document.visibilityState === 'hidden' && !document.hasFocus()) {
+                        reportTabSwitch();
+                    }
+                }, 800);
+            } else if (!document.hidden) {
+                if (blurTimerRef.current) {
+                    clearTimeout(blurTimerRef.current);
+                    blurTimerRef.current = null;
+                }
+            }
         };
 
         const reportTabSwitch = () => {
@@ -315,7 +327,20 @@ export default function FormRunnerPage() {
         };
 
         const handleWindowBlur = () => {
-            if (document.hidden || isExam) reportTabSwitch();
+            if (isForceSubmittedRef.current || isSubmittingRef.current || !isExam) return;
+            if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+            blurTimerRef.current = setTimeout(() => {
+                if (document.visibilityState === 'hidden' && !document.hasFocus()) {
+                    reportTabSwitch();
+                }
+            }, 800);
+        };
+
+        const handleWindowFocus = () => {
+            if (blurTimerRef.current) {
+                clearTimeout(blurTimerRef.current);
+                blurTimerRef.current = null;
+            }
         };
 
         const handleCopy = (e) => {
@@ -345,6 +370,7 @@ export default function FormRunnerPage() {
         if (isExam) {
             document.addEventListener('visibilitychange', handleVisibilityChange);
             window.addEventListener('blur', handleWindowBlur);
+            window.addEventListener('focus', handleWindowFocus);
         }
         if (disableCopy) {
             document.addEventListener('copy', handleCopy);
@@ -354,9 +380,14 @@ export default function FormRunnerPage() {
         }
 
         return () => {
+            if (blurTimerRef.current) {
+                clearTimeout(blurTimerRef.current);
+                blurTimerRef.current = null;
+            }
             if (isExam) {
                 document.removeEventListener('visibilitychange', handleVisibilityChange);
                 window.removeEventListener('blur', handleWindowBlur);
+                window.removeEventListener('focus', handleWindowFocus);
             }
             if (disableCopy) {
                 document.removeEventListener('copy', handleCopy);
