@@ -41,9 +41,10 @@ public class ResponseListItem
     public DateTime SubmittedAt { get; set; }
     public int TabSwitchCount { get; set; }
     /// <summary>
-    /// True bila ini respons tersubmit TERBARU respondennya dan jatah reset
-    /// untuk upaya itu belum dipakai (E &lt; S). Tombol reset owner hanya
-    /// tampil bila true — sekali klik per upaya.
+    /// True bila ini respons tersubmit TERBARU respondennya dan responden
+    /// sedang terkunci (pernah submit tapi tak memegang token buka).
+    /// Tombol reset owner hanya tampil bila true — reset menyalakan token
+    /// sekali-pakai; tombol hilang sampai submit berikutnya menghanguskannya.
     /// </summary>
     public bool CanReset { get; set; }
 }

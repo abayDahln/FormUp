@@ -175,8 +175,10 @@ jawaban difinalisasi menjadi respons tersubmit.
 
 `POST /api/forms/{formId}/exam-monitoring/sessions/{sessionId}/reset`
 — me-reset **jawaban yang sudah disubmit** agar peserta dapat mengisi
-ulang: riwayat submit + sesi dipertahankan, responden diberi 1 jatah
-ulang via `FormAttemptAllowance`, sisa draft `new` dibersihkan.
+ulang: riwayat submit + sesi dipertahankan, responden diberi 1 token buka
+sekali-pakai via `FormAttemptAllowance`, sisa draft `new` dibersihkan.
+Submit berikutnya menghanguskan token (terkunci lagi) — loop sah:
+submit→terkunci→reset→terbuka→submit→…
 Identitas jatah diambil dari **respons yang disubmit** (fallback ke sesi)
 agar tidak salah kunci bila sesi dibuat sebelum login.
 Sesi yang masih berjalan (`in_progress`) **ditolak** (`400`) — reset bukan

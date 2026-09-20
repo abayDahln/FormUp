@@ -4,27 +4,19 @@ using Microsoft.EntityFrameworkCore;
 namespace FormUpAPI.Services;
 
 /// <summary>
-/// Jatah pengisian ulang one-response (data lama dipertahankan).
-/// Draft status "new" TIDAK dihitung sebagai pengisian — kalau dihitung,
-/// sinkronisasi draft pertama sudah mengunci user sebelum sempat submit.
-/// Bila status "new" tak dikenal (misconfig), hitung semua (fail-closed
-/// seperti perilaku lama) agar one-response tak pernah bocor.
+/// Pembuka one-response sekali-pakai (token), BUKAN counter menumpuk.
+/// Reset owner menyalakan token (<see cref="FormAttemptAllowance.IsReopened"/>=true)
+/// sehingga form terbuka kembali seolah responden belum mengerjakan;
+/// submit berikutnya menghanguskan token (false) dan responden terkunci lagi.
+/// Riwayat submit TIDAK pernah dihapus — loop sah: submit→terkunci→reset→
+/// terbuka→submit→terkunci→reset→... Draft status "new" TIDAK dihitung
+/// sebagai pengisian — kalau dihitung, sinkronisasi draft pertama sudah
+/// mengunci user sebelum sempat submit. Bila status "new" tak dikenal
+/// (misconfig), hitung semua (fail-closed seperti perilaku lama) agar
+/// one-response tak pernah bocor.
 /// </summary>
 public static class AttemptAllowance
 {
-    public static async Task<int> GetExtraAttemptsAsync(
-        FormUpDbContext db, int formId, int? respondentId, string? respondentName)
-    {
-        var q = db.FormAttemptAllowances.Where(a => a.FormId == formId);
-        if (respondentId.HasValue)
-            q = q.Where(a => a.RespondentId == respondentId);
-        else if (!string.IsNullOrWhiteSpace(respondentName))
-            q = q.Where(a => a.RespondentId == null && a.RespondentName == respondentName);
-        else
-            return 0;
-        return await q.SumAsync(a => (int?)a.ExtraAttempts) ?? 0;
-    }
-
     public static async Task<int> CountSubmittedAsync(
         FormUpDbContext db, int formId, int? respondentId, string? respondentName)
     {
@@ -42,9 +34,28 @@ public static class AttemptAllowance
     }
 
     /// <summary>
-    /// Tambah 1 jatah ulang untuk responden (upsert). Mengembalikan total extra.
+    /// True bila responden sedang memegang token buka (belum dipakai).
+    /// Tanpa baris allowance → false (terkunci bila sudah pernah submit).
     /// </summary>
-    public static async Task<int> GrantExtraAttemptAsync(
+    public static async Task<bool> GetRetakeTokenAsync(
+        FormUpDbContext db, int formId, int? respondentId, string? respondentName)
+    {
+        FormAttemptAllowance? row = null;
+        if (respondentId.HasValue)
+            row = await db.FormAttemptAllowances
+                .FirstOrDefaultAsync(a => a.FormId == formId && a.RespondentId == respondentId);
+        else if (!string.IsNullOrWhiteSpace(respondentName))
+            row = await db.FormAttemptAllowances
+                .FirstOrDefaultAsync(a => a.FormId == formId && a.RespondentId == null && a.RespondentName == respondentName);
+        return row?.IsReopened == true;
+    }
+
+    /// <summary>
+    /// Nyalakan token buka untuk responden (upsert). ExtraAttempts ikut
+    /// bertambah murni sebagai jejak audit jumlah grant — TIDAK dipakai
+    /// mengambil keputusan.
+    /// </summary>
+    public static async Task GrantRetakeTokenAsync(
         FormUpDbContext db, int formId, int? respondentId, string? respondentName)
     {
         FormAttemptAllowance? row = null;
@@ -68,25 +79,48 @@ public static class AttemptAllowance
             db.FormAttemptAllowances.Add(row);
         }
 
+        row.IsReopened = true;
         row.ExtraAttempts++;
         row.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
-        return row.ExtraAttempts;
     }
 
     /// <summary>
-    /// Reset untuk pengerjaan ulang one-response: tambah 1 jatah ulang +
+    /// Hanguskan token (setelah dipakai submit / force-submit). TIDAK
+    /// SaveChanges — mengandalkan SaveChanges pemanggil dalam transaksi yang
+    /// sama, agar submit yang gagal validasi TIDAK ikut menghanguskan token.
+    /// </summary>
+    public static async Task ConsumeRetakeTokenAsync(
+        FormUpDbContext db, int formId, int? respondentId, string? respondentName)
+    {
+        FormAttemptAllowance? row = null;
+        if (respondentId.HasValue)
+            row = await db.FormAttemptAllowances
+                .FirstOrDefaultAsync(a => a.FormId == formId && a.RespondentId == respondentId);
+        else if (!string.IsNullOrWhiteSpace(respondentName))
+            row = await db.FormAttemptAllowances
+                .FirstOrDefaultAsync(a => a.FormId == formId && a.RespondentId == null && a.RespondentName == respondentName);
+
+        if (row != null && row.IsReopened)
+        {
+            row.IsReopened = false;
+            row.UpdatedAt = DateTime.UtcNow;
+        }
+    }
+
+    /// <summary>
+    /// Reset untuk pengerjaan ulang one-response: nyalakan 1 token buka +
     /// bersihkan sisa draft status "new" milik responden agar percobaan baru
     /// (sesi baru) mulai bersih. Respons yang sudah tersubmit TIDAK dihapus —
     /// tetap tersimpan sebagai riwayat di daftar respons form, riwayat
-    /// responden, dan endpoint attempts. Mengembalikan total extra attempts.
-    /// Dipakai oleh reset sesi exam-monitoring maupun reset per-respons
-    /// (form non-exam yang tidak punya sesi ujian).
+    /// responden, dan endpoint attempts. Dipakai oleh reset sesi
+    /// exam-monitoring maupun reset per-respons (form non-exam yang tidak
+    /// punya sesi ujian).
     /// </summary>
-    public static async Task<int> ResetForRetakeAsync(
+    public static async Task ResetForRetakeAsync(
         FormUpDbContext db, int formId, int? respondentId, string? respondentName)
     {
-        var extra = await GrantExtraAttemptAsync(db, formId, respondentId, respondentName);
+        await GrantRetakeTokenAsync(db, formId, respondentId, respondentName);
 
         var newStatusId = await ReferenceCache.GetResponseStatusIdAsync(db, "new");
         if (newStatusId.HasValue)
@@ -109,8 +143,6 @@ public static class AttemptAllowance
                 await db.SaveChangesAsync();
             }
         }
-
-        return extra;
     }
 
     /// <summary>
@@ -126,13 +158,14 @@ public static class AttemptAllowance
 
     /// <summary>
     /// Hitung CanReset per responseId: true hanya untuk respons tersubmit
-    /// TERBARU tiap responden yang jatah resetnya belum dipakai untuk upaya
-    /// itu (E &lt; S). Sekali klik per upaya: setelah reset (E==S) tombol
-    /// hilang sampai ada submit baru (S bertambah).
+    /// TERBARU tiap responden yang sedang TERKUNCI (pernah submit tapi tak
+    /// memegang token). Sekali reset per pembukaan: setelah reset (token
+    /// nyala → terbuka) tombol hilang; muncul lagi setelah submit berikutnya
+    /// menghanguskan token (terkunci lagi).
     /// </summary>
     public static Dictionary<int, bool> ComputeCanReset(
         List<(int Id, int? RespondentId, string? RespondentName, int StatusId, DateTime? SubmittedAt, DateTime? CreatedAt)> responses,
-        List<(int? RespondentId, string? RespondentName, int ExtraAttempts)> allowances,
+        List<(int? RespondentId, string? RespondentName, bool HasToken)> allowances,
         int? newStatusId)
     {
         var result = new Dictionary<int, bool>();
@@ -147,14 +180,13 @@ public static class AttemptAllowance
                 .OrderBy(r => r.SubmittedAt ?? r.CreatedAt ?? DateTime.MinValue)
                 .ThenBy(r => r.Id)
                 .ToList();
-            var extra = allowances
-                .Where(a => GroupKey(a.RespondentId, a.RespondentName) == g.Key)
-                .Sum(a => a.ExtraAttempts);
+            var hasToken = allowances
+                .Any(a => GroupKey(a.RespondentId, a.RespondentName) == g.Key && a.HasToken);
             var latestId = submitted.Count > 0 ? submitted[^1].Id : (int?)null;
             foreach (var x in g)
             {
                 var isSubmitted = !newStatusId.HasValue || x.R.StatusId != newStatusId.Value;
-                result[x.R.Id] = isSubmitted && latestId == x.R.Id && extra < submitted.Count;
+                result[x.R.Id] = isSubmitted && latestId == x.R.Id && !hasToken;
             }
         }
         foreach (var r in responses)

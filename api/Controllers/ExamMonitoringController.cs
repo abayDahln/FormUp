@@ -418,6 +418,11 @@ public class ExamMonitoringController : ControllerBase
         session.LastSeenAt = now;
         session.UpdatedAt = now;
 
+        // Force-submit menghasilkan 1 submit sah → token buka yang sedang
+        // dipegang ikut hangus (disimpan oleh SaveChanges di bawah).
+        await AttemptAllowance.ConsumeRetakeTokenAsync(
+            _db, formId, session.RespondentId, session.RespondentName);
+
         // Backfill log pelanggaran yatim ke response hasil force-submit.
         var orphans = await _db.ExamViolationLogs
             .Where(l => l.ExamSessionId == session.Id && l.ResponseId == null)
@@ -439,9 +444,9 @@ public class ExamMonitoringController : ControllerBase
 
     /// <summary>
     /// Reset jawaban peserta yang SUDAH disubmit (izinkan isi ulang):
-    /// riwayat submit + sesi dipertahankan, responden diberi 1 jatah
-    /// ulang via <see cref="FormAttemptAllowance"/> dan sisa draft "new"
-    /// dibersihkan agar percobaan baru mulai bersih.
+    /// riwayat submit + sesi dipertahankan, responden diberi 1 token buka
+    /// sekali-pakai via <see cref="FormAttemptAllowance"/> dan sisa draft
+    /// "new" dibersihkan agar percobaan baru mulai bersih.
     /// Sesi yang masih berjalan (in_progress) DITOLAK — reset bukan
     /// untuk menendang peserta yang sedang mengerjakan.
     /// Spec B12 (route kanonis): POST /api/forms/{formId}/exam-monitoring/sessions/{sessionId}/reset.
@@ -480,8 +485,9 @@ public class ExamMonitoringController : ControllerBase
             return BadRequest(new ApiResponse<object>(400,
                 "Reset hanya untuk jawaban yang sudah disubmit. Sesi ini masih berjalan."));
 
-        // Beri 1 jatah ulang (riwayat submit + sesi dipertahankan) +
+        // Nyalakan 1 token buka (riwayat submit + sesi dipertahankan) +
         // bersihkan sisa draft "new" agar percobaan baru mulai bersih.
+<<<<<<< HEAD
         // Tanpa jatah ini, one-response tetap terkunci oleh respons lama.
 <<<<<<< HEAD
         var hasIdentity = session.RespondentId.HasValue || !string.IsNullOrWhiteSpace(session.RespondentName);
@@ -518,11 +524,14 @@ public class ExamMonitoringController : ControllerBase
             ? $"Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan."
             : "Jawaban peserta berhasil di-reset."));
 =======
+=======
+        // Tanpa token ini, one-response tetap terkunci oleh respons lama.
+>>>>>>> 095c2ebf8341912d618d7db42037ed2c784fae43
         // Sesi lama tetap tertaut ke respons lama sebagai riwayat;
         // pengerjaan ulang memakai SESI BARU (sessionId baru dari klien).
         // Identitas diambil dari respons yang disubmit (bukan semata sesi)
         // karena sesi bisa dibuat sebelum login / tanpa identitas lengkap —
-        // jatah yang tercatat di kunci identitas yang salah membuat
+        // token yang tercatat di kunci identitas yang salah membuat
         // responden tetap terkunci 400 sesudah reset.
         var submittedResponse = await _db.Responses
             .FirstOrDefaultAsync(r => r.Id == session.SubmittedResponseId.Value && r.FormId == formId);
@@ -534,10 +543,11 @@ public class ExamMonitoringController : ControllerBase
 
         if (!respondentId.HasValue && string.IsNullOrWhiteSpace(respondentName))
             return BadRequest(new ApiResponse<object>(400,
-                "Responden sesi ini tidak memiliki identitas (akun/nama) sehingga jatah isi ulang tidak dapat diberikan."));
+                "Responden sesi ini tidak memiliki identitas (akun/nama) sehingga form tidak dapat dibuka kembali."));
 
-        // Sekali klik per upaya: sesi yang bukan upaya terbaru responden,
-        // atau upaya yang jatah resetnya sudah dipakai, ditolak.
+        // Token sekali-pakai: sesi yang bukan upaya terbaru responden,
+        // atau responden yang sedang memegang token (sudah dibuka),
+        // ditolak tegas — tidak ada counter menumpuk.
         var newStatusId = await ReferenceCache.GetResponseStatusIdAsync(_db, "new");
         var submittedQuery = _db.Responses.Where(r => r.FormId == formId
             && (!newStatusId.HasValue || r.StatusId != newStatusId.Value));
@@ -550,18 +560,21 @@ public class ExamMonitoringController : ControllerBase
         if (submittedIds.Count == 0 || submittedIds[^1] != session.SubmittedResponseId.Value)
             return BadRequest(new ApiResponse<object>(400,
                 "Hanya sesi upaya terbaru responden yang bisa di-reset."));
-        var usedExtra = await AttemptAllowance.GetExtraAttemptsAsync(
-            _db, formId, respondentId, respondentName);
-        if (usedExtra >= submittedIds.Count)
+        if (await AttemptAllowance.GetRetakeTokenAsync(
+            _db, formId, respondentId, respondentName))
             return BadRequest(new ApiResponse<object>(400,
-                "Jatah reset untuk upaya ini sudah dipakai. Reset tersedia lagi setelah ada respons baru."));
+                "Form sudah dibuka kembali untuk responden ini. Token hangus setelah dipakai submit — reset lagi setelah ada respons baru."));
 
-        var extra = await AttemptAllowance.ResetForRetakeAsync(
+        await AttemptAllowance.ResetForRetakeAsync(
             _db, formId, respondentId, respondentName);
 
         return Ok(new ApiResponse<object>(200,
+<<<<<<< HEAD
             $"Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan. Peserta dapat mengerjakan kembali dengan sesi baru."));
 >>>>>>> origin/main
+=======
+            "Jawaban peserta berhasil di-reset. Data lama dipertahankan sebagai riwayat. Form dibuka kembali — peserta dapat mengerjakan satu kali pengerjaan ulang dengan sesi baru."));
+>>>>>>> 095c2ebf8341912d618d7db42037ed2c784fae43
     }
 
     /// <summary>

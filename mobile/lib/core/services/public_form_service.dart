@@ -341,6 +341,10 @@ class PublicFormService {
   /// GET /public/forms/{formLink}
   /// [refresh]=true melewati cache (dipakai saat masuk via kode agar tidak
   /// menyajikan info basi walau form baru saja di-update pemilik).
+  /// Loader memakai useCache:false: SEMUA pemanggil info memakai refresh:true,
+  /// dan status live (alreadySubmitted) TIDAK BOLEH disajikan dari inner
+  /// HTTP cache 30 menit — itu yang dulu bikin tombol tetap aktif setelah
+  /// submit / tetap disabled setelah reset owner sampai app di-restart.
   static Future<PublicFormInfo> getFormInfo(
     String formLink, {
     bool refresh = false,
@@ -351,7 +355,8 @@ class PublicFormService {
       cacheKey,
       const Duration(seconds: 45),
       () async {
-        final json = await AuthService.get('/public/forms/$formLink');
+        final json = await AuthService.get('/public/forms/$formLink',
+            useCache: false);
         return PublicFormInfo.fromJson(json['data'] as Map<String, dynamic>);
       },
     );

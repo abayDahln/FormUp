@@ -203,25 +203,35 @@ Dipakai untuk form **one-response non-exam** yang tidak punya sesi ujian
 (berlaku juga untuk exam — alternatif reset per-sesi di exam-monitoring).
 Respons lama **tetap tersimpan** sebagai riwayat di daftar respons form,
 riwayat responden (`my-responses`), dan endpoint attempts; responden diberi
-1 jatah isi ulang via `FormAttemptAllowance` + sisa draft `new`
+1 token buka sekali-pakai via `FormAttemptAllowance` + sisa draft `new`
 dibersihkan sehingga dapat mengerjakan kembali dengan **sesi baru**.
+Submit berikutnya menghanguskan token (terkunci lagi) — loop sah:
+submit→terkunci→reset→terbuka→submit→…
 
-**Sekali klik per upaya:** tombol reset (web tab Respons) hanya tampil pada
-respons **terbaru** tiap responden yang jatahnya belum dipakai — dihitung
-server sebagai `canReset` (`E < S`, E = total jatah, S = total tersubmit)
-di `GET /responses`, `GET .../attempts`, dan ditolak `400` bila dipaksa
-via API. Setelah reset, tombol hilang sampai ada submit baru.
+**Tombol reset** (web tab Respons) hanya tampil pada respons **terbaru**
+tiap responden yang sedang **terkunci** (pernah submit tapi tak memegang
+token) — dihitung server sebagai `canReset` di `GET /responses`,
+`GET .../attempts`, dan ditolak `400` bila dipaksa via API ("sudah dibuka"
+bila token masih dipegang). Setelah reset, tombol hilang sampai submit
+berikutnya menghanguskan token.
 
 **Validasi:**
 - Form harus `one-response` → kalau tidak `400`
 - Respons harus sudah tersubmit (draft `new` → `400`)
 - Respons harus punya identitas responden (akun/nama) → kalau tidak `400`
+- Harus upaya terbaru + responden belum memegang token → kalau tidak `400`
+
+> Batas draft: `PUT /api/responses/{id}/status` menolak mengubah draft
+> `new` menjadi status tersubmit (dan sebaliknya). Jangan akali tombol
+> reset yang hilang dengan mengganti status — tombol hilang berarti baris
+> itu draft/bukan upaya terbaru; ubah status justru menggelembungkan
+> hitungan submit sehingga responden tetap terkunci walau reset "berhasil".
 
 **Response 200:**
 ```json
 {
   "status": 200,
-  "message": "Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-1 diberikan. Peserta dapat mengerjakan kembali dengan sesi baru."
+  "message": "Jawaban peserta berhasil di-reset. Data lama dipertahankan sebagai riwayat. Form dibuka kembali — peserta dapat mengerjakan satu kali pengerjaan ulang dengan sesi baru."
 }
 ```
 
@@ -241,7 +251,8 @@ via API. Setelah reset, tombol hilang sampai ada submit baru.
 }
 ```
 
-Status: 1=new, 2=reviewed, 3=flagged.
+Status (read-only di UI): `new` = draft, dikecualikan dari kuota;
+`submitted` = hasil sah. Transisi keluar/masuk `new` ditolak server (400).
 
 > **Catatan UI:** opsi ubah status (accept/reject) sudah dihapus dari aplikasi mobile; endpoint ini masih tersedia untuk kompatibilitas.
 

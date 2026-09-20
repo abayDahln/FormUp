@@ -16,7 +16,6 @@ import 'package:form_up/core/services/public_form_service.dart';
 import 'package:form_up/core/services/exam_session_client.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form_runner/controllers/form_runner_controller.dart';
-import 'package:form_up/features/form_runner/widgets/runner_code_step.dart';
 import 'package:form_up/features/form_runner/widgets/runner_exit_dialog.dart';
 import 'package:form_up/features/form_runner/widgets/runner_fill_step.dart';
 import 'package:form_up/features/form_runner/widgets/exam_lock_status_bar.dart';
@@ -113,6 +112,9 @@ class FormRunnerViewState extends State<FormRunnerView>
   _RunnerStep _step = _RunnerStep.code;
   bool _loading = false;
   bool _submitting = false;
+  // Pesan error tahap muat (kode kosong / info gagal / token hilang).
+  // Ditampilkan di layar error agar user bisa kembali via Informasi Form.
+  String? _loadError;
   int _tabSwitchCount = 0;
   // Total pelanggaran (tab_switch + window_blur + lainnya) dari server.
   // Batas maxTabSwitch kini berlaku untuk total "pergi dari ujian",
@@ -179,7 +181,6 @@ class FormRunnerViewState extends State<FormRunnerView>
     });
   }
 
-  bool get _isLoggedIn => _c.isLoggedIn;
   bool get _examActive => _c.info?.isExamMode == true;
   // Pelacakan sesi/pelanggaran ikut server + web: aktif bila isExamMode
   // ATAU detectTabSwitch. Sebelumnya hanya isExamMode sehingga form
@@ -198,6 +199,10 @@ class FormRunnerViewState extends State<FormRunnerView>
     if (widget.initialCode != null && widget.initialCode!.isNotEmpty) {
       _c.codeController.text = widget.initialCode!;
       _submitCode();
+    } else {
+      // Runner bersifat fill-only: tanpa kode, tampilkan layar error
+      // (bukan lagi step kode "Kerjakan Form").
+      _loadError = 'Kode form tidak valid. Kembali lalu buka ulang.';
     }
   }
 
@@ -629,6 +634,7 @@ class FormRunnerViewState extends State<FormRunnerView>
     final code = _c.codeController.text.trim();
     if (code.isEmpty) {
       showAuthToast(context, "Masukkan kode form terlebih dahulu", isError: true);
+      if (mounted) setState(() => _loadError = "Masukkan kode form terlebih dahulu");
       return;
     }
     setState(() => _loading = true);
@@ -642,15 +648,28 @@ class FormRunnerViewState extends State<FormRunnerView>
           "Anda tidak dapat mengisi form yang Anda buat sendiri",
           isError: true,
         );
+        if (mounted) {
+          setState(() => _loadError =
+              "Anda tidak dapat mengisi form yang Anda buat sendiri");
+        }
         return;
       }
       widget.onInfoLoaded?.call(info);
       if (_c.requiresToken) {
-        // Token sudah diberikan dari screen sebelumnya → langsung isi form
+        // Token wajib dibawa dari Informasi Form (runner fill-only).
         if (widget.initialToken != null && widget.initialToken!.isNotEmpty) {
           await _loadQuestions();
         } else {
-          setState(() => _step = _RunnerStep.code);
+          if (!mounted) return;
+          showAuthToast(
+            context,
+            "Form ini membutuhkan token. Kembali untuk memasukkan token.",
+            isError: true,
+          );
+          if (mounted) {
+            setState(
+                () => _loadError = "Form ini membutuhkan token akses.");
+          }
         }
       } else {
         await _loadQuestions();
@@ -658,6 +677,7 @@ class FormRunnerViewState extends State<FormRunnerView>
     } catch (e) {
       if (!mounted) return;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      if (mounted) setState(() => _loadError = AuthService.errorMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -741,7 +761,15 @@ class FormRunnerViewState extends State<FormRunnerView>
       }
     } catch (e) {
       if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      final msg = AuthService.errorMessage(e);
+      showAuthToast(context, msg, isError: true);
+      // Runner fill-only tanpa layar kode: gagal muat soal → kembali ke
+      // Informasi Form yang me-refresh status tombol otomatis. Bila server
+      // menyatakan sudah pernah mengerjakan, kembalikan result true agar
+      // tombol langsung disabled (optimistic) walau refresh gagal.
+      if (!mounted) return;
+      final already = msg.toLowerCase().contains('sudah pernah mengerjakan');
+      AppRouter.of(context).pop(already ? true : null);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -808,7 +836,9 @@ class FormRunnerViewState extends State<FormRunnerView>
       ),
     );
     if (!mounted) return;
-    AppRouter.of(context).pop();
+    // Sesi diakhiri pengawas = pengerjaan selesai (jawaban sudah di
+    // server): result true agar tombol di Informasi Form langsung disabled.
+    AppRouter.of(context).pop(true);
   }
 
   Future<void> _autoSubmit({bool violationLimit = false}) async {
@@ -889,7 +919,9 @@ class FormRunnerViewState extends State<FormRunnerView>
       await ExamWarningSound.stop();
     }
     if (!mounted) return;
-    AppRouter.of(context).pop();
+    // Auto-submit sukses = sudah mengerjakan: result true agar tombol di
+    // Informasi Form langsung disabled tanpa menunggu refresh server.
+    AppRouter.of(context).pop(true);
   }
 
   /// Scroll ke soal belum dijawab pertama dan fokus ke field esai-nya (jika ada).
@@ -1012,7 +1044,9 @@ class FormRunnerViewState extends State<FormRunnerView>
           ),
         );
         if (!mounted) return true;
-        AppRouter.of(context).pop();
+        // Submit manual sukses = sudah mengerjakan: result true agar tombol
+        // di Informasi Form langsung disabled tanpa menunggu refresh server.
+        AppRouter.of(context).pop(true);
       }
       return true;
     } catch (e) {
@@ -1063,9 +1097,9 @@ class FormRunnerViewState extends State<FormRunnerView>
     // Ragu-ragu ala web: hanya untuk tipe ujian (formTypeId 2, multi-page).
     final isExamQuiz = _c.formTypeId == 2 && _c.questions.length > 1;
     final info = _c.info;
-    // Info belum ada (mis. load gagal lalu state basi): jangan paksa `!`,
-    // tampilkan layar error yang bisa kembali.
-    if (_step == _RunnerStep.fill && info == null) {
+    // Info belum ada (kode kosong / load gagal / pemilik): jangan paksa `!`,
+    // tampilkan layar error yang bisa kembali ke Informasi Form.
+    if (info == null) {
       return Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
@@ -1074,7 +1108,7 @@ class FormRunnerViewState extends State<FormRunnerView>
             children: [
               const Icon(Icons.error_outline, size: 48),
               const SizedBox(height: 12),
-              const Text('Data form tidak tersedia.'),
+              Text(_loadError ?? 'Data form tidak tersedia.'),
               const SizedBox(height: 12),
               FilledButton(
                 onPressed: () => AppRouter.of(context).pop(),
@@ -1085,31 +1119,28 @@ class FormRunnerViewState extends State<FormRunnerView>
         ),
       );
     }
-    Widget fillWidget = const SizedBox.shrink();
-    if (info != null) {
-      fillWidget = RunnerFillStep(
-          info: info,
-          store: _c.store,
-          questions: _c.questions,
-          isMultiPage: isExamQuiz,
-          disablePaste: _disableCopy && _step == _RunnerStep.fill,
-          currentQuestion: _c.currentQuestion,
-          submitting: _submitting,
-          errorQuestionIds: _errorQuestionIds,
-          markedIds: _markedForReview,
-          showMarkButton: isExamQuiz,
-          onToggleMark: _toggleMark,
-          onSubmit: _submitWithConfirmation,
-          onNext: _next,
-          onPrevious: () => setState(() => _c.currentQuestion =
-              (_c.currentQuestion - 1).clamp(0, _c.questions.isEmpty ? 0 : _c.questions.length - 1)),
-          onJumpTo: (idx) => setState(() => _c.currentQuestion =
-              idx.clamp(0, _c.questions.isEmpty ? 0 : _c.questions.length - 1)),
-          onAnswerChanged: (qid) =>
-              setState(() => _errorQuestionIds.remove(qid)),
-          onPickDateTime: _pickDateTime,
-        );
-    }
+    Widget fillWidget = RunnerFillStep(
+        info: info,
+        store: _c.store,
+        questions: _c.questions,
+        isMultiPage: isExamQuiz,
+        disablePaste: _disableCopy && _step == _RunnerStep.fill,
+        currentQuestion: _c.currentQuestion,
+        submitting: _submitting,
+        errorQuestionIds: _errorQuestionIds,
+        markedIds: _markedForReview,
+        showMarkButton: isExamQuiz,
+        onToggleMark: _toggleMark,
+        onSubmit: _submitWithConfirmation,
+        onNext: _next,
+        onPrevious: () => setState(() => _c.currentQuestion =
+            (_c.currentQuestion - 1).clamp(0, _c.questions.isEmpty ? 0 : _c.questions.length - 1)),
+        onJumpTo: (idx) => setState(() => _c.currentQuestion =
+            idx.clamp(0, _c.questions.isEmpty ? 0 : _c.questions.length - 1)),
+        onAnswerChanged: (qid) =>
+            setState(() => _errorQuestionIds.remove(qid)),
+        onPickDateTime: _pickDateTime,
+      );
     // FEAT-6: wrap disabled copy-paste via SelectionContainer disabled
     if (_disableCopy && _step == _RunnerStep.fill) {
       fillWidget = SelectionContainer.disabled(child: fillWidget);
@@ -1121,35 +1152,25 @@ class FormRunnerViewState extends State<FormRunnerView>
         child: fillWidget,
       );
     }
-    final page = switch (_step) {
-      _RunnerStep.code => RunnerCodeStep(
-          showTitle: widget.showTitle,
-          codeController: _c.codeController,
-          tokenController: _c.tokenController,
-          nameController: _c.nameController,
-          info: _c.info,
-          loading: _loading,
-          requiresToken: _c.requiresToken,
-          isLoggedIn: _isLoggedIn,
-          onSubmitCode: _submitCode,
-          onLoadQuestions: _loadQuestions,
-        ),
-      _RunnerStep.fill => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_examActive)
-              // Strip status ujian (jam kiri, baterai kanan, hitungan
-              // pelanggaran). Tampil untuk semua mode terlacak (examMode
-              // maupun detectTabSwitch saja) agar batas terlihat.
-              ExamLockStatusBar(
-                violationLabel: _examTracking
-                    ? '${_violationCount > _tabSwitchCount ? _violationCount : _tabSwitchCount}${_c.info?.maxTabSwitch != null && _c.info!.maxTabSwitch! > 0 ? '/${_c.info!.maxTabSwitch}' : ''}'
-                    : null,
-              ),
-            Expanded(child: fillWidget),
-          ],
-        ),
-    };
+    // Opsi A: runner bersifat fill-only — layar step kode "Kerjakan Form"
+    // dihapus dari alur (widget-nya tetap ada di disk tapi tak dipakai).
+    // Semua validasi kode/token lewat Informasi Form; kegagalan muat soal
+    // kembali ke sana via pop agar tombol ter-refresh otomatis.
+    final page = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_examActive)
+            // Strip status ujian (jam kiri, baterai kanan, hitungan
+            // pelanggaran). Tampil untuk semua mode terlacak (examMode
+            // maupun detectTabSwitch saja) agar batas terlihat.
+            ExamLockStatusBar(
+              violationLabel: _examTracking
+                  ? '${_violationCount > _tabSwitchCount ? _violationCount : _tabSwitchCount}${_c.info?.maxTabSwitch != null && _c.info!.maxTabSwitch! > 0 ? '/${_c.info!.maxTabSwitch}' : ''}'
+                  : null,
+            ),
+          Expanded(child: fillWidget),
+        ],
+      );
     // Tema dinamis seluruh layar runner (code + fill + banner ujian).
     if (formTheme.hasCustom) {
       return FormThemeScope(theme: formTheme, child: page);

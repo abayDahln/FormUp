@@ -110,10 +110,19 @@ public static class ResponseSubmission
                 {
                     // Hanya respons tersubmit yang dihitung (draft "new"
                     // dikecualikan — kalau ikut, sync pertama sudah mengunci).
-                    // Reset owner menambah jatah via FormAttemptAllowance.
+                    // Token buka dari reset owner memberi tepat 1x isi ulang:
+                    // submit ini menghanguskannya (disimpan oleh SaveChanges
+                    // berikut dalam transaksi yang sama; submit yang gagal
+                    // validasi sesudah guard ini TIDAK ikut menghanguskan).
                     var submitted = await AttemptAllowance.CountSubmittedAsync(db, formId, userId, null);
-                    var extra = await AttemptAllowance.GetExtraAttemptsAsync(db, formId, userId, null);
-                    alreadySubmitted = submitted >= 1 + extra;
+                    if (submitted >= 1)
+                    {
+                        var token = await AttemptAllowance.GetRetakeTokenAsync(db, formId, userId, null);
+                        if (!token)
+                            alreadySubmitted = true;
+                        else
+                            await AttemptAllowance.ConsumeRetakeTokenAsync(db, formId, userId, null);
+                    }
                 }
             }
 

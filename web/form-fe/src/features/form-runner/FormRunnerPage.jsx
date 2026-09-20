@@ -794,7 +794,7 @@ export default function FormRunnerPage() {
         }).flat().filter(Boolean);
 
         try {
-            const res = await submitPublicFormResponse(formLink, {
+            const payload = {
                 token: tokenInput ? tokenInput.trim() : null,
                 respondentName: respondentName.trim() || 'Anonim',
                 isAutoSubmit: Boolean(isAuto || isActuallyDisqualified),
@@ -805,10 +805,10 @@ export default function FormRunnerPage() {
                 answers: formattedAnswers,
                 examSessionId: examSessionIdRef.current || null,
                 tabSwitchCount: typeof tabSwitchCount === 'number' ? tabSwitchCount : null,
-            });
-            const d = res.data;
-            const responseId = d?.responseId || d?.id || (typeof d === 'number' || typeof d === 'string' ? d : null);
-            if (res.ok && responseId) {
+            };
+            const finishOk = (d) => {
+                const responseId = d?.responseId || d?.id || (typeof d === 'number' || typeof d === 'string' ? d : null);
+                if (!responseId) return false;
                 try {
                     localStorage.removeItem(`formup_cache_${formLink}`);
                     localStorage.removeItem(`formup_timer_deadline_${formLink}`);
@@ -817,6 +817,7 @@ export default function FormRunnerPage() {
                     sessionStorage.removeItem(`formup_exam_session_${formLink}`);
                     sessionStorage.removeItem(`formup_violations_${formLink}`);
                 } catch {}
+<<<<<<< HEAD
                 if (isActuallyDisqualified) {
                     setIsDisqualified(true);
                     return;
@@ -828,10 +829,43 @@ export default function FormRunnerPage() {
                     }
                 });
             } else {
+=======
+                navigate(`/f/${formLink}/result/${responseId}`, { state: { guestToken: d?.guestToken || null } });
+                return true;
+            };
+            const res = await submitPublicFormResponse(formLink, payload);
+            if (res.ok && finishOk(res.data)) return;
+            // Sesi terminasi (force-submit pengawas / sesi lama pasca-reset):
+            // backend menolak 409 walau kuota isi ulang masih ada. Buang sesi
+            // basi, cek kuota terbaru; bila masih ada jatah, ulangi sekali
+            // dengan sesi baru (examSessionId null → server buatkan sesi baru).
+            const terminated = res.status === 409 || res.status === 410 || /disubmit/i.test(res.message || '');
+            if (terminated) {
+                try { sessionStorage.removeItem(`formup_exam_session_${formLink}`); } catch { /* abaikan: storage boleh tidak tersedia */ }
+                examSessionIdRef.current = null;
+                try {
+                    const fresh = await getPublicFormByLink(formLink);
+                    if (fresh?.ok && fresh.data) {
+                        setForm(fresh.data);
+                        if (fresh.data.oneResponse && !fresh.data.alreadySubmitted) {
+                            const retry = await submitPublicFormResponse(formLink, { ...payload, examSessionId: null });
+                            if (retry.ok && finishOk(retry.data)) return;
+                            const errText = retry.message || 'Gagal mengirimkan respons formulir.';
+                            isSubmittingRef.current = false; setSubmitting(false);
+                            setError(errText); showValidationAlert(errText);
+                            return;
+                        }
+                    }
+                } catch { /* abaikan: lanjut ke pesan terkunci */ }
+>>>>>>> 095c2ebf8341912d618d7db42037ed2c784fae43
                 isSubmittingRef.current = false; setSubmitting(false);
-                const errText = res.message || 'Gagal mengirimkan respons formulir.';
+                const errText = 'Sesi ujian Anda telah diselesaikan pengawas dan jatah pengerjaan sudah habis.';
                 setError(errText); showValidationAlert(errText);
+                return;
             }
+            isSubmittingRef.current = false; setSubmitting(false);
+            const errText = res.message || 'Gagal mengirimkan respons formulir.';
+            setError(errText); showValidationAlert(errText);
         } catch {
             isSubmittingRef.current = false; setSubmitting(false);
             const errText = 'Terjadi kesalahan koneksi saat mengirim formulir.';

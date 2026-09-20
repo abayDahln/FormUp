@@ -31,6 +31,12 @@ class _FormStartScreenState extends State<FormStartScreen> {
   List<MyAttempt> _myAttempts = [];
   bool _validatingToken = false;
   String? _tokenError;
+  // Optimistic lokal: true segera setelah runner kembali dengan result
+  // submit (manual / auto-submit / force-submit), agar tombol langsung
+  // disabled tanpa menunggu refresh server. Selalu dimatikan lagi setiap
+  // info fresh diterima — server adalah kebenaran final (mis. jatah ulang
+  // setelah reset owner mengaktifkan tombol kembali).
+  bool _optimisticDone = false;
 
   final _tokenController = TextEditingController();
   final _feedbackController = TextEditingController();
@@ -76,6 +82,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
 
       setState(() {
         _formInfo = info;
+        _optimisticDone = false;
       });
 
       await _loadCompletionState();
@@ -104,7 +111,10 @@ class _FormStartScreenState extends State<FormStartScreen> {
       final info =
           await PublicFormService.getFormInfo(widget.formLink, refresh: true);
       if (!mounted) return;
-      setState(() => _formInfo = info);
+      setState(() {
+        _formInfo = info;
+        _optimisticDone = false;
+      });
       await _loadCompletionState();
     } catch (e) {
       if (!mounted) return;
@@ -176,7 +186,10 @@ class _FormStartScreenState extends State<FormStartScreen> {
       final fresh =
           await PublicFormService.getFormInfo(widget.formLink, refresh: true);
       if (!mounted) return;
-      setState(() => _formInfo = fresh);
+      setState(() {
+        _formInfo = fresh;
+        _optimisticDone = false;
+      });
       await _loadCompletionState();
     } catch (_) {}
     if (!mounted || _formInfo == null) return;
@@ -191,7 +204,7 @@ class _FormStartScreenState extends State<FormStartScreen> {
       showAuthToast(context, "Anda tidak dapat mengisi form yang Anda buat sendiri", isError: true);
       return;
     }
-    if (info.oneResponse && info.alreadySubmitted) {
+    if (info.oneResponse && (info.alreadySubmitted || _optimisticDone)) {
       // Selaraskan tampilan tombol dengan status terbaru.
       setState(() {});
       showAuthToast(context, "Anda sudah mengerjakan form ini", isError: true);
@@ -265,12 +278,23 @@ class _FormStartScreenState extends State<FormStartScreen> {
             onPressed: () async {
               final router = AppRouter.of(this.context);
               Navigator.of(context).pop();
-              await router.push(AppPage.formRunner, {
+              final result = await router.push(AppPage.formRunner, {
                 'code': widget.formLink,
                 'token': _tokenController.text.trim(),
               });
               if (!mounted) return;
-              await _loadCompletionState();
+              // Runner mengembalikan true bila pengerjaan selesai (submit
+              // manual / auto-submit timer / limit pelanggaran / force-submit
+              // pengawas): kunci tombol SEGERA dari sisi mobile, lalu
+              // selaraskan dengan status server via refresh.
+              if (result == true) {
+                setState(() => _optimisticDone = true);
+              }
+              // Segarkan info (alreadySubmitted) + attempts agar tombol
+              // "Mulai Mengerjakan" otomatis disabled setelah pengerjaan
+              // selesai; info fresh juga mematikan optimistic bila server
+              // menyatakan sebaliknya (mis. jatah ulang pasca-reset owner).
+              await _refreshInfo();
             },
             child: const Text("Ya, Mulai"),
           ),
@@ -348,12 +372,14 @@ class _FormStartScreenState extends State<FormStartScreen> {
     }
 
     final info = _formInfo!;
-    // Kunci one-response HANYA dari sinyal server (alreadySubmitted, selalu
-    // fresh via getFormInfo refresh:true). Riwayat attempts TIDAK dipakai
+    // Kunci one-response dari sinyal server (alreadySubmitted, selalu
+    // fresh via getFormInfo refresh:true + bypass inner HTTP cache) ATAU
+    // optimistic lokal sesaat setelah submit. Riwayat attempts TIDAK dipakai
     // sebagai kunci: riwayat dipertahankan permanen oleh server bahkan
     // setelah owner me-reset (reset hanya menambah jatah ulang), sehingga
     // guard history akan mengunci user selamanya pasca-reset.
-    final alreadyDone = info.oneResponse && info.alreadySubmitted;
+    final alreadyDone =
+        info.oneResponse && (info.alreadySubmitted || _optimisticDone);
     return AppRefreshIndicator(
       onRefresh: _refreshInfo,
       child: SingleChildScrollView(

@@ -674,6 +674,9 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.ExtraAttempts)
                 .HasDefaultValue(0)
                 .HasColumnName("extra_attempts");
+            entity.Property(e => e.IsReopened)
+                .HasDefaultValue(false)
+                .HasColumnName("is_reopened");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("(getutcdate())")
                 .HasColumnType("datetime")

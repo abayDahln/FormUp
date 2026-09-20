@@ -59,7 +59,8 @@ public class ResponsesController : ControllerBase
                 (r.RespondentName != null && r.RespondentName.Contains(s)));
         }
 
-        // CanReset per respons: terbaru per responden + jatah belum dipakai.
+        // CanReset per respons: terbaru per responden yang sedang terkunci
+        // (pernah submit tapi tak memegang token buka).
         var canResetMap = await ComputeCanResetMapAsync(formId);
 
         var query = baseQuery
@@ -112,11 +113,11 @@ public class ResponsesController : ControllerBase
             .ToListAsync();
         var allowances = await _db.FormAttemptAllowances
             .Where(a => a.FormId == formId)
-            .Select(a => new { a.RespondentId, a.RespondentName, a.ExtraAttempts })
+            .Select(a => new { a.RespondentId, a.RespondentName, a.IsReopened })
             .ToListAsync();
         return AttemptAllowance.ComputeCanReset(
             rows.Select(r => (r.Id, r.RespondentId, r.RespondentName, r.StatusId, r.SubmittedAt, r.CreatedAt)).ToList(),
-            allowances.Select(a => (a.RespondentId, a.RespondentName, a.ExtraAttempts)).ToList(),
+            allowances.Select(a => (a.RespondentId, a.RespondentName, a.IsReopened)).ToList(),
             newStatusId);
     }
 
@@ -298,10 +299,10 @@ public class ResponsesController : ControllerBase
     /// Reset pengerjaan ulang one-response per respons (dipakai untuk form
     /// non-exam yang tidak punya sesi ujian, tapi berlaku juga untuk exam):
     /// respons lama TETAP tersimpan sebagai riwayat di daftar respons form,
-    /// riwayat responden, dan endpoint attempts; responden diberi 1 jatah
-    /// ulang via <see cref="FormAttemptAllowance"/> + sisa draft "new"
-    /// dibersihkan sehingga responden dapat mengerjakan kembali dengan
-    /// sesi baru.
+    /// riwayat responden, dan endpoint attempts; responden diberi 1 token
+    /// buka sekali-pakai via <see cref="FormAttemptAllowance"/> + sisa draft
+    /// "new" dibersihkan sehingga responden dapat mengerjakan kembali dengan
+    /// sesi baru. Submit berikutnya menghanguskan token (terkunci lagi).
     /// </summary>
     [HttpPost("api/forms/{formId}/responses/{responseId}/reset")]
     public async Task<ActionResult<ApiResponse<object>>> ResetAttempt(int formId, int responseId)
@@ -337,7 +338,10 @@ public class ResponsesController : ControllerBase
             return BadRequest(new ApiResponse<object>(400,
                 "Respons ini tidak memiliki identitas responden sehingga jatah isi ulang tidak dapat diberikan."));
 
-        // Sekali klik per upaya: hanya respons terbaru + jatah belum dipakai.
+        // Token sekali-pakai: hanya respons terbaru yang bisa dibuka, dan
+        // hanya bila responden sedang terkunci (pernah submit tapi tak
+        // memegang token). Klik kedua tanpa submit dulu ditolak tegas —
+        // tidak ada counter menumpuk.
         var submittedIds = target.RespondentId.HasValue
             ? await _db.Responses
                 .Where(r => r.FormId == formId && r.RespondentId == target.RespondentId
@@ -352,17 +356,35 @@ public class ResponsesController : ControllerBase
         if (submittedIds.Count == 0 || submittedIds[^1] != responseId)
             return BadRequest(new ApiResponse<object>(400,
                 "Hanya respons terbaru responden yang bisa di-reset."));
-        var usedExtra = await AttemptAllowance.GetExtraAttemptsAsync(
-            _db, formId, target.RespondentId, target.RespondentName);
-        if (usedExtra >= submittedIds.Count)
+        if (await AttemptAllowance.GetRetakeTokenAsync(
+            _db, formId, target.RespondentId, target.RespondentName))
             return BadRequest(new ApiResponse<object>(400,
-                "Jatah reset untuk upaya ini sudah dipakai. Tombol reset muncul lagi setelah ada respons baru."));
+                "Form sudah dibuka kembali untuk responden ini. Token hangus setelah dipakai submit — reset lagi setelah ada respons baru."));
 
-        var extra = await AttemptAllowance.ResetForRetakeAsync(
+        await AttemptAllowance.ResetForRetakeAsync(
             _db, formId, target.RespondentId, target.RespondentName);
 
         return Ok(new ApiResponse<object>(200,
-            $"Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan. Peserta dapat mengerjakan kembali dengan sesi baru."));
+            "Jawaban peserta berhasil di-reset. Data lama dipertahankan sebagai riwayat. Form dibuka kembali — peserta dapat mengerjakan satu kali pengerjaan ulang dengan sesi baru."));
+    }
+
+    [HttpGet("api/response-statuses")]
+    public async Task<ActionResult<ApiResponse<object>>> GetStatuses()
+    {
+        var user = await GetCurrentUser();
+        if (user == null)
+            return Unauthorized(new ApiResponse<object>(401, "User not found"));
+
+        // Daftar referensi kanonik (id + nama): hanya "new" (draft) dan
+        // "submitted" (hasil sah). Klien (web) membangun opsi dari sini agar
+        // tidak menebak id di sisi klien (lihat migrasi
+        // SeedResponseStatusCanonical).
+        var items = await _db.ResponseStatuses
+            .OrderBy(s => s.Id)
+            .Select(s => new { id = s.Id, status = s.Status })
+            .ToListAsync();
+
+        return Ok(new ApiResponse<object>(200, "OK", items));
     }
 
 >>>>>>> origin/main
@@ -383,9 +405,32 @@ public class ResponsesController : ControllerBase
         if (response.Form == null || response.Form.UserId != user.Id)
             return Forbid();
 
-        var statusExists = await _db.ResponseStatuses.AnyAsync(s => s.Id == request.StatusId);
-        if (!statusExists)
+        var target = await _db.ResponseStatuses
+            .FirstOrDefaultAsync(s => s.Id == request.StatusId);
+        if (target == null)
             return BadRequest(new ApiResponse<object>(400, "Invalid status ID"));
+
+        // Guard batas draft: status "new" adalah draft sync-answers yang
+        // dikecualikan dari kuota one-response. Mengubah draft menjadi
+        // status tersubmit (atau sebaliknya) lewat endpoint ini merusak
+        // invarian reset (E < S): tombol reset muncul untuk baris yang
+        // seharusnya draft, reset "berhasil" tetapi responden tetap
+        // terkunci. Finalisasi draft hanya lewat force-submit pengawas;
+        // jatah ulang hanya lewat endpoint reset.
+        var current = await _db.ResponseStatuses
+            .Where(s => s.Id == response.StatusId)
+            .Select(s => s.Status)
+            .FirstOrDefaultAsync();
+        var currentIsNew = string.Equals(current, "new", StringComparison.OrdinalIgnoreCase);
+        var targetIsNew = string.Equals(target.Status, "new", StringComparison.OrdinalIgnoreCase);
+        if (currentIsNew != targetIsNew)
+        {
+            if (currentIsNew)
+                return BadRequest(new ApiResponse<object>(400,
+                    "Status draft (new) tidak dapat diubah langsung menjadi status tersubmit. Gunakan tombol Reset agar jatah isi ulang tercatat dengan benar."));
+            return BadRequest(new ApiResponse<object>(400,
+                "Respons yang sudah tersubmit tidak dapat dikembalikan menjadi draft (new)."));
+        }
 
         response.StatusId = request.StatusId;
         response.UpdatedAt = DateTime.UtcNow;

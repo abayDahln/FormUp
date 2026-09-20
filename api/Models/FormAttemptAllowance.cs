@@ -19,6 +19,14 @@ public class FormAttemptAllowance
     /// <summary>Tambahan kesempatan submit di luar bawaan 1x one-response.</summary>
     public int ExtraAttempts { get; set; }
 
+    /// <summary>
+    /// Token buka-sekali-pakai one-response: true = form dibuka kembali
+    /// untuk responden (seolah belum mengerjakan); hangus (false) saat
+    /// submit berikutnya. Satu-satunya sumber keputusan buka/tutup —
+    /// <see cref="ExtraAttempts"/> hanya jejak audit jumlah grant.
+    /// </summary>
+    public bool IsReopened { get; set; }
+
     public DateTime? CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }

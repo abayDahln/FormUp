@@ -418,6 +418,11 @@ export const updateResponseStatus = async (responseId, statusId) => {
     return parseResponse(res);
 };
 
+// Backend: [HttpGet("api/response-statuses")] di ResponsesController.cs
+// Daftar referensi status respons (id + nama) agar dropdown owner tidak
+// menebak id di sisi klien. Gagal dimuat → pemanggil memakai fallback kanonik.
+export const getResponseStatuses = async () => parseResponse(await authFetch(`${API_BASE_URL}/api/response-statuses`));
+
 // Helper: Resolve answer key per question according to specification
 export const resolveAnswerKey = (q) => {
     if (!q) return '';
