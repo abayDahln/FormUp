@@ -68,9 +68,9 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
       AppRouter.of(context).pop(formId);
     } else {
       // Form baru: lanjut kelola soal.
-      await AppRouter.of(context).push(AppPage.formQuestions, {
-        'formId': formId,
-      });
+      await AppRouter.of(
+        context,
+      ).push(AppPage.formQuestions, {'formId': formId});
       if (!mounted) return;
       AppRouter.of(context).pop(formId);
       showAuthToast(context, "Form berhasil dibuat");
@@ -85,12 +85,10 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
         backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape:  Border(
-          bottom: BorderSide(color: cs.outlineVariant),
-        ),
+        shape: Border(bottom: BorderSide(color: cs.outlineVariant)),
         title: Text(
           _isEdit ? "Edit Form" : "Buat Form",
-          style:  TextStyle(
+          style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
             fontFamily: kFontBold,
@@ -98,7 +96,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
           ),
         ),
         leading: IconButton(
-          icon:  Icon(Icons.arrow_back, color: cs.onSurface),
+          icon: Icon(Icons.arrow_back, color: cs.onSurface),
           onPressed: () async {
             final allow = await _confirmExit();
             if (!allow) return;
@@ -158,18 +156,20 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
               child: SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.all(8),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: cs.surface,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: cs.outlineVariant),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: AiFormAgentPanel(
-                      formId: widget.formId,
-                      settings: () => _panelKey.currentState?.formController,
-                      onChanged: () => setState(() {}),
-                      onClose: () => setState(() => _aiOpen = false),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: cs.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: cs.outlineVariant, width: 1),
+                      ),
+                      child: AiFormAgentPanel(
+                        formId: widget.formId,
+                        settings: () => _panelKey.currentState?.formController,
+                        onChanged: () => setState(() {}),
+                        onClose: () => setState(() => _aiOpen = false),
+                      ),
                     ),
                   ),
                 ),

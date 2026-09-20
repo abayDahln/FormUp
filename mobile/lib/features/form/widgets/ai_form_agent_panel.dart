@@ -884,7 +884,9 @@ ${_draftSnapshot(s, questions)}''';
   Widget _chatList(ColorScheme cs) {
     return LayoutBuilder(
       builder: (context, cons) {
-        final bubbleMaxW = cons.maxWidth * 0.82;
+        // Bubble dibatasi 92% lebar panel agar terlihat lebih lebar dan
+        // proporsional dengan card form setting & soal di sebelahnya.
+        final bubbleMaxW = cons.maxWidth * 0.92;
         return ListView.separated(
           controller: _scroll,
           padding: EdgeInsets.fromLTRB(
@@ -1333,12 +1335,25 @@ ${_draftSnapshot(s, questions)}''';
     );
   }
 
-  /// Pill prompt bersih: tanpa indikator konteks, tanpa label tambahan,
-  /// kontrol kirim muncul hanya saat ada teks/lampiran.
+  /// Pill prompt dengan perbedaan warna yang jelas antara field text dan
+  /// card prompt. Field text memakai warna surface yang lebih gelap/terang
+  /// untuk kontras, sementara card prompt memakai warna latar belakang.
   Widget _inputPill(ColorScheme cs) {
     final canSend =
         _input.text.trim().isNotEmpty || _pendingAttachments.isNotEmpty;
     final enabled = !_busy && !_voice.isTranscribing;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Warna card prompt (latar belakang pill)
+    final cardColor = isDark 
+        ? const Color(0xFF2A3238)  // Darker grey untuk card
+        : const Color(0xFFE8ECEF); // Light grey untuk card
+    
+    // Warna field text (lebih kontras dari card)
+    final fieldColor = isDark
+        ? const Color(0xFF1B2229)  // Darker untuk field
+        : Colors.white;            // Pure white untuk field
+    
     return Container(
       key: _inputBarKey,
       padding: EdgeInsets.fromLTRB(
@@ -1348,9 +1363,16 @@ ${_draftSnapshot(s, questions)}''';
         6,
       ),
       decoration: BoxDecoration(
-        color: cs.surface,
+        color: cardColor,
         borderRadius: BorderRadius.circular(28),
         boxShadow: softShadow(),
+        // Border tipis untuk definisi lebih jelas
+        border: Border.all(
+          color: isDark 
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.06),
+          width: 1,
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1365,8 +1387,19 @@ ${_draftSnapshot(s, questions)}''';
             ),
             const SizedBox(height: 6),
           ],
-          Padding(
-            padding: const EdgeInsets.only(left: 8, top: 4),
+          // Field text dengan warna berbeda dari card
+          Container(
+            decoration: BoxDecoration(
+              color: fieldColor,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isDark 
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.black.withValues(alpha: 0.04),
+                width: 1,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: TextField(
               controller: _input,
               focusNode: _focusNode,
@@ -1380,7 +1413,7 @@ ${_draftSnapshot(s, questions)}''';
               onChanged: (_) => setState(() {}),
               keyboardType: TextInputType.multiline,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
@@ -1390,13 +1423,16 @@ ${_draftSnapshot(s, questions)}''';
                 contentPadding: EdgeInsets.zero,
                 isDense: true,
                 hintText: 'Tulis perintah untuk draf...',
+                hintStyle: TextStyle(
+                  color: cs.onSurfaceVariant.withValues(alpha: 0.6),
+                ),
               ),
               style: TextStyle(fontSize: 15, color: cs.onSurface, height: 1.35),
               cursorColor: cs.primary,
               mouseCursor: SystemMouseCursors.text,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Row(
             children: [
               IconButton(

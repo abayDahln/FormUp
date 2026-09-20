@@ -106,8 +106,10 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   Future<void> _loadQuestions() async {
     setState(() => _loadingQuestions = true);
     try {
-      final questions =
-          await FormService.getQuestions(_formId!, refresh: false);
+      final questions = await FormService.getQuestions(
+        _formId!,
+        refresh: false,
+      );
       if (!mounted) return;
       setState(() {
         _questions
@@ -142,10 +144,13 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
       context: context,
       builder: (context) => ResponsiveDialog(
         child: AlertDialog(
-          title: const Text('Simpan perubahan?',
-              style: TextStyle(fontFamily: kFontBold)),
+          title: const Text(
+            'Simpan perubahan?',
+            style: TextStyle(fontFamily: kFontBold),
+          ),
           content: const Text(
-              'Ada perubahan pengaturan dan/atau soal yang belum tersimpan.'),
+            'Ada perubahan pengaturan dan/atau soal yang belum tersimpan.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, 'cancel'),
@@ -153,8 +158,10 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, 'discard'),
-              child: const Text('Buang',
-                  style: TextStyle(color: Color(0xFFC0392B))),
+              child: const Text(
+                'Buang',
+                style: TextStyle(color: Color(0xFFC0392B)),
+              ),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, 'save'),
@@ -222,7 +229,9 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
           },
         );
         if (!mounted) return;
-        if (result.abortedOversize) return; // soal belum selesai — jangan baseline.
+        if (result.abortedOversize) {
+          return; // soal belum selesai — jangan baseline.
+        }
         setState(() => _baseline = [for (final q in _questions) q.copy()]);
         if (!_hasQuestionChanges) {
           showAppToast(
@@ -355,8 +364,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
       onPressed: _formId == null
           ? null
           : () => setState(() => _aiOpen = !_aiOpen),
-      backgroundColor:
-          _aiOpen ? cs.primaryContainer : cs.surface,
+      backgroundColor: _aiOpen ? cs.primaryContainer : cs.surface,
       foregroundColor: cs.primary,
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -378,11 +386,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        aiFab,
-        const SizedBox(height: 12),
-        addFab,
-      ],
+      children: [aiFab, const SizedBox(height: 12), addFab],
     );
   }
 
@@ -395,9 +399,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
         backgroundColor: cs.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        shape: Border(
-          bottom: BorderSide(color: cs.outlineVariant),
-        ),
+        shape: Border(bottom: BorderSide(color: cs.outlineVariant)),
         title: Text(
           _formId == null ? "Buat Form" : "Edit Form",
           style: TextStyle(
@@ -480,19 +482,22 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
                 // scroll. Lebar lebih sempit: overlay panel kanan.
                 final twoColumn = isExpanded(context);
                 final pushLayout = _aiOpen && isWide(context);
-                final sidebarWidth = pushLayout ? 380.0 : 0.0;
+                final sidebarWidth = pushLayout
+                    ? (MediaQuery.sizeOf(context).width * 0.30).clamp(
+                        300.0,
+                        420.0,
+                      )
+                    : 0.0;
                 final w = MediaQuery.sizeOf(context).width;
                 final EdgeInsets padding;
                 if (pushLayout) {
                   // Konten di-center di zona kiri sidebar, dengan cap lebar
                   // + margin horizontal agar tidak menempel ke tepi window.
                   final zoneLeft = 24.0;
-                  final avail =
-                      w - sidebarWidth - 16 - zoneLeft; // zona konten
+                  final avail = w - sidebarWidth - 16 - zoneLeft; // zona konten
                   final cap = twoColumn ? 1400.0 : 960.0;
                   final contentW = min(avail, cap);
-                  final sideMargin =
-                      max(24.0, (avail - contentW) / 2);
+                  final sideMargin = max(24.0, (avail - contentW) / 2);
                   padding = EdgeInsets.fromLTRB(
                     sideMargin,
                     16,
@@ -506,9 +511,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
                     maxWidth: twoColumn ? 1400 : 960,
                     wideMaxWidth: twoColumn ? 1400 : 960,
                   );
-                  padding = capped.copyWith(
-                    bottom: toolbarVisible ? 110 : 24,
-                  );
+                  padding = capped.copyWith(bottom: toolbarVisible ? 110 : 24);
                 }
                 return SingleChildScrollView(
                   padding: padding,
@@ -527,9 +530,15 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
         // FAB (AI toggle + Tambah Soal): di kanan bawah; saat sidebar AI
         // terbuka, bergeser ke KIRI sidebar agar tidak menutupi panel.
         Positioned(
-          right: _aiOpen ? 412 : 16,
+          right: _aiOpen && isWide(context)
+              ? (MediaQuery.sizeOf(context).width * 0.30).clamp(300.0, 420.0) +
+                    12
+              : 16,
           bottom: 16,
-          child: _buildFab(cs),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: _buildFab(cs),
+          ),
         ),
         // Sidebar kanan AI Form Agent. Desktop fullscreen (≥1400): pinned,
         // konten digeser kiri via padding (pushLayout). Lebar lebih sempit
@@ -539,7 +548,9 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
             top: 12,
             right: 12,
             bottom: 12,
-            width: 380,
+            width: isWide(context)
+                ? (MediaQuery.sizeOf(context).width * 0.30).clamp(300.0, 420.0)
+                : 380,
             child: _aiCard(context, cs),
           ),
       ],
@@ -550,20 +561,22 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   /// Hanya container ber-border tipis: header & kelola riwayat ada di dalam
   /// panel (agar konsisten dengan layar AI Chat).
   Widget _aiCard(BuildContext context, ColorScheme cs) {
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: AiFormAgentPanel(
-        key: _agentKey,
-        formId: _formId,
-        settings: () => _settingsKey.currentState?.formController,
-        questions: () => _questions,
-        onChanged: () => setState(() {}),
-        onClose: () => setState(() => _aiOpen = false),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cs.outlineVariant, width: 1),
+        ),
+        child: AiFormAgentPanel(
+          key: _agentKey,
+          formId: _formId,
+          settings: () => _settingsKey.currentState?.formController,
+          questions: () => _questions,
+          onChanged: () => setState(() {}),
+          onClose: () => setState(() => _aiOpen = false),
+        ),
       ),
     );
   }
@@ -602,16 +615,16 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
     ];
   }
 
-  /// Layout lebar: dua kartu berdampingan — kiri pengaturan form,
-  /// kanan daftar soal.
+  /// Layout lebar: dua kartu berdampingan di sisi kiri, dengan AI sidebar
+  /// mengambil porsi sekitar 30% untuk menjaga keseimbangan visual
+  /// 35/35/30 ketika panel AI terbuka.
   Widget _twoColumnContent(ColorScheme cs) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // KIRI: kartu pengaturan form (tanpa scroll & tombol simpan sendiri
-        // — Simpan global di header screen).
+        // KIRI: kartu pengaturan form.
         Expanded(
-          flex: 5,
+          flex: 35,
           child: FormSettingsPanel(
             key: _settingsKey,
             formId: _formId,
@@ -620,10 +633,10 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
             centerContent: false,
           ),
         ),
-        const SizedBox(width: 20),
+        const SizedBox(width: 16),
         // KANAN: kartu daftar soal (accordion).
         Expanded(
-          flex: 7,
+          flex: 35,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -676,8 +689,9 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
             tooltip: 'Opsi soal',
             onPressed: (_savingQuestions || _importing)
                 ? null
-                : () =>
-                    controller.isOpen ? controller.close() : controller.open(),
+                : () => controller.isOpen
+                      ? controller.close()
+                      : controller.open(),
           ),
           menuChildren: [
             MenuItemButton(
@@ -707,8 +721,9 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
             ),
             MenuItemButton(
               leadingIcon: const Icon(Icons.download_outlined, size: 20),
-              onPressed:
-                  (_savingQuestions || _importing) ? null : downloadTemplate,
+              onPressed: (_savingQuestions || _importing)
+                  ? null
+                  : downloadTemplate,
               child: const Text('Unduh Template Import'),
             ),
           ],
@@ -732,10 +747,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
           Text(
             'Belum ada soal. Ketuk "Tambah Soal" untuk membuat pertanyaan pertama.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              color: cs.onSurfaceVariant,
-            ),
+            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
           ),
         ],
       ),
