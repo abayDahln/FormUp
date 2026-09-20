@@ -1,14 +1,15 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:form_up/core/models/question_draft.dart';
+import 'package:form_up/core/services/ai_form_agent_history_service.dart';
 import 'package:form_up/core/services/gemini_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
 import 'package:form_up/features/form/controllers/form_maker_controller.dart';
 
-/// Satu pesan di panel agent draf.
+/// Satu pesan di panel AI Form Agent.
 class _AgentMessage {
   final bool isUser;
   final String text;
@@ -25,11 +26,20 @@ class _AgentMessage {
   });
 }
 
-/// Panel agent AI draf (sidebar kanan builder): chat yang LANGSUNG mengubah
-/// draf lokal — pengaturan form + daftar soal — tanpa dialog persetujuan,
-/// karena draf tetap milik user dan server hanya tersentuh saat user menekan
-/// Simpan. Berbeda dari AI Chat screen (aksi ke server via PendingActionBar).
-class AiDraftAgentPanel extends StatefulWidget {
+/// Panel **AI Form Agent** (sidebar kanan builder): chat yang LANGSUNG
+/// mengubah draf lokal — pengaturan form + daftar soal — tanpa dialog
+/// persetujuan, karena draf tetap milik user dan server hanya tersentuh saat
+/// user menekan Simpan.
+///
+/// Berbeda dari AI Chat screen:
+/// - Fokus HANYA pada form yang sedang dibuka (otomatis "mention" form ini,
+///   tidak ada sintaks '@' dan tidak bisa menyentuh form lain).
+/// - Riwayat percakapan sendiri per form ([AiFormAgentHistoryService]),
+///   terpisah dari riwayat AI Chat umum.
+class AiFormAgentPanel extends StatefulWidget {
+  /// Form yang sedang dibuka; null = draf baru (belum punya id).
+  final int? formId;
+
   /// Akses controller pengaturan (title/desc/settings) draf; null bila
   /// kartu pengaturan belum ter-mount.
   final FormMakerController? Function()? settings;
@@ -40,28 +50,94 @@ class AiDraftAgentPanel extends StatefulWidget {
   /// Memberi tahu screen agar rebuild setelah draf diubah.
   final void Function() onChanged;
 
-  const AiDraftAgentPanel({
+  const AiFormAgentPanel({
     super.key,
+    required this.formId,
     required this.settings,
     required this.questions,
     required this.onChanged,
   });
 
   @override
-  State<AiDraftAgentPanel> createState() => _AiDraftAgentPanelState();
+  State<AiFormAgentPanel> createState() => AiFormAgentPanelState();
 }
 
-class _AiDraftAgentPanelState extends State<AiDraftAgentPanel> {
+class AiFormAgentPanelState extends State<AiFormAgentPanel> {
   final List<_AgentMessage> _messages = [];
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
   bool _busy = false;
+
+  /// Riwayat disimpan per form: draf baru memakai key 'draft' hingga
+  /// form punya id (lihat didUpdateWidget).
+  int? _historyFormId;
+
+  @override
+  void initState() {
+    super.initState();
+    _historyFormId = widget.formId;
+    _loadHistory();
+  }
+
+  @override
+  void didUpdateWidget(covariant AiFormAgentPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Form baru tersimpan (draf → punya id): pindahkan riwayat ke key form
+    // agar percakapan yang sudah ada tidak hilang / tidak tercampur.
+    if (widget.formId != oldWidget.formId) {
+      final previous = _historyFormId;
+      _historyFormId = widget.formId;
+      if (previous == null && widget.formId != null) {
+        AiFormAgentHistoryService.migrateDraftToForm(widget.formId!);
+      } else {
+        _loadHistory();
+      }
+    }
+  }
 
   @override
   void dispose() {
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadHistory() async {
+    final history = await AiFormAgentHistoryService.load(_historyFormId);
+    if (!mounted) return;
+    setState(() {
+      _messages
+        ..clear()
+        ..addAll(history.map((m) => _AgentMessage(
+              isUser: m.isUser,
+              text: m.text,
+              applied: m.applied,
+              isError: m.isError,
+            )));
+    });
+    _scrollToEnd();
+  }
+
+  void _persist() {
+    AiFormAgentHistoryService.save(
+      _historyFormId,
+      [
+        for (final m in _messages)
+          FormAgentMessage(
+            isUser: m.isUser,
+            text: m.text,
+            applied: m.applied,
+            isError: m.isError,
+          ),
+      ],
+    );
+  }
+
+  /// Hapus riwayat percakapan form ini (dipakai tombol di header kartu).
+  Future<void> clearHistory() async {
+    await AiFormAgentHistoryService.clear(_historyFormId);
+    if (!mounted) return;
+    setState(_messages.clear);
   }
 
   void _scrollToEnd() {
@@ -77,9 +153,17 @@ class _AiDraftAgentPanelState extends State<AiDraftAgentPanel> {
 
   /// Instruksi sistem + kontrak JSON: agent mengembalikan daftar aksi
   /// yang langsung diterapkan ke draf lokal.
+  ///
+  /// Agent TERKUNCI pada form yang sedang dibuka (mention otomatis, tanpa
+  /// sintaks '@'); permintaan yang menyebut form lain diabaikan.
   String _preamble() => '''
-Kamu adalah agen penyusun form di aplikasi FormUp. Kamu bekerja pada DRAF
-lokal (belum tersimpan) milik user: pengaturan form + daftar soal.
+Kamu adalah "AI Form Agent" di aplikasi FormUp. Kamu bekerja HANYA pada form
+yang sedang dibuka user: pengaturan form + daftar soal pada DRAF lokal
+(belum tersimpan). Form ini otomatis menjadi konteks percakapan — user TIDAK
+memakai sintaks '@' dan kamu tidak boleh mengubah, mencari, atau menyebut
+form lain (teks yang mengandung '@' diperlakukan sebagai teks biasa).
+Jika user menyebut form lain, tolak dengan sopan di "reply" dan kirim
+"actions": [].
 Balas HANYA satu objek JSON valid (tanpa markdown/penjelasan di luar JSON):
 
 {"reply":"penjelasan singkat dalam Bahasa Indonesia","actions":[...]}
@@ -153,6 +237,7 @@ Aturan:
           isError: true,
         ));
       });
+      _persist();
       _scrollToEnd();
       return;
     }
@@ -162,6 +247,7 @@ Aturan:
       _messages.add(_AgentMessage(isUser: true, text: text));
       _busy = true;
     });
+    _persist();
     _scrollToEnd();
 
     try {
@@ -186,6 +272,7 @@ Aturan:
             isError: true,
           ));
         });
+        _persist();
         _scrollToEnd();
         return;
       }
@@ -206,6 +293,7 @@ Aturan:
         ));
       });
       if (applied.isNotEmpty) widget.onChanged();
+      _persist();
       _scrollToEnd();
     } catch (e) {
       if (!mounted) return;
@@ -217,6 +305,7 @@ Aturan:
           isError: true,
         ));
       });
+      _persist();
       _scrollToEnd();
     }
   }
@@ -393,6 +482,7 @@ Aturan:
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _contextBar(cs),
         Expanded(
           child: _messages.isEmpty
               ? _emptyState(cs)
@@ -412,6 +502,34 @@ Aturan:
     );
   }
 
+  /// Bar konteks: form ini otomatis jadi fokus agent (tanpa sintaks '@').
+  Widget _contextBar(ColorScheme cs) {
+    final title = widget.settings?.call()?.titleController.text.trim() ?? '';
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      color: cs.primaryContainer.withValues(alpha: 0.35),
+      child: Row(
+        children: [
+          Icon(Icons.language, size: 14, color: cs.primary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              title.isEmpty ? 'Fokus: Form baru (belum diberi judul)'
+                  : 'Fokus: $title',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: cs.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _emptyState(ColorScheme cs) {
     return Center(
       child: SingleChildScrollView(
@@ -422,7 +540,7 @@ Aturan:
             Icon(Icons.auto_awesome_outlined, size: 36, color: cs.primary),
             const SizedBox(height: 10),
             Text(
-              'Agent Draf AI',
+              'AI Form Agent',
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,

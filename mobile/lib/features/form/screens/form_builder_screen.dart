@@ -16,7 +16,7 @@ import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/features/form/controllers/question_validation.dart';
 import 'package:form_up/features/form/controllers/questions_persist.dart';
-import 'package:form_up/features/form/widgets/ai_draft_agent_panel.dart';
+import 'package:form_up/features/form/widgets/ai_form_agent_panel.dart';
 import 'package:form_up/features/form/widgets/form_settings_panel.dart';
 import 'package:form_up/features/form/widgets/question_accordion_card.dart';
 import 'package:form_up/features/form/widgets/question_import_mixin.dart';
@@ -40,6 +40,8 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
     with QuestionImportMixin {
   final GlobalKey<FormSettingsPanelState> _settingsKey =
       GlobalKey<FormSettingsPanelState>();
+  final GlobalKey<AiFormAgentPanelState> _agentKey =
+      GlobalKey<AiFormAgentPanelState>();
   final GlobalKey _addKey = GlobalKey();
   AppRouterDelegate? _router;
 
@@ -56,7 +58,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   /// Indeks kartu soal yang terbuka (accordion single-open).
   int? _openIndex;
 
-  /// True = panel asisten AI tampil (kartu ketiga di ≥1400px, overlay
+  /// True = panel AI Form Agent tampil (kartu ketiga di ≥1400px, overlay
   /// panel kanan di lebar lebih sempit).
   bool _aiOpen = false;
 
@@ -353,7 +355,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
       foregroundColor: cs.primary,
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      tooltip: _aiOpen ? 'Tutup asisten AI' : 'Tanya AI tentang form ini',
+      tooltip: _aiOpen ? 'Tutup AI Form Agent' : 'Buka AI Form Agent',
       child: AiChatIcon(size: 18, color: cs.primary, filled: true),
     );
     final Widget addFab = isTablet(context)
@@ -524,7 +526,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
           bottom: 16,
           child: _buildFab(cs),
         ),
-        // Sidebar kanan asisten AI. Desktop fullscreen (≥1400): pinned,
+        // Sidebar kanan AI Form Agent. Desktop fullscreen (≥1400): pinned,
         // konten digeser kiri via padding (pushLayout). Lebar lebih sempit
         // (tablet/mobile): overlay melayang di atas konten.
         if (_aiOpen)
@@ -539,9 +541,9 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
     );
   }
 
-  /// Kartu panel AI (chat embed) — dipakai sidebar pinned maupun overlay.
-  /// Konsisten dengan kartu pengaturan form: container border + rounded,
-  /// header "Asisten AI" + tombol tutup.
+  /// Kartu **AI Form Agent** (chat embed) — dipakai sidebar pinned maupun
+  /// overlay. Konsisten dengan kartu pengaturan form: container border +
+  /// rounded, header + tombol hapus riwayat & tutup.
   Widget _aiCard(BuildContext context, ColorScheme cs) {
     return Container(
       decoration: BoxDecoration(
@@ -554,7 +556,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+            padding: const EdgeInsets.fromLTRB(16, 6, 4, 6),
             child: Row(
               children: [
                 Icon(Icons.auto_awesome_outlined,
@@ -562,7 +564,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Asisten AI',
+                    'AI Form Agent',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -572,8 +574,14 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
                   ),
                 ),
                 IconButton(
+                  icon: Icon(Icons.delete_sweep_outlined,
+                      size: 18, color: cs.onSurfaceVariant),
+                  tooltip: 'Hapus riwayat percakapan form ini',
+                  onPressed: () => _confirmClearAgentHistory(context),
+                ),
+                IconButton(
                   icon: Icon(Icons.close, size: 20, color: cs.onSurface),
-                  tooltip: 'Tutup asisten AI',
+                  tooltip: 'Tutup AI Form Agent',
                   onPressed: () => setState(() => _aiOpen = false),
                 ),
               ],
@@ -581,7 +589,9 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
           ),
           Divider(height: 1, color: cs.outlineVariant),
           Expanded(
-            child: AiDraftAgentPanel(
+            child: AiFormAgentPanel(
+              key: _agentKey,
+              formId: _formId,
               settings: () => _settingsKey.currentState?.formController,
               questions: () => _questions,
               onChanged: () => setState(() {}),
@@ -590,6 +600,39 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
         ],
       ),
     );
+  }
+
+  /// Hapus riwayat percakapan AI Form Agent untuk form ini (draf tidak
+  /// terpengaruh) — riwayat memang terpisah per form.
+  Future<void> _confirmClearAgentHistory(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'Hapus Riwayat Agent?',
+          style: TextStyle(fontFamily: kFontBold),
+        ),
+        content: const Text(
+          'Riwayat percakapan AI Form Agent untuk form ini akan dihapus. '
+          'Draf form & soal tidak terpengaruh.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Hapus',
+              style: TextStyle(color: Color(0xFFC0392B)),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _agentKey.currentState?.clearHistory();
   }
 
   /// Daftar kartu accordion soal + state loading/empty (dipakai dua layout).
