@@ -556,7 +556,7 @@ export default function FormResultPage() {
                                                                 <span className="w-5 h-5 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center font-bold text-[10px] shrink-0">
                                                                     {String.fromCharCode(65 + oIdx)}
                                                                 </span>
-                                                                <span>{opt.optionText}</span>
+                                                                <RichContentRenderer content={opt.optionText} />
                                                             </div>
                                                             {practiceSubmitted && opt.isCorrect && (
                                                                 <Check size={14} className="text-emerald-600 shrink-0" />
