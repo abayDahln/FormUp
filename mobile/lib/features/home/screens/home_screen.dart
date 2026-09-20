@@ -782,26 +782,35 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Tablet/desktop: Extended FAB M3 (tinggi & ikon disamakan 68px/32,
   /// plus label "Buat Form") dengan margin kanan == bawah berlevel
   /// (tablet L1–L2, desktop L2–L5 mengikuti ukuran window).
-  Widget? _railFab() {
-    if (_currentIndex != 1) return null;
+  ///
+  /// Widget SELALU dikembalikan (tidak null) — Scaffold menyimpan FAB lama
+  /// selama animasi keluarnya. Bila null lalu non-null dalam <200ms (pindah
+  /// tab bolak-balik cepat), FAB lama dan FAB baru hidup bersamaan dan
+  /// keduanya memakai [_fabKey] → "Duplicate GlobalKey detected". Visibilitas
+  /// diatur lewat [Visibility] berukuran tetap agar anchor tur tetap punya
+  /// rect saat tab Form aktif.
+  Widget _railFab() {
     void onAdd() {
       AppRouter.of(context).push(AppPage.formMaker);
     }
     // Phone: perilaku lama tanpa padding tambahan.
-    if (!isTablet(context)) {
-      return buildCircleAddFab(
-        key: _fabKey,
-        onPressed: onAdd,
-      );
-    }
-    return Padding(
-      padding: fabPad(context),
-      child: buildExtendedAddFab(
-        key: _fabKey,
-        onPressed: onAdd,
-        label: 'Buat Form',
-        tooltip: 'Buat form baru',
-      ),
+    final Widget fab = !isTablet(context)
+        ? buildCircleAddFab(key: _fabKey, onPressed: onAdd)
+        : Padding(
+            padding: fabPad(context),
+            child: buildExtendedAddFab(
+              key: _fabKey,
+              onPressed: onAdd,
+              label: 'Buat Form',
+              tooltip: 'Buat form baru',
+            ),
+          );
+    return Visibility(
+      visible: _currentIndex == 1,
+      maintainState: true,
+      maintainAnimation: true,
+      maintainSize: true,
+      child: fab,
     );
   }
 
