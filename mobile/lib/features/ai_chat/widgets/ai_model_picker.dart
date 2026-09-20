@@ -4,9 +4,11 @@ import 'package:form_up/core/widgets/auth_widgets.dart';
 
 /// Judul header yang sekaligus pemilih model AI (gaya Gemini:
 /// nama model + panah dropdown, ketuk untuk ganti model).
+/// [dense] = versi rapat untuk panel sempit (mis. sidebar AI Form Agent).
 class AiModelPicker extends StatelessWidget {
   final VoidCallback? onChanged;
-  const AiModelPicker({super.key, this.onChanged});
+  final bool dense;
+  const AiModelPicker({super.key, this.onChanged, this.dense = false});
 
   @override
   Widget build(BuildContext context) {
@@ -27,11 +29,14 @@ class AiModelPicker extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-                fontFamily: kFontBold, fontSize: 16, color: cs.onSurface),
+                fontFamily: kFontBold,
+                fontSize: dense ? 12.5 : 16,
+                color: cs.onSurface),
           ),
         ),
         const SizedBox(width: 2),
-        Icon(Icons.keyboard_arrow_down, size: 20, color: cs.onSurfaceVariant),
+        Icon(Icons.keyboard_arrow_down,
+            size: dense ? 16 : 20, color: cs.onSurfaceVariant),
       ]),
       itemBuilder: (ctx) {
         final mcs = Theme.of(ctx).colorScheme;

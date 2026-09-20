@@ -150,7 +150,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
           final isWide = MediaQuery.sizeOf(ctx).width >= 600;
           final outerPad = isWide ? const EdgeInsets.fromLTRB(24, 8, 24, 16) : const EdgeInsets.fromLTRB(16, 8, 16, 16);
           return Container(padding: outerPad, child: Container(padding: EdgeInsets.fromLTRB(8, widget.attachments.isNotEmpty ? 12 : 6, 8, 6), decoration: BoxDecoration(color: pillColor, borderRadius: BorderRadius.circular(28), boxShadow: softShadow()), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          if (widget.attachments.isNotEmpty) ...[_AttachmentPreview(attachments: widget.attachments, onRemove: widget.onRemoveAttachment), const SizedBox(height: 8)],
+          if (widget.attachments.isNotEmpty) ...[AiAttachmentPreview(attachments: widget.attachments, onRemove: widget.onRemoveAttachment), const SizedBox(height: 8)],
           // Layout ala Gemini (lebar field TIDAK diubah). Field prompt
           // SELALU di posisi yang sama (satu field saja) — saat user
           // mengetik hanya baris tombol di bawah yang berubah konten,
@@ -176,10 +176,10 @@ class _ChatInputBarState extends State<ChatInputBar> {
     return Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Row(children: [Icon(Icons.alternate_email, size: 12, color: cs.onSurfaceVariant), const SizedBox(width: 6), Expanded(child: Text(widget.pickedMentionCount == 0 ? 'Ketik @ untuk mention form' : 'Mention: ${widget.pickedMentionCount} form terpilih', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)))]));
   }
 }
-class _AttachmentPreview extends StatelessWidget {
+class AiAttachmentPreview extends StatelessWidget {
   final List<AiAttachment> attachments;
   final ValueChanged<String> onRemove;
-  const _AttachmentPreview({required this.attachments, required this.onRemove});
+  const AiAttachmentPreview({super.key, required this.attachments, required this.onRemove});
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;

@@ -14,6 +14,7 @@ import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/onboarding_tour.dart';
 import 'package:form_up/features/form/controllers/question_validation.dart';
 import 'package:form_up/features/form/controllers/questions_persist.dart';
+import 'package:form_up/features/form/widgets/ai_form_agent_panel.dart';
 import 'package:form_up/features/form/widgets/question_confirm_dialogs.dart';
 import 'package:form_up/features/form/widgets/question_import_mixin.dart';
 import 'package:form_up/features/form/widgets/question_list_card.dart';
@@ -62,6 +63,9 @@ class QuestionsPanelState extends State<QuestionsPanel>
   /// formId efektif: mulai dari widget, diadopsi belakangan bila awalnya
   /// null (dual form baru). Tidak pernah me-reload saat adopsi.
   int? _formId;
+
+  /// True = overlay AFA (AI Form Agent) menutupi panel ini.
+  bool _aiOpen = false;
 
   bool get isSaving => _saving;
 
@@ -132,6 +136,11 @@ class QuestionsPanelState extends State<QuestionsPanel>
 
   /// Konfirmasi keluar: simpan / buang draf / batal (dipakai guard parent).
   Future<bool> confirmExit() async {
+    // Overlay AFA terbuka: Back menutup overlay dulu, bukan keluar layar.
+    if (_aiOpen) {
+      setState(() => _aiOpen = false);
+      return false;
+    }
     if (_saving) return false;
     if (!_hasChanges) return true;
     final choice = await showExitConfirmDialog(context);
@@ -469,18 +478,71 @@ class QuestionsPanelState extends State<QuestionsPanel>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             appBar,
-            Expanded(child: _buildBodyContent()),
+            Expanded(child: _agentOverlay(_buildBodyContent())),
           ],
         ),
-        floatingActionButton: _buildQuestionFab(cs),
+        floatingActionButton: _fabSlot(cs),
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       );
     }
     return Scaffold(
       appBar: appBar,
-      body: _buildBodyContent(),
-      floatingActionButton: _buildQuestionFab(cs),
+      body: _agentOverlay(_buildBodyContent()),
+      floatingActionButton: _fabSlot(cs),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  /// FAB selalu ter-mount (dibungkus [Visibility]) agar `_aiKey` tidak
+  /// dilepas-pasang: Scaffold menahan FAB lama selama animasi 200 ms,
+  /// sehingga memasang ulang GlobalKey yang sama bisa memicu duplikat.
+  Widget _fabSlot(ColorScheme cs) {
+    return Visibility(
+      visible: !_aiOpen,
+      maintainState: true,
+      maintainAnimation: true,
+      maintainSize: true,
+      child: _buildQuestionFab(cs),
+    );
+  }
+
+  /// Overlay **AFA** (AI Form Agent) menutupi panel saat dibuka dari FAB.
+  ///
+  /// Konten selalu berada di `Stack > Positioned.fill` (bukan langsung
+  /// sebagai body) agar membuka/menutup overlay tidak memindahkan subtree
+  /// panel (ReorderableListView + scroll position).
+  Widget _agentOverlay(Widget child) {
+    final cs = Theme.of(context).colorScheme;
+    return Stack(
+      children: [
+        Positioned.fill(child: child),
+        if (_aiOpen)
+          Positioned.fill(
+            child: Container(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: cs.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: cs.outlineVariant),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: AiFormAgentPanel(
+                      formId: _formId,
+                      settings: null,
+                      questions: () => _questions,
+                      onChanged: () => setState(() {}),
+                      onClose: () => setState(() => _aiOpen = false),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -580,16 +642,13 @@ class QuestionsPanelState extends State<QuestionsPanel>
     final aiFab = FloatingActionButton.small(
       key: _aiKey,
       heroTag: 'aiChatForForm',
-      onPressed: _formId == null
-          ? null
-          : () => AppRouter.of(context)
-              .push(AppPage.aiChat, {'formId': _formId}),
+      onPressed: _formId == null ? null : () => setState(() => _aiOpen = true),
       backgroundColor: cs.surface,
       foregroundColor: cs.primary,
       elevation: 3,
       shape:
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      tooltip: 'Tanya AI tentang form ini',
+      tooltip: 'Tanya AFA tentang form ini',
       child: AiChatIcon(size: 18, color: cs.primary, filled: true),
     );
     final Widget addFab = isTablet(context)

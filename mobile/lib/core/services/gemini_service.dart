@@ -607,11 +607,15 @@ Aturan:
     }
   }
 
-  /// Fallback non-stream: hasil lengkap sekaligus (dipakai jika stream gagal)
+  /// Fallback non-stream: hasil lengkap sekaligus (dipakai jika stream gagal).
+  /// [systemInstruction] menimpa [_systemPrompt] — dipakai panel yang punya
+  /// kontrak jawaban sendiri (mis. AI Form Agent yang wajib balas JSON aksi).
+  /// Menyuntik dua kontrak sekaligus membuat model menjawab format yang salah.
   static Future<String> generateOnce(
     List<Map<String, String>> history, {
     GeminiCancel? cancel,
     List<AiAttachment>? inlineAttachments,
+    String? systemInstruction,
   }) async {
     if (!hasKey) throw Exception('GEMINI_API_KEY belum diatur. Atur di AI Chat > API Key.');
     lastFinishReason = null;
@@ -635,7 +639,7 @@ Aturan:
               body: jsonEncode({
                 'systemInstruction': {
                   'parts': [
-                    {'text': _systemPrompt}
+                    {'text': systemInstruction ?? _systemPrompt}
                   ]
                 },
                 'contents': contents,

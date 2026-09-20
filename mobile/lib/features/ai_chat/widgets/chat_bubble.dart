@@ -110,7 +110,7 @@ class ChatBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (isUser && m.attachments.isNotEmpty) ...[
-              _BubbleAttachments(attachments: m.attachments, isUser: true),
+              BubbleAttachments(attachments: m.attachments, isUser: true),
               if (m.text.isNotEmpty) const SizedBox(height: 8),
             ],
             if (isUser)
@@ -285,10 +285,11 @@ class ChatBubble extends StatelessWidget {
   }
 }
 
-class _BubbleAttachments extends StatelessWidget {
+/// Chip lampiran di dalam bubble (dipakai AI Chat & AI Form Agent).
+class BubbleAttachments extends StatelessWidget {
   final List<AiAttachment> attachments;
   final bool isUser;
-  const _BubbleAttachments({required this.attachments, this.isUser = false});
+  const BubbleAttachments({super.key, required this.attachments, this.isUser = false});
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;

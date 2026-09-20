@@ -126,6 +126,11 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   /// Guard keluar gabungan: bila pengaturan dan/atau soal kotor → tawarkan
   /// simpan semua, buang, atau batal.
   Future<bool> _guard() async {
+    // Panel AFA terbuka: Back menutup panel dulu, bukan keluar layar.
+    if (_aiOpen) {
+      setState(() => _aiOpen = false);
+      return false;
+    }
     final s = _settingsKey.currentState;
     if (s == null) return true;
     if (s.isSaving || _savingQuestions) return false;
@@ -541,9 +546,9 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
     );
   }
 
-  /// Kartu **AI Form Agent** (chat embed) — dipakai sidebar pinned maupun
-  /// overlay. Konsisten dengan kartu pengaturan form: container border +
-  /// rounded, header + tombol hapus riwayat & tutup.
+  /// Kartu **AFA (AI Form Agent)** — dipakai sidebar pinned maupun overlay.
+  /// Hanya container ber-border tipis: header & kelola riwayat ada di dalam
+  /// panel (agar konsisten dengan layar AI Chat).
   Widget _aiCard(BuildContext context, ColorScheme cs) {
     return Container(
       decoration: BoxDecoration(
@@ -552,87 +557,15 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
         border: Border.all(color: cs.outlineVariant),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 4, 6),
-            child: Row(
-              children: [
-                Icon(Icons.auto_awesome_outlined,
-                    size: 18, color: cs.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'AI Form Agent',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: kFontBold,
-                      color: cs.onSurface,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.delete_sweep_outlined,
-                      size: 18, color: cs.onSurfaceVariant),
-                  tooltip: 'Hapus riwayat percakapan form ini',
-                  onPressed: () => _confirmClearAgentHistory(context),
-                ),
-                IconButton(
-                  icon: Icon(Icons.close, size: 20, color: cs.onSurface),
-                  tooltip: 'Tutup AI Form Agent',
-                  onPressed: () => setState(() => _aiOpen = false),
-                ),
-              ],
-            ),
-          ),
-          Divider(height: 1, color: cs.outlineVariant),
-          Expanded(
-            child: AiFormAgentPanel(
-              key: _agentKey,
-              formId: _formId,
-              settings: () => _settingsKey.currentState?.formController,
-              questions: () => _questions,
-              onChanged: () => setState(() {}),
-            ),
-          ),
-        ],
+      child: AiFormAgentPanel(
+        key: _agentKey,
+        formId: _formId,
+        settings: () => _settingsKey.currentState?.formController,
+        questions: () => _questions,
+        onChanged: () => setState(() {}),
+        onClose: () => setState(() => _aiOpen = false),
       ),
     );
-  }
-
-  /// Hapus riwayat percakapan AI Form Agent untuk form ini (draf tidak
-  /// terpengaruh) — riwayat memang terpisah per form.
-  Future<void> _confirmClearAgentHistory(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(
-          'Hapus Riwayat Agent?',
-          style: TextStyle(fontFamily: kFontBold),
-        ),
-        content: const Text(
-          'Riwayat percakapan AI Form Agent untuk form ini akan dihapus. '
-          'Draf form & soal tidak terpengaruh.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Hapus',
-              style: TextStyle(color: Color(0xFFC0392B)),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    await _agentKey.currentState?.clearHistory();
   }
 
   /// Daftar kartu accordion soal + state loading/empty (dipakai dua layout).

@@ -1,61 +1,84 @@
-﻿import 'dart:convert';
-
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/services/ai_form_agent_history_service.dart';
 import 'package:form_up/core/services/gemini_service.dart';
+import 'package:form_up/core/theme.dart';
+import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
-import 'package:form_up/core/widgets/loading_indicator.dart';
+import 'package:form_up/features/ai_chat/controllers/ai_voice_recorder.dart';
+import 'package:form_up/features/ai_chat/models/ai_attachment.dart';
+import 'package:form_up/features/ai_chat/utils/ai_attachment_picker.dart';
+import 'package:form_up/features/ai_chat/widgets/ai_model_picker.dart';
+import 'package:form_up/features/ai_chat/widgets/api_key_dialog.dart';
+import 'package:form_up/features/ai_chat/widgets/chat_bubble.dart';
+import 'package:form_up/features/ai_chat/widgets/chat_input_bar.dart';
 import 'package:form_up/features/form/controllers/form_maker_controller.dart';
 
-/// Satu pesan di panel AI Form Agent.
-class _AgentMessage {
+/// Satu pesan di panel AFA (view-model in-memory). Lampiran membawa bytes
+/// agar pratinjau gambar tetap bisa dibuka; versi persist memakai
+/// [FormAgentMessage] yang hanya menyimpan metadata lampiran.
+class _AgentMsg {
   final bool isUser;
   final String text;
 
-  /// Ringkasan perubahan yang sudah diterapkan (pesan agent saja).
+  /// Ringkasan perubahan draf yang diterapkan pada pesan ini.
   final List<String> applied;
   final bool isError;
+  List<AiAttachment> attachments;
 
-  const _AgentMessage({
+  _AgentMsg({
     required this.isUser,
     required this.text,
     this.applied = const [],
     this.isError = false,
+    this.attachments = const [],
   });
 }
 
-/// Panel **AI Form Agent** (sidebar kanan builder): chat yang LANGSUNG
-/// mengubah draf lokal — pengaturan form + daftar soal — tanpa dialog
-/// persetujuan, karena draf tetap milik user dan server hanya tersentuh saat
-/// user menekan Simpan.
+/// Panel **AFA (AI Form Agent)** — versi mini dari layar AI Chat (gaya
+/// Gemini), hidup di layar edit form (sidebar tablet/desktop, overlay di HP).
 ///
-/// Berbeda dari AI Chat screen:
-/// - Fokus HANYA pada form yang sedang dibuka (otomatis "mention" form ini,
-///   tidak ada sintaks '@' dan tidak bisa menyentuh form lain).
+/// Struktur visual menyamai `AiChatScreen`: chat full-bleed dengan gradient
+/// atas (baris konteks form + tombol riwayat/tutup) dan bawah, pill prompt
+/// melayang dua baris dengan pemilih model DI DALAM pill, serta drawer
+/// riwayat & pengaturan yang meluncur dari kanan (pola `AiChatDrawer`).
+///
+/// Sama seperti AI Chat: bubble + lampiran + rekam suara + ganti model +
+/// API key yang sama. Bedanya:
+/// - Fokus HANYA pada form yang sedang dibuka (tanpa sintaks '@').
+/// - Perubahan **langsung diterapkan** ke draf lokal (tanpa dialog terima),
+///   karena draf tetap milik user dan server hanya tersentuh saat Simpan.
 /// - Riwayat percakapan sendiri per form ([AiFormAgentHistoryService]),
 ///   terpisah dari riwayat AI Chat umum.
 class AiFormAgentPanel extends StatefulWidget {
   /// Form yang sedang dibuka; null = draf baru (belum punya id).
   final int? formId;
 
-  /// Akses controller pengaturan (title/desc/settings) draf; null bila
-  /// kartu pengaturan belum ter-mount.
+  /// Akses controller pengaturan (judul/deskripsi) draf; null bila layar ini
+  /// tidak punya kartu pengaturan (mis. layar kelola soal di HP).
   final FormMakerController? Function()? settings;
 
-  /// Daftar draf soal aktif (referensi langsung — dimutasi di tempat).
-  final List<QuestionDraft> Function() questions;
+  /// Daftar draf soal aktif (referensi langsung — dimutasi di tempat);
+  /// null bila layar ini tidak punya daftar soal.
+  final List<QuestionDraft> Function()? questions;
 
   /// Memberi tahu screen agar rebuild setelah draf diubah.
   final void Function() onChanged;
 
+  /// Menutup panel (null = tidak ada tombol tutup, mis. dipakai sebagai
+  /// kartu penuh di sidebar).
+  final VoidCallback? onClose;
+
   const AiFormAgentPanel({
     super.key,
     required this.formId,
-    required this.settings,
-    required this.questions,
+    this.settings,
+    this.questions,
     required this.onChanged,
+    this.onClose,
   });
 
   @override
@@ -63,20 +86,39 @@ class AiFormAgentPanel extends StatefulWidget {
 }
 
 class AiFormAgentPanelState extends State<AiFormAgentPanel> {
-  final List<_AgentMessage> _messages = [];
+  final List<_AgentMsg> _messages = [];
   final TextEditingController _input = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
   final ScrollController _scroll = ScrollController();
+  final AiVoiceRecorder _voice = AiVoiceRecorder();
+
+  List<AiAttachment> _pendingAttachments = [];
+  List<FormAgentSession> _sessions = [];
+  String? _currentSessionId;
   bool _busy = false;
 
-  /// Riwayat disimpan per form: draf baru memakai key 'draft' hingga
-  /// form punya id (lihat didUpdateWidget).
+  /// True = drawer riwayat & pengaturan meluncur menutupi chat.
+  bool _drawerOpen = false;
+
+  /// Tinggi pill prompt terukur (membesar saat multiline / ada lampiran) —
+  /// padding list & gradient bawah mengikuti, pola yang sama dengan
+  /// `AiChatScreen._inputBarHeight`.
+  double _inputBarHeight = 104;
+  final _inputBarKey = GlobalKey();
+
+  /// Tinggi baris atas (chip konteks + tombol) — konstanta; dipakai untuk
+  /// padding atas list & empty state (gradient baris atas ±64px).
+  static const double _topBarHeight = 64;
+
+  /// Riwayat disimpan per form: draf baru memakai key 'draft' hingga form
+  /// punya id (lihat didUpdateWidget).
   int? _historyFormId;
 
   @override
   void initState() {
     super.initState();
     _historyFormId = widget.formId;
-    _loadHistory();
+    _loadSessions();
   }
 
   @override
@@ -88,9 +130,11 @@ class AiFormAgentPanelState extends State<AiFormAgentPanel> {
       final previous = _historyFormId;
       _historyFormId = widget.formId;
       if (previous == null && widget.formId != null) {
-        AiFormAgentHistoryService.migrateDraftToForm(widget.formId!);
+        AiFormAgentHistoryService.migrateDraftToForm(
+          widget.formId!,
+        ).then((_) => _loadSessions());
       } else {
-        _loadHistory();
+        _loadSessions();
       }
     }
   }
@@ -98,47 +142,206 @@ class AiFormAgentPanelState extends State<AiFormAgentPanel> {
   @override
   void dispose() {
     _input.dispose();
+    _focusNode.dispose();
     _scroll.dispose();
+    _voice.dispose();
     super.dispose();
   }
 
-  Future<void> _loadHistory() async {
-    final history = await AiFormAgentHistoryService.load(_historyFormId);
+  String _newId() => DateTime.now().microsecondsSinceEpoch.toString();
+
+  // --- Sesi (riwayat per form) ---
+
+  Future<void> _loadSessions() async {
+    final all = await AiFormAgentHistoryService.loadSessions(_historyFormId);
+    if (!mounted) return;
+    setState(() => _sessions = all);
+    if (all.isEmpty) {
+      setState(() => _currentSessionId = _newId());
+      return;
+    }
+    // Lanjutkan sesi terakhir form ini (riwayat tetap tersimpan).
+    await _switchSession(all.first.id);
+  }
+
+  Future<void> _newSession() async {
+    if (_busy) return;
+    if (_messages.isEmpty) {
+      if (_sessions.isNotEmpty && mounted) {
+        showAuthToast(context, 'Chat masih kosong');
+      }
+      setState(() {
+        _currentSessionId = _newId();
+        _messages.clear();
+        _pendingAttachments = [];
+        _drawerOpen = false;
+      });
+      return;
+    }
+    setState(() {
+      _currentSessionId = _newId();
+      _messages.clear();
+      _pendingAttachments = [];
+      _drawerOpen = false;
+    });
+  }
+
+  Future<void> _switchSession(String id) async {
+    if (id == _currentSessionId) {
+      if (mounted) setState(() => _drawerOpen = false);
+      return;
+    }
+    final all = await AiFormAgentHistoryService.loadSessions(_historyFormId);
+    final idx = all.indexWhere((s) => s.id == id);
+    if (idx < 0) return;
+    final restored = <_AgentMsg>[];
+    for (final m in all[idx].messages) {
+      restored.add(await _fromHistory(m));
+    }
     if (!mounted) return;
     setState(() {
+      _currentSessionId = id;
       _messages
         ..clear()
-        ..addAll(history.map((m) => _AgentMessage(
-              isUser: m.isUser,
-              text: m.text,
-              applied: m.applied,
-              isError: m.isError,
-            )));
+        ..addAll(restored);
+      _pendingAttachments = [];
+      _drawerOpen = false;
     });
     _scrollToEnd();
   }
 
-  void _persist() {
-    AiFormAgentHistoryService.save(
-      _historyFormId,
-      [
-        for (final m in _messages)
-          FormAgentMessage(
-            isUser: m.isUser,
-            text: m.text,
-            applied: m.applied,
-            isError: m.isError,
+  Future<void> _deleteSession(String id) async {
+    await AiFormAgentHistoryService.delete(_historyFormId, id);
+    final all = await AiFormAgentHistoryService.loadSessions(_historyFormId);
+    if (!mounted) return;
+    setState(() => _sessions = all);
+    if (_currentSessionId != id) return;
+    if (all.isEmpty) {
+      setState(() {
+        _messages.clear();
+        _currentSessionId = _newId();
+      });
+    } else {
+      await _switchSession(all.first.id);
+    }
+  }
+
+  Future<void> _clearAllSessions() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text(
+          'Hapus semua riwayat?',
+          style: TextStyle(fontFamily: kFontBold),
+        ),
+        content: const Text(
+          'Riwayat percakapan AFA untuk form ini akan dihapus. '
+          'Draf form & soal tidak terpengaruh.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(d, false),
+            child: const Text('Batal'),
           ),
-      ],
+          FilledButton(
+            onPressed: () => Navigator.pop(d, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await AiFormAgentHistoryService.clearAll(_historyFormId);
+    if (!mounted) return;
+    setState(() {
+      _sessions.clear();
+      _messages.clear();
+      _pendingAttachments.clear();
+      _currentSessionId = _newId();
+      _drawerOpen = false;
+    });
+  }
+
+  Future<void> _confirmDeleteSession(String id, String title) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text(
+          'Hapus chat?',
+          style: TextStyle(fontFamily: kFontBold),
+        ),
+        content: Text('Hapus "$title"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(d, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(d, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _deleteSession(id);
+  }
+
+  /// Konversi pesan persist → view-model (bytes lampiran dimuat dari disk).
+  Future<_AgentMsg> _fromHistory(FormAgentMessage m) async {
+    final atts = <AiAttachment>[];
+    for (final meta in m.attachments ?? const <Map<String, dynamic>>[]) {
+      final a = AiAttachment.tryFromMeta(meta);
+      if (a == null) continue;
+      await a.reloadBytes();
+      atts.add(a);
+    }
+    return _AgentMsg(
+      isUser: m.isUser,
+      text: m.text,
+      applied: m.applied,
+      isError: m.isError,
+      attachments: atts,
     );
   }
 
-  /// Hapus riwayat percakapan form ini (dipakai tombol di header kartu).
-  Future<void> clearHistory() async {
-    await AiFormAgentHistoryService.clear(_historyFormId);
-    if (!mounted) return;
-    setState(_messages.clear);
+  FormAgentMessage _toHistory(_AgentMsg m) => FormAgentMessage(
+    isUser: m.isUser,
+    text: m.text,
+    applied: m.applied,
+    isError: m.isError,
+    attachments: m.attachments.isEmpty
+        ? null
+        : m.attachments.map((a) => a.toMetaJson()).toList(),
+  );
+
+  /// Simpan sesi aktif. Bytes lampiran disimpan ke disk sekali agar pratinjau
+  /// tetap ada setelah restart (metadata saja tidak membawa bytes).
+  Future<void> _persistSession() async {
+    final id = _currentSessionId;
+    if (id == null || _messages.isEmpty) return;
+    for (final m in _messages) {
+      for (final a in m.attachments) {
+        if (a.hasBytes && (a.filePath == null || a.filePath!.isEmpty)) {
+          final p = await AiAttachment.saveToDisk(a);
+          if (p != null) a.filePath = p;
+        }
+      }
+    }
+    final history = [for (final m in _messages) _toHistory(m)];
+    await AiFormAgentHistoryService.upsert(
+      _historyFormId,
+      FormAgentSession(
+        id: id,
+        title: AiFormAgentHistoryService.titleFor(history),
+        messages: history,
+        updatedAt: DateTime.now(),
+      ),
+    );
+    final all = await AiFormAgentHistoryService.loadSessions(_historyFormId);
+    if (mounted) setState(() => _sessions = all);
   }
+
+  // --- Kirim & terapkan aksi ---
 
   void _scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -151,30 +354,148 @@ class AiFormAgentPanelState extends State<AiFormAgentPanel> {
     });
   }
 
-  /// Instruksi sistem + kontrak JSON: agent mengembalikan daftar aksi
-  /// yang langsung diterapkan ke draf lokal.
-  ///
-  /// Agent TERKUNCI pada form yang sedang dibuka (mention otomatis, tanpa
-  /// sintaks '@'); permintaan yang menyebut form lain diabaikan.
-  String _preamble() => '''
-Kamu adalah "AI Form Agent" di aplikasi FormUp. Kamu bekerja HANYA pada form
-yang sedang dibuka user: pengaturan form + daftar soal pada DRAF lokal
-(belum tersimpan). Form ini otomatis menjadi konteks percakapan — user TIDAK
-memakai sintaks '@' dan kamu tidak boleh mengubah, mencari, atau menyebut
-form lain (teks yang mengandung '@' diperlakukan sebagai teks biasa).
-Jika user menyebut form lain, tolak dengan sopan di "reply" dan kirim
-"actions": [].
-Balas HANYA satu objek JSON valid (tanpa markdown/penjelasan di luar JSON):
+  Future<void> _send() async {
+    final text = _input.text.trim();
+    final attachments = List<AiAttachment>.of(_pendingAttachments);
+    if ((text.isEmpty && attachments.isEmpty) || _busy) return;
 
+    if (!GeminiService.hasKey) {
+      setState(() {
+        _messages.add(
+          _AgentMsg(
+            isUser: false,
+            text:
+                'API key Gemini belum diatur. Ketuk ikon menu di kanan atas, '
+                'lalu Pengaturan untuk mengaturnya.',
+            isError: true,
+          ),
+        );
+      });
+      _scrollToEnd();
+      return;
+    }
+
+    _currentSessionId ??= _newId();
+    _input.clear();
+    setState(() {
+      _messages.add(
+        _AgentMsg(isUser: true, text: text, attachments: attachments),
+      );
+      _pendingAttachments = [];
+      _busy = true;
+    });
+    _scrollToEnd();
+
+    try {
+      final history = <Map<String, String>>[
+        for (final m in _messages)
+          {
+            'role': m.isUser ? 'user' : 'model',
+            'text': m.text.isEmpty && m.attachments.isNotEmpty
+                ? '(lampiran)'
+                : m.text,
+          },
+      ];
+      final raw = await GeminiService.generateOnce(
+        history,
+        inlineAttachments: attachments.isEmpty ? null : attachments,
+        // Kontrak AFA menggantikan prompt AI Chat umum — tanpa ini dua
+        // skema JSON bertabrakan dan balasan sering tak terbaca.
+        systemInstruction: _systemInstruction(),
+      );
+      final parsed = _extractJson(raw);
+      if (!mounted) return;
+
+      if (parsed == null) {
+        setState(() {
+          _busy = false;
+          _messages.add(
+            _AgentMsg(
+              isUser: false,
+              text: 'Balasan AFA tidak dapat dibaca. Coba lagi.',
+              isError: true,
+            ),
+          );
+        });
+        await _persistSession();
+        _scrollToEnd();
+        return;
+      }
+
+      final applied = _applyActions(parsed['actions'] as List<dynamic>? ?? []);
+      final reply = (parsed['reply'] as String?)?.trim();
+      setState(() {
+        _busy = false;
+        _messages.add(
+          _AgentMsg(
+            isUser: false,
+            text: reply == null || reply.isEmpty
+                ? (applied.isEmpty
+                      ? 'Tidak ada perubahan pada draf.'
+                      : 'Draf diperbarui.')
+                : reply,
+            applied: applied,
+          ),
+        );
+      });
+      if (applied.isNotEmpty) widget.onChanged();
+      await _persistSession();
+      _scrollToEnd();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _messages.add(
+          _AgentMsg(
+            isUser: false,
+            text: GeminiService.friendlyMessage(e),
+            isError: true,
+          ),
+        );
+      });
+      await _persistSession();
+      _scrollToEnd();
+    }
+  }
+
+  /// Instruksi sistem AFA: kontrak JSON aksi + kemampuan yang aktif + snapshot
+  /// draf terkini. Dikirim lewat `systemInstruction` agar tidak tercampur
+  /// dengan skema AI Chat umum.
+  String _systemInstruction() {
+    final s = widget.settings?.call();
+    final questions = widget.questions?.call();
+    final hasSettings = s != null;
+    final hasQuestions = questions != null;
+
+    final actions = <String>[
+      if (hasSettings) '- {"type":"set_title","value":"..."}',
+      if (hasSettings) '- {"type":"set_description","value":"..."}',
+      if (hasQuestions)
+        '- {"type":"add_question","question":{"typeId":1|2|3|4|5,"text":"...","options":["A","B"],"correctAnswer":"A","isRequired":true,"points":10}}',
+      if (hasQuestions)
+        '- {"type":"update_question","index":0,"text":"...","typeId":2,"options":["A","B"],"correctAnswer":"B","isRequired":false,"points":null}',
+      if (hasQuestions) '- {"type":"delete_question","index":1}',
+      if (hasQuestions) '- {"type":"clear_questions"}',
+    ];
+    final capability = <String>[
+      if (hasSettings) 'pengaturan form (judul & deskripsi)',
+      if (hasQuestions) 'daftar soal (tambah/ubah/hapus)',
+    ];
+
+    return '''
+Kamu adalah "AFA" (AI Form Agent) di aplikasi FormUp. Kamu bekerja HANYA pada form
+yang sedang dibuka user: form ini otomatis menjadi konteks percakapan — user TIDAK
+memakai sintaks '@' dan kamu tidak boleh mengubah, mencari, atau menyebut form lain
+(teks yang mengandung '@' diperlakukan sebagai teks biasa). Jika user menyebut form
+lain, tolak dengan sopan di "reply" dan kirim "actions": [].
+
+Balas HANYA satu objek JSON valid (tanpa markdown/penjelasan di luar JSON):
 {"reply":"penjelasan singkat dalam Bahasa Indonesia","actions":[...]}
 
-Aksi yang tersedia:
-- {"type":"set_title","value":"..."}
-- {"type":"set_description","value":"..."}
-- {"type":"add_question","question":{"typeId":1|2|3|4|5,"text":"...","options":["A","B"],"correctAnswer":"A","isRequired":true,"points":10}}
-- {"type":"update_question","index":0,"text":"...","typeId":2,"options":["A","B"],"correctAnswer":"B","isRequired":false,"points":null}
-- {"type":"delete_question","index":1}
-- {"type":"clear_questions"}
+${actions.isEmpty ? 'Tidak ada aksi yang tersedia saat ini.' : 'Aksi yang tersedia:\n${actions.join('\n')}'}
+${capability.isEmpty ? 'Kamu tidak bisa mengubah draf apa pun saat ini — jawab pertanyaan user saja dengan "actions": [].' : 'Bagian draf yang BISA kamu ubah saat ini: ${capability.join(' dan ')}.'}
+Jika user meminta perubahan pada bagian yang TIDAK tersedia, tolak dengan sopan di
+"reply", kirim "actions": [], dan jelaskan singkat bahwa bagian itu diubah dari layar lain.
 
 Aturan:
 - typeId: 1=Essay, 2=Pilihan Ganda (min 2 opsi, tepat 1 kunci), 3=Checkbox
@@ -183,18 +504,27 @@ Aturan:
 - index mengacu ke nomor soal pada DRAF SAAT INI (0-based, sesuai urutan).
 - Pertahankan soal yang tidak diminta diubah — kirim aksi hanya untuk yang
   berubah, ditambah add_question untuk soal baru.
-- Jika permintaan tidak butuh perubahan, kirim actions: [].
-''';
+- Lampiran dari user (gambar/dokumen) bisa kamu baca — jadikan sumber isi soal
+  bila user memintanya (mis. "buatkan soal dari gambar ini").
+- Jika permintaan tidak butuh perubahan, kirim "actions": [].
 
-  /// Snapshot draf lokal (pengaturan + soal) sebagai konteks untuk model.
-  String _draftSnapshot() {
-    final s = widget.settings?.call();
-    final questions = widget.questions();
-    final data = <String, dynamic>{
-      'judul': s?.titleController.text.trim() ?? '',
-      'deskripsi': s?.descController.document.toPlainText().trim() ?? '',
-      'jumlah_soal': questions.length,
-      'soal': [
+DRAF SAAT INI:
+${_draftSnapshot(s, questions)}''';
+  }
+
+  /// Snapshot draf lokal (hanya bagian yang tersedia di layar ini).
+  String _draftSnapshot(
+    FormMakerController? s,
+    List<QuestionDraft>? questions,
+  ) {
+    final data = <String, dynamic>{};
+    if (s != null) {
+      data['judul'] = s.titleController.text.trim();
+      data['deskripsi'] = s.descController.document.toPlainText().trim();
+    }
+    if (questions != null) {
+      data['jumlah_soal'] = questions.length;
+      data['soal'] = [
         for (var i = 0; i < questions.length; i++)
           {
             'index': i,
@@ -209,8 +539,9 @@ Aturan:
             'isRequired': questions[i].isRequired,
             'points': questions[i].points,
           },
-      ],
-    };
+      ];
+    }
+    if (data.isEmpty) return '(tidak ada draf yang bisa dibaca)';
     return const JsonEncoder.withIndent('  ').convert(data);
   }
 
@@ -225,92 +556,6 @@ Aturan:
       return null;
     }
   }
-
-  Future<void> _send() async {
-    final text = _input.text.trim();
-    if (text.isEmpty || _busy) return;
-    if (!GeminiService.hasKey) {
-      setState(() {
-        _messages.add(const _AgentMessage(
-          isUser: false,
-          text: 'API key Gemini belum diatur. Buka AI Chat > API Key.',
-          isError: true,
-        ));
-      });
-      _persist();
-      _scrollToEnd();
-      return;
-    }
-
-    _input.clear();
-    setState(() {
-      _messages.add(_AgentMessage(isUser: true, text: text));
-      _busy = true;
-    });
-    _persist();
-    _scrollToEnd();
-
-    try {
-      final history = <Map<String, String>>[
-        for (final m in _messages)
-          {'role': m.isUser ? 'user' : 'model', 'text': m.text},
-      ];
-      // Pesan user terakhir membawa instruksi + snapshot draf terkini.
-      history.last['text'] =
-          '${_preamble()}\n\nDRAF SAAT INI:\n${_draftSnapshot()}\n\nPERMINTAAN USER:\n$text';
-
-      final raw = await GeminiService.generateOnce(history);
-      final parsed = _extractJson(raw);
-      if (!mounted) return;
-
-      if (parsed == null) {
-        setState(() {
-          _busy = false;
-          _messages.add(const _AgentMessage(
-            isUser: false,
-            text: 'Balasan agent tidak dapat dibaca. Coba lagi.',
-            isError: true,
-          ));
-        });
-        _persist();
-        _scrollToEnd();
-        return;
-      }
-
-      final applied =
-          _applyActions((parsed['actions'] as List<dynamic>? ?? []));
-      final reply = (parsed['reply'] as String?)?.trim();
-      setState(() {
-        _busy = false;
-        _messages.add(_AgentMessage(
-          isUser: false,
-          text: reply == null || reply.isEmpty
-              ? (applied.isEmpty
-                  ? 'Tidak ada perubahan pada draf.'
-                  : 'Draf diperbarui.')
-              : reply,
-          applied: applied,
-        ));
-      });
-      if (applied.isNotEmpty) widget.onChanged();
-      _persist();
-      _scrollToEnd();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _messages.add(_AgentMessage(
-          isUser: false,
-          text: GeminiService.friendlyMessage(e),
-          isError: true,
-        ));
-      });
-      _persist();
-      _scrollToEnd();
-    }
-  }
-
-  // --- Penerapan aksi ke draf lokal (tanpa persetujuan) ---
 
   int _typeIdFrom(dynamic v) {
     if (v is num) {
@@ -384,7 +629,8 @@ Aturan:
     if (draft.hasOptions && options is List) {
       _fillOptions(draft, options, key);
     }
-    draft.isScorable = typeId != 4 &&
+    draft.isScorable =
+        typeId != 4 &&
         (draft.points != null ||
             key.isNotEmpty ||
             draft.options.any((o) => o.isCorrect));
@@ -420,34 +666,37 @@ Aturan:
     if (q.typeId == 4) q.isScorable = false;
   }
 
-  /// Terapkan semua aksi dari agent; return ringkasan perubahan.
+  /// Terapkan semua aksi dari AFA; return ringkasan perubahan.
   List<String> _applyActions(List<dynamic> rawActions) {
     final applied = <String>[];
     final s = widget.settings?.call();
-    final questions = widget.questions();
+    final questions = widget.questions?.call();
     for (final raw in rawActions) {
       if (raw is! Map) continue;
       final action = Map<String, dynamic>.from(raw);
       switch ((action['type'] ?? '').toString()) {
         case 'set_title':
+          if (s == null) break;
           final value = (action['value'] ?? '').toString().trim();
-          if (value.isEmpty || s == null) break;
+          if (value.isEmpty) break;
           s.titleController.text = value;
           applied.add('Judul form diubah');
           break;
         case 'set_description':
           if (s == null) break;
-          s.descController.document =
-              Document()..insert(0, (action['value'] ?? '').toString());
+          s.descController.document = Document()
+            ..insert(0, (action['value'] ?? '').toString());
           applied.add('Deskripsi form diubah');
           break;
         case 'add_question':
+          if (questions == null) break;
           final spec = action['question'] ?? action['soal'];
           if (spec is! Map) break;
           questions.add(_draftFrom(Map<String, dynamic>.from(spec)));
           applied.add('Soal #${questions.length} ditambahkan');
           break;
         case 'update_question':
+          if (questions == null) break;
           final i = action['index'] is num
               ? (action['index'] as num).toInt()
               : -1;
@@ -456,6 +705,7 @@ Aturan:
           applied.add('Soal #${i + 1} diperbarui');
           break;
         case 'delete_question':
+          if (questions == null) break;
           final i = action['index'] is num
               ? (action['index'] as num).toInt()
               : -1;
@@ -464,7 +714,7 @@ Aturan:
           applied.add('Soal #${i + 1} dihapus');
           break;
         case 'clear_questions':
-          if (questions.isEmpty) break;
+          if (questions == null || questions.isEmpty) break;
           for (final q in questions) {
             q.dispose();
           }
@@ -476,52 +726,105 @@ Aturan:
     return applied;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _contextBar(cs),
-        Expanded(
-          child: _messages.isEmpty
-              ? _emptyState(cs)
-              : ListView.builder(
-                  controller: _scroll,
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-                  itemCount: _messages.length + (_busy ? 1 : 0),
-                  itemBuilder: (context, i) {
-                    if (i >= _messages.length) return _busyBubble(cs);
-                    return _bubble(cs, _messages[i]);
-                  },
-                ),
-        ),
-        Divider(height: 1, color: cs.outlineVariant),
-        _inputBar(cs),
-      ],
+  Future<void> _pickFiles() async {
+    if (_busy || _voice.isTranscribing) return;
+    final picked = await pickAiAttachments(
+      context,
+      existingCount: _pendingAttachments.length,
+    );
+    if (picked.isEmpty || !mounted) return;
+    setState(() => _pendingAttachments = [..._pendingAttachments, ...picked]);
+  }
+
+  Future<void> _toggleVoice() async {
+    await _voice.toggle(
+      onText: (text) {
+        final cur = _input.text;
+        final insert = (cur.isEmpty || cur.endsWith(' ')) ? text : ' $text';
+        _input.text = '$cur$insert';
+        _input.selection = TextSelection.collapsed(offset: _input.text.length);
+        if (mounted) setState(() {});
+      },
+      onMessage: (message, {isError = false}) {
+        if (mounted) showAuthToast(context, message, isError: isError);
+      },
+      onNeedApiKey: () {
+        if (!mounted) return;
+        showAiApiKeyDialog(context, onKeyChanged: () => setState(() {}));
+      },
+      onStateChanged: () {
+        if (mounted) setState(() {});
+      },
     );
   }
 
-  /// Bar konteks: form ini otomatis jadi fokus agent (tanpa sintaks '@').
-  Widget _contextBar(ColorScheme cs) {
-    final title = widget.settings?.call()?.titleController.text.trim() ?? '';
+  // --- UI ---
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    // Ukur tinggi pill prompt tiap build pasca-frame (bisa membesar saat
+    // multiline / ada lampiran) — padding list & gradient mengikuti.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final h = _inputBarKey.currentContext?.size?.height;
+      if (h != null && mounted && (h - _inputBarHeight).abs() > 0.5) {
+        setState(() => _inputBarHeight = h);
+      }
+    });
+    // Struktur Stack ala AiChatScreen: chat full-bleed digulir DI BELAKANG
+    // baris atas & pill prompt (dengan gradient fade), lalu drawer riwayat
+    // menutupi semuanya saat dibuka.
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      color: cs.primaryContainer.withValues(alpha: 0.35),
-      child: Row(
+      color: bg,
+      child: Stack(
         children: [
-          Icon(Icons.language, size: 14, color: cs.primary),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              title.isEmpty ? 'Fokus: Form baru (belum diberi judul)'
-                  : 'Fokus: $title',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: cs.primary,
+          Positioned.fill(
+            child: _messages.isEmpty ? _emptyState(cs) : _chatList(cs),
+          ),
+          Positioned(top: 0, left: 0, right: 0, child: _topBar(cs, bg)),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              child: Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      bg.withValues(alpha: 0),
+                      bg.withValues(alpha: 0.12),
+                      bg.withValues(alpha: 0.32),
+                      bg.withValues(alpha: 0.62),
+                      bg.withValues(alpha: 0.92),
+                      bg,
+                    ],
+                    stops: const [0.0, 0.25, 0.45, 0.65, 0.82, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: _inputPill(cs),
+            ),
+          ),
+          // Drawer selalu ter-mount agar animasi buka & tutup keduanya jalan;
+          // saat tertutup tergeser keluar panel dan di-clip oleh Stack.
+          Positioned.fill(
+            child: IgnorePointer(
+              ignoring: !_drawerOpen,
+              child: AnimatedSlide(
+                offset: _drawerOpen ? Offset.zero : const Offset(1, 0),
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                child: _drawer(cs),
               ),
             ),
           ),
@@ -530,105 +833,271 @@ Aturan:
     );
   }
 
+  void _openDrawer() {
+    // Tutup keyboard dulu — pola _dismissKeyboard di AiChatScreen — agar
+    // fokus tidak "kembali" sendiri ke field saat drawer ditutup.
+    if (_focusNode.hasFocus) _focusNode.unfocus();
+    setState(() => _drawerOpen = true);
+  }
+
+  String _formContextLabel() {
+    final title = widget.settings?.call()?.titleController.text.trim();
+    if ((title ?? '').isNotEmpty) return title!;
+    return 'Form baru';
+  }
+
+  /// Baris atas melayang (gradient scaffold → transparan): tombol tutup di
+  /// kiri, tombol riwayat & pengaturan di kanan. Label form dipindahkan ke
+  /// area atas prompt untuk tetap terlihat saat mengedit.
+  Widget _topBar(ColorScheme cs, Color bg) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            bg,
+            bg,
+            bg.withValues(alpha: 0.92),
+            bg.withValues(alpha: 0.55),
+            bg.withValues(alpha: 0),
+          ],
+          stops: const [0.0, 0.35, 0.60, 0.80, 1.0],
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 20),
+      child: Row(
+        children: [
+          if (widget.onClose != null)
+            IconButton(
+              onPressed: widget.onClose,
+              tooltip: 'Tutup AI Form Agent',
+              icon: Icon(Icons.close, size: 22, color: cs.onSurface),
+            ),
+          const Spacer(),
+          IconButton(
+            onPressed: _openDrawer,
+            tooltip: 'Riwayat',
+            icon: Icon(Icons.history, size: 22, color: cs.onSurface),
+          ),
+          IconButton(
+            onPressed: () {
+              setState(() => _drawerOpen = false);
+              showAiApiKeyDialog(context, onKeyChanged: () => setState(() {}));
+            },
+            tooltip: 'Pengaturan',
+            icon: Icon(Icons.settings_outlined, size: 22, color: cs.onSurface),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Daftar pesan: lebar bubble dihitung dari lebar PANEL (LayoutBuilder),
+  /// bukan lebar jendela seperti ChatBubble — panel sidebar hanya 380px di
+  /// dalam jendela yang jauh lebih lebar.
+  Widget _chatList(ColorScheme cs) {
+    return LayoutBuilder(
+      builder: (context, cons) {
+        final bubbleMaxW = cons.maxWidth * 0.82;
+        return ListView.separated(
+          controller: _scroll,
+          padding: EdgeInsets.fromLTRB(
+            12,
+            _topBarHeight + 12,
+            12,
+            _inputBarHeight + 16,
+          ),
+          itemCount: _messages.length + (_busy ? 1 : 0),
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          itemBuilder: (context, i) {
+            if (i >= _messages.length) return _busyBubble(cs);
+            return _bubble(cs, _messages[i], bubbleMaxW);
+          },
+        );
+      },
+    );
+  }
+
+  /// Empty state pola `ChatEmptyState`: ikon box (padding 20, radius 20,
+  /// softShadow), judul kFontBold 16, subjudul 13, ActionChip 13 radius 20.
   Widget _emptyState(ColorScheme cs) {
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          _topBarHeight + 28,
+          20,
+          _inputBarHeight + 32,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.auto_awesome_outlined, size: 36, color: cs.primary),
-            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: cs.surface,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: softShadow(),
+              ),
+              child: AiChatIcon(size: 32, color: cs.primary, filled: true),
+            ),
+            const SizedBox(height: 16),
             Text(
-              'AI Form Agent',
+              'AFA — AI Form Agent',
               style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
                 fontFamily: kFontBold,
+                fontSize: 16,
                 color: cs.onSurface,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
-              'Minta AI menyusun atau mengubah draf form & soal. Perubahan '
-              'langsung masuk ke draf — tersimpan hanya saat kamu menekan Simpan.',
+              'Minta AFA menyusun atau mengubah draf form & soal. Perubahan '
+              'langsung masuk ke draf — tersimpan saat kamu menekan Simpan.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
             ),
-            const SizedBox(height: 14),
-            for (final chip in const [
-              'Buatkan 5 soal pilihan ganda tentang ...',
-              'Ubah semua soal jadi wajib dijawab',
-              'Hapus soal nomor 3',
-            ])
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: OutlinedButton(
-                  onPressed: () {
-                    _input.text = chip;
-                    _send();
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: cs.primary,
-                    side: BorderSide(color: cs.outlineVariant),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final chip in _suggestions())
+                  ActionChip(
+                    label: Text(chip, style: const TextStyle(fontSize: 13)),
+                    onPressed: () {
+                      _input.text = chip;
+                      _send();
+                    },
+                    backgroundColor: cs.surface,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(color: cs.outlineVariant),
                     ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    textStyle: const TextStyle(fontSize: 12),
                   ),
-                  child: Text(chip, textAlign: TextAlign.center),
-                ),
-              ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _busyBubble(ColorScheme cs) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
-          children: [
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: LoadingIndicator.inline(),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Agent sedang menyusun draf...',
-              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-            ),
-          ],
-        ),
-      );
+  /// Saran cepat disesuaikan dengan kemampuan layar ini.
+  List<String> _suggestions() {
+    final hasSettings = widget.settings?.call() != null;
+    final hasQuestions = widget.questions != null;
+    return [
+      if (hasQuestions) 'Buatkan 5 soal pilihan ganda',
+      if (hasQuestions) 'Ubah semua soal jadi wajib dijawab',
+      if (hasSettings) 'Buatkan deskripsi form yang menarik',
+      if (!hasQuestions && !hasSettings) 'Apa yang bisa kamu bantu?',
+    ];
+  }
 
-  Widget _bubble(ColorScheme cs, _AgentMessage m) {
-    final bg = m.isError
-        ? cs.errorContainer
-        : (m.isUser ? cs.primaryContainer : cs.surfaceContainerHighest);
-    final fg = m.isError
-        ? cs.onErrorContainer
-        : (m.isUser ? cs.onPrimaryContainer : cs.onSurface);
+  /// Indikator menunggu: bubble AI (radius 24) berisi spinner + teks —
+  /// pola bubble "AI mengetik..." di `ChatBubble`.
+  Widget _busyBubble(ColorScheme cs) => Align(
+    alignment: Alignment.centerLeft,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: softShadow(),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'AFA sedang menyusun draf...',
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  /// Bubble persis `ChatBubble`: radius 24, padding (16,12), teks 14.
+  /// Lebar maksimum dihitung dari LayoutBuilder panel — BUKAN lebar jendela
+  /// seperti ChatBubble (sidebar 380px di jendela 1400px akan salah ukur).
+  Widget _bubble(ColorScheme cs, _AgentMsg m, double bubbleMaxW) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Bubble user tema-sadar — alasan sama seperti `ChatBubble`: skema gelap
+    // memakai onPrimary gelap, sehingga teks tak terbaca di bubble terang.
+    final userBubbleColor = isDark
+        ? const Color(0xFF20443E)
+        : const Color(0xFFB9EBDF);
+    final userTextColor = isDark ? Colors.white : Colors.black87;
+    // Error dibedakan dengan tint merah, adaptif gelap/terang seperti
+    // `ChatBubble._ErrorBody` agar tetap kontras di kedua mode.
+    final errorTint = Color.alphaBlend(
+      Colors.red.withValues(alpha: 0.10),
+      cs.surface,
+    );
+    final red = isDark ? Colors.red.shade300 : Colors.red.shade800;
     return Align(
       alignment: m.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        constraints: const BoxConstraints(maxWidth: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        constraints: BoxConstraints(maxWidth: bubbleMaxW),
         decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(14),
+          color: m.isUser
+              ? userBubbleColor
+              : (m.isError ? errorTint : cs.surface),
+          // Semua sisi radius sama & lebih melengkung, persis `ChatBubble`.
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: softShadow(),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              m.text,
-              style: TextStyle(fontSize: 12.5, color: fg, height: 1.35),
-            ),
+            if (m.isUser && m.attachments.isNotEmpty) ...[
+              BubbleAttachments(attachments: m.attachments, isUser: true),
+              if (m.text.isNotEmpty) const SizedBox(height: 8),
+            ],
+            if (m.isUser)
+              SelectableText(
+                m.text.isEmpty
+                    ? (m.attachments.isNotEmpty ? '(lampiran)' : '...')
+                    : m.text,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: userTextColor,
+                  height: 1.35,
+                ),
+              )
+            else if (m.isError)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.error_outline, size: 18, color: red),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      m.text,
+                      style: TextStyle(fontSize: 14, color: red, height: 1.35),
+                    ),
+                  ),
+                ],
+              )
+            else
+              GptMarkdown(
+                m.text.isEmpty ? 'Respons kosong. Coba kirim ulang.' : m.text,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: cs.onSurface,
+                  height: 1.35,
+                ),
+              ),
             if (m.applied.isNotEmpty) ...[
               const SizedBox(height: 8),
               for (final item in m.applied)
@@ -637,13 +1106,16 @@ Aturan:
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.check_circle_outline,
-                          size: 13, color: cs.primary),
+                      Icon(
+                        Icons.check_circle_outline,
+                        size: 14,
+                        color: cs.primary,
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           item,
-                          style: TextStyle(fontSize: 11.5, color: cs.primary),
+                          style: TextStyle(fontSize: 11, color: cs.primary),
                         ),
                       ),
                     ],
@@ -656,46 +1128,393 @@ Aturan:
     );
   }
 
-  Widget _inputBar(ColorScheme cs) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _input,
-              minLines: 1,
-              maxLines: 4,
-              enabled: !_busy,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _send(),
-              decoration: InputDecoration(
-                hintText: 'Tulis perintah untuk draf...',
-                hintStyle:
-                    TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
-                isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: cs.outlineVariant),
+  /// Drawer riwayat & pengaturan — meluncur dari kanan MENUTUPI seluruh
+  /// panel (opaque, tanpa scrim); pola `AiChatDrawer` versi compact.
+  /// Pengaturan memakai dialog API key (bukan pindah layar) agar alur
+  /// edit form tidak terganggu.
+  Widget _drawer(ColorScheme cs) {
+    return Material(
+      color: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(left: Radius.circular(16)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header: ikon + nama + model aktif + tombol tutup.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                children: [
+                  AiChatIcon(color: cs.primary, size: 26, filled: true),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'AFA',
+                        style: TextStyle(
+                          fontFamily: kFontBold,
+                          fontSize: 16,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                      Text(
+                        GeminiService.selectedModelDisplay,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: Icon(Icons.close, size: 22, color: cs.onSurface),
+                    tooltip: 'Tutup',
+                    onPressed: () => setState(() => _drawerOpen = false),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: FilledButton.icon(
+                onPressed: _newSession,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Chat baru'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(44),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
               ),
-              style: const TextStyle(fontSize: 12.5),
+            ),
+            const SizedBox(height: 8),
+            const Divider(indent: 16, endIndent: 16, height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 16, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Riwayat',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: kFontBold,
+                    color: cs.onSurfaceVariant,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: _sessions.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Belum ada riwayat',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      itemCount: _sessions.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 2),
+                      itemBuilder: (ctx, i) {
+                        final s = _sessions[i];
+                        final selected = s.id == _currentSessionId;
+                        return Material(
+                          color: selected
+                              ? kPrimary.withValues(alpha: 0.12)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(kRadiusMd),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(kRadiusMd),
+                            onTap: () => _switchSession(s.id),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    selected
+                                        ? Icons.chat_bubble
+                                        : Icons.chat_bubble_outline,
+                                    size: 16,
+                                    color: selected
+                                        ? cs.primary
+                                        : cs.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      s.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: selected
+                                            ? cs.primary
+                                            : cs.onSurface,
+                                        fontWeight: selected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+                                  InkWell(
+                                    onTap: () =>
+                                        _confirmDeleteSession(s.id, s.title),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(4),
+                                      child: Icon(
+                                        Icons.close,
+                                        size: 14,
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            const Divider(height: 1),
+            // Bottom ala M3: Pengaturan + Hapus semua riwayat.
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: Icon(
+                      Icons.settings_outlined,
+                      size: 24,
+                      color: cs.onSurface,
+                    ),
+                    title: const Text(
+                      'Pengaturan',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(kRadiusMd),
+                    ),
+                    onTap: () {
+                      setState(() => _drawerOpen = false);
+                      showAiApiKeyDialog(
+                        context,
+                        onKeyChanged: () => setState(() {}),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(
+                      Icons.delete_outline,
+                      size: 24,
+                      color: kDangerColor,
+                    ),
+                    title: const Text(
+                      'Hapus semua riwayat',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(kRadiusMd),
+                    ),
+                    onTap: _sessions.isEmpty ? null : _clearAllSessions,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Pill prompt melayang dua baris (pola `ChatInputBar` lebar ≥600):
+  /// Row 1 label konteks form, Row 2 field prompt borderless, Row 3 control.
+  /// Pemilih model pindah ke DALAM pill — pengganti pemilih di header lama.
+  Widget _inputPill(ColorScheme cs) {
+    final canSend =
+        _input.text.trim().isNotEmpty || _pendingAttachments.isNotEmpty;
+    final enabled = !_busy && !_voice.isTranscribing;
+    final formLabel = _formContextLabel();
+    return Container(
+      key: _inputBarKey,
+      padding: EdgeInsets.fromLTRB(
+        8,
+        _pendingAttachments.isNotEmpty ? 12 : 6,
+        8,
+        6,
+      ),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: softShadow(),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_pendingAttachments.isNotEmpty) ...[
+            AiAttachmentPreview(
+              attachments: _pendingAttachments,
+              onRemove: (id) => setState(
+                () => _pendingAttachments.removeWhere((a) => a.id == id),
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
+          Container(
+            margin: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: cs.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.language_outlined, size: 14, color: cs.primary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Form: ${formLabel.length > 42 ? '${formLabel.substring(0, 39)}...' : formLabel}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: cs.primary,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 8),
-          IconButton.filled(
-            onPressed: _busy ? null : _send,
-            tooltip: 'Kirim perintah',
-            style: IconButton.styleFrom(
-              backgroundColor: cs.primary,
-              foregroundColor: cs.onPrimary,
+          Padding(
+            padding: const EdgeInsets.only(left: 8, top: 4),
+            child: TextField(
+              controller: _input,
+              focusNode: _focusNode,
+              minLines: 1,
+              maxLines: 4,
+              enabled: enabled,
+              textInputAction: TextInputAction.newline,
+              onSubmitted: (_) {
+                if (canSend && enabled) _send();
+              },
+              onChanged: (_) => setState(() {}),
+              keyboardType: TextInputType.multiline,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration.collapsed(
+                hintText: 'Tulis perintah untuk draf...',
+              ),
+              style: TextStyle(
+                fontSize: 15,
+                color: cs.onSurface,
+                height: 1.35,
+              ),
+              cursorColor: cs.primary,
+              mouseCursor: SystemMouseCursors.text,
             ),
-            icon: const Icon(Icons.arrow_upward, size: 18),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              IconButton(
+                onPressed: enabled ? _pickFiles : null,
+                tooltip: 'Lampirkan file',
+                icon: Icon(Icons.add, size: 24, color: cs.onSurfaceVariant),
+              ),
+              const Spacer(),
+              AiModelPicker(
+                dense: true,
+                onChanged: () {
+                  // Pola onModelChanged AiChatScreen: cegah keyboard
+                  // "kembali" sendiri setelah popup model ditutup.
+                  _focusNode.unfocus();
+                  setState(() {});
+                },
+              ),
+              const SizedBox(width: 4),
+              _micButton(cs, enabled),
+              _sendButton(cs, canSend, enabled),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _micButton(ColorScheme cs, bool enabled) {
+    if (_voice.isTranscribing) {
+      return const Padding(
+        padding: EdgeInsets.all(10),
+        child: SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    return IconButton(
+      onPressed: enabled ? _toggleVoice : null,
+      tooltip: _voice.isRecording ? 'Berhenti merekam' : 'Rekam suara',
+      icon: Icon(
+        _voice.isRecording ? Icons.stop_circle : Icons.mic_none_outlined,
+        size: 22,
+        color: _voice.isRecording ? cs.error : cs.onSurfaceVariant,
+      ),
+    );
+  }
+
+  /// Tombol kirim: target sentuh M3 minimum 40dp (bukan 36 seperti versi
+  /// pertama) — ukuran visual sama, area ketuk memenuhi spesifikasi.
+  Widget _sendButton(ColorScheme cs, bool canSend, bool enabled) {
+    if (_busy) {
+      return const Padding(
+        padding: EdgeInsets.all(10),
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    if (!canSend) return const SizedBox(width: 40, height: 40);
+    return Material(
+      color: cs.primary,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: enabled ? _send : null,
+        customBorder: const CircleBorder(),
+        hoverColor: cs.onPrimary.withValues(alpha: 0.25),
+        child: Tooltip(
+          message: 'Kirim',
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(Icons.arrow_upward, size: 20, color: cs.onPrimary),
+          ),
+        ),
       ),
     );
   }
