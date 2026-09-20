@@ -300,7 +300,7 @@ namespace FormUpAPI
             }
             app.UseStaticFiles();
             app.UseMiddleware<ErrorHandlingMiddleware>();
-            app.UseCors("AllowFrontend");
+            app.UseCors("AllowAll");
             app.UseHttpsRedirection();
 
             app.UseRateLimiter();
