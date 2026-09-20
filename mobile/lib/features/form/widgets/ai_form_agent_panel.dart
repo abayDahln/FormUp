@@ -1426,11 +1426,7 @@ ${_draftSnapshot(s, questions)}''';
               decoration: InputDecoration.collapsed(
                 hintText: 'Tulis perintah untuk draf...',
               ),
-              style: TextStyle(
-                fontSize: 15,
-                color: cs.onSurface,
-                height: 1.35,
-              ),
+              style: TextStyle(fontSize: 15, color: cs.onSurface, height: 1.35),
               cursorColor: cs.primary,
               mouseCursor: SystemMouseCursors.text,
             ),
