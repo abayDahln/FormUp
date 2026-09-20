@@ -205,6 +205,41 @@ export default function FormRunnerPage() {
         }
     }, [formLink, navigate]);
 
+    // P1-2: Audio alert for genuine violations with autoplay priming
+    const violationAudioRef = useRef(null);
+    const primeViolationAudio = useCallback(() => {
+        try {
+            if (!violationAudioRef.current && typeof Audio !== 'undefined') {
+                violationAudioRef.current = new Audio('/sound/exam-warning.mp3');
+            }
+            if (violationAudioRef.current) {
+                const a = violationAudioRef.current;
+                const p = a.play();
+                if (p && typeof p.then === 'function') {
+                    p.then(() => {
+                        a.pause();
+                        a.currentTime = 0;
+                    }).catch(() => {});
+                }
+            }
+        } catch {}
+    }, []);
+
+    const playViolationSound = useCallback(() => {
+        try {
+            if (!violationAudioRef.current && typeof Audio !== 'undefined') {
+                violationAudioRef.current = new Audio('/sound/exam-warning.mp3');
+            }
+            if (violationAudioRef.current) {
+                const audio = violationAudioRef.current;
+                audio.currentTime = 0;
+                audio.play().catch(err => console.warn('violation sound failed:', err));
+            }
+        } catch (err) {
+            console.warn('violation sound initialization failed:', err);
+        }
+    }, []);
+
     const sendExamEvent = useCallback(async (eventType) => {
     if (!form || isPreviewMode || form.isOwner) return;
     const isExam = form.isExamMode || form.detectTabSwitch;
@@ -245,9 +280,10 @@ export default function FormRunnerPage() {
                 if (typeof res.data.violationCount === 'number') {
                     setViolationCount(res.data.violationCount);
                 }
-                // Only show warning banner when an actual violation event occurs, not on presence (session_start / heartbeat)
+                // Only show warning banner & sound when an actual violation event occurs, not on presence (session_start / heartbeat)
                 if (eventType !== 'session_start' && eventType !== 'heartbeat') {
                     setTabSwitchWarning(true);
+                    playViolationSound();
                 }
                 // P0-3: When cheat threshold is reached, disqualify and auto-set score 0
                 const currentSw = typeof res.data.tabSwitchCount === 'number' ? res.data.tabSwitchCount : tabSwitchCount;
@@ -265,7 +301,7 @@ export default function FormRunnerPage() {
         } catch (err) {
             console.warn('[ExamEvent] Background event report failed:', eventType, err);
         }
-    }, [form, formLink, isPreviewMode, currentUser, handleForceSubmitTermination]);
+    }, [form, formLink, isPreviewMode, currentUser, handleForceSubmitTermination, playViolationSound]);
 
     // Exam mode session presence: session_start and periodic heartbeat
     useEffect(() => {
@@ -713,6 +749,7 @@ export default function FormRunnerPage() {
 
     const handleUnlockToken = async (e) => {
         e.preventDefault();
+        primeViolationAudio();
         setError('');
         const token = tokenInput.trim();
         const res = await getPublicFormQuestions(formLink, { token, name: respondentName });
