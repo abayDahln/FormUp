@@ -58,7 +58,7 @@ export default function ImageLightboxModal({ src, alt = 'Gambar Soal', isOpen, o
     const handleMouseUp = () => setIsDragging(false);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200 select-none">
+        <div className="fixed inset-0 z-50 flex items-center justify-center w-screen h-screen bg-black/90 backdrop-blur-md animate-in fade-in duration-200 select-none overflow-hidden">
             {/* Top Toolbar */}
             <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
                 <div className="px-4 py-2 bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl text-white text-xs font-semibold pointer-events-auto">
@@ -121,7 +121,7 @@ export default function ImageLightboxModal({ src, alt = 'Gambar Soal', isOpen, o
 
             {/* Image Canvas Container */}
             <div
-                className={`relative max-w-full max-h-full flex items-center justify-center overflow-hidden ${zoom > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'}`}
+                className={`relative w-full h-full max-w-[100vw] max-h-[100vh] flex items-center justify-center overflow-hidden ${zoom > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'}`}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
@@ -131,7 +131,7 @@ export default function ImageLightboxModal({ src, alt = 'Gambar Soal', isOpen, o
                     src={src}
                     alt={alt}
                     draggable={false}
-                    className="max-h-[85vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl transition-transform duration-100 ease-out"
+                    className="w-auto h-auto max-w-[95vw] max-h-[90vh] object-contain rounded-2xl shadow-2xl transition-transform duration-100 ease-out select-none pointer-events-auto"
                     style={{
                         transform: `scale(${zoom}) translate(${position.x / zoom}px, ${position.y / zoom}px)`,
                     }}
