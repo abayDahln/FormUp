@@ -840,15 +840,8 @@ ${_draftSnapshot(s, questions)}''';
     setState(() => _drawerOpen = true);
   }
 
-  String _formContextLabel() {
-    final title = widget.settings?.call()?.titleController.text.trim();
-    if ((title ?? '').isNotEmpty) return title!;
-    return 'Form baru';
-  }
-
   /// Baris atas melayang (gradient scaffold → transparan): tombol tutup di
-  /// kiri, tombol riwayat & pengaturan di kanan. Label form dipindahkan ke
-  /// area atas prompt untuk tetap terlihat saat mengedit.
+  /// kiri, satu tombol menu di kanan untuk membuka sidebar riwayat & setting.
   Widget _topBar(ColorScheme cs, Color bg) {
     return Container(
       decoration: BoxDecoration(
@@ -877,16 +870,8 @@ ${_draftSnapshot(s, questions)}''';
           const Spacer(),
           IconButton(
             onPressed: _openDrawer,
-            tooltip: 'Riwayat',
-            icon: Icon(Icons.history, size: 22, color: cs.onSurface),
-          ),
-          IconButton(
-            onPressed: () {
-              setState(() => _drawerOpen = false);
-              showAiApiKeyDialog(context, onKeyChanged: () => setState(() {}));
-            },
-            tooltip: 'Pengaturan',
-            icon: Icon(Icons.settings_outlined, size: 22, color: cs.onSurface),
+            tooltip: 'Riwayat & pengaturan',
+            icon: Icon(Icons.menu_rounded, size: 22, color: cs.onSurface),
           ),
         ],
       ),
@@ -1348,14 +1333,12 @@ ${_draftSnapshot(s, questions)}''';
     );
   }
 
-  /// Pill prompt melayang dua baris (pola `ChatInputBar` lebar ≥600):
-  /// Row 1 label konteks form, Row 2 field prompt borderless, Row 3 control.
-  /// Pemilih model pindah ke DALAM pill — pengganti pemilih di header lama.
+  /// Pill prompt bersih: tanpa indikator konteks, tanpa label tambahan,
+  /// kontrol kirim muncul hanya saat ada teks/lampiran.
   Widget _inputPill(ColorScheme cs) {
     final canSend =
         _input.text.trim().isNotEmpty || _pendingAttachments.isNotEmpty;
     final enabled = !_busy && !_voice.isTranscribing;
-    final formLabel = _formContextLabel();
     return Container(
       key: _inputBarKey,
       padding: EdgeInsets.fromLTRB(
@@ -1382,32 +1365,6 @@ ${_draftSnapshot(s, questions)}''';
             ),
             const SizedBox(height: 6),
           ],
-          Container(
-            margin: const EdgeInsets.fromLTRB(8, 4, 8, 0),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: cs.primary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.language_outlined, size: 14, color: cs.primary),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Form: ${formLabel.length > 42 ? '${formLabel.substring(0, 39)}...' : formLabel}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: cs.primary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
           Padding(
             padding: const EdgeInsets.only(left: 8, top: 4),
             child: TextField(
@@ -1443,15 +1400,22 @@ ${_draftSnapshot(s, questions)}''';
               AiModelPicker(
                 dense: true,
                 onChanged: () {
-                  // Pola onModelChanged AiChatScreen: cegah keyboard
-                  // "kembali" sendiri setelah popup model ditutup.
                   _focusNode.unfocus();
                   setState(() {});
                 },
               ),
               const SizedBox(width: 4),
-              _micButton(cs, enabled),
-              _sendButton(cs, canSend, enabled),
+              if (canSend)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _micButton(cs, enabled),
+                    const SizedBox(width: 4),
+                    _sendButton(cs, canSend, enabled),
+                  ],
+                )
+              else
+                _micButton(cs, enabled),
             ],
           ),
         ],
@@ -1481,8 +1445,8 @@ ${_draftSnapshot(s, questions)}''';
     );
   }
 
-  /// Tombol kirim: target sentuh M3 minimum 40dp (bukan 36 seperti versi
-  /// pertama) — ukuran visual sama, area ketuk memenuhi spesifikasi.
+  /// Tombol kirim: hanya muncul saat prompt siap dikirim. Ketika kosong,
+  /// mic mengambil posisi paling kanan agar tampil seperti contoh referensi.
   Widget _sendButton(ColorScheme cs, bool canSend, bool enabled) {
     if (_busy) {
       return const Padding(
