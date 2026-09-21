@@ -31,7 +31,7 @@ services:
       SMTP_FROM: "${SMTP_FROM:-}"
       PUBLIC_URL: "${PUBLIC_URL:-}"
     ports:
-      - "${API_HOST_PORT:-5000}:8080"
+      - "${API_HOST_PORT:-5000}:5000"
     volumes:
       - ./api/wwwroot:/app/wwwroot
     depends_on:

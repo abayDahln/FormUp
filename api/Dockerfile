@@ -17,12 +17,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libfontconfig1 libharfbuzz0b libfreetype6 \
     && rm -rf /var/lib/apt/lists/*
 
-ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_URLS=http://+:5000
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 
 COPY --from=build /app/publish .
 RUN mkdir -p wwwroot/questions wwwroot/profile wwwroot/banner
 
-EXPOSE 8080
+EXPOSE 5000
 ENTRYPOINT ["dotnet", "FormUpAPI.dll"]
