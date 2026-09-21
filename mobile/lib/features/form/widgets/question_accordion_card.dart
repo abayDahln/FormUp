@@ -319,7 +319,10 @@ class _QuestionAccordionCardState extends State<QuestionAccordionCard> {
     // kartu tidak terlalu panjang ke bawah.
     final settingsSection = Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-      child: ExpansionTile(
+      // Material transparan agar ink splash ListTile tidak tertutup DecoratedBox.
+      child: Material(
+        type: MaterialType.transparency,
+        child: ExpansionTile(
         tilePadding: EdgeInsets.zero,
         childrenPadding: EdgeInsets.zero,
         initiallyExpanded: _settingsOpen,
@@ -354,6 +357,7 @@ class _QuestionAccordionCardState extends State<QuestionAccordionCard> {
             onChanged: widget.onChanged,
           ),
         ],
+        ),
       ),
     );
     final textAndAnswer = [

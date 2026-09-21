@@ -27,7 +27,10 @@ class ResponseListCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: softShadow(),
       ),
-      child: ExpansionTile(
+      // Material transparan agar ink splash ListTile tidak tertutup DecoratedBox.
+      child: Material(
+        type: MaterialType.transparency,
+        child: ExpansionTile(
         shape: const Border(),
         leading: Container(
           width: 34,
@@ -115,7 +118,9 @@ class ResponseListCard extends StatelessWidget {
               ],
             ),
           ),
-        ],      ),
+        ],
+        ),
+      ),
     );
   }
 }

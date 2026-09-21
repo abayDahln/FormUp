@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:flutter/services.dart';
@@ -35,21 +36,21 @@ String richToPlainText(String? text) {
   if (plain.isEmpty) return '';
   if (plain.startsWith('[')) {
     try {
-      return Document.fromJson(jsonDecode(plain) as List)
-          .toPlainText()
-          .trim();
+      return Document.fromJson(jsonDecode(plain) as List).toPlainText().trim();
     } catch (_) {
       // ponytail: non-Delta jangan crash
       return '';
     }
   }
-  return _stripHtml(plain).replaceAll('\n', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+  return _stripHtml(
+    plain,
+  ).replaceAll('\n', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
 QuillController richTextController(String? text) => QuillController(
-      document: richDocument(text),
-      selection: const TextSelection.collapsed(offset: 0),
-    );
+  document: richDocument(text),
+  selection: const TextSelection.collapsed(offset: 0),
+);
 
 String _deltaToHtml(List<dynamic> ops) {
   final lines = <_OutLine>[];
@@ -107,7 +108,8 @@ String _deltaToHtml(List<dynamic> ops) {
         i++;
       }
       sb.write(
-          '<pre><code class="language-${lang.isEmpty ? 'code' : lang}">${_escapeHtml(codeLines.join('\n'))}</code></pre>');
+        '<pre><code class="language-${lang.isEmpty ? 'code' : lang}">${_escapeHtml(codeLines.join('\n'))}</code></pre>',
+      );
       continue;
     }
 
@@ -196,9 +198,7 @@ List<Map> _htmlToDeltaOps(String html) {
     if (codeBuffer.isEmpty) return;
     final lang = codeLang.isEmpty ? '' : codeLang;
     final code = codeBuffer.toString();
-    ops.add({
-      'insert': '```${lang.isEmpty ? '' : lang}\n$code\n```',
-    });
+    ops.add({'insert': '```${lang.isEmpty ? '' : lang}\n$code\n```'});
     ops.add({'insert': '\n'});
     codeBuffer = StringBuffer();
     codeLang = '';
@@ -215,9 +215,11 @@ List<Map> _htmlToDeltaOps(String html) {
       ops.add(a.isEmpty ? {'insert': t} : {'insert': t, 'attributes': a});
     }
     pendingRuns = [];
-    ops.add(blockAttrs.isEmpty
-        ? {'insert': '\n'}
-        : {'insert': '\n', 'attributes': blockAttrs});
+    ops.add(
+      blockAttrs.isEmpty
+          ? {'insert': '\n'}
+          : {'insert': '\n', 'attributes': blockAttrs},
+    );
   }
 
   for (final t in tokens) {
@@ -457,7 +459,8 @@ List<_HtmlToken> _tokenizeHtml(String html) {
   final re = RegExp(r'<[^>]*>');
   var last = 0;
   for (final m in re.allMatches(html)) {
-    if (m.start > last) tokens.add(_HtmlToken.text(html.substring(last, m.start)));
+    if (m.start > last)
+      tokens.add(_HtmlToken.text(html.substring(last, m.start)));
     final tagStr = m.group(0)!;
     final closing = tagStr.startsWith('</');
     final selfClose = tagStr.endsWith('/>');
@@ -489,12 +492,11 @@ class _HtmlToken {
   final Map<String, String> attrs;
 
   _HtmlToken.text(String this.text)
-      : tagName = null,
-        closing = false,
-        attrs = const {};
+    : tagName = null,
+      closing = false,
+      attrs = const {};
 
-  _HtmlToken.tag(String this.tagName, this.closing, this.attrs)
-      : text = null;
+  _HtmlToken.tag(String this.tagName, this.closing, this.attrs) : text = null;
 }
 
 class _OutLine {
@@ -513,6 +515,7 @@ class _OutRun {
 
   _OutRun(this.text, this.attrs, {this.imageUrl});
 }
+
 class ActiveRichEditor {
   final QuillController controller;
   final FocusNode focusNode;
@@ -612,21 +615,42 @@ class _ToolbarAlignDropdown extends StatelessWidget {
             .getSelectionStyle()
             .attributes[Attribute.align.key]
             ?.value;
-        return Icon(
-          switch (align) {
-            'center' => Icons.format_align_center,
-            'right' => Icons.format_align_right,
-            'justify' => Icons.format_align_justify,
-            _ => Icons.format_align_left,
-          },
-          size: 15,
-        );
+        return Icon(switch (align) {
+          'center' => Icons.format_align_center,
+          'right' => Icons.format_align_right,
+          'justify' => Icons.format_align_justify,
+          _ => Icons.format_align_left,
+        }, size: 15);
       },
       menuBuilder: (c) => [
-        _alignMenuItem(Icons.format_align_left, 'Kiri', Attribute.leftAlignment, c, cs),
-        _alignMenuItem(Icons.format_align_center, 'Tengah', Attribute.centerAlignment, c, cs),
-        _alignMenuItem(Icons.format_align_right, 'Kanan', Attribute.rightAlignment, c, cs),
-        _alignMenuItem(Icons.format_align_justify, 'Rata Kiri-Kanan', Attribute.justifyAlignment, c, cs),
+        _alignMenuItem(
+          Icons.format_align_left,
+          'Kiri',
+          Attribute.leftAlignment,
+          c,
+          cs,
+        ),
+        _alignMenuItem(
+          Icons.format_align_center,
+          'Tengah',
+          Attribute.centerAlignment,
+          c,
+          cs,
+        ),
+        _alignMenuItem(
+          Icons.format_align_right,
+          'Kanan',
+          Attribute.rightAlignment,
+          c,
+          cs,
+        ),
+        _alignMenuItem(
+          Icons.format_align_justify,
+          'Rata Kiri-Kanan',
+          Attribute.justifyAlignment,
+          c,
+          cs,
+        ),
       ],
     );
   }
@@ -638,14 +662,19 @@ class _ToolbarAlignDropdown extends StatelessWidget {
     QuillController c,
     ColorScheme cs,
   ) {
-    final active = c.getSelectionStyle().attributes[Attribute.align.key]?.value == attr.value;
-    return MenuItemButton(
-      onPressed: () {
-        c.formatSelection(attr);
-        afterPressed?.call();
-      },
-      leadingIcon: Icon(icon, size: 18, color: active ? cs.primary : null),
-      child: Text(label),
+    final active =
+        c.getSelectionStyle().attributes[Attribute.align.key]?.value ==
+        attr.value;
+    return Material(
+      type: MaterialType.transparency,
+      child: MenuItemButton(
+        onPressed: () {
+          c.formatSelection(attr);
+          afterPressed?.call();
+        },
+        leadingIcon: Icon(icon, size: 18, color: active ? cs.primary : null),
+        child: Text(label),
+      ),
     );
   }
 }
@@ -665,22 +694,46 @@ class _ToolbarListDropdown extends StatelessWidget {
       tooltip: 'Daftar',
       afterPressed: afterPressed,
       iconBuilder: (c) {
-        final list = c.getSelectionStyle().attributes[Attribute.list.key]?.value;
-        return Icon(
-          switch (list) {
-            'ordered' => Icons.format_list_numbered,
-            'alpha' => Icons.format_list_numbered_rtl,
-            _ => Icons.format_list_bulleted,
-          },
-          size: 15,
-        );
+        final list = c
+            .getSelectionStyle()
+            .attributes[Attribute.list.key]
+            ?.value;
+        return Icon(switch (list) {
+          'ordered' => Icons.format_list_numbered,
+          'alpha' => Icons.format_list_numbered_rtl,
+          _ => Icons.format_list_bulleted,
+        }, size: 15);
       },
       menuBuilder: (c) {
-        final list = c.getSelectionStyle().attributes[Attribute.list.key]?.value;
+        final list = c
+            .getSelectionStyle()
+            .attributes[Attribute.list.key]
+            ?.value;
         return [
-          _listMenuItem(Icons.format_list_bulleted, 'Bullet', 'bullet', list, c, cs),
-          _listMenuItem(Icons.format_list_numbered, 'Angka', 'ordered', list, c, cs),
-          _listMenuItem(Icons.format_list_numbered_rtl, 'Alphabet (a, b, c)', 'alpha', list, c, cs),
+          _listMenuItem(
+            Icons.format_list_bulleted,
+            'Bullet',
+            'bullet',
+            list,
+            c,
+            cs,
+          ),
+          _listMenuItem(
+            Icons.format_list_numbered,
+            'Angka',
+            'ordered',
+            list,
+            c,
+            cs,
+          ),
+          _listMenuItem(
+            Icons.format_list_numbered_rtl,
+            'Alphabet (a, b, c)',
+            'alpha',
+            list,
+            c,
+            cs,
+          ),
         ];
       },
     );
@@ -694,13 +747,20 @@ class _ToolbarListDropdown extends StatelessWidget {
     QuillController c,
     ColorScheme cs,
   ) {
-    return MenuItemButton(
-      onPressed: () {
-        _applyList(c, listValue);
-        afterPressed?.call();
-      },
-      leadingIcon: Icon(icon, size: 18, color: current == listValue ? cs.primary : null),
-      child: Text(label),
+    return Material(
+      type: MaterialType.transparency,
+      child: MenuItemButton(
+        onPressed: () {
+          _applyList(c, listValue);
+          afterPressed?.call();
+        },
+        leadingIcon: Icon(
+          icon,
+          size: 18,
+          color: current == listValue ? cs.primary : null,
+        ),
+        child: Text(label),
+      ),
     );
   }
 }
@@ -743,8 +803,9 @@ class _FontSizeControlState extends State<_FontSizeControl> {
 
   void _apply(double size) {
     final v = size.clamp(kMinFontSize, kMaxFontSize);
-    widget.controller
-        .formatSelection(Attribute.fromKeyValue(Attribute.size.key, v));
+    widget.controller.formatSelection(
+      Attribute.fromKeyValue(Attribute.size.key, v),
+    );
     _menu.close();
   }
 
@@ -767,9 +828,12 @@ class _FontSizeControlState extends State<_FontSizeControl> {
           controller: _menu,
           menuChildren: [
             for (final s in const [10, 11, 12, 14, 16, 18, 20, 24, 28, 32])
-              MenuItemButton(
-                onPressed: () => _apply(s.toDouble()),
-                child: Text('$s', style: const TextStyle(fontSize: 13)),
+              Material(
+                type: MaterialType.transparency,
+                child: MenuItemButton(
+                  onPressed: () => _apply(s.toDouble()),
+                  child: Text('$s', style: const TextStyle(fontSize: 13)),
+                ),
               ),
             const Divider(height: 1),
             Padding(
@@ -924,14 +988,19 @@ class _RichTextEditorState extends State<RichTextEditor> {
     // ponytail: placeholder default flutter_quill 20px terlalu besar;
     // samakan dengan ukuran teks form (14).
     final base =
-        QuillStyles.getStyles(context, true) ?? DefaultStyles.getInstance(context);
+        QuillStyles.getStyles(context, true) ??
+        DefaultStyles.getInstance(context);
     final ph = base.placeHolder;
     return QuillStyles(
       data: ph == null
           ? base
-          : base.merge(DefaultStyles(
-              placeHolder: ph.copyWith(style: ph.style.copyWith(fontSize: 14)),
-            )),
+          : base.merge(
+              DefaultStyles(
+                placeHolder: ph.copyWith(
+                  style: ph.style.copyWith(fontSize: 14),
+                ),
+              ),
+            ),
       child: Container(
         decoration: BoxDecoration(
           color: cs.surface,
@@ -993,52 +1062,223 @@ int _leadingLineIndex(Node node) {
   return 1;
 }
 
-/// Toolbar mengambang saat fokus
+/// Toolbar mengambang saat fokus.
+///
+/// Di desktop Windows, toolbar diposisikan di atas tengah agar tidak ikut
+/// komponen editor lain dan tidak memicu menu dropdown flutter_quill yang
+/// menghasilkan ListTile dengan latar warna. Versi ini memakai tombol
+/// langsung (IconButton) agar aman di semua platform dan tetap floating.
 class FloatingRichToolbar extends StatelessWidget {
   const FloatingRichToolbar({super.key});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isWindows = defaultTargetPlatform == TargetPlatform.windows;
+
     return ValueListenableBuilder<ActiveRichEditor?>(
       valueListenable: activeRichEditor,
       builder: (context, active, _) {
-        if (active == null) {
-          return const SizedBox.shrink();
-        }
-        return Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: Material(
-            color: cs.surface,
-            elevation: 6,
-            child: SafeArea(
-              top: false,
-              child: QuillSimpleToolbar(
-                controller: active.controller,
-                config: richToolbarConfig(
-                  afterButtonPressed: active.focusNode.requestFocus,
-                  customButtons: [
-                    QuillToolbarCustomButtonOptions(
-                      icon: const Icon(Icons.functions, size: 18),
-                      tooltip: 'Insert Math',
-                      onPressed: () =>
-                          _insertMath(context, active.controller),
-                    ),
-                    QuillToolbarCustomButtonOptions(
-                      icon: const Icon(Icons.code, size: 18),
-                      tooltip: 'Insert Code',
-                      onPressed: () =>
-                          _insertCode(context, active.controller),
-                    ),
-                  ],
+        if (active == null) return const SizedBox.shrink();
+
+        final style = active.controller.getSelectionStyle();
+
+        final toolbar = ExcludeFocus(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 640),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isWindows ? cs.surfaceContainerHigh : cs.surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: cs.outlineVariant, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isWindows ? 0.22 : 0.12),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
                 ),
+              ],
+            ),
+            // ponytail: satu baris, bisa digeser horizontal (tidak wrap).
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 4,
+                children: [
+              _FloatingToolbarButton(
+                icon: Icons.format_bold,
+                tooltip: 'Bold',
+                selected: style.attributes[Attribute.bold.key] != null,
+                onPressed: () {
+                  active.controller.formatSelection(Attribute.bold);
+                  active.focusNode.requestFocus();
+                },
+              ),
+              _FloatingToolbarButton(
+                icon: Icons.format_italic,
+                tooltip: 'Italic',
+                selected: style.attributes[Attribute.italic.key] != null,
+                onPressed: () {
+                  active.controller.formatSelection(Attribute.italic);
+                  active.focusNode.requestFocus();
+                },
+              ),
+              _FloatingToolbarButton(
+                icon: Icons.format_underlined,
+                tooltip: 'Underline',
+                selected: style.attributes[Attribute.underline.key] != null,
+                onPressed: () {
+                  active.controller.formatSelection(Attribute.underline);
+                  active.focusNode.requestFocus();
+                },
+              ),
+              _FloatingToolbarButton(
+                icon: Icons.format_strikethrough,
+                tooltip: 'Strike',
+                selected: style.attributes[Attribute.strikeThrough.key] != null,
+                onPressed: () {
+                  active.controller.formatSelection(Attribute.strikeThrough);
+                  active.focusNode.requestFocus();
+                },
+              ),
+              _FloatingToolbarButton(
+                icon: Icons.format_align_left,
+                tooltip: 'Align left',
+                selected:
+                    style.attributes[Attribute.align.key]?.value == 'left',
+                onPressed: () {
+                  active.controller.formatSelection(Attribute.leftAlignment);
+                  active.focusNode.requestFocus();
+                },
+              ),
+              _FloatingToolbarButton(
+                icon: Icons.format_align_center,
+                tooltip: 'Align center',
+                selected:
+                    style.attributes[Attribute.align.key]?.value == 'center',
+                onPressed: () {
+                  active.controller.formatSelection(Attribute.centerAlignment);
+                  active.focusNode.requestFocus();
+                },
+              ),
+              _FloatingToolbarButton(
+                icon: Icons.format_align_right,
+                tooltip: 'Align right',
+                selected:
+                    style.attributes[Attribute.align.key]?.value == 'right',
+                onPressed: () {
+                  active.controller.formatSelection(Attribute.rightAlignment);
+                  active.focusNode.requestFocus();
+                },
+              ),
+              _FloatingToolbarButton(
+                icon: Icons.format_list_bulleted,
+                tooltip: 'Bullet list',
+                selected: _selectionListValue(active.controller) == 'bullet',
+                onPressed: () {
+                  active.controller.formatSelection(
+                    Attribute.fromKeyValue(Attribute.list.key, 'bullet'),
+                  );
+                  active.focusNode.requestFocus();
+                },
+              ),
+              _FloatingToolbarButton(
+                icon: Icons.format_list_numbered,
+                tooltip: 'Number list',
+                selected: _selectionListValue(active.controller) == 'ordered',
+                onPressed: () {
+                  active.controller.formatSelection(
+                    Attribute.fromKeyValue(Attribute.list.key, 'ordered'),
+                  );
+                  active.focusNode.requestFocus();
+                },
+              ),
+              _FloatingToolbarButton(
+                icon: Icons.functions,
+                tooltip: 'Insert math',
+                onPressed: () => _insertMath(context, active.controller),
+              ),
+              _FloatingToolbarButton(
+                icon: Icons.code,
+                tooltip: 'Insert code',
+                onPressed: () => _insertCode(context, active.controller),
+              ),
+                ],
               ),
             ),
           ),
         );
+
+        final padded = Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: toolbar,
+        );
+
+        if (isWindows) {
+          return Positioned(
+            top: 12,
+            left: 0,
+            right: 0,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: SafeArea(top: true, bottom: false, child: padded),
+            ),
+          );
+        }
+
+        return Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: SafeArea(
+            top: false,
+            child: Align(alignment: Alignment.bottomCenter, child: padded),
+          ),
+        );
       },
+    );
+  }
+}
+
+String? _selectionListValue(QuillController controller) {
+  final value = controller
+      .getSelectionStyle()
+      .attributes[Attribute.list.key]
+      ?.value;
+  return value is String ? value : null;
+}
+
+class _FloatingToolbarButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  const _FloatingToolbarButton({
+    required this.icon,
+    required this.tooltip,
+    this.selected = false,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: selected ? cs.primary.withValues(alpha: 0.12) : Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        padding: const EdgeInsets.all(8),
+        constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+        icon: Icon(
+          icon,
+          size: 18,
+          color: selected ? cs.primary : cs.onSurfaceVariant,
+        ),
+      ),
     );
   }
 }
@@ -1054,7 +1294,10 @@ void _insertText(QuillController controller, String text) {
 }
 
 /// Dialog insert rumus LaTeX
-Future<void> _insertMath(BuildContext context, QuillController controller) async {
+Future<void> _insertMath(
+  BuildContext context,
+  QuillController controller,
+) async {
   final focusScope = FocusScope.of(context);
   final formula = await AdaptiveSheet.show<String>(
     context: context,
@@ -1071,7 +1314,10 @@ Future<void> _insertMath(BuildContext context, QuillController controller) async
 }
 
 /// Dialog insert blok kode
-Future<void> _insertCode(BuildContext context, QuillController controller) async {
+Future<void> _insertCode(
+  BuildContext context,
+  QuillController controller,
+) async {
   final focusScope = FocusScope.of(context);
   final snippet = await AdaptiveSheet.show<String>(
     context: context,
@@ -1087,20 +1333,59 @@ Future<void> _insertCode(BuildContext context, QuillController controller) async
   focusScope.requestFocus(FocusManager.instance.primaryFocus);
 }
 
-const _mathSymbols = <(String, String)>[
-  (r'\frac{a}{b}', 'Fraction'),
-  (r'\sqrt{x}', 'Sqrt'),
-  (r'x^2', 'Power'),
-  (r'x_1', 'Subscript'),
-  (r'\sum_{i=1}^{n}', 'Sum'),
-  (r'\int_{a}^{b}', 'Integral'),
-  (r'\pm', '±'),
-  (r'\infty', '∞'),
-  (r'\pi', 'π'),
-];
+const _mathTemplates = <String, List<(String, String)>>{
+  'matematika': [
+    (r'\frac{a}{b}', 'Fraksi'),
+    (r'\sqrt{x}', 'Akar'),
+    (r'x^2', 'Pangkat 2'),
+    (r'x_1', 'Subskrip'),
+    (r'\sum_{i=1}^{n}', 'Sigma'),
+    (r'\int_{a}^{b}', 'Integral'),
+    (r'\lim_{x\to a}', 'Limit'),
+    (r'\pm', '±'),
+    (r'\infty', '∞'),
+    (r'\pi', 'π'),
+    (r'\begin{pmatrix}a & b \\ c & d\end{pmatrix}', 'Matriks'),
+    (r'\sin(x)', 'Sin'),
+    (r'\cos(x)', 'Cos'),
+    (r'\tan(x)', 'Tan'),
+  ],
+  'kimia': [
+    (r'\mathrm{H_2O}', 'H₂O'),
+    (r'\mathrm{CO_2}', 'CO₂'),
+    (r'\mathrm{Na^+}', 'Na⁺'),
+    (r'\mathrm{Cl^-}', 'Cl⁻'),
+    (r'\mathrm{SO_4^{2-}}', 'SO₄²⁻'),
+    (r'\mathrm{A \rightarrow B}', 'Reaksi →'),
+    (r'\mathrm{A \rightleftharpoons B}', 'Kesetimbangan ⇌'),
+    (r'\mathrm{H_2 + O_2 \rightarrow H_2O}', 'Air'),
+    (r'\mathrm{CaCO_3}', 'Kalsit'),
+    (r'\mathrm{CH_3COOH}', 'Asam asetat'),
+  ],
+  'trigonometri': [
+    (r'\sin^2\theta + \cos^2\theta = 1', 'Identitas'),
+    (r'\frac{\sin\theta}{\cos\theta} = \tan\theta', 'Rasio'),
+    (r'\theta = \arctan\left(\frac{y}{x}\right)', 'ArcTan'),
+    (r'\sin(2\theta) = 2\sin\theta\cos\theta', 'Ganda sudut'),
+  ],
+  'aljabar': [
+    (r'(a+b)^2 = a^2 + 2ab + b^2', 'Kuadrat sempurna'),
+    (r'\frac{-b \pm \sqrt{b^2-4ac}}{2a}', 'ABC'),
+    (r'x = \frac{-b \pm \sqrt{D}}{2a}', 'Persamaan kuadrat'),
+    (r'\log_{b}(x)', 'Logaritma'),
+    (r'a^m \cdot a^n = a^{m+n}', 'Sifat eksponen'),
+  ],
+};
 
 const _codeLanguages = <String>[
-  'javascript', 'python', 'csharp', 'html', 'sql', 'java', 'cpp', 'json',
+  'javascript',
+  'python',
+  'csharp',
+  'html',
+  'sql',
+  'java',
+  'cpp',
+  'json',
 ];
 
 class _MathInsertSheet extends StatefulWidget {
@@ -1114,6 +1399,7 @@ class _MathInsertSheetState extends State<_MathInsertSheet> {
   final _controller = TextEditingController(
     text: r'\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}',
   );
+  String _category = 'matematika';
 
   @override
   void dispose() {
@@ -1121,10 +1407,22 @@ class _MathInsertSheetState extends State<_MathInsertSheet> {
     super.dispose();
   }
 
+  void _appendTemplate(String template) {
+    final text = _controller.text.trim();
+    final next = text.isEmpty ? template : '$text $template';
+    _controller.text = next;
+    _controller.selection = TextSelection.collapsed(
+      offset: _controller.text.length,
+    );
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final formula = _controller.text.trim();
+    final templates =
+        _mathTemplates[_category] ?? _mathTemplates['matematika']!;
     return Padding(
       padding: EdgeInsets.only(
         left: 20,
@@ -1141,49 +1439,70 @@ class _MathInsertSheetState extends State<_MathInsertSheet> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
+          SegmentedButton<String>(
+            segments: [
+              ButtonSegment(
+                value: 'matematika',
+                label: const Text('Matematika'),
+              ),
+              ButtonSegment(value: 'kimia', label: const Text('Kimia')),
+              ButtonSegment(
+                value: 'trigonometri',
+                label: const Text('Trigonometri'),
+              ),
+              ButtonSegment(value: 'aljabar', label: const Text('Aljabar')),
+            ],
+            selected: {_category},
+            onSelectionChanged: (value) =>
+                setState(() => _category = value.first),
+          ),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 6,
             runSpacing: 6,
             children: [
-              for (final (label, sym) in _mathSymbols)
+              for (final (latex, label) in templates)
                 ActionChip(
                   label: Text(label),
-                  onPressed: () {
-                    setState(() => _controller.text += sym);
-                  },
+                  onPressed: () => _appendTemplate(latex),
                 ),
             ],
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _controller,
-            maxLines: 3,
-            minLines: 1,
+            maxLines: 4,
+            minLines: 2,
             style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
             decoration: formUpInputDecoration(
-              hintText: r'LaTeX, e.g. \frac{-b \pm \sqrt{b^2-4ac}}{2a}',
+              hintText: r'Contoh: \frac{-b \pm \sqrt{b^2-4ac}}{2a}',
             ),
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 12),
           Text(
-            'Preview:',
+            'Preview live:',
             style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 6),
-          Center(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: formula.isEmpty
-                  ? const Text('…', style: TextStyle(fontSize: 16))
-                  : Math.tex(
-                      formula,
-                      mathStyle: MathStyle.display,
-                      textStyle: TextStyle(
-                        fontSize: 16,
-                        color: cs.onSurface,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: formula.isEmpty
+                    ? const Text('…', style: TextStyle(fontSize: 16))
+                    : Math.tex(
+                        formula,
+                        mathStyle: MathStyle.display,
+                        textStyle: TextStyle(fontSize: 18, color: cs.onSurface),
                       ),
-                    ),
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -1440,8 +1759,9 @@ Widget _mathWidget(String formula, {required bool display, TextStyle? style}) {
 /// Urutan penting: $$ dulu, lalu \[ \], \( \), terakhir $ inline.
 /// Isi \( \) boleh mengandung backslash (perintah seperti \int, \frac) —
 /// lazy match berhenti di penutup \) pertama (. tak cocokkan newline).
-final _mathRegex =
-    RegExp(r'\$\$[^$]+\$\$|\\\[.+?\\\]|\\\(.+?\\\)|\$[^$\n]+?\$');
+final _mathRegex = RegExp(
+  r'\$\$[^$]+\$\$|\\\[.+?\\\]|\\\(.+?\\\)|\$[^$\n]+?\$',
+);
 
 /// Ambil isi formula + flag display dari segmen yang cocok [_mathRegex].
 ({String formula, bool display}) _splitMathSegment(String seg) {
@@ -1467,10 +1787,12 @@ List<InlineSpan> _spansWithMath(String text, TextStyle? style) {
     }
     final seg = m.group(0)!;
     final split = _splitMathSegment(seg);
-    out.add(WidgetSpan(
-      alignment: PlaceholderAlignment.middle,
-      child: _mathWidget(split.formula, display: split.display, style: style),
-    ));
+    out.add(
+      WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: _mathWidget(split.formula, display: split.display, style: style),
+      ),
+    );
     last = m.end;
   }
   if (last < text.length) {
@@ -1517,14 +1839,16 @@ class RichTextView extends StatelessWidget {
   });
 
   TextStyle? get _scaledStyle =>
-      style == null ? null : style!.copyWith(fontSize: (style!.fontSize ?? 14) * zoom);
+      style?.copyWith(fontSize: (style?.fontSize ?? 14) * zoom);
 
   @override
   Widget build(BuildContext context) {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return const SizedBox.shrink();
     final parsed = _contentBlocks(trimmed);
-    final blocks = ignoreInlineFontSize ? _stripFontSizeFromBlocks(parsed) : parsed;
+    final blocks = ignoreInlineFontSize
+        ? _stripFontSizeFromBlocks(parsed)
+        : parsed;
     final widgets = _blocksToWidgets(blocks);
 
     final isPlainSingle =
@@ -1563,13 +1887,23 @@ class RichTextView extends StatelessWidget {
             text: s.text,
             style: s.style == null
                 ? _scaledStyle
-                : s.style!.copyWith(fontSize: (s.style!.fontSize ?? _scaledStyle?.fontSize ?? 14) * zoom),
-            children: s.children == null ? null : _scaledSpans(s.children!.cast<InlineSpan>()),
+                : s.style!.copyWith(
+                    fontSize:
+                        (s.style!.fontSize ?? _scaledStyle?.fontSize ?? 14) *
+                        zoom,
+                  ),
+            children: s.children == null
+                ? null
+                : _scaledSpans(s.children!.cast<InlineSpan>()),
           )
         else if (s is WidgetSpan)
           WidgetSpan(
             alignment: s.alignment,
-            child: Transform.scale(scale: zoom, alignment: Alignment.centerLeft, child: s.child),
+            child: Transform.scale(
+              scale: zoom,
+              alignment: Alignment.centerLeft,
+              child: s.child,
+            ),
           )
         else
           s,
@@ -1605,45 +1939,54 @@ class RichTextView extends StatelessWidget {
         if (i < blocks.length && blocks[i].plain.trim().startsWith('```')) {
           i++;
         }
-        widgets.add(_CodeBlockView(
-          language: lang,
-          code: codeLines.join('\n'),
-        ));
+        widgets.add(_CodeBlockView(language: lang, code: codeLines.join('\n')));
         continue;
       }
 
       if (t.startsWith('```')) {
-        widgets.add(Text.rich(
-          TextSpan(style: _scaledStyle, children: _scaledSpans(b.spans)),
-        ));
+        widgets.add(
+          Text.rich(
+            TextSpan(style: _scaledStyle, children: _scaledSpans(b.spans)),
+          ),
+        );
         i++;
         continue;
       }
 
-      final math = RegExp(r'^\$\$([\s\S]+?)\$\$$').firstMatch(t) ??
+      final math =
+          RegExp(r'^\$\$([\s\S]+?)\$\$$').firstMatch(t) ??
           RegExp(r'^\\\[([\s\S]+?)\\\]$').firstMatch(t);
       if (math != null) {
-        widgets.add(Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: _mathWidget(math.group(1)!.trim(), display: true, style: _scaledStyle),
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: _mathWidget(
+                math.group(1)!.trim(),
+                display: true,
+                style: _scaledStyle,
+              ),
+            ),
           ),
-        ));
+        );
         i++;
         continue;
       }
 
-      widgets.add(Text.rich(
-        TextSpan(
-          style: _scaledStyle,
-          children: [
-            if (first && prefix.isNotEmpty) TextSpan(text: prefix, style: _scaledStyle),
-            ..._scaledSpans(b.spans),
-          ],
+      widgets.add(
+        Text.rich(
+          TextSpan(
+            style: _scaledStyle,
+            children: [
+              if (first && prefix.isNotEmpty)
+                TextSpan(text: prefix, style: _scaledStyle),
+              ..._scaledSpans(b.spans),
+            ],
+          ),
+          textAlign: b.align ?? textAlign,
         ),
-        textAlign: b.align ?? textAlign,
-      ));
+      );
       first = false;
       i++;
     }
@@ -1692,9 +2035,8 @@ List<_RichBlock> _plainBlocks(String text) {
     final t = line.trim();
     if (fenceLang != null) {
       if (t.startsWith('```')) {
-        blocks.add(_RichBlock(
-          null,
-          [
+        blocks.add(
+          _RichBlock(null, [
             WidgetSpan(
               alignment: PlaceholderAlignment.top,
               child: _CodeBlockView(
@@ -1702,9 +2044,8 @@ List<_RichBlock> _plainBlocks(String text) {
                 code: codeLines.join('\n'),
               ),
             ),
-          ],
-          '```',
-        ));
+          ], '```'),
+        );
         fenceLang = null;
         codeLines.clear();
       } else {
@@ -1722,9 +2063,8 @@ List<_RichBlock> _plainBlocks(String text) {
   }
   flushText();
   if (fenceLang != null && codeLines.isNotEmpty) {
-    blocks.add(_RichBlock(
-      null,
-      [
+    blocks.add(
+      _RichBlock(null, [
         WidgetSpan(
           alignment: PlaceholderAlignment.top,
           child: _CodeBlockView(
@@ -1732,9 +2072,8 @@ List<_RichBlock> _plainBlocks(String text) {
             code: codeLines.join('\n'),
           ),
         ),
-      ],
-      '```',
-    ));
+      ], '```'),
+    );
   }
   return blocks;
 }
@@ -1774,16 +2113,18 @@ List<_RichBlock> _deltaOpsToBlocks(List ops) {
   void flush() {
     final spans = <TextSpan>[];
     if (listType.isNotEmpty) {
-      spans.add(TextSpan(
-        text: switch (listType) {
-          'ordered' => '${++orderedIndex}. ',
-          'alpha' => '${_alphaLabel(++orderedIndex)}. ',
-          'bullet' => '\u2022 ',
-          'checked' => '\u2611 ',
-          'unchecked' => '\u2610 ',
-          _ => '',
-        },
-      ));
+      spans.add(
+        TextSpan(
+          text: switch (listType) {
+            'ordered' => '${++orderedIndex}. ',
+            'alpha' => '${_alphaLabel(++orderedIndex)}. ',
+            'bullet' => '\u2022 ',
+            'checked' => '\u2611 ',
+            'unchecked' => '\u2610 ',
+            _ => '',
+          },
+        ),
+      );
     }
     final headerStyle = _headerStyle(blockHeader);
     if (headerStyle != null && current.isNotEmpty) {
@@ -1797,11 +2138,13 @@ List<_RichBlock> _deltaOpsToBlocks(List ops) {
     }
     spans.addAll(current);
     if (spans.isNotEmpty) {
-      blocks.add(_RichBlock(
-        _alignOf(blockAlign),
-        _blockSpansWithMath(spans),
-        buffer.toString(),
-      ));
+      blocks.add(
+        _RichBlock(
+          _alignOf(blockAlign),
+          _blockSpansWithMath(spans),
+          buffer.toString(),
+        ),
+      );
     }
     buffer = StringBuffer();
     current = [];
@@ -1841,11 +2184,11 @@ List<_RichBlock> _deltaOpsToBlocks(List ops) {
 }
 
 TextAlign? _alignOf(String align) => switch (align) {
-      'center' => TextAlign.center,
-      'right' => TextAlign.right,
-      'justify' => TextAlign.justify,
-      _ => null,
-    };
+  'center' => TextAlign.center,
+  'right' => TextAlign.right,
+  'justify' => TextAlign.justify,
+  _ => null,
+};
 
 /// Konversi indeks 1-based ke label alphabet (1→a, 2→b, …, 27→aa, …).
 String _alphaLabel(int n) {
@@ -1915,8 +2258,9 @@ TextStyle? _styleFrom(Map<String, dynamic> attr) {
   }
   final background = attr['background'] as String?;
   if (background != null) {
-    style = (style ?? const TextStyle())
-        .copyWith(backgroundColor: _parseColor(background));
+    style = (style ?? const TextStyle()).copyWith(
+      backgroundColor: _parseColor(background),
+    );
   }
   final sizeStyle = _sizeStyle(attr['size']);
   if (sizeStyle != null) {
@@ -1944,11 +2288,7 @@ Color _parseColor(String hex) {
 List<_RichBlock> _stripFontSizeFromBlocks(List<_RichBlock> blocks) {
   return [
     for (final b in blocks)
-      _RichBlock(
-        b.align,
-        _stripFontSizeSpans(b.spans),
-        b.plain,
-      ),
+      _RichBlock(b.align, _stripFontSizeSpans(b.spans), b.plain),
   ];
 }
 
@@ -1959,7 +2299,9 @@ List<InlineSpan> _stripFontSizeSpans(List<InlineSpan> spans) {
         TextSpan(
           text: s.text,
           style: s.style?.copyWith(fontSize: null),
-          children: s.children == null ? null : _stripFontSizeSpans(s.children!),
+          children: s.children == null
+              ? null
+              : _stripFontSizeSpans(s.children!),
         )
       else
         s,
