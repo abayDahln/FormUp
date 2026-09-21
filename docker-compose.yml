@@ -1,0 +1,53 @@
+name: formup
+
+services:
+  migrate:
+    build:
+      context: ./api
+      target: build
+    container_name: formup-migrate
+    restart: "no"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      DB_CONNECTION: "${DB_CONNECTION}"
+      JWT_KEY: "${JWT_KEY}"
+    command: ["dotnet", "ef", "database", "update"]
+
+  api:
+    build:
+      context: ./api
+      target: final
+    image: formup-api:latest
+    container_name: formup-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Production}"
+      DB_CONNECTION: "${DB_CONNECTION}"
+      JWT_KEY: "${JWT_KEY}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+      PUBLIC_URL: "${PUBLIC_URL:-}"
+    ports:
+      - "${API_HOST_PORT:-5000}:8080"
+    volumes:
+      - ./api/wwwroot:/app/wwwroot
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: formup-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      api:
+        condition: service_started
+
+networks:
+  default:
+    external: true
+    name: formup-net
