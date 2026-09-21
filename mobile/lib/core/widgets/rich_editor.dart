@@ -525,413 +525,6 @@ class ActiveRichEditor {
 
 final ValueNotifier<ActiveRichEditor?> activeRichEditor = ValueNotifier(null);
 
-/// Konfigurasi toolbar format
-QuillSimpleToolbarConfig richToolbarConfig({
-  VoidCallback? afterButtonPressed,
-  List<QuillToolbarCustomButtonOptions> customButtons = const [],
-}) {
-  return QuillSimpleToolbarConfig(
-    // ponytail: 2 baris (Wrap) agar horizontal compact tapi toolbar lebih tinggi
-    multiRowsDisplay: true,
-    toolbarRunSpacing: 2,
-    showDividers: false,
-    showFontFamily: false,
-    showFontSize: false, // kontrol ukuran font kustom (_FontSizeControl)
-    showBoldButton: true,
-    showItalicButton: true,
-    showUnderLineButton: true,
-    showStrikeThrough: true,
-    showInlineCode: false,
-    showColorButton: true,
-    showBackgroundColorButton: true,
-    showClearFormat: true,
-    showAlignmentButtons: false, // dropdown perataan kustom
-    showHeaderStyle: false,
-    showListNumbers: false, // dropdown daftar kustom
-    showListBullets: false,
-    showListCheck: false,
-    showCodeBlock: false,
-    showQuote: false,
-    showIndent: false, // indent tidak diperlukan
-    showLink: false,
-    showUndo: true,
-    showRedo: true,
-    showSearchButton: false,
-    showSubscript: false,
-    showSuperscript: false,
-    showLineHeightButton: false,
-    customButtons: [
-      ...customButtons,
-      QuillToolbarCustomButtonOptions(
-        tooltip: 'Perataan',
-        childBuilder: (dynamic _, dynamic extra) => _ToolbarAlignDropdown(
-          controller: extra.controller as QuillController,
-          afterPressed: afterButtonPressed,
-        ),
-      ),
-      QuillToolbarCustomButtonOptions(
-        tooltip: 'Daftar',
-        childBuilder: (dynamic _, dynamic extra) => _ToolbarListDropdown(
-          controller: extra.controller as QuillController,
-          afterPressed: afterButtonPressed,
-        ),
-      ),
-      QuillToolbarCustomButtonOptions(
-        tooltip: 'Ukuran font',
-        childBuilder: (dynamic _, dynamic extra) => _FontSizeControl(
-          controller: extra.controller as QuillController,
-          afterPressed: afterButtonPressed,
-        ),
-      ),
-    ],
-    buttonOptions: QuillSimpleToolbarButtonOptions(
-      base: QuillToolbarBaseButtonOptions(
-        afterButtonPressed: afterButtonPressed,
-      ),
-    ),
-  );
-}
-
-/// Batas ukuran font yang boleh di-input manual (agar layout tidak rusak).
-const double kMinFontSize = 8;
-const double kMaxFontSize = 48;
-
-/// Tombol dropdown perataan (left/center/right/justify).
-class _ToolbarAlignDropdown extends StatelessWidget {
-  final QuillController controller;
-  final VoidCallback? afterPressed;
-
-  const _ToolbarAlignDropdown({required this.controller, this.afterPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return _MenuToolbarButton(
-      controller: controller,
-      tooltip: 'Perataan',
-      afterPressed: afterPressed,
-      iconBuilder: (c) {
-        final align = c
-            .getSelectionStyle()
-            .attributes[Attribute.align.key]
-            ?.value;
-        return Icon(switch (align) {
-          'center' => Icons.format_align_center,
-          'right' => Icons.format_align_right,
-          'justify' => Icons.format_align_justify,
-          _ => Icons.format_align_left,
-        }, size: 15);
-      },
-      menuBuilder: (c) => [
-        _alignMenuItem(
-          Icons.format_align_left,
-          'Kiri',
-          Attribute.leftAlignment,
-          c,
-          cs,
-        ),
-        _alignMenuItem(
-          Icons.format_align_center,
-          'Tengah',
-          Attribute.centerAlignment,
-          c,
-          cs,
-        ),
-        _alignMenuItem(
-          Icons.format_align_right,
-          'Kanan',
-          Attribute.rightAlignment,
-          c,
-          cs,
-        ),
-        _alignMenuItem(
-          Icons.format_align_justify,
-          'Rata Kiri-Kanan',
-          Attribute.justifyAlignment,
-          c,
-          cs,
-        ),
-      ],
-    );
-  }
-
-  Widget _alignMenuItem(
-    IconData icon,
-    String label,
-    Attribute<String?> attr,
-    QuillController c,
-    ColorScheme cs,
-  ) {
-    final active =
-        c.getSelectionStyle().attributes[Attribute.align.key]?.value ==
-        attr.value;
-    return Material(
-      type: MaterialType.transparency,
-      child: MenuItemButton(
-        onPressed: () {
-          c.formatSelection(attr);
-          afterPressed?.call();
-        },
-        leadingIcon: Icon(icon, size: 18, color: active ? cs.primary : null),
-        child: Text(label),
-      ),
-    );
-  }
-}
-
-/// Tombol dropdown daftar (bullet/angka/alphabet).
-class _ToolbarListDropdown extends StatelessWidget {
-  final QuillController controller;
-  final VoidCallback? afterPressed;
-
-  const _ToolbarListDropdown({required this.controller, this.afterPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return _MenuToolbarButton(
-      controller: controller,
-      tooltip: 'Daftar',
-      afterPressed: afterPressed,
-      iconBuilder: (c) {
-        final list = c
-            .getSelectionStyle()
-            .attributes[Attribute.list.key]
-            ?.value;
-        return Icon(switch (list) {
-          'ordered' => Icons.format_list_numbered,
-          'alpha' => Icons.format_list_numbered_rtl,
-          _ => Icons.format_list_bulleted,
-        }, size: 15);
-      },
-      menuBuilder: (c) {
-        final list = c
-            .getSelectionStyle()
-            .attributes[Attribute.list.key]
-            ?.value;
-        return [
-          _listMenuItem(
-            Icons.format_list_bulleted,
-            'Bullet',
-            'bullet',
-            list,
-            c,
-            cs,
-          ),
-          _listMenuItem(
-            Icons.format_list_numbered,
-            'Angka',
-            'ordered',
-            list,
-            c,
-            cs,
-          ),
-          _listMenuItem(
-            Icons.format_list_numbered_rtl,
-            'Alphabet (a, b, c)',
-            'alpha',
-            list,
-            c,
-            cs,
-          ),
-        ];
-      },
-    );
-  }
-
-  Widget _listMenuItem(
-    IconData icon,
-    String label,
-    String listValue,
-    Object? current,
-    QuillController c,
-    ColorScheme cs,
-  ) {
-    return Material(
-      type: MaterialType.transparency,
-      child: MenuItemButton(
-        onPressed: () {
-          _applyList(c, listValue);
-          afterPressed?.call();
-        },
-        leadingIcon: Icon(
-          icon,
-          size: 18,
-          color: current == listValue ? cs.primary : null,
-        ),
-        child: Text(label),
-      ),
-    );
-  }
-}
-
-/// Terapkan tipe list ke selection.
-void _applyList(QuillController c, String listValue) {
-  c.formatSelection(Attribute.fromKeyValue(Attribute.list.key, listValue));
-}
-
-/// Kontrol ukuran font: tampil angka (default 11), tanpa tombol hapus,
-/// bisa input manual dengan batas min/max.
-class _FontSizeControl extends StatefulWidget {
-  final QuillController controller;
-  final VoidCallback? afterPressed;
-
-  const _FontSizeControl({required this.controller, this.afterPressed});
-
-  @override
-  State<_FontSizeControl> createState() => _FontSizeControlState();
-}
-
-class _FontSizeControlState extends State<_FontSizeControl> {
-  final _menu = MenuController();
-  final _inputController = TextEditingController();
-
-  @override
-  void dispose() {
-    _inputController.dispose();
-    super.dispose();
-  }
-
-  void _toggle() {
-    if (_menu.isOpen) {
-      _menu.close();
-    } else {
-      _menu.open();
-    }
-    widget.afterPressed?.call();
-  }
-
-  void _apply(double size) {
-    final v = size.clamp(kMinFontSize, kMaxFontSize);
-    widget.controller.formatSelection(
-      Attribute.fromKeyValue(Attribute.size.key, v),
-    );
-    _menu.close();
-  }
-
-  double? get _currentSize {
-    final v = widget.controller
-        .getSelectionStyle()
-        .attributes[Attribute.size.key]
-        ?.value;
-    if (v is num) return v.toDouble();
-    return null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: widget.controller,
-      builder: (context, _) {
-        final size = _currentSize;
-        return MenuAnchor(
-          controller: _menu,
-          menuChildren: [
-            for (final s in const [10, 11, 12, 14, 16, 18, 20, 24, 28, 32])
-              Material(
-                type: MaterialType.transparency,
-                child: MenuItemButton(
-                  onPressed: () => _apply(s.toDouble()),
-                  child: Text('$s', style: const TextStyle(fontSize: 13)),
-                ),
-              ),
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-              child: SizedBox(
-                width: 130,
-                child: TextField(
-                  controller: _inputController,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(fontSize: 13),
-                  decoration: formUpInputDecoration(
-                    hintText: 'Ukuran ($kMinFontSize-$kMaxFontSize)',
-                  ),
-                  onSubmitted: (t) {
-                    final v = double.tryParse(t.trim());
-                    if (v != null) _apply(v);
-                  },
-                ),
-              ),
-            ),
-          ],
-          child: IconButton(
-            tooltip: 'Ukuran font',
-            onPressed: _toggle,
-            icon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '${(size ?? 11).round()}',
-                  style: const TextStyle(fontSize: 13),
-                ),
-                const Icon(Icons.arrow_drop_down, size: 16),
-              ],
-            ),
-            iconSize: 20,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 36),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Shell tombol dropdown toolbar yang mengikuti perubahan controller.
-class _MenuToolbarButton extends StatefulWidget {
-  final QuillController controller;
-  final Widget Function(QuillController) iconBuilder;
-  final List<Widget> Function(QuillController) menuBuilder;
-  final String tooltip;
-  final VoidCallback? afterPressed;
-
-  const _MenuToolbarButton({
-    required this.controller,
-    required this.iconBuilder,
-    required this.menuBuilder,
-    required this.tooltip,
-    this.afterPressed,
-  });
-
-  @override
-  State<_MenuToolbarButton> createState() => _MenuToolbarButtonState();
-}
-
-class _MenuToolbarButtonState extends State<_MenuToolbarButton> {
-  final _menu = MenuController();
-
-  void _toggle() {
-    if (_menu.isOpen) {
-      _menu.close();
-    } else {
-      _menu.open();
-    }
-    widget.afterPressed?.call();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: widget.controller,
-      builder: (context, _) {
-        return MenuAnchor(
-          controller: _menu,
-          menuChildren: widget.menuBuilder(widget.controller),
-          child: IconButton(
-            tooltip: widget.tooltip,
-            onPressed: _toggle,
-            icon: widget.iconBuilder(widget.controller),
-            iconSize: 20,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 36),
-          ),
-        );
-      },
-    );
-  }
-}
-
 /// Editor rich tanpa toolbar
 class RichTextEditor extends StatefulWidget {
   final QuillController controller;
@@ -1080,10 +673,21 @@ class FloatingRichToolbar extends StatelessWidget {
       valueListenable: activeRichEditor,
       builder: (context, active, _) {
         if (active == null) return const SizedBox.shrink();
+        // ponytail: dengarkan controller aktif agar status aktif tombol
+        // (bold/align/list) selalu sesuai gaya pada SELEKSI SAAT INI, bukan
+        // gaya saat field pertama difokuskan.
+        return ListenableBuilder(
+          listenable: active.controller,
+          builder: (context, _) {
+            final style = active.controller.getSelectionStyle();
 
-        final style = active.controller.getSelectionStyle();
-
-        final toolbar = ExcludeFocus(
+        // ponytail: toolbar ikut grup TapRegion field teks (default
+        // groupId EditableText, sama seperti region internal flutter_quill).
+        // Tanpa ini, klik mouse di desktop (Windows/macOS/Linux) dianggap
+        // "tap outside" oleh editor -> focusNode.unfocus() saat pointer-down,
+        // toolbar hilang sebelum pointer-up sehingga onPressed tak pernah jalan.
+        final toolbar = TextFieldTapRegion(
+          child: ExcludeFocus(
           child: Container(
             constraints: const BoxConstraints(maxWidth: 640),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1110,103 +714,80 @@ class FloatingRichToolbar extends StatelessWidget {
                 icon: Icons.format_bold,
                 tooltip: 'Bold',
                 selected: style.attributes[Attribute.bold.key] != null,
-                onPressed: () {
-                  active.controller.formatSelection(Attribute.bold);
-                  active.focusNode.requestFocus();
-                },
+                onPressed: () => _toggleInlineFormat(active, Attribute.bold),
               ),
               _FloatingToolbarButton(
                 icon: Icons.format_italic,
                 tooltip: 'Italic',
                 selected: style.attributes[Attribute.italic.key] != null,
-                onPressed: () {
-                  active.controller.formatSelection(Attribute.italic);
-                  active.focusNode.requestFocus();
-                },
+                onPressed: () => _toggleInlineFormat(active, Attribute.italic),
               ),
               _FloatingToolbarButton(
                 icon: Icons.format_underlined,
                 tooltip: 'Underline',
                 selected: style.attributes[Attribute.underline.key] != null,
-                onPressed: () {
-                  active.controller.formatSelection(Attribute.underline);
-                  active.focusNode.requestFocus();
-                },
+                onPressed: () =>
+                    _toggleInlineFormat(active, Attribute.underline),
               ),
               _FloatingToolbarButton(
                 icon: Icons.format_strikethrough,
                 tooltip: 'Strike',
                 selected: style.attributes[Attribute.strikeThrough.key] != null,
-                onPressed: () {
-                  active.controller.formatSelection(Attribute.strikeThrough);
-                  active.focusNode.requestFocus();
-                },
+                onPressed: () =>
+                    _toggleInlineFormat(active, Attribute.strikeThrough),
               ),
               _FloatingToolbarButton(
                 icon: Icons.format_align_left,
                 tooltip: 'Align left',
                 selected:
                     style.attributes[Attribute.align.key]?.value == 'left',
-                onPressed: () {
-                  active.controller.formatSelection(Attribute.leftAlignment);
-                  active.focusNode.requestFocus();
-                },
+                onPressed: () =>
+                    _toggleBlockFormat(active, Attribute.leftAlignment),
               ),
               _FloatingToolbarButton(
                 icon: Icons.format_align_center,
                 tooltip: 'Align center',
                 selected:
                     style.attributes[Attribute.align.key]?.value == 'center',
-                onPressed: () {
-                  active.controller.formatSelection(Attribute.centerAlignment);
-                  active.focusNode.requestFocus();
-                },
+                onPressed: () =>
+                    _toggleBlockFormat(active, Attribute.centerAlignment),
               ),
               _FloatingToolbarButton(
                 icon: Icons.format_align_right,
                 tooltip: 'Align right',
                 selected:
                     style.attributes[Attribute.align.key]?.value == 'right',
-                onPressed: () {
-                  active.controller.formatSelection(Attribute.rightAlignment);
-                  active.focusNode.requestFocus();
-                },
+                onPressed: () =>
+                    _toggleBlockFormat(active, Attribute.rightAlignment),
               ),
               _FloatingToolbarButton(
                 icon: Icons.format_list_bulleted,
                 tooltip: 'Bullet list',
                 selected: _selectionListValue(active.controller) == 'bullet',
-                onPressed: () {
-                  active.controller.formatSelection(
-                    Attribute.fromKeyValue(Attribute.list.key, 'bullet'),
-                  );
-                  active.focusNode.requestFocus();
-                },
+                onPressed: () => _toggleBlockFormat(active, Attribute.ul),
               ),
               _FloatingToolbarButton(
                 icon: Icons.format_list_numbered,
                 tooltip: 'Number list',
                 selected: _selectionListValue(active.controller) == 'ordered',
-                onPressed: () {
-                  active.controller.formatSelection(
-                    Attribute.fromKeyValue(Attribute.list.key, 'ordered'),
-                  );
-                  active.focusNode.requestFocus();
-                },
+                onPressed: () => _toggleBlockFormat(active, Attribute.ol),
               ),
               _FloatingToolbarButton(
                 icon: Icons.functions,
                 tooltip: 'Insert math',
-                onPressed: () => _insertMath(context, active.controller),
+                onPressed: () =>
+                    _insertMath(context, active.controller, active.focusNode),
               ),
               _FloatingToolbarButton(
                 icon: Icons.code,
                 tooltip: 'Insert code',
-                onPressed: () => _insertCode(context, active.controller),
+                onPressed: () =>
+                    _insertCode(context, active.controller, active.focusNode),
               ),
                 ],
               ),
             ),
+          ),
           ),
         );
 
@@ -1236,6 +817,8 @@ class FloatingRichToolbar extends StatelessWidget {
             child: Align(alignment: Alignment.bottomCenter, child: padded),
           ),
         );
+          },
+        );
       },
     );
   }
@@ -1247,6 +830,32 @@ String? _selectionListValue(QuillController controller) {
       .attributes[Attribute.list.key]
       ?.value;
   return value is String ? value : null;
+}
+
+/// Toggle atribut inline (bold/italic/underline/strike) pada seleksi aktif:
+/// klik saat aktif melepas format (clone bernilai null, pola resmi
+/// QuillToolbarToggleStyleButton), klik saat nonaktif memasang format.
+void _toggleInlineFormat(ActiveRichEditor active, Attribute attribute) {
+  final attrs = active.controller.getSelectionStyle().attributes;
+  final isOn = attrs.containsKey(attribute.key);
+  active.controller.formatSelection(
+    isOn ? Attribute.clone(attribute, null) : attribute,
+  );
+  active.focusNode.requestFocus();
+}
+
+/// Toggle atribut blok bernilai (align/list): bandingkan nilainya, bukan
+/// sekadar keberadaan key, lalu pasang/lepas seperti toggle inline.
+void _toggleBlockFormat(ActiveRichEditor active, Attribute attribute) {
+  final current = active.controller
+      .getSelectionStyle()
+      .attributes[attribute.key]
+      ?.value;
+  final isOn = current == attribute.value;
+  active.controller.formatSelection(
+    isOn ? Attribute.clone(attribute, null) : attribute,
+  );
+  active.focusNode.requestFocus();
 }
 
 class _FloatingToolbarButton extends StatelessWidget {
@@ -1297,8 +906,8 @@ void _insertText(QuillController controller, String text) {
 Future<void> _insertMath(
   BuildContext context,
   QuillController controller,
+  FocusNode editorFocus,
 ) async {
-  final focusScope = FocusScope.of(context);
   final formula = await AdaptiveSheet.show<String>(
     context: context,
     isScrollControlled: true,
@@ -1310,15 +919,17 @@ Future<void> _insertMath(
   );
   if (formula == null || formula.trim().isEmpty) return;
   _insertText(controller, '\n\$\$${formula.trim()}\$\$\n');
-  focusScope.requestFocus(FocusManager.instance.primaryFocus);
+  // Kembalikan fokus ke editor (bukan primaryFocus) agar toolbar tetap tampil,
+  // terutama di desktop Windows yang memakai toolbar atas.
+  if (editorFocus.canRequestFocus) editorFocus.requestFocus();
 }
 
 /// Dialog insert blok kode
 Future<void> _insertCode(
   BuildContext context,
   QuillController controller,
+  FocusNode editorFocus,
 ) async {
-  final focusScope = FocusScope.of(context);
   final snippet = await AdaptiveSheet.show<String>(
     context: context,
     isScrollControlled: true,
@@ -1330,7 +941,9 @@ Future<void> _insertCode(
   );
   if (snippet == null || snippet.isEmpty) return;
   _insertText(controller, '\n$snippet\n');
-  focusScope.requestFocus(FocusManager.instance.primaryFocus);
+  // Kembalikan fokus ke editor (bukan primaryFocus) agar toolbar tetap tampil,
+  // terutama di desktop Windows yang memakai toolbar atas.
+  if (editorFocus.canRequestFocus) editorFocus.requestFocus();
 }
 
 const _mathTemplates = <String, List<(String, String)>>{
