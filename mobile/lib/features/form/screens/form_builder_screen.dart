@@ -377,6 +377,60 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
     });
   }
 
+  /// Kembalikan draf soal ke data tersimpan terakhir (baseline server).
+  /// Dipakai tombol "Reset Draf" di header Edit Form — mencegah konflik
+  /// saat form sudah dikerjakan responden: draf lokal yang menyimpang
+  /// dibuang dan diganti data server.
+  Future<void> _resetQuestionsDraft() async {
+    if (widget.questionsLocked) return;
+    if (_savingQuestions || _importing) return;
+    if (!_hasQuestionChanges) {
+      showAuthToast(context, 'Tidak ada perubahan draf');
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'Reset Draf Soal?',
+          style: TextStyle(fontFamily: kFontBold),
+        ),
+        content: const Text(
+          'Perubahan soal yang belum disimpan akan dibuang dan dikembalikan ke data tersimpan terakhir.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    // Form baru (belum ada di server): baseline = kosong.
+    if (_formId == null) {
+      setState(() {
+        for (final q in _questions) {
+          q.dispose();
+        }
+        _questions.clear();
+        _baseline = [];
+        _openIndex = null;
+      });
+      showAuthToast(context, 'Draf soal dikosongkan');
+      return;
+    }
+    await _loadQuestions();
+    if (!mounted) return;
+    if (_questionsError == null) {
+      showAuthToast(context, 'Draf soal dikembalikan ke data tersimpan');
+    }
+  }
+
   Widget _buildFab(ColorScheme cs) {
     final disabled = _savingQuestions || widget.questionsLocked;
     final aiFab = FloatingActionButton.small(
@@ -414,6 +468,8 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final busy = _savingQuestions;
+    final soalMenuEnabled =
+        !busy && !_importing && !widget.questionsLocked;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: cs.surface,
@@ -440,7 +496,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.only(right: 2),
             child: FilledButton(
               onPressed: busy ? null : _saveAll,
               style: FilledButton.styleFrom(
@@ -466,6 +522,85 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
                       child: LoadingIndicator.inline(),
                     )
                   : const Text('Simpan'),
+            ),
+          ),
+          // Menu aksi soal (pindahan dari header "Kelola Soal" yang
+          // dihapus): hapus semua, impor, unduh template, reset draf.
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert, color: cs.onSurface),
+              tooltip: 'Opsi soal',
+              enabled: !busy,
+              onSelected: (value) async {
+                switch (value) {
+                  case 'clear':
+                    await _clearAllQuestions();
+                    break;
+                  case 'import':
+                    await importSoal();
+                    break;
+                  case 'template':
+                    await downloadTemplate();
+                    break;
+                  case 'reset':
+                    await _resetQuestionsDraft();
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'clear',
+                  enabled: soalMenuEnabled && _questions.isNotEmpty,
+                  child: const Row(
+                    children: [
+                      Icon(
+                        Icons.delete_sweep_outlined,
+                        size: 18,
+                        color: Color(0xFFC0392B),
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        'Hapus Semua Soal',
+                        style: TextStyle(color: Color(0xFFC0392B)),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'import',
+                  enabled: soalMenuEnabled && _formId != null,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.upload_file_outlined, size: 20),
+                      SizedBox(width: 12),
+                      Text('Impor Soal'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'template',
+                  enabled: !busy,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.download_outlined, size: 20),
+                      SizedBox(width: 12),
+                      Text('Unduh Template Import'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'reset',
+                  enabled: soalMenuEnabled,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.restart_alt_outlined, size: 20),
+                      SizedBox(width: 12),
+                      Text('Reset Draf Soal'),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -703,14 +838,13 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
           ),
         ),
         const SizedBox(width: 16),
-        // KANAN: kartu daftar soal (accordion).
+        // KANAN: daftar item soal langsung (tanpa header "Kelola Soal" —
+        // tombol aksi soal sudah pindah ke header Edit Form).
         Expanded(
           flex: 35,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _questionsSectionHeader(cs),
-              const SizedBox(height: 12),
               ..._questionItems(cs),
             ],
           ),
@@ -732,76 +866,8 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
           centerContent: false,
         ),
         const SizedBox(height: 24),
-        _questionsSectionHeader(cs),
-        const SizedBox(height: 12),
+        // Daftar item soal langsung (tanpa header "Kelola Soal").
         ..._questionItems(cs),
-      ],
-    );
-  }
-
-  Widget _questionsSectionHeader(ColorScheme cs) {
-    return Row(
-      children: [
-        Text(
-          _questions.isEmpty ? 'Soal' : 'Soal (${_questions.length})',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            fontFamily: kFontBold,
-            color: cs.onSurface,
-          ),
-        ),
-        const Spacer(),
-        MenuAnchor(
-          builder: (context, controller, child) => IconButton(
-            icon: Icon(Icons.more_vert, color: cs.onSurface),
-            tooltip: 'Opsi soal',
-            onPressed: (_savingQuestions || _importing)
-                ? null
-                : () => controller.isOpen
-                      ? controller.close()
-                      : controller.open(),
-          ),
-          menuChildren: [
-            MenuItemButton(
-              leadingIcon: const Icon(
-                Icons.delete_sweep_outlined,
-                size: 18,
-                color: Color(0xFFC0392B),
-              ),
-              onPressed: (_questions.isEmpty || widget.questionsLocked)
-                  ? null
-                  : _clearAllQuestions,
-              child: const Text(
-                'Hapus Semua Soal',
-                style: TextStyle(color: Color(0xFFC0392B)),
-              ),
-            ),
-            MenuItemButton(
-              leadingIcon: _importing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: LoadingIndicator.inline(),
-                    )
-                  : const Icon(Icons.upload_file_outlined, size: 20),
-              onPressed: (_formId == null ||
-                      _savingQuestions ||
-                      _importing ||
-                      widget.questionsLocked)
-                  ? null
-                  : importSoal,
-              child: Text(_importing ? 'Mengimpor...' : 'Impor Soal'),
-            ),
-            MenuItemButton(
-              leadingIcon: const Icon(Icons.download_outlined, size: 20),
-              onPressed: (_savingQuestions || _importing)
-                  ? null
-                  : downloadTemplate,
-              child: const Text('Unduh Template Import'),
-            ),
-          ],
-        ),
       ],
     );
   }

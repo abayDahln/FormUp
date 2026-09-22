@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/ai_chat_icon.dart';
+import 'package:form_up/core/widgets/loading_indicator.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form/widgets/ai_form_agent_panel.dart';
 import 'package:form_up/features/form/widgets/form_settings_panel.dart';
@@ -53,10 +54,19 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
   /// True = overlay AFA (AI Form Agent) menutupi layar ini.
   bool _aiOpen = false;
 
+  /// True saat tombol Simpan global di header sedang menyimpan
+  /// pengaturan + soal sekaligus.
+  bool _savingAll = false;
+
   @override
   void initState() {
     super.initState();
     _formId = widget.formId;
+    _tabController.addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -68,6 +78,7 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     _router?.popBackGuard();
     super.dispose();
@@ -81,6 +92,32 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
       setState(() => _formId = formId);
       _tabController.animateTo(1);
       showAuthToast(context, 'Form berhasil dibuat, lanjutkan kelola soal');
+    }
+  }
+
+  /// Satu tombol Simpan di header Edit Form: menyimpan pengaturan form
+  /// + soal sekaligus (menciptakan formId bila form baru). Dipakai juga
+  /// sebagai pengganti tombol Simpan di tab Pengaturan dan tab Soal yang
+  /// sudah dihapus dari panel masing-masing.
+  Future<void> _saveAll() async {
+    if (_savingAll) return;
+    final settings = _settingsKey.currentState;
+    final questions = _questionsKey.currentState;
+    if (settings == null || settings.isSaving || (questions?.isBusy ?? false)) {
+      return;
+    }
+    setState(() => _savingAll = true);
+    try {
+      final id = await settings.save();
+      if (id == null || !mounted) return;
+      if (_formId == null) setState(() => _formId = id);
+      // Soal dikunci (form sudah ada yang mengerjakan): hanya pengaturan
+      // yang disimpan; draf soal tidak boleh menyentuh server.
+      if (!widget.questionsLocked) {
+        await questions?.save();
+      }
+    } finally {
+      if (mounted) setState(() => _savingAll = false);
     }
   }
 
@@ -119,6 +156,14 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final questions = _questionsKey.currentState;
+    final onSoalTab = _tabController.index == 1;
+    final soalBusy = questions?.isBusy ?? false;
+    final soalEmpty = questions?.isQuestionsEmpty ?? true;
+    final soalLocked = widget.questionsLocked;
+    // Menu aksi soal aktif hanya di tab Soal, saat tidak sibuk/dikunci.
+    final soalMenuEnabled =
+        onSoalTab && !soalBusy && !_savingAll && !soalLocked;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: cs.surface,
@@ -143,6 +188,118 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
             _router!.pop();
           },
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 2),
+            child: _savingAll
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: LoadingIndicator.button(),
+                  )
+                : FilledButton(
+                    onPressed: _saveAll,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: kPrimary,
+                      foregroundColor: Colors.white,
+                      textStyle: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontFamily: kFontBold,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                    ),
+                    child: const Text('Simpan'),
+                  ),
+          ),
+          // Menu aksi soal (pindahan dari header "Kelola Soal" yang
+          // dihapus): hapus semua, impor, unduh template, reset draf.
+          // Hanya relevan di tab Soal.
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert, color: cs.onSurface),
+              tooltip: 'Opsi soal',
+              enabled: onSoalTab && !_savingAll,
+              onSelected: (value) async {
+                final q = _questionsKey.currentState;
+                if (q == null) return;
+                switch (value) {
+                  case 'clear':
+                    await q.clearAllQuestions();
+                    break;
+                  case 'import':
+                    await q.importSoal();
+                    break;
+                  case 'template':
+                    await q.downloadTemplate();
+                    break;
+                  case 'reset':
+                    await q.resetDraft();
+                    break;
+                }
+                if (mounted) setState(() {});
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'clear',
+                  enabled: soalMenuEnabled && !soalEmpty,
+                  child: const Row(
+                    children: [
+                      Icon(
+                        Icons.delete_sweep_outlined,
+                        size: 18,
+                        color: Color(0xFFC0392B),
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        'Hapus Semua Soal',
+                        style: TextStyle(color: Color(0xFFC0392B)),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'import',
+                  enabled: soalMenuEnabled && _formId != null,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.upload_file_outlined, size: 20),
+                      SizedBox(width: 12),
+                      Text('Impor Soal'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'template',
+                  enabled: onSoalTab && !_savingAll,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.download_outlined, size: 20),
+                      SizedBox(width: 12),
+                      Text('Unduh Template Import'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'reset',
+                  enabled: soalMenuEnabled,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.restart_alt_outlined, size: 20),
+                      SizedBox(width: 12),
+                      Text('Reset Draf Soal'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: cs.primary,
@@ -169,10 +326,13 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
         TabBarView(
           controller: _tabController,
           children: [
+            // Tombol Simpan di tab Pengaturan dihapus — penyimpanan lewat
+            // satu tombol Simpan di header Edit Form (pengaturan + soal).
             FormSettingsPanel(
               key: _settingsKey,
               formId: _formId,
               onSaved: _onSettingsSaved,
+              showSaveButton: false,
             ),
             QuestionsPanel(
               key: _questionsKey,

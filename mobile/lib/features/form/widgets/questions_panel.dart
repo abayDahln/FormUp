@@ -77,6 +77,13 @@ class QuestionsPanelState extends State<QuestionsPanel>
 
   bool get isSaving => _saving;
 
+  /// API publik untuk header Edit Form (tombol Simpan global + menu aksi
+  /// soal tinggal di AppBar layar editor, bukan di header panel ini).
+  bool get isBusy => _saving || _importing;
+  bool get isQuestionsEmpty => _questions.isEmpty;
+  bool get canEditQuestions => !widget.questionsLocked;
+  int? get currentFormId => _formId;
+
   // --- QuestionImportMixin accessors ---
   @override
   List<QuestionDraft> get importQuestions => _questions;
@@ -208,31 +215,35 @@ class QuestionsPanelState extends State<QuestionsPanel>
 
   void _showTour() {
     if (_tourOverlay != null || !mounted) return;
+    // Mode embedded (tab Soal di layar editor): tombol Simpan + menu aksi
+    // sudah pindah ke header Edit Form, jadi langkah tur Simpan dilewati.
+    final steps = [
+      OnboardingStep(
+        anchorKey: _addKey,
+        title: 'Tambah Soal',
+        description:
+            'Ketuk tombol + untuk menambah soal baru: pilihan ganda, checkbox, essay, benar/salah, atau tanggal.',
+        icon: Icons.add_circle_outline,
+      ),
+      OnboardingStep(
+        anchorKey: _aiKey,
+        title: 'Buat Soal dengan AI',
+        description:
+            'Minta AI buatkan soal untuk form ini — sebutkan topik dan jumlah soal yang kamu mau.',
+        icon: Icons.auto_awesome_outlined,
+      ),
+      if (!widget.embedded)
+        OnboardingStep(
+          anchorKey: _saveKey,
+          title: 'Simpan Perubahan',
+          description:
+              'Jangan lupa Simpan agar susunan dan isi soal tersimpan. Geser kartu soal untuk mengubah urutan.',
+          icon: Icons.save_outlined,
+        ),
+    ];
     _tourOverlay = OverlayEntry(
       builder: (_) => OnboardingTour(
-        steps: [
-          OnboardingStep(
-            anchorKey: _addKey,
-            title: 'Tambah Soal',
-            description:
-                'Ketuk tombol + untuk menambah soal baru: pilihan ganda, checkbox, essay, benar/salah, atau tanggal.',
-            icon: Icons.add_circle_outline,
-          ),
-          OnboardingStep(
-            anchorKey: _aiKey,
-            title: 'Buat Soal dengan AI',
-            description:
-                'Minta AI buatkan soal untuk form ini â€” sebutkan topik dan jumlah soal yang kamu mau.',
-            icon: Icons.auto_awesome_outlined,
-          ),
-          OnboardingStep(
-            anchorKey: _saveKey,
-            title: 'Simpan Perubahan',
-            description:
-                'Jangan lupa Simpan agar susunan dan isi soal tersimpan. Geser kartu soal untuk mengubah urutan.',
-            icon: Icons.save_outlined,
-          ),
-        ],
+        steps: steps,
         onComplete: () async {
           _tourOverlay?.remove();
           _tourOverlay = null;
@@ -319,6 +330,62 @@ class QuestionsPanelState extends State<QuestionsPanel>
       }
       _questions.clear();
     });
+  }
+
+  /// Wrapper publik untuk menu di header Edit Form.
+  Future<void> clearAllQuestions() => _clearAllQuestions();
+
+  /// Kembalikan draf soal ke data tersimpan terakhir (baseline server).
+  /// Dipakai tombol "Reset Draf" di header Edit Form — mencegah konflik
+  /// saat form sudah dikerjakan responden: draf lokal yang menyimpang
+  /// dibuang dan diganti data server.
+  Future<void> resetDraft() async {
+    if (widget.questionsLocked) return;
+    if (_saving || _importing) return;
+    if (!_hasChanges) {
+      showAuthToast(context, 'Tidak ada perubahan draf');
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'Reset Draf Soal?',
+          style: TextStyle(fontFamily: kFontBold),
+        ),
+        content: const Text(
+          'Perubahan soal yang belum disimpan akan dibuang dan dikembalikan ke data tersimpan terakhir.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    // Form baru (belum ada di server): baseline = kosong.
+    if (_formId == null) {
+      setState(() {
+        for (final q in _questions) {
+          q.dispose();
+        }
+        _questions.clear();
+        _baseline = [];
+      });
+      showAuthToast(context, 'Draf soal dikosongkan');
+      return;
+    }
+    await _loadQuestions(refresh: true);
+    if (!mounted) return;
+    if (_loadError == null) {
+      showAuthToast(context, 'Draf soal dikembalikan ke data tersimpan');
+    }
   }
 
   /// Simpan soal ke server (dipakai tombol Simpan + guard keluar).
@@ -508,17 +575,13 @@ class QuestionsPanelState extends State<QuestionsPanel>
         ],
       );
     if (widget.embedded) {
-      // Dual panel: AppBar dipakai sebagai header kolom (tanpa tombol
-      // kembali, navigasi via AppBar layar editor), FAB di area panel.
+      // Di dalam tab Soal layar editor: TIDAK ada header "Kelola Soal"
+      // sendiri — hanya item-item soal. Tombol Simpan + menu aksi soal
+      // (hapus semua / impor / unduh template / reset draf) tinggal di
+      // header Edit Form. FAB tambah soal tetap di area panel.
       return Scaffold(
         backgroundColor: Colors.transparent,
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            appBar,
-            Expanded(child: _agentOverlay(_buildBodyContent())),
-          ],
-        ),
+        body: _agentOverlay(_buildBodyContent()),
         floatingActionButton: _fabSlot(cs),
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       );
