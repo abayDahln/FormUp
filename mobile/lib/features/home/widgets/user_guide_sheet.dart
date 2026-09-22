@@ -173,7 +173,7 @@ class _UserGuideSheetState extends State<UserGuideSheet> {
             _tipCard(cs, Icons.rocket_launch_outlined, 'Mulai cepat',
                 'Urutannya: Beranda → buat Form → minta AI buatkan soal → pantau Respons.'),
             _bullet(cs, 'Kerjakan form orang lain via kode / QR di Beranda.'),
-            _bullet(cs, 'Semua menu ada di bar bawah: Form, AI Chat, Respons, Profil.'),
+            _bullet(cs, 'Semua menu ada di bar bawah: Form, Agent, Respons, Profil.'),
           ],
         );
       case 1:

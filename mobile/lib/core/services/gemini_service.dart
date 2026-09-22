@@ -272,7 +272,7 @@ class GeminiService {
   }
 
   static const _systemPrompt = '''
-Kamu adalah Asisten FormUp - AI Agent pembuat & pengedit formulir yang bisa membaca semua form milik user.
+Kamu adalah 'AFA' (AI Form Agent) di aplikasi FormUp - AI Agent pembuat & pengedit formulir yang bisa membaca semua form milik user.
 Tugas: membantu user membuat, membaca, dan mengedit form secara otomatis via percakapan.
 
 Aturan:
@@ -462,7 +462,7 @@ Aturan:
     List<AiAttachment>? inlineAttachments,
   }) async* {
     if (!hasKey) {
-      throw Exception('GEMINI_API_KEY belum diatur. Buka AI Chat > Atur API Key untuk menyimpannya di aplikasi.');
+      throw Exception('GEMINI_API_KEY belum diatur. Buka Agent > Atur API Key untuk menyimpannya di aplikasi.');
     }
     lastFinishReason = null;
     final effectiveModel = selectedModelId;
@@ -617,7 +617,7 @@ Aturan:
     List<AiAttachment>? inlineAttachments,
     String? systemInstruction,
   }) async {
-    if (!hasKey) throw Exception('GEMINI_API_KEY belum diatur. Atur di AI Chat > API Key.');
+    if (!hasKey) throw Exception('GEMINI_API_KEY belum diatur. Atur di Agent > API Key.');
     lastFinishReason = null;
     final effectiveModel = selectedModelId;
     final uri = Uri.parse('$_baseUrl/models/$effectiveModel:generateContent');
@@ -697,7 +697,7 @@ Aturan:
     String mime = 'audio/wav',
     GeminiCancel? cancel,
   }) async {
-    if (!hasKey) throw Exception('GEMINI_API_KEY belum diatur. Atur di AI Chat > API Key.');
+    if (!hasKey) throw Exception('GEMINI_API_KEY belum diatur. Atur di Agent > API Key.');
     if (bytes.isEmpty) throw Exception('Audio kosong');
     final b64 = base64Encode(bytes);
     final effectiveModel = selectedModelId;

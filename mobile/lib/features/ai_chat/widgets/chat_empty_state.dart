@@ -39,12 +39,12 @@ class ChatEmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             const Text(
-              'Tanya AI untuk membuat form',
+              'AFA — AI Form Agent',
               style: TextStyle(fontFamily: kFontBold, fontSize: 16),
             ),
             const SizedBox(height: 8),
             Text(
-              'Contoh: "Buatkan form kuis matematika 10 soal pilihan ganda tentang aljabar" atau "Edit form #12 tambahkan 5 soal essay"',
+              'Minta AFA Buat form yang di inginkan, misalnya: "Buat kuis matematika 10 soal pilihan ganda tentang aljabar" atau "Edit form #12 tambahkan 5 soal essay"',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
             ),

@@ -586,7 +586,7 @@ class _HomeScreenState extends State<HomeScreen> {
         NavigationDestination(
           icon: AiChatIcon(color: cs.onSurfaceVariant, size: 24, filled: false),
           selectedIcon: AiChatIcon(color: cs.primary, size: 24, filled: true),
-          label: 'AI Chat',
+          label: 'Agent',
         ),
         NavigationDestination(
           icon: Icon(Icons.bar_chart_outlined),
@@ -614,7 +614,7 @@ class _HomeScreenState extends State<HomeScreen> {
         NavigationRailDestination(
           icon: AiChatIcon(color: cs.onSurfaceVariant, size: 24, filled: false),
           selectedIcon: AiChatIcon(color: cs.primary, size: 24, filled: true),
-          label: Text('AI Chat'),
+          label: Text('Agent'),
         ),
         NavigationRailDestination(
           icon: Icon(Icons.bar_chart_outlined),
@@ -743,7 +743,7 @@ class _HomeScreenState extends State<HomeScreen> {
         NavigationDrawerDestination(
           icon: AiChatIcon(color: cs.onSurfaceVariant, size: 24, filled: false),
           selectedIcon: AiChatIcon(color: cs.primary, size: 24, filled: true),
-          label: Text('AI Chat'),
+          label: Text('Agent'),
         ),
         NavigationDrawerDestination(
           icon: Icon(Icons.bar_chart_outlined),

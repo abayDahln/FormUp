@@ -104,7 +104,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
           maxLines: 4,
           textInputAction: TextInputAction.send,
           onSubmitted: (_) { if (canSend && !widget.streaming && !widget.sending) widget.onSend(); },
-          decoration: InputDecoration(hintText: 'Tanya Gemini', filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.fromLTRB(4, 10, 8, 8), hintStyle: TextStyle(fontSize: 15, color: cs.onSurfaceVariant)),
+          decoration: InputDecoration(hintText: 'Tanya AFA', filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.fromLTRB(4, 10, 8, 8), hintStyle: TextStyle(fontSize: 15, color: cs.onSurfaceVariant)),
           style: TextStyle(fontSize: 15, color: cs.onSurface),
         );
     Widget micButton() => widget.isTranscribing
