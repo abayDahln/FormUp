@@ -47,8 +47,21 @@ export const uploadOptionImage = (formId, questionId, optionId, file, onProgress
     });
 };
 
+export const getOrCreateDeviceId = () => {
+    if (typeof window === 'undefined') return 'server_side';
+    let id = localStorage.getItem('formup_device_id');
+    if (!id) {
+        id = 'dev_' + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36));
+        localStorage.setItem('formup_device_id', id);
+    }
+    return id;
+};
+
 const authHeaders = () => {
-    const headers = { 'Content-Type': 'application/json' };
+    const headers = { 
+        'Content-Type': 'application/json',
+        'X-Device-Id': getOrCreateDeviceId(),
+    };
     const token = getToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
     return headers;
@@ -99,7 +112,9 @@ const _performRefreshMutex = async () => {
 export const authFetch = async (url, options = {}) => {
     const token = getToken();
     const isFormData = options && options.body && typeof options.body.append && typeof options.body.constructor === 'function' && options.body instanceof FormData;
-    const baseHeaders = {};
+    const baseHeaders = {
+        'X-Device-Id': getOrCreateDeviceId(),
+    };
     if (!isFormData) baseHeaders['Content-Type'] = 'application/json';
     if (token) baseHeaders['Authorization'] = `Bearer ${token}`;
     const headers = { ...baseHeaders, ...(options.headers || {}) };
@@ -609,7 +624,11 @@ export const getFormAnalytics = async (formId) => parseResponse(await authFetch(
 
 // Step 1: Get public form metadata & requirements (no questions)
 export const getPublicFormByLink = async (formLink) => {
-    const res = await fetch(`${API_BASE_URL}/api/public/forms/${formLink}`);
+    const res = await fetch(`${API_BASE_URL}/api/public/forms/${formLink}`, {
+        headers: {
+            'X-Device-Id': getOrCreateDeviceId(),
+        },
+    });
     return parseResponse(res);
 };
 
@@ -694,6 +713,7 @@ export const syncExamAnswers = async (formLink, sessionId, { answers, respondent
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'X-Device-Id': getOrCreateDeviceId(),
         },
         body: JSON.stringify({ answers, respondentName }),
     });
