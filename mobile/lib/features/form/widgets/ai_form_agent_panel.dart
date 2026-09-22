@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
@@ -118,7 +119,35 @@ class AiFormAgentPanel extends StatefulWidget {
 class AiFormAgentPanelState extends State<AiFormAgentPanel> {
   final List<_AgentMsg> _messages = [];
   final TextEditingController _input = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
+
+  /// Fokus field prompt. Di platform keyboard fisik (Windows/macOS/Linux/web)
+  /// Enter = kirim, Shift+Enter = baris baru (lihat [_hardwareEnterToSend]).
+  /// Mobile tidak disentuh agar perilaku soft keyboard tetap apa adanya.
+  late final FocusNode _focusNode = FocusNode(
+    onKeyEvent: (node, event) {
+      if (!_hardwareEnterToSend) return KeyEventResult.ignored;
+      if (event is! KeyDownEvent) return KeyEventResult.ignored;
+      if (event.logicalKey != LogicalKeyboardKey.enter) {
+        return KeyEventResult.ignored;
+      }
+      // Shift+Enter (atau Ctrl/Alt/Meta+Enter) = baris baru, bukan kirim.
+      final hw = HardwareKeyboard.instance;
+      if (hw.isShiftPressed || hw.isControlPressed || hw.isAltPressed) {
+        return KeyEventResult.ignored;
+      }
+      if (hw.isMetaPressed) return KeyEventResult.ignored;
+      // Kosong = biarkan (newline tak merusak); sibuk/merekam/edit = telan
+      // agar tak menambah baris ke antrean kirim.
+      if (_input.text.trim().isEmpty && _pendingAttachments.isEmpty) {
+        return KeyEventResult.ignored;
+      }
+      if (_busy || _voice.isTranscribing || _editingIndex != null) {
+        return KeyEventResult.handled;
+      }
+      _send();
+      return KeyEventResult.handled;
+    },
+  );
   final ScrollController _scroll = ScrollController();
   final AiVoiceRecorder _voice = AiVoiceRecorder();
 
@@ -191,6 +220,16 @@ class AiFormAgentPanelState extends State<AiFormAgentPanel> {
     _scroll.dispose();
     _voice.dispose();
     super.dispose();
+  }
+
+  /// True di platform keyboard fisik (desktop + web): Enter = kirim,
+  /// Shift+Enter = baris baru. Android/iOS selalu false agar soft keyboard
+  /// (aksi newline) tidak berubah perilakunya.
+  bool get _hardwareEnterToSend {
+    if (kIsWeb) return true;
+    return defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux;
   }
 
   String _newId() => DateTime.now().microsecondsSinceEpoch.toString();
@@ -1282,7 +1321,19 @@ ${_draftSnapshot(s, questions)}''';
           separatorBuilder: (_, _) => const SizedBox(height: 12),
           itemBuilder: (context, i) {
             if (i >= _messages.length) return _busyBubble();
-            return _bubble(cs, i, _messages[i], bubbleMaxW);
+            final m = _messages[i];
+            // Tombol aksi (salin/edit/retry/undo) di BAWAH bubble — bukan di
+            // dalam — agar seleksi teks di dalam bubble tak terganggu.
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: m.isUser
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                _bubble(cs, i, m, bubbleMaxW),
+                _bubbleActions(cs, i, m),
+              ],
+            );
           },
         );
       },
@@ -1379,9 +1430,11 @@ ${_draftSnapshot(s, questions)}''';
   /// Lebar maksimum dihitung dari LayoutBuilder panel — BUKAN lebar jendela
   /// seperti ChatBubble (sidebar 380px di jendela 1400px akan salah ukur).
   ///
-  /// Baris aksi (salin / edit / retry / undo) hanya tampil bila aman:
-  /// disembunyikan selama [_busy] atau transkripsi suara. Edit khusus pesan
-  /// user terakhir, retry khusus balasan terakhir, undo mengikuti [_canUndo].
+  /// Isi bubble saja (tanpa tombol aksi — aksi dirender DI BAWAH bubble oleh
+  /// [_bubbleActions] agar seleksi teks di dalam bubble tak terganggu).
+  /// Baris aksi disembunyikan selama [_busy] atau transkripsi suara. Edit
+  /// khusus pesan user terakhir, retry khusus balasan terakhir, undo
+  /// mengikuti [_canUndo].
   Widget _bubble(ColorScheme cs, int index, _AgentMsg m, double bubbleMaxW) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     // Bubble user tema-sadar — alasan sama seperti `ChatBubble`: skema gelap
@@ -1486,8 +1539,7 @@ ${_draftSnapshot(s, questions)}''';
                   ),
                 ),
             ],
-            // Baris aksi pesan (di luar mode edit).
-            if (_editingIndex != index) _bubbleActions(cs, index, m),
+            // (Tombol aksi tidak di sini — dirender di bawah bubble.)
           ],
         ),
       ),
@@ -1544,9 +1596,13 @@ ${_draftSnapshot(s, questions)}''';
     );
   }
 
-  /// Baris aksi kecil di bawah isi bubble. Selama [_busy]/transkripsi tidak
-  /// ada tombol sama sekali (kecuali salin yang aman kapan pun).
+  /// Baris aksi kecil DI BAWAH bubble (rata sisi bubble via Column parent):
+  /// salin + edit untuk pesan user; retry + undo untuk balasan asisten.
+  /// Selama [_busy]/transkripsi tidak ada tombol sama sekali (kecuali salin
+  /// yang aman kapan pun); mode edit menyembunyikan baris ini.
   Widget _bubbleActions(ColorScheme cs, int index, _AgentMsg m) {
+    // Mode edit: field Batal/Simpan sudah ada di dalam bubble.
+    if (_editingIndex == index) return const SizedBox.shrink();
     // Aksi berbahaya disembunyikan saat AI bekerja / merekam suara.
     final locked = _busy || _voice.isTranscribing;
     final isLast = index == _messages.length - 1;
@@ -1596,8 +1652,13 @@ ${_draftSnapshot(s, questions)}''';
       }
     }
     if (actions.isEmpty) return const SizedBox.shrink();
+    // Rapat di bawah bubble, sedikit inset dari tepi sisi bubble.
     return Padding(
-      padding: const EdgeInsets.only(top: 6),
+      padding: EdgeInsets.only(
+        top: 2,
+        right: m.isUser ? 6 : 0,
+        left: m.isUser ? 0 : 6,
+      ),
       child: Row(mainAxisSize: MainAxisSize.min, children: actions),
     );
   }
