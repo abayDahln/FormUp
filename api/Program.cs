@@ -260,7 +260,21 @@ namespace FormUpAPI
                 });
             });
 
+            // Origin boleh dari appsettings.json "AllowedOrigins" dan/atau SATU
+            // env var ALLOWED_ORIGINS (pisah koma/titik-koma). Bentuk satu-var
+            // ini yang paling andal di hosting (Docker/Railway/Render/VPS),
+            // karena sintaks AllowedOrigins__0/__1 hanya berlaku bila file
+            // .env benar-benar termuat — sedangkan .env di-gitignore dan
+            // sering tidak ikut ter-deploy.
             var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? [];
+            var extraOrigins = (Environment.GetEnvironmentVariable("ALLOWED_ORIGINS") ?? "")
+                .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            allowedOrigins = allowedOrigins
+                .Concat(extraOrigins)
+                .Where(o => !string.IsNullOrWhiteSpace(o))
+                .Select(o => o.Trim().TrimEnd('/'))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("AllowFrontend", policy =>
@@ -273,6 +287,14 @@ namespace FormUpAPI
             });
 
             var app = builder.Build();
+
+            // Bukti di log produksi: daftar origin efektif saat runtime.
+            // Bila domain frontend tidak tercantum di sini, redeploy API
+            // (build lama) atau perbaiki env ALLOWED_ORIGINS di host.
+            app.Logger.LogInformation(
+                "CORS AllowedOrigins ({Count}): {Origins}",
+                allowedOrigins.Length,
+                string.Join(", ", allowedOrigins));
 
             // Forwarded Headers
             app.UseForwardedHeaders(new ForwardedHeadersOptions
