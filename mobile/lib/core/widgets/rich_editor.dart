@@ -222,7 +222,34 @@ List<Map> _htmlToDeltaOps(String html) {
     );
   }
 
-  for (final t in tokens) {
+  for (var k = 0; k < tokens.length; k++) {
+    final t = tokens[k];
+    // Isi <pre><code> adalah TEKS KODE mentah (cara web: diekstrak dulu
+    // sebelum render markup) — tag HTML di dalamnya BUKAN struktur wysiwyg,
+    // melainkan soal/jawaban kode yang harus tampil apa adanya.
+    // Dikecualikan: pembuka <code> (pembawa bahasa) dan pasangan penutup
+    // </code></pre> yang mengakhiri blok (cara web).
+    if (inCode) {
+      final isPreClose = t.closing && t.tagName == 'pre';
+      final isCodeOpen = !t.closing && t.tagName == 'code';
+      final next = k + 1 < tokens.length ? tokens[k + 1] : null;
+      final isCodeClosePair =
+          t.closing &&
+          t.tagName == 'code' &&
+          next != null &&
+          next.closing &&
+          next.tagName == 'pre';
+      if (isCodeClosePair) continue; // penutup struktur, bukan isi kode
+      if (!isPreClose && !isCodeOpen) {
+        if (t.text != null) {
+          codeBuffer.write(_unescapeHtml(t.text!));
+        } else {
+          codeBuffer.write(t.raw);
+        }
+        continue;
+      }
+      // isPreClose / isCodeOpen → lanjut ke penanganan normal di bawah.
+    }
     if (t.text != null) {
       if (inCode) {
         codeBuffer.write(_unescapeHtml(t.text!));
@@ -478,7 +505,7 @@ List<_HtmlToken> _tokenizeHtml(String html) {
       if (key == null || key == name) continue;
       attrs[key] = am.group(3) ?? am.group(4) ?? am.group(5) ?? '';
     }
-    tokens.add(_HtmlToken.tag(name, closing, attrs));
+    tokens.add(_HtmlToken.tag(name, closing, attrs, tagStr));
     last = m.end;
   }
   if (last < html.length) tokens.add(_HtmlToken.text(html.substring(last)));
@@ -491,12 +518,18 @@ class _HtmlToken {
   final bool closing;
   final Map<String, String> attrs;
 
+  /// Tag mentah persis seperti di sumber — untuk disalin verbatim saat
+  /// berada di dalam blok kode <pre>.
+  final String raw;
+
   _HtmlToken.text(String this.text)
     : tagName = null,
       closing = false,
-      attrs = const {};
+      attrs = const {},
+      raw = '';
 
-  _HtmlToken.tag(String this.tagName, this.closing, this.attrs) : text = null;
+  _HtmlToken.tag(String this.tagName, this.closing, this.attrs, this.raw)
+    : text = null;
 }
 
 class _OutLine {

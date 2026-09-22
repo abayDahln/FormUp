@@ -64,6 +64,32 @@ void main() {
     expect(doc.toPlainText(), contains('print(2)'));
   });
 
+  test('richDocument menjaga tag HTML mentah di dalam blok kode', () {
+    // Cara web: isi <pre><code> adalah TEKS kode (mis. soal HTML), bukan
+    // struktur wysiwyg — tag di dalamnya harus tampil apa adanya.
+    final doc = richDocument(
+      '<pre><code class="language-html"><div class="box">\n  <p>Hello</p>\n</div></code></pre>',
+    );
+    final plain = doc.toPlainText();
+    expect(plain, contains('```html'));
+    expect(plain, contains('<div class="box">'));
+    expect(plain, contains('<p>Hello</p>'));
+    expect(plain, contains('</div>'));
+  });
+
+  test('round-trip blok kode HTML tidak menghilangkan tag', () {
+    final doc = richDocument(
+      '<pre><code class="language-html"><div class="box">Hi</div></code></pre>',
+    );
+    final controller = QuillController(
+      document: doc,
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+    final html = encodeRichText(controller);
+    expect(html, contains('<pre><code class="language-html">'));
+    expect(html, contains('&lt;div class="box"&gt;Hi&lt;/div&gt;'));
+  });
+
   test('encodeRichText kosong untuk konten polos', () {
     final controller = QuillController(
       document: richDocument('   '),
