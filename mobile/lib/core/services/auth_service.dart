@@ -137,6 +137,24 @@ class AuthService {
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
+  static const _kDeviceId = 'formup_device_id';
+  static String? _cachedDeviceId;
+
+  /// Mengambil atau membuat ID unik perangkat untuk rate limiting independen di Wi-Fi bersama
+  static Future<String> getDeviceId() async {
+    if (_cachedDeviceId != null && _cachedDeviceId!.isNotEmpty) {
+      return _cachedDeviceId!;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    var devId = prefs.getString(_kDeviceId);
+    if (devId == null || devId.isEmpty) {
+      devId = 'mob_${DateTime.now().millisecondsSinceEpoch}_${(1000 + (DateTime.now().microsecond % 9000))}';
+      await prefs.setString(_kDeviceId, devId);
+    }
+    _cachedDeviceId = devId;
+    return devId;
+  }
+
   static const _offlineMessage =
       'Kamu sedang offline. Login dan perubahan data tidak tersedia.';
 
@@ -415,6 +433,8 @@ class AuthService {
       try {
         final request = http.Request(method, Uri.parse('$apiBaseUrl$path'));
         request.headers.addAll(headers);
+        final devId = await getDeviceId();
+        request.headers['X-Device-Id'] = devId;
         if (body != null) {
           request.headers['Content-Type'] = 'application/json; charset=UTF-8';
           request.body = jsonEncode(body);
