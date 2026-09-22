@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:async';
+
+import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/responsive.dart';
@@ -16,6 +18,7 @@ import 'package:form_up/core/widgets/onboarding_tour.dart';
 import 'package:form_up/features/form/controllers/question_validation.dart';
 import 'package:form_up/features/form/controllers/questions_persist.dart';
 import 'package:form_up/features/form/widgets/ai_form_agent_panel.dart';
+import 'package:form_up/features/form/widgets/ai_highlight_border.dart';
 import 'package:form_up/features/form/widgets/question_confirm_dialogs.dart';
 import 'package:form_up/features/form/widgets/question_import_mixin.dart';
 import 'package:form_up/features/form/widgets/question_list_card.dart';
@@ -90,6 +93,44 @@ class QuestionsPanelState extends State<QuestionsPanel>
     if (mounted) setState(() {});
   }
 
+  /// Sorot kartu soal yang baru dikerjakan AFA (border hijau berputar) +
+  /// auto-scroll ke kartu pertama. Dipanggil panel AFA setiap satu aksi
+  /// diterapkan (mode staggered) — langsung bila overlay milik panel ini,
+  /// diteruskan layar editor bila overlay milik layar. Highlight padam
+  /// sendiri ±6 detik.
+  Set<int> _aiHighlight = {};
+  Timer? _aiHighlightTimer;
+  final Map<int, GlobalKey> _aiCardKeys = {};
+
+  GlobalKey _aiCardKey(int i) =>
+      _aiCardKeys.putIfAbsent(i, () => GlobalKey());
+
+  void flashAiTouched(List<int> indexes) {
+    if (!mounted || indexes.isEmpty) return;
+    _aiHighlightTimer?.cancel();
+    _aiCardKeys.removeWhere((k, _) => k >= _questions.length);
+    final valid = indexes
+        .where((i) => i >= 0 && i < _questions.length)
+        .toSet();
+    if (valid.isEmpty) return;
+    setState(() => _aiHighlight = valid);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _aiCardKeys[valid.first]?.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOutCubic,
+          alignment: 0.15,
+        );
+      }
+    });
+    _aiHighlightTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) setState(() => _aiHighlight = {});
+    });
+  }
+
   // --- QuestionImportMixin accessors ---
   @override
   List<QuestionDraft> get importQuestions => _questions;
@@ -153,6 +194,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
   void dispose() {
     _tourOverlay?.remove();
     _tourOverlay = null;
+    _aiHighlightTimer?.cancel();
     for (final q in _questions) {
       q.dispose();
     }
@@ -646,6 +688,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
                       // Mode kunci: agen tak diberi akses daftar soal.
                       questions: widget.questionsLocked ? null : () => _questions,
                       onChanged: () => setState(() {}),
+                      onQuestionsTouched: flashAiTouched,
                       onClose: () => setState(() => _aiOpen = false),
                     ),
                   ),
@@ -767,7 +810,10 @@ class QuestionsPanelState extends State<QuestionsPanel>
                                     itemBuilder: (context, i) {
                                       final card = Padding(
                                         padding: const EdgeInsets.only(bottom: 12),
-                                        child: QuestionListCard(
+                                        child: AiHighlightBorder(
+                                          key: _aiCardKey(i),
+                                          active: _aiHighlight.contains(i),
+                                          child: QuestionListCard(
                                           index: i,
                                           totalCount: _questions.length,
                                           question: _questions[i],
@@ -779,6 +825,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
                                             _questions[i].dispose();
                                             _questions.removeAt(i);
                                           }),
+                                          ),
                                         ),
                                       );
                                       // Mode kunci: tanpa gagang drag (susun

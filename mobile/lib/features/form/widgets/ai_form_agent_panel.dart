@@ -67,6 +67,15 @@ class _DraftSnapshot {
   const _DraftSnapshot({this.title, this.descPlain, this.questions});
 }
 
+/// Hasil satu aksi AFA: ringkasan untuk bubble + indeks soal yang tersentuh
+/// (untuk highlight kartu; kosong bila tak ada kartu terkait).
+class _AppliedOne {
+  final String summary;
+  final List<int> touched;
+
+  const _AppliedOne(this.summary, [this.touched = const []]);
+}
+
 /// Panel **AFA (AI Form Agent)** — versi mini dari layar AI Chat (gaya
 /// Gemini), hidup di layar edit form (sidebar tablet/desktop, overlay di HP).
 ///
@@ -99,6 +108,12 @@ class AiFormAgentPanel extends StatefulWidget {
   /// Memberi tahu screen agar rebuild setelah draf diubah.
   final void Function() onChanged;
 
+  /// Dipanggil SETIAP satu aksi soal diterapkan (mode staggered): berisi
+  /// indeks soal yang baru ditambah/diubah pada langkah itu. Layar memakai
+  /// ini untuk highlight + auto-scroll ke kartu soal tersebut. Kosong untuk
+  /// aksi pengaturan (judul/deskripsi) dan aksi hapus.
+  final void Function(List<int> touched)? onQuestionsTouched;
+
   /// Menutup panel (null = tidak ada tombol tutup, mis. dipakai sebagai
   /// kartu penuh di sidebar).
   final VoidCallback? onClose;
@@ -109,6 +124,7 @@ class AiFormAgentPanel extends StatefulWidget {
     this.settings,
     this.questions,
     required this.onChanged,
+    this.onQuestionsTouched,
     this.onClose,
   });
 
@@ -550,7 +566,12 @@ class AiFormAgentPanelState extends State<AiFormAgentPanel> {
       // Snapshot SEBELUM mutasi — dibuang bila ternyata tak ada aksi agar
       // memori tidak membengkak (salinan Quill document per soal).
       final snapshot = _captureSnapshot();
-      final applied = _applyActions(parsed['actions'] as List<dynamic>? ?? []);
+      // Staggered: soal muncul satu per satu (±300ms) dengan highlight +
+      // auto-scroll per langkah, bukan sekaligus.
+      final applied = await _applyActionsStaggered(
+        parsed['actions'] as List<dynamic>? ?? [],
+      );
+      if (!mounted) return;
       final reply = (parsed['reply'] as String?)?.trim();
       setState(() {
         _busy = false;
@@ -1047,64 +1068,113 @@ ${_draftSnapshot(s, questions)}''';
     if (q.typeId == 4) q.isScorable = false;
   }
 
-  /// Terapkan semua aksi dari AFA; return ringkasan perubahan.
-  List<String> _applyActions(List<dynamic> rawActions) {
+  /// Terapkan semua aksi dari AFA satu per satu (STAGGERED, bukan sekaligus):
+  /// setiap aksi diterapkan → [onChanged] + [onQuestionsTouched] (highlight &
+  /// auto-scroll kartu) → jeda ±300ms (skala dengan kerumitan soal) → aksi
+  /// berikutnya. Return ringkasan perubahan.
+  ///
+  /// Panel boleh ditutup di tengah jeda: sisa aksi tetap diselesaikan TANPA
+  /// jeda/notify (draf milik parent yang masih hidup), snapshot undo tetap
+  /// mencakup seluruh batch karena diambil sebelum loop (lihat pemanggil).
+  Future<List<String>> _applyActionsStaggered(
+    List<dynamic> rawActions,
+  ) async {
     final applied = <String>[];
-    final s = widget.settings?.call();
-    final questions = widget.questions?.call();
     for (final raw in rawActions) {
       if (raw is! Map) continue;
       final action = Map<String, dynamic>.from(raw);
-      switch ((action['type'] ?? '').toString()) {
-        case 'set_title':
-          if (s == null) break;
-          final value = (action['value'] ?? '').toString().trim();
-          if (value.isEmpty) break;
-          s.titleController.text = value;
-          applied.add('Judul form diubah');
-          break;
-        case 'set_description':
-          if (s == null) break;
-          s.descController.document = Document()
-            ..insert(0, (action['value'] ?? '').toString());
-          applied.add('Deskripsi form diubah');
-          break;
-        case 'add_question':
-          if (questions == null) break;
-          final spec = action['question'] ?? action['soal'];
-          if (spec is! Map) break;
-          questions.add(_draftFrom(Map<String, dynamic>.from(spec)));
-          applied.add('Soal #${questions.length} ditambahkan');
-          break;
-        case 'update_question':
-          if (questions == null) break;
-          final i = action['index'] is num
-              ? (action['index'] as num).toInt()
-              : -1;
-          if (i < 0 || i >= questions.length) break;
-          _updateDraft(questions[i], action);
-          applied.add('Soal #${i + 1} diperbarui');
-          break;
-        case 'delete_question':
-          if (questions == null) break;
-          final i = action['index'] is num
-              ? (action['index'] as num).toInt()
-              : -1;
-          if (i < 0 || i >= questions.length) break;
-          questions.removeAt(i).dispose();
-          applied.add('Soal #${i + 1} dihapus');
-          break;
-        case 'clear_questions':
-          if (questions == null || questions.isEmpty) break;
-          for (final q in questions) {
-            q.dispose();
-          }
-          questions.clear();
-          applied.add('Semua soal dihapus');
-          break;
+      // Jeda stagger membuka jendela race: user bisa keluar layar (draf
+      // ter-dispose) di tengah batch. Kegagalan satu aksi menghentikan sisa
+      // batch — bubble hanya melaporkan yang benar-benar teraplikasi.
+      _AppliedOne? res;
+      try {
+        res = _applyOne(action);
+      } catch (_) {
+        break;
       }
+      if (res == null) continue;
+      applied.add(res.summary);
+      widget.onChanged();
+      if (res.touched.isNotEmpty) {
+        widget.onQuestionsTouched?.call(res.touched);
+      }
+      if (!mounted) continue;
+      await Future.delayed(_staggerDelayFor(action));
     }
     return applied;
+  }
+
+  /// Jeda antar aksi: ±300ms, membesar mengikuti kerumitan soal (jumlah opsi
+  /// pada tambah/ubah) agar soal kompleks terasa "dikerjakan" lebih lama.
+  /// Hapus/basis 200ms. Dibatasi 550ms agar batch besar tak berlarut.
+  Duration _staggerDelayFor(Map<String, dynamic> action) {
+    switch ((action['type'] ?? '').toString()) {
+      case 'add_question':
+      case 'update_question':
+        final spec = action['question'] ?? action['soal'];
+        var options = 0;
+        if (spec is Map) {
+          final raw = spec['options'] ?? spec['opsi'];
+          if (raw is List) options = raw.length;
+        }
+        return Duration(milliseconds: (250 + options * 50).clamp(250, 550));
+      default:
+        return const Duration(milliseconds: 200);
+    }
+  }
+
+  /// Hasil satu aksi: ringkasan + indeks soal yang tersentuh (untuk highlight).
+  /// Null = aksi dilewati (kemampuan mati / indeks tak valid / value kosong).
+  _AppliedOne? _applyOne(Map<String, dynamic> action) {
+    final s = widget.settings?.call();
+    final questions = widget.questions?.call();
+    switch ((action['type'] ?? '').toString()) {
+      case 'set_title':
+        if (s == null) return null;
+        final value = (action['value'] ?? '').toString().trim();
+        if (value.isEmpty) return null;
+        s.titleController.text = value;
+        return const _AppliedOne('Judul form diubah');
+      case 'set_description':
+        if (s == null) return null;
+        s.descController.document = Document()
+          ..insert(0, (action['value'] ?? '').toString());
+        return const _AppliedOne('Deskripsi form diubah');
+      case 'add_question':
+        if (questions == null) return null;
+        final spec = action['question'] ?? action['soal'];
+        if (spec is! Map) return null;
+        questions.add(_draftFrom(Map<String, dynamic>.from(spec)));
+        return _AppliedOne(
+          'Soal #${questions.length} ditambahkan',
+          [questions.length - 1],
+        );
+      case 'update_question':
+        if (questions == null) return null;
+        final i = action['index'] is num
+            ? (action['index'] as num).toInt()
+            : -1;
+        if (i < 0 || i >= questions.length) return null;
+        _updateDraft(questions[i], action);
+        return _AppliedOne('Soal #${i + 1} diperbarui', [i]);
+      case 'delete_question':
+        if (questions == null) return null;
+        final i = action['index'] is num
+            ? (action['index'] as num).toInt()
+            : -1;
+        if (i < 0 || i >= questions.length) return null;
+        questions.removeAt(i).dispose();
+        // Soal sudah tak ada → tak ada kartu untuk di-highlight.
+        return _AppliedOne('Soal #${i + 1} dihapus');
+      case 'clear_questions':
+        if (questions == null || questions.isEmpty) return null;
+        for (final q in questions) {
+          q.dispose();
+        }
+        questions.clear();
+        return const _AppliedOne('Semua soal dihapus');
+    }
+    return null;
   }
 
   Future<void> _pickFiles() async {

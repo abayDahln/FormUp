@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/features/form/controllers/question_validation.dart';
 import 'package:form_up/features/form/controllers/questions_persist.dart';
 import 'package:form_up/features/form/widgets/ai_form_agent_panel.dart';
+import 'package:form_up/features/form/widgets/ai_highlight_border.dart';
 import 'package:form_up/features/form/widgets/form_settings_panel.dart';
 import 'package:form_up/features/form/widgets/question_accordion_card.dart';
 import 'package:form_up/features/form/widgets/question_import_mixin.dart';
@@ -69,6 +71,45 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   /// panel kanan di lebar lebih sempit).
   bool _aiOpen = false;
 
+  /// Highlight kerja AFA: indeks soal yang baru disentuh AI (border hijau
+  /// berputar) + timer penghapus + key per kartu untuk auto-scroll.
+  Set<int> _aiHighlight = {};
+  Timer? _aiHighlightTimer;
+  final Map<int, GlobalKey> _aiCardKeys = {};
+
+  GlobalKey _aiCardKey(int i) =>
+      _aiCardKeys.putIfAbsent(i, () => GlobalKey());
+
+  /// Dipanggil panel AFA setiap satu aksi soal diterapkan: sorot kartunya
+  /// + scroll ke sana. Highlight bertahan ±6 detik lalu padam sendiri.
+  void _flashAiCards(List<int> indexes) {
+    if (!mounted || indexes.isEmpty) return;
+    _aiHighlightTimer?.cancel();
+    // Buang key basi (daftar menyusut akibat hapus) agar ensureVisible tak
+    // menyasar kartu yang salah.
+    _aiCardKeys.removeWhere((k, _) => k >= _questions.length);
+    final valid = indexes
+        .where((i) => i >= 0 && i < _questions.length)
+        .toSet();
+    if (valid.isEmpty) return;
+    setState(() => _aiHighlight = valid);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _aiCardKeys[valid.first]?.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOutCubic,
+          alignment: 0.15,
+        );
+      }
+    });
+    _aiHighlightTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) setState(() => _aiHighlight = {});
+    });
+  }
+
   // --- QuestionImportMixin accessors ---
   @override
   List<QuestionDraft> get importQuestions => _questions;
@@ -96,6 +137,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   @override
   void dispose() {
     _router?.popBackGuard();
+    _aiHighlightTimer?.cancel();
     for (final q in _questions) {
       q.dispose();
     }
@@ -738,6 +780,8 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
           // Mode kunci: agen tak diberi akses daftar soal.
           questions: widget.questionsLocked ? null : () => _questions,
           onChanged: () => setState(() {}),
+          // Sorot + scroll ke soal yang baru dikerjakan AI (staggered).
+          onQuestionsTouched: _flashAiCards,
           onClose: () => setState(() => _aiOpen = false),
         ),
       ),
@@ -766,19 +810,23 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
       for (var i = 0; i < _questions.length; i++)
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: QuestionAccordionCard(
-            index: i,
-            totalCount: _questions.length,
-            draft: _questions[i],
-            expanded: _openIndex == i,
-            onToggle: () => setState(() {
-              _openIndex = _openIndex == i ? null : i;
-            }),
-            onChanged: () => setState(() {}),
-            onMoveUp: () => _moveQuestion(i, -1),
-            onMoveDown: () => _moveQuestion(i, 1),
-            onDelete: () => _deleteQuestion(i),
-            readOnly: widget.questionsLocked,
+          child: AiHighlightBorder(
+            key: _aiCardKey(i),
+            active: _aiHighlight.contains(i),
+            child: QuestionAccordionCard(
+              index: i,
+              totalCount: _questions.length,
+              draft: _questions[i],
+              expanded: _openIndex == i,
+              onToggle: () => setState(() {
+                _openIndex = _openIndex == i ? null : i;
+              }),
+              onChanged: () => setState(() {}),
+              onMoveUp: () => _moveQuestion(i, -1),
+              onMoveDown: () => _moveQuestion(i, 1),
+              onDelete: () => _deleteQuestion(i),
+              readOnly: widget.questionsLocked,
+            ),
           ),
         ),
     ];

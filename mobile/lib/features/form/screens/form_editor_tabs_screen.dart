@@ -414,6 +414,12 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
                           // rebuild agar perubahan AFA langsung terlihat.
                           _questionsKey.currentState?.notifyDraftChanged();
                         },
+                        // Sorot + scroll ke soal yang baru dikerjakan AI.
+                        // Overlay menutupi daftar, jadi highlight terlihat
+                        // saat overlay ditutup (bertahan ±6 detik).
+                        onQuestionsTouched: (touched) => _questionsKey
+                            .currentState
+                            ?.flashAiTouched(touched),
                         onClose: () => setState(() => _aiOpen = false),
                       ),
                     ),
