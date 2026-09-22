@@ -7,6 +7,7 @@ import 'package:form_up/core/widgets/loading_indicator.dart';
 import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -44,6 +45,7 @@ class _FormResponScreenState extends State<FormResponScreen>
   late final TabController _tabController;
   List<ResponseListItemData> _responses = [];
   bool _loading = true;
+  String? _loadError;
   bool _loadingMore = false;
   bool _exporting = false;
   bool _hasMore = true;
@@ -91,6 +93,7 @@ class _FormResponScreenState extends State<FormResponScreen>
       _loading = true;
       _page = page;
       _hasMore = true;
+      _loadError = null;
     });
     try {
       final result = await FormService.getResponses(
@@ -104,10 +107,15 @@ class _FormResponScreenState extends State<FormResponScreen>
         _responses = result.items;
         _total = result.total;
         _hasMore = _responses.length < result.total;
+        _loadError = null;
       });
       _scrollListToTop();
     } catch (e) {
       if (!mounted) return;
+      if (AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -316,12 +324,18 @@ class _FormResponScreenState extends State<FormResponScreen>
                               padding: centerPad(context,
                                   base: const EdgeInsets.fromLTRB(
                                       20, 12, 20, 24)),
-                              child: const EmptyState(
-                                icon: Icons.inbox_outlined,
-                                title: 'Belum ada respons',
-                                message:
-                                    'Bagikan form agar responden dapat mulai mengisi.',
-                              ),
+                              child: _loadError != null
+                                  ? ConnectionErrorView(
+                                      message: _loadError!,
+                                      onRetry: () =>
+                                          _load(refresh: true),
+                                    )
+                                  : const EmptyState(
+                                      icon: Icons.inbox_outlined,
+                                      title: 'Belum ada respons',
+                                      message:
+                                          'Bagikan form agar responden dapat mulai mengisi.',
+                                    ),
                             ),
                           )
                         : AppRefreshIndicator(

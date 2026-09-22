@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
@@ -29,6 +30,7 @@ class _ExamMonitoringPanelState extends State<ExamMonitoringPanel>
     with SingleTickerProviderStateMixin {
   ExamMonitoringData? _data;
   bool _loading = true;
+  String? _loadError;
   DateTime? _lastUpdated;
   Timer? _poller;
   late final AnimationController _pulse = AnimationController(
@@ -88,7 +90,12 @@ class _ExamMonitoringPanelState extends State<ExamMonitoringPanel>
   Future<void> _fetch({bool silent = false}) async {
     if (_fetchBusy) return;
     _fetchBusy = true;
-    if (!silent) setState(() => _loading = true);
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _loadError = null;
+      });
+    }
     try {
       final data = await FormService.getExamMonitoring(widget.formId);
       if (!mounted) return;
@@ -96,12 +103,17 @@ class _ExamMonitoringPanelState extends State<ExamMonitoringPanel>
       setState(() {
         _data = data;
         _loading = false;
+        _loadError = null;
         _lastUpdated = DateTime.now();
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
       if (!silent) {
+        if (_data == null && AuthService.isConnectionError(e)) {
+          setState(() => _loadError = AuthService.errorMessage(e));
+          return;
+        }
         showAuthToast(context, AuthService.errorMessage(e), isError: true);
       } else {
         _silentFailStreak++;
@@ -144,6 +156,19 @@ class _ExamMonitoringPanelState extends State<ExamMonitoringPanel>
     final data = _data;
     if (_loading && data == null) {
       return const LoadingOverlay(contained: true);
+    }
+    if (_loadError != null && data == null) {
+      return Center(
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          child: ConnectionErrorView(
+            message: _loadError!,
+            onRetry: () => _fetch(),
+            bare: true,
+          ),
+        ),
+      );
     }
     return AppRefreshIndicator(
       onRefresh: () => _fetch(silent: true),

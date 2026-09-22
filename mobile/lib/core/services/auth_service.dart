@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -92,8 +93,9 @@ class AuthResult {
 }
 
 class AuthService {
-  // ponytail: tanpa retry, error cepat terlihat. analytics butuh lebih lama (agregasi DB).
-  static const Duration _timeout = Duration(seconds: 15);
+  // Fetch API menunggu hingga 30 detik sebelum dianggap gagal koneksi,
+  // agar jaringan lag tidak langsung menampilkan error koneksi.
+  static const Duration _timeout = Duration(seconds: 30);
   static const int _maxRetries = 0;
 
   static Duration get timeout => _timeout;
@@ -345,6 +347,28 @@ class AuthService {
   static const _rateLimitMessage =
       'Terlalu banyak permintaan. Coba lagi nanti.';
 
+  /// True bila [e] adalah error koneksi/jaringan (timeout, offline, socket,
+  /// server down) — bukan error data kosong / validasi / 404.
+  /// Dipakai layar untuk menampilkan [ConnectionErrorView] + tombol retry
+  /// alih-alih tampilan "data kosong".
+  static bool isConnectionError(Object e) {
+    if (e is OfflineCacheException) return true;
+    final msg = e is ApiException ? e.message.toLowerCase() : e.toString().toLowerCase();
+    return msg.contains('gagal terhubung') ||
+        msg.contains('kamu sedang offline') ||
+        msg.contains('sedang offline') ||
+        msg.contains('periksa koneksi') ||
+        msg.contains('koneksi internet') ||
+        msg.contains('gangguan pada layanan') ||
+        msg.contains('tidak ada koneksi') ||
+        msg.contains('connection') ||
+        msg.contains('socket') ||
+        msg.contains('timeout') ||
+        msg.contains('timed out') ||
+        msg.contains('network') ||
+        msg.contains('jaringan');
+  }
+
   /// C10: jam UTC sampai kapan klien harus menahan diri (dari header
   /// `Retry-After` respons 429 server). Polling wajib menghormatinya.
   static DateTime? retryAfterUtc;
@@ -413,10 +437,16 @@ class AuthService {
           request.body = jsonEncode(body);
         }
         final streamed = await request.send().timeout(effectiveTimeout);
-        final response = await http.Response.fromStream(streamed);
+        final response =
+            await http.Response.fromStream(streamed).timeout(effectiveTimeout);
         NetworkStatus.markOnline();
         return response;
       } on TimeoutException {
+        NetworkStatus.markOffline();
+        if (attempt >= _maxRetries) {
+          throw const ApiException(_connectionMessage);
+        }
+      } on SocketException {
         NetworkStatus.markOffline();
         if (attempt >= _maxRetries) {
           throw const ApiException(_connectionMessage);

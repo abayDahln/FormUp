@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -27,6 +28,7 @@ class FormScreen extends StatefulWidget {
 class _FormScreenState extends State<FormScreen> {
   List<FormData> _myForms = [];
   bool _loadingForms = true;
+  String? _loadError;
   DateTime _lastRefresh = DateTime.fromMillisecondsSinceEpoch(0);
 
   final _searchController = TextEditingController();
@@ -67,14 +69,25 @@ class _FormScreenState extends State<FormScreen> {
 
   /// Muat ulang (tanpa debounce) — [refresh]=true melewati cache.
   Future<void> _refreshMyForms({bool refresh = false}) async {
-    setState(() => _loadingForms = true);
+    setState(() {
+      _loadingForms = true;
+      _loadError = null;
+    });
     try {
       final forms = await FormService.getMyForms(refresh: refresh);
       if (!mounted) return;
-      setState(() => _myForms = forms);
+      setState(() {
+        _myForms = forms;
+        _loadError = null;
+      });
     } catch (e) {
       if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      // Error koneksi: simpan pesan agar tampil view retry, bukan data kosong.
+      if (AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+      } else {
+        showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _loadingForms = false);
     }
@@ -264,6 +277,11 @@ class _FormScreenState extends State<FormScreen> {
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 4),
                 child: SkeletonList.cards(itemCount: 4),
+              )
+            else if (_loadError != null && _myForms.isEmpty)
+              ConnectionErrorView(
+                message: _loadError!,
+                onRetry: () => _refreshMyForms(refresh: true),
               )
             else if (all.isEmpty)
               EmptyState(

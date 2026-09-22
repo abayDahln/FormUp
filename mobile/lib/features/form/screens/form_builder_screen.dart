@@ -8,6 +8,7 @@ import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/widgets/adaptive_fab.dart';
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
@@ -53,6 +54,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   final List<QuestionDraft> _questions = [];
   List<QuestionDraft> _baseline = [];
   bool _loadingQuestions = false;
+  String? _questionsError;
   bool _savingQuestions = false;
   bool _importing = false;
   double? _progress;
@@ -109,7 +111,10 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   }
 
   Future<void> _loadQuestions() async {
-    setState(() => _loadingQuestions = true);
+    setState(() {
+      _loadingQuestions = true;
+      _questionsError = null;
+    });
     try {
       final questions = await FormService.getQuestions(
         _formId!,
@@ -121,9 +126,14 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
           ..clear()
           ..addAll(draftsFromQuestions(questions));
         _baseline = [for (final q in _questions) q.copy()];
+        _questionsError = null;
       });
     } catch (e) {
       if (!mounted) return;
+      if (AuthService.isConnectionError(e)) {
+        setState(() => _questionsError = AuthService.errorMessage(e));
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loadingQuestions = false);
@@ -608,6 +618,16 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
         Padding(
           padding: EdgeInsets.all(32),
           child: Center(child: LoadingIndicator.circular()),
+        ),
+      ];
+    }
+    // Error koneksi saat daftar soal kosong: tampilkan retry, bukan "belum ada soal".
+    if (_questionsError != null && _questions.isEmpty) {
+      return [
+        ConnectionErrorView(
+          message: _questionsError!,
+          onRetry: _loadQuestions,
+          bare: true,
         ),
       ];
     }

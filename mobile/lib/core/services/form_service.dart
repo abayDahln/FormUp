@@ -938,7 +938,7 @@ class FormService {
       () async {
         // useCache:false: AuthService.get men-cache 30 menit yang akan
         // mengalahkan TTL 20 detik di atas (data basi untuk skor live).
-        final json = await AuthService.get('/forms/$formId/analytics$query', timeout: const Duration(seconds: 20), useCache: false);
+        final json = await AuthService.get('/forms/$formId/analytics$query', timeout: const Duration(seconds: 30), useCache: false);
         final data = json['data'];
         if (data is Map<String, dynamic>) {
           return FormAnalytics.fromJson(data);
@@ -1270,7 +1270,8 @@ class FormService {
     final request = http.Request('GET', Uri.parse('$apiBaseUrl$path'));
     request.headers['Authorization'] = 'Bearer ${AuthService.token}';
     final streamed = await request.send().timeout(AuthService.timeout);
-    final res = await http.Response.fromStream(streamed);
+    final res =
+        await http.Response.fromStream(streamed).timeout(AuthService.timeout);
     return (res.statusCode, res.headers, res.bodyBytes);
   }
 }

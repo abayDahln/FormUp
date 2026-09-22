@@ -7,6 +7,7 @@ import 'package:form_up/core/widgets/responsive.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
@@ -66,6 +67,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   FormAnalytics? _analytics;
   List<RespondentAnalyticsData> _respondents = [];
   bool _loading = true;
+  String? _loadError;
   bool _loadingMore = false;
   bool _hasMore = true;
   int _page = 1;
@@ -143,6 +145,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       _loading = true;
       _page = 1;
       _hasMore = true;
+      _loadError = null;
     });
     try {
       final analytics = await FormService.getAnalytics(
@@ -157,9 +160,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         _analytics = analytics;
         _respondents = List<RespondentAnalyticsData>.from(analytics.respondents);
         _hasMore = _respondents.length < analytics.totalResponses;
+        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
+      if (AuthService.isConnectionError(e)) {
+        setState(() {
+          _loadError = AuthService.errorMessage(e);
+          _analytics ??= const FormAnalytics();
+          _respondents = _respondents.isEmpty ? const [] : _respondents;
+          _hasMore = false;
+        });
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
       setState(() {
         _analytics ??= const FormAnalytics();
@@ -587,7 +600,15 @@ Berikan analisis yang mencakup:
                       ),
                     ),
                     const SizedBox(height: 12),
-                    if (_visibleRespondents.isEmpty)
+                    if (_loadError != null &&
+                        _visibleRespondents.isEmpty &&
+                        _query.isEmpty)
+                      ConnectionErrorView(
+                        message: _loadError!,
+                        onRetry: () => _load(refresh: true),
+                        bare: true,
+                      )
+                    else if (_visibleRespondents.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 48),
                         child: Column(

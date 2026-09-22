@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
@@ -33,6 +34,7 @@ class RespondentDetailScreen extends StatefulWidget {
 
 class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
   bool _loading = true;
+  String? _loadError;
   PublicFormResult? _result;
   List<MyAttempt> _attempts = [];
   late int _selectedResponseId;
@@ -47,7 +49,10 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
   }
 
   Future<void> _load({bool refresh = false}) async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final results = await Future.wait([
         FormService.getResponseResult(widget.formId, _selectedResponseId, refresh: refresh),
@@ -62,10 +67,15 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
         _attempts = results[1] as List<MyAttempt>;
         _oneResponse = settings?['oneResponse'] as bool? ?? false;
         _loading = false;
+        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
+      if (_result == null && AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     }
   }
@@ -196,7 +206,18 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
       ),
       body: _loading && _result == null
           ? const AppLoadingOverlay()
-          : AuthBackground(plain: true,
+          : _loadError != null && _result == null
+              ? Center(
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(20),
+                    child: ConnectionErrorView(
+                      message: _loadError!,
+                      onRetry: () => _load(refresh: true),
+                    ),
+                  ),
+                )
+              : AuthBackground(plain: true,
               child: SafeArea(
                 child: AppRefreshIndicator(
                   onRefresh: () => _load(refresh: true),

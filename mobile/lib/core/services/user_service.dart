@@ -149,7 +149,7 @@ class UserService {
       http.MultipartFile.fromBytes('file', bytes, filename: filename),
     );
     final streamed = await request.send().timeout(AuthService.timeout);
-    return await http.Response.fromStream(streamed);
+    return await http.Response.fromStream(streamed).timeout(AuthService.timeout);
   }
 
   static String _profileImageOf(http.Response response) {

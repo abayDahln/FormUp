@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
 import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/services/form_service.dart';
@@ -14,6 +15,8 @@ class HomeRecentActivity extends StatelessWidget {
   final void Function(MyResponseItem item) onOpenResponse;
   final int limit;
   final bool bare;
+  final String? loadError;
+  final VoidCallback? onRetry;
 
   const HomeRecentActivity({
     super.key,
@@ -22,6 +25,8 @@ class HomeRecentActivity extends StatelessWidget {
     required this.onOpenResponse,
     this.limit = 3,
     this.bare = false,
+    this.loadError,
+    this.onRetry,
   });
 
   @override
@@ -42,6 +47,13 @@ class HomeRecentActivity extends StatelessWidget {
       );
     }
     if (responses.isEmpty) {
+      if (loadError != null && onRetry != null) {
+        return ConnectionErrorView(
+          message: loadError!,
+          onRetry: onRetry!,
+          bare: bare,
+        );
+      }
       return EmptyState(
         icon: Icons.history,
         title: 'Belum ada aktivitas',

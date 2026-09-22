@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -32,6 +33,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   UserStats? _stats;
   List<MyResponseItem> _recent = [];
   bool _loading = true;
+  String? _loadError;
   // Guard agar swipe/spam/tick-online bersamaan tidak menumpuk request
   // (ApiCache juga dedup yang benar-benar bersamaan via _pending).
   bool _refreshing = false;
@@ -55,7 +57,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_refreshing) return;
     _refreshing = true;
     final showLoader = _profile == null;
-    if (showLoader) setState(() => _loading = true);
+    if (showLoader) {
+      setState(() {
+        _loading = true;
+        _loadError = null;
+      });
+    }
     try {
       final results = await Future.wait([
         UserService.getProfile(refresh: refresh),
@@ -68,9 +75,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _profile = results[0] as UserProfile;
         _stats = results[1] as UserStats;
         _recent = (results[2] as List<MyResponseItem>).take(5).toList();
+        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
+      // Error koneksi saat data belum tampil: tampilkan view retry penuh.
+      if (showLoader && AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+        return;
+      }
       // Refresh senyap gagal saat data lama masih tampil: cukup toast,
       // jangan timpa layar dengan error (data cache tetap berguna).
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
@@ -412,6 +425,11 @@ if (_loading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 60),
                 child: AppLoadingOverlay(),
+              )
+            else if (_loadError != null && _profile == null)
+              ConnectionErrorView(
+                message: _loadError!,
+                onRetry: () => _load(refresh: true),
               )
             // 1c: desktop — dua panel (info akun | statistik + aktivitas).
             else if (isDesktopWidth(context))

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/theme/form_theme.dart';
@@ -1099,7 +1100,25 @@ class FormRunnerViewState extends State<FormRunnerView>
     final info = _c.info;
     // Info belum ada (kode kosong / load gagal / pemilik): jangan paksa `!`,
     // tampilkan layar error yang bisa kembali ke Informasi Form.
+    // Error koneksi: tampilkan retry, bukan hanya tombol Kembali.
     if (info == null) {
+      final msg = _loadError ?? 'Data form tidak tersedia.';
+      final isConn = AuthService.isConnectionError(msg);
+      if (isConn) {
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: ConnectionErrorView(
+                message: msg,
+                onRetry: _submitCode,
+                bare: true,
+              ),
+            ),
+          ),
+        );
+      }
       return Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),

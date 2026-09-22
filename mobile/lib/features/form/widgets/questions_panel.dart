@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/adaptive_fab.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
@@ -62,6 +63,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
   final List<QuestionDraft> _questions = [];
   List<QuestionDraft> _baseline = [];
   bool _loading = true;
+  String? _loadError;
   bool _saving = false;
   bool _importing = false;
   double? _progress;
@@ -168,7 +170,10 @@ class QuestionsPanelState extends State<QuestionsPanel>
   /// [refresh]=true melewati cache (dipakai swipe-refresh agar edit dari
   /// web/perangkat lain langsung terlihat).
   Future<void> _loadQuestions({bool refresh = false}) async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final questions = await FormService.getQuestions(_formId!, refresh: refresh);
       if (!mounted) return;
@@ -177,10 +182,15 @@ class QuestionsPanelState extends State<QuestionsPanel>
           ..clear()
           ..addAll(draftsFromQuestions(questions));
         _baseline = [for (final q in _questions) q.copy()];
+        _loadError = null;
       });
       _maybeAutoTour();
     } catch (e) {
       if (!mounted) return;
+      if (AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -627,7 +637,21 @@ class QuestionsPanelState extends State<QuestionsPanel>
                                 padding: widget.centerContent
                                     ? centerPad(context, base: const EdgeInsets.fromLTRB(22, 12, 22, 24), wideMaxWidth: 900)
                                     : const EdgeInsets.fromLTRB(22, 12, 22, 24),
-                                child: const Column(
+                                child: _loadError != null
+                                    ? Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          ConnectionErrorView(
+                                            message: _loadError!,
+                                            onRetry: () =>
+                                                _loadQuestions(refresh: true),
+                                            bare: true,
+                                          ),
+                                          const SizedBox(height: 80),
+                                        ],
+                                      )
+                                    : const Column(
                                   crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
                                     QuestionsEmptyState(),

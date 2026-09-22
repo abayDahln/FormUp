@@ -22,6 +22,7 @@ import 'package:form_up/core/widgets/onboarding_tour.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/adaptive_fab.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/form_card.dart';
 import 'package:form_up/features/home/widgets/user_guide_sheet.dart';
@@ -45,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<MyResponseItem> _myResponses = [];
   String? _avatarPath;
   bool _loading = true;
+  String? _loadError;
   final _codeController = TextEditingController();
   bool _validatingCode = false;
 
@@ -188,7 +190,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final results = await Future.wait([
         FormService.getMyForms(),
@@ -203,12 +208,18 @@ class _HomeScreenState extends State<HomeScreen> {
         _myForms = results[0] as List<FormData>;
         _myResponses = results[1] as List<MyResponseItem>;
         _avatarPath = results[2] as String;
+        _loadError = null;
       });
       _maybeAutoTour();
     } catch (e) {
       if (!mounted) return;
-      // Konsisten: selalu toast float, tidak ada banner inline di dalam view
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      // Error koneksi: tampilkan view retry di konten, bukan daftar kosong.
+      if (AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+      } else {
+        // Konsisten: selalu toast float, tidak ada banner inline di dalam view
+        showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -365,6 +376,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: SkeletonList.cards(itemCount: formCount),
                       )
+                    else if (_loadError != null && _myForms.isEmpty)
+                      ConnectionErrorView(
+                        message: _loadError!,
+                        onRetry: _load,
+                        bare: true,
+                      )
                     else if (_myForms.isEmpty)
                       const EmptyState(
                         icon: Icons.description_outlined,
@@ -395,6 +412,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       onOpenResponse: _openResponse,
                       limit: activityCount,
                       bare: true,
+                      loadError: _loadError,
+                      onRetry: _load,
                     ),
                     const SizedBox(height: 8),
                   ],
@@ -469,6 +488,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 'formId': form.id,
                 'form': form,
               }),
+              loadError: _loadError,
+              onRetry: _load,
             ),
             const SizedBox(height: 25),
 
@@ -487,6 +508,8 @@ class _HomeScreenState extends State<HomeScreen> {
               loading: _loading,
               responses: _myResponses,
               onOpenResponse: _openResponse,
+              loadError: _loadError,
+              onRetry: _load,
             ),
             const SizedBox(height: 30),
           ],

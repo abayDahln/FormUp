@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
@@ -48,6 +49,7 @@ extension _FeedbackCategoryExt on _FeedbackCategory {
 class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
   List<FormFeedbackItem> _feedbacks = [];
   bool _loading = true;
+  String? _loadError;
   final _searchController = TextEditingController();
   Timer? _debounce;
   String _query = '';
@@ -188,17 +190,25 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final data = await FormService.getFormFeedbacks(widget.formId);
       if (!mounted) return;
       setState(() {
         _feedbacks = data;
         _loading = false;
+        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
+      if (AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     }
   }
@@ -244,7 +254,21 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
                       ),
                     ),
                     Expanded(
-                      child: _feedbacks.isEmpty
+                      child: _loadError != null && _feedbacks.isEmpty
+                          ? Center(
+                              child: SingleChildScrollView(
+                                physics:
+                                    const AlwaysScrollableScrollPhysics(),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 24, vertical: 48),
+                                child: ConnectionErrorView(
+                                  message: _loadError!,
+                                  onRetry: _load,
+                                  bare: true,
+                                ),
+                              ),
+                            )
+                          : _feedbacks.isEmpty
                           ?  Center(
                               child: Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 24, vertical: 48),

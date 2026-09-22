@@ -6,6 +6,7 @@ import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 
 /// Tab "Analisis" di screen responden — setara halaman Analisis & Diagram
@@ -33,6 +34,7 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
     with AutomaticKeepAliveClientMixin {
   FormAnalytics? _analytics;
   bool _loading = true;
+  String? _loadError;
 
   @override
   bool get wantKeepAlive => true;
@@ -55,7 +57,10 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       // Tanpa page/pageSize = semua responden + jawaban (analisis akurat).
       final data = await FormService.getAnalytics(widget.formId);
@@ -63,10 +68,15 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
       setState(() {
         _analytics = data;
         _loading = false;
+        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
+      if (_analytics == null && AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     }
   }
@@ -80,6 +90,19 @@ class _ResponseAnalyticsTabState extends State<ResponseAnalyticsTab>
       return const AppLoadingOverlay(contained: true);
     }
     if (data == null) {
+      if (_loadError != null) {
+        return Center(
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(20),
+            child: ConnectionErrorView(
+              message: _loadError!,
+              onRetry: _load,
+              bare: true,
+            ),
+          ),
+        );
+      }
       return Center(
         child: TextButton.icon(
           onPressed: _load,

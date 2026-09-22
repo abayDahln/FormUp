@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -25,6 +26,7 @@ class FormDetailScreen extends StatefulWidget {
 
 class _FormDetailScreenState extends State<FormDetailScreen> {
   FormData? _form;
+  String? _loadError;
 
   @override
   void initState() {
@@ -36,15 +38,22 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
   /// Pantauan live pindah ke tab Monitoring di layar Responden.
 
   Future<void> _fetch() async {
+    if (_form == null) setState(() => _loadError = null);
     try {
       // Bypass cache form detail agar swipe-refresh selalu segar.
       final data = await FormService.getForm(widget.formId, refresh: true);
       if (!mounted) return;
       setState(() {
         _form = FormData.fromJson(data);
+        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
+      // Error koneksi saat data belum ada: tampilkan view retry.
+      if (_form == null && AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     }
   }
@@ -126,7 +135,18 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
         ),
       ),
       body: form == null
-          ? const AppLoadingOverlay()
+          ? (_loadError != null
+              ? Center(
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(20),
+                    child: ConnectionErrorView(
+                      message: _loadError!,
+                      onRetry: _fetch,
+                    ),
+                  ),
+                )
+              : const AppLoadingOverlay())
           : AppRefreshIndicator(
               onRefresh: () async => _fetch(),
               indicatorColor: cs.primary,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
 import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/responsive.dart';
@@ -10,12 +11,16 @@ class HomeRecentForms extends StatelessWidget {
   final bool loading;
   final List<FormData> forms;
   final void Function(FormData form) onOpenForm;
+  final String? loadError;
+  final VoidCallback? onRetry;
 
   const HomeRecentForms({
     super.key,
     required this.loading,
     required this.forms,
     required this.onOpenForm,
+    this.loadError,
+    this.onRetry,
   });
 
   @override
@@ -27,6 +32,9 @@ class HomeRecentForms extends StatelessWidget {
       );
     }
     if (forms.isEmpty) {
+      if (loadError != null && onRetry != null) {
+        return ConnectionErrorView(message: loadError!, onRetry: onRetry!);
+      }
       return const EmptyState(
         icon: Icons.description_outlined,
         title: 'Belum ada form',
