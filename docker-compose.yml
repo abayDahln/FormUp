@@ -2,16 +2,17 @@ name: formup
 
 services:
   migrate:
+    profiles: ["migrate"]
     build:
       context: ./api
-      target: build
+      target: migrate
     container_name: formup-migrate
     restart: "no"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       DB_CONNECTION: "${DB_CONNECTION}"
       JWT_KEY: "${JWT_KEY}"
-    command: ["dotnet", "ef", "database", "update"]
+    command: ["dotnet", "ef", "database", "update", "--no-build", "-c", "Release"]
 
   api:
     build:
@@ -34,9 +35,6 @@ services:
       - "${API_HOST_PORT:-5000}:5000"
     volumes:
       - ./api/wwwroot:/app/wwwroot
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
 
   cloudflared:
     image: cloudflare/cloudflared:latest
