@@ -14,7 +14,7 @@ import 'package:form_up/features/form/widgets/form_maker_header_card.dart';
 import 'package:form_up/features/form/widgets/question_image_source_sheet.dart';
 
 /// Panel pengaturan form (judul, deskripsi, banner, setting) — dipakai ulang
-/// oleh layar tunggal phone (FormMakerScreen) dan dual panel tablet/desktop
+/// oleh tab Pengaturan layar gabungan phone (FormEditorTabsScreen) dan dual panel tablet/desktop
 /// (FormEditorScreen). Draf baru 100% lokal (controller) sampai [save]
 /// dipanggil; navigasi diserahkan ke parent via [onSaved].
 class FormSettingsPanel extends StatefulWidget {
@@ -307,7 +307,9 @@ class FormSettingsPanelState extends State<FormSettingsPanel> {
                                   context,
                                   base: EdgeInsets.fromLTRB(
                                     22,
-                                    16,
+                                    topClearanceForRichToolbar(
+                                      toolbarVisible: toolbarVisible,
+                                    ),
                                     22,
                                     toolbarVisible ? 110 : 24,
                                   ),
@@ -315,7 +317,9 @@ class FormSettingsPanelState extends State<FormSettingsPanel> {
                                 )
                               : EdgeInsets.fromLTRB(
                                   22,
-                                  16,
+                                  topClearanceForRichToolbar(
+                                    toolbarVisible: toolbarVisible,
+                                  ),
                                   22,
                                   toolbarVisible ? 110 : 24,
                                 ),

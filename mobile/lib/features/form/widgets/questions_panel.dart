@@ -21,7 +21,7 @@ import 'package:form_up/features/form/widgets/question_list_card.dart';
 import 'package:form_up/features/form/widgets/questions_empty_state.dart';
 
 /// Panel kelola daftar soal: tambah/edit/hapus/urutkan, lalu simpan.
-/// Dipakai layar tunggal phone (FormQuestionsScreen) dan dual panel
+/// Dipakai tab Soal layar gabungan phone (FormEditorTabsScreen) dan dual panel
 /// tablet/desktop (FormEditorScreen). Tanpa formId = draf lokal penuh
 /// (tidak menyentuh server); formId yang datang belakangan (dual form
 /// baru seusai simpan pengaturan) diadopsi tanpa reload agar draf lokal
@@ -36,6 +36,11 @@ class QuestionsPanel extends StatefulWidget {
   /// lebar jendela tidak menjepit konten setengah kolom).
   final bool centerContent;
 
+  /// True = soal dikunci (form sudah memiliki respons): daftar hanya tampil,
+  /// tambah/ubah/hapus/susun-ulang/impor dinonaktifkan. Pengaturan form
+  /// tetap dapat diubah di tab Pengaturan.
+  final bool questionsLocked;
+
   /// Dipanggil SETELAH simpan sukses (menggantikan pop internal).
   final Future<void> Function(int formId)? onSaved;
 
@@ -44,6 +49,7 @@ class QuestionsPanel extends StatefulWidget {
     required this.formId,
     this.embedded = false,
     this.centerContent = true,
+    this.questionsLocked = false,
     this.onSaved,
   });
 
@@ -80,7 +86,8 @@ class QuestionsPanelState extends State<QuestionsPanel>
   void setImportBusy(bool value) => setState(() => _importing = value);
 
   /// Ada perubahan vs baseline (dipakai guard keluar gabungan).
-  bool get hasChanges => _hasChanges;
+  /// Selalu false saat soal dikunci (tidak ada perubahan yang mungkin).
+  bool get hasChanges => !widget.questionsLocked && _hasChanges;
 
   // Anchor tur panduan kelola soal.
   final _addKey = GlobalKey();
@@ -104,7 +111,10 @@ class QuestionsPanelState extends State<QuestionsPanel>
     if (_formId != null) {
       _loadQuestions();
     } else {
-      // Draf lokal penuh: tawarkan tur mini sekali per akun.
+      // Draf lokal penuh (form baru sebelum pengaturan disimpan): tidak ada
+      // yang dimuat, matikan loading agar empty state langsung tampil.
+      _loading = false;
+      // Tawarkan tur mini sekali per akun.
       WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoTour());
     }
   }
@@ -141,6 +151,8 @@ class QuestionsPanelState extends State<QuestionsPanel>
       setState(() => _aiOpen = false);
       return false;
     }
+    // Soal dikunci: tidak ada perubahan yang mungkin, langsung izin keluar.
+    if (widget.questionsLocked) return true;
     if (_saving) return false;
     if (!_hasChanges) return true;
     final choice = await showExitConfirmDialog(context);
@@ -222,6 +234,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
   }
 
   Future<void> _addQuestion() async {
+    if (widget.questionsLocked) return;
     final draft = QuestionDraft(1, isRequired: true);
     setState(() => _questions.add(draft));
     await _openEditor(draft);
@@ -235,6 +248,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
   }
 
   Future<void> _openEditor(QuestionDraft draft) async {
+    if (widget.questionsLocked) return;
     await AppRouter.of(
       context,
     ).push(AppPage.formQuestionEdit, {'formId': _formId, 'draft': draft});
@@ -242,6 +256,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
   }
 
   void _moveQuestion(int index, int delta) {
+    if (widget.questionsLocked) return;
     final newIndex = index + delta;
     if (newIndex < 0 || newIndex >= _questions.length) return;
     setState(() {
@@ -251,6 +266,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
   }
 
   void _onReorder(int oldIndex, int newIndex) {
+    if (widget.questionsLocked) return;
     setState(() {
       if (newIndex > oldIndex) newIndex -= 1;
       final q = _questions.removeAt(oldIndex);
@@ -259,6 +275,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
   }
 
   Future<void> _clearAllQuestions() async {
+    if (widget.questionsLocked) return;
     if (_saving || _importing || _questions.isEmpty) return;
     final confirmed = await showDialog<bool>(
       context: context,
@@ -296,7 +313,11 @@ class QuestionsPanelState extends State<QuestionsPanel>
 
   /// Simpan soal ke server (dipakai tombol Simpan + guard keluar).
   /// Navigasi diserahkan ke parent via [QuestionsPanel.onSaved].
-  Future<void> save() => _save();
+  /// No-op saat soal dikunci (tidak ada perubahan yang mungkin).
+  Future<void> save() {
+    if (widget.questionsLocked) return Future.value();
+    return _save();
+  }
 
   Future<void> _save() async {
     if (!AppDebouncer.tryAcquire('form:saveQuestions')) return;
@@ -395,7 +416,9 @@ class QuestionsPanelState extends State<QuestionsPanel>
                     padding: EdgeInsets.symmetric(horizontal: 16),
                     child: LoadingIndicator.button(),
                   )
-                : FilledButton(
+                : widget.questionsLocked
+                    ? const SizedBox.shrink()
+                    : FilledButton(
                     key: _saveKey,
                     onPressed: () async {
                       if (!_hasChanges) {
@@ -440,7 +463,9 @@ class QuestionsPanelState extends State<QuestionsPanel>
                     size: 18,
                     color: Color(0xFFC0392B),
                   ),
-                  onPressed: _questions.isEmpty ? null : _clearAllQuestions,
+                  onPressed: (_questions.isEmpty || widget.questionsLocked)
+                      ? null
+                      : _clearAllQuestions,
                   child: const Text(
                     'Hapus Semua Soal',
                     style: TextStyle(color: Color(0xFFC0392B)),
@@ -454,7 +479,10 @@ class QuestionsPanelState extends State<QuestionsPanel>
                           child: LoadingIndicator.inline(),
                         )
                       : const Icon(Icons.upload_file_outlined, size: 20),
-                  onPressed: (_formId == null || _saving || _importing)
+                  onPressed: (_formId == null ||
+                          _saving ||
+                          _importing ||
+                          widget.questionsLocked)
                       ? null
                       : importSoal,
                   child: Text(_importing ? 'Mengimpor...' : 'Impor Soal'),
@@ -533,7 +561,8 @@ class QuestionsPanelState extends State<QuestionsPanel>
                     child: AiFormAgentPanel(
                       formId: _formId,
                       settings: null,
-                      questions: () => _questions,
+                      // Mode kunci: agen tak diberi akses daftar soal.
+                      questions: widget.questionsLocked ? null : () => _questions,
                       onChanged: () => setState(() {}),
                       onClose: () => setState(() => _aiOpen = false),
                     ),
@@ -543,6 +572,35 @@ class QuestionsPanelState extends State<QuestionsPanel>
             ),
           ),
       ],
+    );
+  }
+
+  /// Banner info saat soal dikunci (form sudah memiliki respons).
+  Widget _lockedBanner(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 12, 22, 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.lock_outline, size: 18, color: cs.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Soal dikunci — form sudah memiliki respons. '
+                'Pengaturan form tetap dapat diubah.',
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -557,6 +615,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
                 child: SafeArea(
                   child: Column(
                     children: [
+                      if (widget.questionsLocked) _lockedBanner(context),
                       if (_saving || _importing)
                         progress.ProgressIndicator.linear(
                           value: _progress,
@@ -600,26 +659,32 @@ class QuestionsPanelState extends State<QuestionsPanel>
                                             ),
                                           ),
                                         ),
-                                    itemBuilder: (context, i) =>
-                                        ReorderableDelayedDragStartListener(
-                                          key: ValueKey(_questions[i]),
+                                    itemBuilder: (context, i) {
+                                      final card = Padding(
+                                        padding: const EdgeInsets.only(bottom: 12),
+                                        child: QuestionListCard(
                                           index: i,
-                                          child: Padding(
-                                            padding: const EdgeInsets.only(bottom: 12),
-                                            child: QuestionListCard(
-                                              index: i,
-                                              totalCount: _questions.length,
-                                              question: _questions[i],
-                                              onEdit: () => _openEditor(_questions[i]),
-                                              onMoveUp: () => _moveQuestion(i, -1),
-                                              onMoveDown: () => _moveQuestion(i, 1),
-                                              onDelete: () => setState(() {
-                                                _questions[i].dispose();
-                                                _questions.removeAt(i);
-                                              }),
-                                            ),
-                                          ),
+                                          totalCount: _questions.length,
+                                          question: _questions[i],
+                                          readOnly: widget.questionsLocked,
+                                          onEdit: () => _openEditor(_questions[i]),
+                                          onMoveUp: () => _moveQuestion(i, -1),
+                                          onMoveDown: () => _moveQuestion(i, 1),
+                                          onDelete: () => setState(() {
+                                            _questions[i].dispose();
+                                            _questions.removeAt(i);
+                                          }),
                                         ),
+                                      );
+                                      // Mode kunci: tanpa gagang drag (susun
+                                      // ulang nonaktif, onReorder juga guard).
+                                      if (widget.questionsLocked) return card;
+                                      return ReorderableDelayedDragStartListener(
+                                        key: ValueKey(_questions[i]),
+                                        index: i,
+                                        child: card,
+                                      );
+                                    },
                                     ),
                                   ),
                                 ],
@@ -638,7 +703,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
   /// disamakan 68px/32, plus label "Tambah Soal") dengan margin kanan ==
   /// bawah berlevel (tablet L1â€“L2, desktop L2â€“L5 mengikuti ukuran window).
   Widget _buildQuestionFab(ColorScheme cs) {
-    final disabled = _saving || _importing;
+    final disabled = _saving || _importing || widget.questionsLocked;
     final aiFab = FloatingActionButton.small(
       key: _aiKey,
       heroTag: 'aiChatForForm',

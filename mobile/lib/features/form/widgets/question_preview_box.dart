@@ -40,10 +40,14 @@ class QuestionPreviewBox extends StatelessWidget {
                   color: cs.primary,
                 ),
               ),
-              const Spacer(),
-              Text(
-                questionTypes[q.typeId]?.$1 ?? '',
-                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  questionTypes[q.typeId]?.$1 ?? '',
+                  textAlign: TextAlign.right,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+                ),
               ),
             ],
           ),

@@ -8,7 +8,7 @@ import 'package:form_up/features/auth/screens/forgot_password_screen.dart';
 import 'package:form_up/features/auth/screens/otp_screen.dart';
 import 'package:form_up/features/auth/screens/reset_password_screen.dart';
 import 'package:form_up/features/home/screens/home_screen.dart';
-import 'package:form_up/features/form/screens/form_maker_screen.dart';
+import 'package:form_up/features/form/screens/form_editor_tabs_screen.dart';
 import 'package:form_up/features/form/screens/form_builder_screen.dart';
 import 'package:form_up/features/form_runner/screens/form_runner_screen.dart';
 import 'package:form_up/features/form/screens/form_history_detail_screen.dart';
@@ -26,8 +26,6 @@ import 'package:form_up/features/admin/screens/admin_feedback_detail_screen.dart
 import 'package:form_up/core/services/admin_service.dart';
 import 'package:form_up/features/settings/settings_screen.dart';
 import 'package:form_up/features/form/screens/form_detail_screen.dart';
-import 'package:form_up/features/form/screens/exam_monitoring_screen.dart';
-import 'package:form_up/features/form/screens/form_questions_screen.dart';
 import 'package:form_up/features/form/screens/form_question_edit_screen.dart';
 import 'package:form_up/features/form/screens/form_feedbacks_screen.dart';
 import 'package:form_up/features/form_runner/screens/form_start_screen.dart';
@@ -342,16 +340,29 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
         return HomeScreen(username: _username);
       case AppPage.formMaker:
         final makerId = route.args['formId'] as int?;
-        // Tablet/desktop: screen builder all-in-one (settings + accordion soal).
-        if (isTablet(context)) return FormBuilderScreen(formId: makerId);
-        return FormMakerScreen(formId: makerId);
-      case AppPage.formQuestions:
-        final questionFormId = route.args['formId'] as int?;
+        final makerLocked = route.args['lockedQuestions'] as bool? ?? false;
         // Tablet/desktop: screen builder all-in-one (settings + accordion soal).
         if (isTablet(context)) {
-          return FormBuilderScreen(formId: questionFormId);
+          return FormBuilderScreen(
+              formId: makerId, questionsLocked: makerLocked);
         }
-        return FormQuestionsScreen(formId: questionFormId);
+        // Phone: satu screen dua tab (Pengaturan | Soal).
+        return FormEditorTabsScreen(
+            formId: makerId, initialTab: 0, questionsLocked: makerLocked);
+      case AppPage.formQuestions:
+        final questionFormId = route.args['formId'] as int?;
+        final questionsLocked =
+            route.args['lockedQuestions'] as bool? ?? false;
+        // Tablet/desktop: screen builder all-in-one (settings + accordion soal).
+        if (isTablet(context)) {
+          return FormBuilderScreen(
+              formId: questionFormId, questionsLocked: questionsLocked);
+        }
+        // Phone: satu screen dua tab, langsung ke tab Soal.
+        return FormEditorTabsScreen(
+            formId: questionFormId,
+            initialTab: 1,
+            questionsLocked: questionsLocked);
       case AppPage.formQuestionEdit:
         final editDraft = route.args['draft'];
         if (editDraft is! QuestionDraft) {
@@ -418,9 +429,12 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
           formTitle: fbTitle,
         );
       case AppPage.examMonitoring:
-        return ExamMonitoringScreen(
+        // Rute lawas "Pantau Ujian" dialihkan ke tab Monitoring di layar
+        // Responden (Monitoring Form — berlaku formulir & ujian).
+        return FormResponScreen(
           formId: route.args['formId'] as int? ?? 0,
           title: route.args['title'] as String? ?? '',
+          initialTab: 2,
         );
       case AppPage.respondentDetail:
         return RespondentDetailScreen(

@@ -26,11 +26,16 @@ import 'package:form_up/features/form/widgets/question_import_mixin.dart';
 /// accordion (klik kartu → seluruh pengaturan soal terbuka di kartu itu).
 /// Tombol Simpan hanya satu, di pojok kanan header — menyimpan keseluruhan
 /// form (pengaturan → menciptakan formId bila form baru → lalu soal).
+///
+/// [questionsLocked] = true saat form sudah memiliki respons: daftar soal
+/// hanya tampil (tambah/ubah/hapus/susun-ulang/impor dinonaktifkan),
+/// pengaturan form tetap dapat diubah.
 class FormBuilderScreen extends StatefulWidget {
   /// null = form baru.
   final int? formId;
+  final bool questionsLocked;
 
-  const FormBuilderScreen({super.key, this.formId});
+  const FormBuilderScreen({super.key, this.formId, this.questionsLocked = false});
 
   @override
   State<FormBuilderScreen> createState() => _FormBuilderScreenState();
@@ -137,7 +142,8 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
     if (s == null) return true;
     if (s.isSaving || _savingQuestions) return false;
     final dirtySettings = s.hasChanges;
-    final dirtyQuestions = _hasQuestionChanges;
+    final dirtyQuestions =
+        widget.questionsLocked ? false : _hasQuestionChanges;
     if (!dirtySettings && !dirtyQuestions) return true;
     if (!mounted) return false;
     final choice = await showDialog<String>(
@@ -206,8 +212,8 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
     if (!_validateQuestions()) return;
 
     final bool created = _formId == null;
-    final needQuestions =
-        _hasQuestionChanges || (created && _questions.isNotEmpty);
+    final needQuestions = !widget.questionsLocked &&
+        (_hasQuestionChanges || (created && _questions.isNotEmpty));
 
     setState(() => _savingQuestions = true);
     try {
@@ -261,6 +267,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   }
 
   Future<void> _addQuestion() async {
+    if (widget.questionsLocked) return;
     final draft = QuestionDraft(1, isRequired: true);
     setState(() {
       _questions.add(draft);
@@ -269,6 +276,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   }
 
   void _moveQuestion(int index, int delta) {
+    if (widget.questionsLocked) return;
     final newIndex = index + delta;
     if (newIndex < 0 || newIndex >= _questions.length) return;
     setState(() {
@@ -283,6 +291,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   }
 
   Future<void> _deleteQuestion(int index) async {
+    if (widget.questionsLocked) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -321,6 +330,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   }
 
   Future<void> _clearAllQuestions() async {
+    if (widget.questionsLocked) return;
     if (_savingQuestions || _importing || _questions.isEmpty) return;
     final confirmed = await showDialog<bool>(
       context: context,
@@ -358,7 +368,7 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   }
 
   Widget _buildFab(ColorScheme cs) {
-    final disabled = _savingQuestions;
+    final disabled = _savingQuestions || widget.questionsLocked;
     final aiFab = FloatingActionButton.small(
       heroTag: 'aiChatForFormBuilder',
       onPressed: _formId == null
@@ -500,14 +510,23 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
                   final sideMargin = max(24.0, (avail - contentW) / 2);
                   padding = EdgeInsets.fromLTRB(
                     sideMargin,
-                    16,
+                    topClearanceForRichToolbar(
+                      toolbarVisible: toolbarVisible,
+                    ),
                     sidebarWidth + 16 + sideMargin,
                     toolbarVisible ? 110 : 24,
                   );
                 } else {
                   final capped = centerPad(
                     context,
-                    base: const EdgeInsets.fromLTRB(22, 16, 22, 0),
+                    base: EdgeInsets.fromLTRB(
+                      22,
+                      topClearanceForRichToolbar(
+                        toolbarVisible: toolbarVisible,
+                      ),
+                      22,
+                      0,
+                    ),
                     maxWidth: twoColumn ? 1400 : 960,
                     wideMaxWidth: twoColumn ? 1400 : 960,
                   );
@@ -573,7 +592,8 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
           key: _agentKey,
           formId: _formId,
           settings: () => _settingsKey.currentState?.formController,
-          questions: () => _questions,
+          // Mode kunci: agen tak diberi akses daftar soal.
+          questions: widget.questionsLocked ? null : () => _questions,
           onChanged: () => setState(() {}),
           onClose: () => setState(() => _aiOpen = false),
         ),
@@ -591,10 +611,9 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
         ),
       ];
     }
-    if (_questions.isEmpty) {
-      return [_emptyQuestionsCard(cs)];
-    }
-    return [
+    final items = <Widget>[
+      if (widget.questionsLocked) _lockedBanner(cs),
+      if (_questions.isEmpty) _emptyQuestionsCard(cs),
       for (var i = 0; i < _questions.length; i++)
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -610,9 +629,39 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
             onMoveUp: () => _moveQuestion(i, -1),
             onMoveDown: () => _moveQuestion(i, 1),
             onDelete: () => _deleteQuestion(i),
+            readOnly: widget.questionsLocked,
           ),
         ),
     ];
+    return items;
+  }
+
+  /// Banner info saat soal dikunci (form sudah memiliki respons).
+  Widget _lockedBanner(ColorScheme cs) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.lock_outline, size: 18, color: cs.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Soal dikunci — form sudah memiliki respons. '
+                'Pengaturan form tetap dapat diubah.',
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Layout lebar: dua kartu berdampingan di sisi kiri, dengan AI sidebar
@@ -700,7 +749,9 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
                 size: 18,
                 color: Color(0xFFC0392B),
               ),
-              onPressed: _questions.isEmpty ? null : _clearAllQuestions,
+              onPressed: (_questions.isEmpty || widget.questionsLocked)
+                  ? null
+                  : _clearAllQuestions,
               child: const Text(
                 'Hapus Semua Soal',
                 style: TextStyle(color: Color(0xFFC0392B)),
@@ -714,7 +765,10 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
                       child: LoadingIndicator.inline(),
                     )
                   : const Icon(Icons.upload_file_outlined, size: 20),
-              onPressed: (_formId == null || _savingQuestions || _importing)
+              onPressed: (_formId == null ||
+                      _savingQuestions ||
+                      _importing ||
+                      widget.questionsLocked)
                   ? null
                   : importSoal,
               child: Text(_importing ? 'Mengimpor...' : 'Impor Soal'),

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/responsive.dart';
-import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
@@ -10,27 +9,23 @@ import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/search_field.dart';
 
-/// Pantauan LIVE mode ujian untuk owner — setara tab monitoring di web:
+/// Panel Monitoring Form untuk owner — dipakai sebagai tab Monitoring di
+/// layar responden (berlaku untuk formulir maupun ujian):
 /// - Polling tiap 15 detik + indikator LIVE berdenyut.
 /// - Ringkasan: mode ujian, sedang mengerjakan, online saat ini, terkumpul.
 /// - Filter (semua/mengerjakan/terkumpul/berpelanggaran/tinggi) + pencarian.
 /// - Kartu peserta: status online, jumlah pelanggaran, ditandai merah bila
 ///   melampaui batas, log pelanggaran yang bisa dibuka per peserta.
-class ExamMonitoringScreen extends StatefulWidget {
+class ExamMonitoringPanel extends StatefulWidget {
   final int formId;
-  final String title;
 
-  const ExamMonitoringScreen({
-    super.key,
-    required this.formId,
-    this.title = '',
-  });
+  const ExamMonitoringPanel({super.key, required this.formId});
 
   @override
-  State<ExamMonitoringScreen> createState() => _ExamMonitoringScreenState();
+  State<ExamMonitoringPanel> createState() => _ExamMonitoringPanelState();
 }
 
-class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
+class _ExamMonitoringPanelState extends State<ExamMonitoringPanel>
     with SingleTickerProviderStateMixin {
   ExamMonitoringData? _data;
   bool _loading = true;
@@ -147,37 +142,30 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final data = _data;
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        shape: Border(bottom: BorderSide(color: cs.outlineVariant)),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: cs.onSurface),
-          onPressed: () => AppRouter.of(context).pop(),
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                widget.title.isEmpty ? 'Pantau Ujian' : 'Pantau: ${widget.title}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: kFontBold,
+    if (_loading && data == null) {
+      return const LoadingOverlay(contained: true);
+    }
+    return AppRefreshIndicator(
+      onRefresh: () => _fetch(silent: true),
+      indicatorColor: cs.primary,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: centerPad(context, base: const EdgeInsets.fromLTRB(16, 12, 16, 24), wideMaxWidth: 1000),
+        children: [
+          // Header pengganti AppBar: judul + badge LIVE + muat ulang.
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Monitoring Form',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: kFontBold,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          // Badge LIVE berdenyut + waktu pembaruan terakhir.
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: Center(
-              child: Container(
+              Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
@@ -211,57 +199,45 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
                   ],
                 ),
               ),
+              IconButton(
+                icon: Icon(Icons.refresh, color: cs.onSurface),
+                tooltip: 'Muat ulang',
+                onPressed: () => _fetch(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (data != null) ...[
+            _SummaryGrid(data: data),
+            const SizedBox(height: 12),
+            _FilterBar(
+              data: data,
+              filter: _filter,
+              searchController: _searchController,
+              onFilter: (f) => setState(() => _filter = f),
+              onSearch: (s) => setState(() => _search = s),
             ),
-          ),
-          IconButton(
-            icon: Icon(Icons.refresh, color: cs.onSurface),
-            tooltip: 'Muat ulang',
-            onPressed: () => _fetch(),
-          ),
+            const SizedBox(height: 12),
+            if (_lastUpdated != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 8),
+                child: Text(
+                  'Diperbarui '
+                      '${_lastUpdated!.toLocal().toString().substring(11, 16)}'
+                      ' • otomatis tiap 15 detik',
+                  style:  TextStyle(
+                      fontSize: 10.5, color: cs.onSurfaceVariant),
+                ),
+              ),
+            ..._sessionList(data),
+          ] else
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: Text('Memuat data...')),
+            ),
         ],
       ),
-      body: _loading && data == null
-          ? const AppLoadingOverlay()
-          : AppRefreshIndicator(
-              onRefresh: () => _fetch(silent: true),
-              indicatorColor: cs.primary,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: centerPad(context, base: const EdgeInsets.fromLTRB(16, 12, 16, 24), wideMaxWidth: 1000),
-                children: [
-                  if (data != null) ...[
-                    _SummaryGrid(data: data),
-                    const SizedBox(height: 12),
-                    _FilterBar(
-                      data: data,
-                      filter: _filter,
-                      searchController: _searchController,
-                      onFilter: (f) => setState(() => _filter = f),
-                      onSearch: (s) => setState(() => _search = s),
-                    ),
-                    const SizedBox(height: 12),
-                    if (_lastUpdated != null)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 8),
-                        child: Text(
-                          'Diperbarui '
-                              '${_lastUpdated!.toLocal().toString().substring(11, 16)}'
-                              ' • otomatis tiap 15 detik',
-                          style:  TextStyle(
-                              fontSize: 10.5, color: cs.onSurfaceVariant),
-                        ),
-                      ),
-                    ..._sessionList(data),
-                  ] else
-                    const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(child: Text('Memuat data...')),
-                    ),
-                ],
-              ),
-            ),
     );
-
   }
 
   List<Widget> _sessionList(ExamMonitoringData data) {
@@ -284,7 +260,7 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
                 Icon(Icons.shield_outlined, size: 34, color: cs.onSurfaceVariant),
                 const SizedBox(height: 10),
                 const Text(
-                  'Belum ada peserta ujian ditemukan',
+                  'Belum ada sesi terpantau',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -293,7 +269,7 @@ class _ExamMonitoringScreenState extends State<ExamMonitoringScreen>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Peserta yang membuka halaman ujian otomatis tercatat dan '
+                  'Peserta yang membuka halaman form otomatis tercatat dan '
                   'muncul di sini secara real-time.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),

@@ -15,17 +15,23 @@ import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/responses/widgets/response_analytics_tab.dart';
 import 'package:form_up/features/responses/widgets/response_list_card.dart';
+import 'package:form_up/features/form/widgets/exam_monitoring_panel.dart';
 
-/// Kelola respon form — 2 tab: Analisis (ringkasan persen/diagram seperti
-/// versi web) dan Respon (daftar respon).
+/// Kelola respon form — 3 tab: Analisis (ringkasan persen/diagram seperti
+/// versi web), Respon (daftar respon), dan Monitoring (pantauan live
+/// peserta — berlaku untuk formulir maupun ujian).
 class FormResponScreen extends StatefulWidget {
   final int formId;
   final String title;
+
+  /// Tab awal: 0 = Analisis, 1 = Respon, 2 = Monitoring.
+  final int initialTab;
 
   const FormResponScreen({
     super.key,
     required this.formId,
     required this.title,
+    this.initialTab = 0,
   });
 
   @override
@@ -35,8 +41,7 @@ class FormResponScreen extends StatefulWidget {
 class _FormResponScreenState extends State<FormResponScreen>
     with SingleTickerProviderStateMixin {
   static const _pageSize = 10;
-  late final TabController _tabController =
-      TabController(length: 2, vsync: this);
+  late final TabController _tabController;
   List<ResponseListItemData> _responses = [];
   bool _loading = true;
   bool _loadingMore = false;
@@ -48,6 +53,11 @@ class _FormResponScreenState extends State<FormResponScreen>
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 2),
+    );
     NetworkStatus.onlineTick.addListener(_onOnline);
     _load();
   }
@@ -382,6 +392,8 @@ class _FormResponScreenState extends State<FormResponScreen>
           ],
           ),
           ),
+          // ── Tab Monitoring (pantauan live, formulir & ujian) ──
+          ExamMonitoringPanel(formId: widget.formId),
         ],
         ),
       ),
@@ -390,7 +402,7 @@ class _FormResponScreenState extends State<FormResponScreen>
   }
 }
 
-/// Tab Analisis/Respon bergaya Riwayat/Responden (teks + underline teal).
+/// Tab Analisis/Respon/Monitoring bergaya Riwayat/Responden (teks + underline teal).
 class _MintTabBar extends StatelessWidget implements PreferredSizeWidget {
   final TabController controller;
   const _MintTabBar({required this.controller});
@@ -414,7 +426,7 @@ class _MintTabBar extends StatelessWidget implements PreferredSizeWidget {
             fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 13),
         unselectedLabelStyle:
             const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-        tabs: const [Tab(text: 'Analisis'), Tab(text: 'Respon')],
+        tabs: const [Tab(text: 'Analisis'), Tab(text: 'Respon'), Tab(text: 'Monitoring')],
       ),
     );
   }

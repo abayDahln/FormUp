@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'dart:typed_data';
 
@@ -20,9 +20,10 @@ import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form/widgets/analytics_respondent_card.dart';
 import 'package:form_up/features/form/widgets/analytics_summary_row.dart';
 import 'package:form_up/features/responses/widgets/response_analytics_tab.dart';
+import 'package:form_up/features/form/widgets/exam_monitoring_panel.dart';
 
-/// Analisis respons form â€” 2 tab: Analisis (diagram persen seperti web)
-/// dan Respon (daftar responden).
+/// Analisis respons form - 3 tab: Analisis (diagram persen seperti web),
+/// Respon (daftar responden), dan Monitoring (pantauan live peserta).
 class AnalyticsScreen extends StatefulWidget {
   final int formId;
   final String title;
@@ -59,7 +60,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   static const _pageSize = 10;
   final _searchController = TextEditingController();
   late final TabController _tabController =
-      TabController(length: 2, vsync: this);
+      TabController(length: 3, vsync: this);
   Timer? _debounce;
   String _query = '';
   FormAnalytics? _analytics;
@@ -477,9 +478,10 @@ Berikan analisis yang mencakup:
         children: [
           // â”€â”€ Tab Analisis: diagram persen & analisis mendetail â”€â”€
           ResponseAnalyticsTab(formId: widget.formId, title: widget.title),
-          // â”€â”€ Tab Respon: daftar responden (isi lama screen ini) â”€â”€
           _buildResponTab(),
-        ],
+          // ── Tab Monitoring (pantauan live, formulir & ujian) ──
+          ExamMonitoringPanel(formId: widget.formId),
+          ],
       ),
       ),
     ),
@@ -674,7 +676,7 @@ Berikan analisis yang mencakup:
 }
 
 
-/// Tab Analisis/Respon bergaya Riwayat/Responden (teks + underline teal).
+/// Tab Analisis/Respon/Monitoring bergaya Riwayat/Responden (teks + underline teal).
 class _MintTabBar extends StatelessWidget implements PreferredSizeWidget {
   final TabController controller;
   const _MintTabBar({required this.controller});
@@ -703,7 +705,7 @@ class _MintTabBar extends StatelessWidget implements PreferredSizeWidget {
             fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 13),
         unselectedLabelStyle:
             const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-        tabs: const [Tab(text: 'Analisis'), Tab(text: 'Respon')],
+        tabs: const [Tab(text: 'Analisis'), Tab(text: 'Respon'), Tab(text: 'Monitoring')],
       ),
     );
   }

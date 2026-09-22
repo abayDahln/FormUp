@@ -25,11 +25,6 @@ class FormDetailScreen extends StatefulWidget {
 
 class _FormDetailScreenState extends State<FormDetailScreen> {
   FormData? _form;
-  // Settings detail (isExamMode/detectTabSwitch) — hanya ada di
-  // endpoint detail, tidak di list. Selama belum dimuat, Pantau Ujian
-  // DISEMBUNYIKAN (default false) agar tidak bisa diklik Kilat sebelum
-  // tombolnya hilang pada form non-ujian.
-  Map<String, dynamic>? _settings;
 
   @override
   void initState() {
@@ -38,17 +33,7 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
     _fetch();
   }
 
-  /// Pantau Ujian SELALU tampil (bukan hilang-muncul) — selama settings
-  /// belum dimuat tombol tampil nonaktif, jadi tidak ada celah klik
-  /// sebelum statusnya diketahui.
-  bool get _showExamMonitoring => true;
-
-  bool get _isExamType {
-    final s = _settings;
-    if (s == null) return false;
-    if (s['formTypeId'] == 2) return true;
-    return s['isExamMode'] == true || s['detectTabSwitch'] == true;
-  }
+  /// Pantauan live pindah ke tab Monitoring di layar Responden.
 
   Future<void> _fetch() async {
     try {
@@ -57,8 +42,6 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
       if (!mounted) return;
       setState(() {
         _form = FormData.fromJson(data);
-        final s = data['settings'];
-        _settings = s is Map<String, dynamic> ? s : null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -158,15 +141,6 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
                       form: form,
                       onPush: _push,
                       onShare: _openShare,
-                      showExamMonitoring: _showExamMonitoring,
-                      examMonitoringEnabled: _settings != null &&
-                          form.status == 'published' &&
-                          _isExamType,
-                      examMonitoringDisabledHint: _settings == null
-                          ? 'Memuat pengaturan form…'
-                          : form.status != 'published'
-                              ? 'Terbitkan form dulu untuk memantau ujian'
-                              : 'Pantau ujian hanya untuk form tipe Ujian',
                     ),
                     const SizedBox(height: 16),
                     FormDetailPublishCard(form: form, onToggle: _togglePublish),
@@ -180,15 +154,6 @@ class _FormDetailScreenState extends State<FormDetailScreen> {
                             form: form,
                             onPush: _push,
                             onShare: _openShare,
-                            showExamMonitoring: _showExamMonitoring,
-                            examMonitoringEnabled: _settings != null &&
-                                form.status == 'published' &&
-                                _isExamType,
-                            examMonitoringDisabledHint: _settings == null
-                                ? 'Memuat pengaturan form…'
-                                : form.status != 'published'
-                                    ? 'Terbitkan form dulu untuk memantau ujian'
-                                    : 'Pantau ujian hanya untuk form tipe Ujian',
                           ),
                         ),
                         const SizedBox(width: 16),

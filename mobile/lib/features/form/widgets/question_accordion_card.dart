@@ -11,6 +11,7 @@ import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/features/form/widgets/question_answer_section.dart';
 import 'package:form_up/features/form/widgets/question_image_source_sheet.dart';
 import 'package:form_up/features/form/widgets/question_media_section.dart';
+import 'package:form_up/features/form/widgets/question_preview_box.dart';
 import 'package:form_up/features/form/widgets/question_required_switch.dart';
 import 'package:form_up/features/form/widgets/question_text_section.dart';
 import 'package:image_picker/image_picker.dart';
@@ -20,6 +21,9 @@ import 'package:image_picker/image_picker.dart';
 /// pengaturan soal (pertanyaan, tipe, jawaban, pengaturan, media) tampil
 /// dalam satu kartu. Perubahan langsung menulis ke [draft] (satu tombol
 /// Simpan global di screen), jadi tanpa dialog "Simpan Soal" per kartu.
+///
+/// [readOnly] = true saat form sudah memiliki respons: kartu hanya tampil
+/// (pratinjau baca-saja, tanpa editor/media/susunan ulang).
 class QuestionAccordionCard extends StatefulWidget {
   final int index;
   final int totalCount;
@@ -32,6 +36,7 @@ class QuestionAccordionCard extends StatefulWidget {
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
   final VoidCallback onDelete;
+  final bool readOnly;
 
   const QuestionAccordionCard({
     super.key,
@@ -44,6 +49,7 @@ class QuestionAccordionCard extends StatefulWidget {
     required this.onMoveUp,
     required this.onMoveDown,
     required this.onDelete,
+    this.readOnly = false,
   });
 
   @override
@@ -53,9 +59,10 @@ class QuestionAccordionCard extends StatefulWidget {
 class _QuestionAccordionCardState extends State<QuestionAccordionCard> {
   bool _uploading = false;
 
-  /// True = isi section Pengaturan (wajib + media) terbuka. Default tutup
-  /// agar kartu soal tidak terlalu panjang ke bawah.
-  bool _settingsOpen = false;
+  /// Switch pratinjau per kartu + section Jawaban buka-tutup.
+  /// Pengaturan & Media selalu terbuka (tanpa dropdown).
+  bool _preview = false;
+  bool _answersExpanded = true;
   QuestionDraft get q => widget.draft;
 
   Future<void> _pickQuestionImage() async {
@@ -230,7 +237,13 @@ class _QuestionAccordionCardState extends State<QuestionAccordionCard> {
                 ],
               ),
             ),
-            MenuAnchor(
+            if (widget.readOnly)
+              Tooltip(
+                message: 'Soal dikunci — form sudah memiliki respons',
+                child: Icon(Icons.lock_outline, size: 20, color: cs.onSurfaceVariant),
+              )
+            else
+              MenuAnchor(
               builder: (context, controller, child) => IconButton(
                 icon:
                     Icon(Icons.more_vert, size: 20, color: cs.onSurfaceVariant),
@@ -314,66 +327,109 @@ class _QuestionAccordionCardState extends State<QuestionAccordionCard> {
     );
   }
 
-  Widget _expandedBody(BuildContext context, ColorScheme cs) {
-    // Section Pengaturan berbentuk dropdown (header bisa diklik) agar
-    // kartu tidak terlalu panjang ke bawah.
-    final settingsSection = Theme(
-      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-      // Material transparan agar ink splash ListTile tidak tertutup DecoratedBox.
-      child: Material(
-        type: MaterialType.transparency,
-        child: ExpansionTile(
-        tilePadding: EdgeInsets.zero,
-        childrenPadding: EdgeInsets.zero,
-        initiallyExpanded: _settingsOpen,
-        onExpansionChanged: (v) => setState(() => _settingsOpen = v),
-        leading: Icon(Icons.tune, size: 18, color: cs.primary),
-        title: Text(
-          'Pengaturan',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            fontFamily: kFontBold,
-            color: cs.onSurface,
-          ),
-        ),
+  /// Section Jawaban buka-tutup (Pengaturan & Media selalu terbuka).
+  Widget _collapsibleAnswerSection(ColorScheme cs) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          QuestionRequiredSwitch(
-            value: q.isRequired,
-            onChanged: (v) {
-              // Samakan web: isRequired independen dari isScorable/kunci/poin.
-              q.isRequired = v;
-              widget.onChanged();
+          InkWell(
+            onTap: () {
+              // Tutup section: lepas fokus dulu agar toolbar tidak
+              // mengambang untuk field yang disembunyikan.
+              if (_answersExpanded) {
+                FocusManager.instance.primaryFocus?.unfocus();
+              }
+              setState(() => _answersExpanded = !_answersExpanded);
             },
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.rule, size: 18, color: cs.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Jawaban',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: kFontBold,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                  const Spacer(),
+                  AnimatedRotation(
+                    turns: _answersExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      Icons.expand_more,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          const Divider(height: 32),
-          _sectionTitle(Icons.attach_file, 'Media', cs),
-          const SizedBox(height: 14),
-          QuestionMediaSection(
-            draft: q,
-            uploading: _uploading,
-            onPickImage: _pickQuestionImage,
-            onPickAudio: _pickQuestionAudio,
-            onChanged: widget.onChanged,
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.only(top: 14),
+              child: QuestionAnswerSection(
+                draft: q,
+                onChanged: widget.onChanged,
+              ),
+            ),
+            crossFadeState: _answersExpanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 200),
           ),
         ],
+      );
+
+  Widget _expandedBody(BuildContext context, ColorScheme cs) {
+    // Mode baca-saja (form sudah berespons): tampilkan pratinjau soal +
+    // opsi tanpa editor, media, maupun pengaturan per-soal.
+    if (widget.readOnly) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        child: QuestionPreviewBox(draft: q),
+      );
+    }
+    // Pengaturan & Media selalu terbuka (tanpa dropdown).
+    final settingsSection = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _sectionTitle(Icons.tune, 'Pengaturan', cs),
+        const SizedBox(height: 14),
+        QuestionRequiredSwitch(
+          value: q.isRequired,
+          onChanged: (v) {
+            // Samakan web: isRequired independen dari isScorable/kunci/poin.
+            setState(() => q.isRequired = v);
+            widget.onChanged();
+          },
         ),
-      ),
+        const Divider(height: 32),
+        _sectionTitle(Icons.attach_file, 'Media', cs),
+        const SizedBox(height: 14),
+        QuestionMediaSection(
+          draft: q,
+          uploading: _uploading,
+          onPickImage: _pickQuestionImage,
+          onPickAudio: _pickQuestionAudio,
+          onChanged: widget.onChanged,
+        ),
+      ],
     );
     final textAndAnswer = [
       QuestionTextSection(
         draft: q,
-        preview: false,
-        onPreviewChanged: (_) {},
+        preview: _preview,
+        onPreviewChanged: (v) => setState(() => _preview = v),
         onTypeChanged: _onTypeChanged,
       ),
       const Divider(height: 32),
-      _sectionTitle(Icons.rule, 'Jawaban', cs),
-      const SizedBox(height: 14),
-      QuestionAnswerSection(
-        draft: q,
-        onChanged: widget.onChanged,
-      ),
+      _collapsibleAnswerSection(cs),
     ];
     final settingsAndMedia = [
       settingsSection,

@@ -40,6 +40,8 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
   AppRouterDelegate? _router;
   bool _preview = false;
   bool _uploading = false;
+  // Section Jawaban bisa dibuka-tutup; Pengaturan & Media selalu terbuka.
+  bool _answersExpanded = true;
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _questionFieldKey = GlobalKey();
   final GlobalKey _answerSectionKey = GlobalKey();
@@ -85,10 +87,16 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
   /// Auto-scroll ke field yang gagal validasi
   Future<void> _scrollToError(String error) async {
     final toAnswer = error.toLowerCase().contains('opsi');
+    // Buka dulu section Jawaban bila error ada di sana.
+    if (toAnswer && !_answersExpanded && mounted) {
+      setState(() => _answersExpanded = true);
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      if (!mounted) return;
+    }
     final ctx = toAnswer
         ? _answerSectionKey.currentContext
         : _questionFieldKey.currentContext;
-    if (ctx != null) {
+    if (ctx != null && ctx.mounted) {
       await Scrollable.ensureVisible(
         ctx,
         duration: const Duration(milliseconds: 300),
@@ -230,6 +238,65 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
             ),
           ],
         );
+    // Section buka-tutup khusus Jawaban (Pengaturan & Media selalu terbuka).
+    Widget collapsibleAnswerSection(QuestionDraft draft) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InkWell(
+              onTap: () {
+                // Tutup section: lepas fokus dulu agar toolbar tidak
+                // mengambang untuk field yang disembunyikan.
+                if (_answersExpanded) {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                }
+                setState(() => _answersExpanded = !_answersExpanded);
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.rule, size: 18, color: cs.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Jawaban',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: kFontBold,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const Spacer(),
+                    AnimatedRotation(
+                      turns: _answersExpanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(
+                        Icons.expand_more,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedCrossFade(
+              firstChild: const SizedBox.shrink(),
+              secondChild: Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: QuestionAnswerSection(
+                  optionsKey: _answerSectionKey,
+                  draft: draft,
+                  onChanged: () => setState(() {}),
+                ),
+              ),
+              crossFadeState: _answersExpanded
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 200),
+            ),
+          ],
+        );
     final textAndAnswer = [
       QuestionTextSection(
         questionFieldKey: _questionFieldKey,
@@ -239,13 +306,7 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
         onTypeChanged: _onTypeChanged,
       ),
       const Divider(height: 32),
-      sectionTitle(Icons.rule, 'Jawaban'),
-      const SizedBox(height: 14),
-      QuestionAnswerSection(
-        optionsKey: _answerSectionKey,
-        draft: q,
-        onChanged: () => setState(() {}),
-      ),
+      collapsibleAnswerSection(q),
     ];
     final settingsAndMedia = [
       sectionTitle(Icons.tune, 'Pengaturan'),
@@ -352,7 +413,9 @@ class _FormQuestionEditScreenState extends State<FormQuestionEditScreen> {
                       context,
                       base: EdgeInsets.fromLTRB(
                         22,
-                        16,
+                        topClearanceForRichToolbar(
+                          toolbarVisible: toolbarVisible,
+                        ),
                         22,
                         toolbarVisible ? 110 : 24,
                       ),

@@ -55,6 +55,22 @@ bool get isDesktopPlatform {
       defaultTargetPlatform == TargetPlatform.linux;
 }
 
+/// Inset atas scroll agar konten tidak tertutup FloatingRichToolbar.
+///
+/// Toolbar hanya tampil di ATAS pada desktop Windows (di mobile ia di bawah
+/// dan sudah ditangani padding bawah). Tanpa clearance ini, konten yang
+/// discroll ke bawah toolbar atas tidak bisa diklik karena tap dimakan pil
+/// toolbar (kasus: switch Pratinjau tak bisa digeser di Windows).
+double topClearanceForRichToolbar({
+  double base = 16,
+  required bool toolbarVisible,
+}) {
+  if (defaultTargetPlatform == TargetPlatform.windows && toolbarVisible) {
+    return 76;
+  }
+  return base;
+}
+
 /// Padding horizontal adaptif: phone (<600) mengembalikan [base] apa adanya
 /// (render identik), tablet/desktop melebarkan sisi kiri-kanan sehingga konten
 /// terpusat selebar [maxWidth] — atau [wideMaxWidth] di layar ekstra-lebar

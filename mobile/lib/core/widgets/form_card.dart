@@ -264,23 +264,19 @@ Future<void> showFormQuickActions(
           const SizedBox(height: 4),
           _sheetAction(
             cs: cs,
-            icon: form.responseCount > 0
-                ? Icons.lock_outline
-                : Icons.edit_outlined,
+            icon: Icons.edit_outlined,
             label: 'Edit Soal & Jawaban',
-            muted: form.responseCount > 0,
-            onTap: form.responseCount > 0
-                ? () => showAuthToast(
-                      context,
-                      'Soal tidak dapat diubah karena form sudah memiliki respons',
-                      isError: true,
-                    )
-                : () => _closeAndPush(
-                    sheetContext,
-                    context,
-                    AppPage.formQuestions,
-                    {'formId': form.id},
-                  ),
+            onTap: () => _closeAndPush(
+              sheetContext,
+              context,
+              AppPage.formQuestions,
+              {
+                'formId': form.id,
+                // Soal dikunci bila sudah ada respons (layar tetap terbuka,
+                // hanya perubahan soal yang dinonaktifkan).
+                'lockedQuestions': form.responseCount > 0,
+              },
+            ),
           ),
           _sheetAction(
             cs: cs,
@@ -302,17 +298,6 @@ Future<void> showFormQuickActions(
               context,
               AppPage.formRespon,
               {'formId': form.id, 'title': richToPlainText(form.title)},
-            ),
-          ),
-          _sheetAction(
-            cs: cs,
-            icon: Icons.settings_outlined,
-            label: 'Setting Form',
-            onTap: () => _closeAndPush(
-              sheetContext,
-              context,
-              AppPage.formMaker,
-              {'formId': form.id},
             ),
           ),
           _sheetAction(
@@ -361,21 +346,20 @@ const SizedBox(height: 8),
 }
 
 Widget _sheetAction({
-  required ColorScheme cs,
-  required IconData icon,
-  required String label,
-  required VoidCallback onTap,
-  bool muted = false,
-}) {
-  return ListTile(
-    leading: Icon(icon, color: cs.primary),
-    title: Text(
-      label,
-      style: TextStyle(
-        fontSize: 14,
-        color: muted ? cs.onSurfaceVariant : cs.onSurface,
+    required ColorScheme cs,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: cs.primary),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontSize: 14,
+          color: cs.onSurface,
+        ),
       ),
-    ),
     trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
     onTap: onTap,
   );
