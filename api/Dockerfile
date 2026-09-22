@@ -7,6 +7,7 @@ RUN dotnet restore FormUpAPI.csproj
 COPY . .
 RUN dotnet publish FormUpAPI.csproj -c Release -o /app/publish /p:UseAppHost=false
 
+FROM build AS migrate
 RUN dotnet tool install --global dotnet-ef --version 8.*
 ENV PATH="$PATH:/root/.dotnet/tools"
 
