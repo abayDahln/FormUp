@@ -196,16 +196,23 @@ namespace FormUpAPI
                     });
                 });
 
-                // Submit form publik
+                // Submit form publik (Device-Aware: Siswa di Wi-Fi sekolah tidak saling memblokir)
                 options.AddPolicy("submit", context =>
                 {
                     var formKey = context.Request.RouteValues["formId"]?.ToString()
                         ?? context.Request.RouteValues["formLink"]?.ToString()
                         ?? "0";
-                    var key = $"{context.Connection.RemoteIpAddress}:{formKey}";
+                    var clientKey = GetClientDeviceIdentifier(context);
+                    var key = $"{clientKey}:{formKey}";
+
+                    // GET request (baca form / soal) diberikan kuota lebih longgar (60/mnt per perangkat)
+                    // POST submit dibatasi 30/mnt per perangkat (aman dari spam, tidak mencekik)
+                    var isRead = HttpMethods.IsGet(context.Request.Method);
+                    var permit = isRead ? 60 : 30;
+
                     return RateLimitPartition.GetSlidingWindowLimiter(key, _ => new SlidingWindowRateLimiterOptions
                     {
-                        PermitLimit = 60,
+                        PermitLimit = permit,
                         Window = TimeSpan.FromMinutes(1),
                         SegmentsPerWindow = 4,
                         QueueLimit = 0,
@@ -213,19 +220,20 @@ namespace FormUpAPI
                 });
 
                 // Presence ujian (exam-events + sync-answers): heartbeat 5 dtk
-                // + sync draft per perangkat = ±24 req/mnt. Budget 600/mnt
-                // per IP+form menampung ±25 perangkat di balik satu IP NAT
-                // (lab sekolah) — dipisah dari "submit" agar heartbeat tak
-                // memakan jatah kirim jawaban dan sebaliknya.
+                // + sync draft per perangkat.
+                // Device-Aware: Partisi per perangkat/siswa, bukan per IP.
+                // Mendukung ratusan siswa di lab sekolah secara mandiri.
                 options.AddPolicy("presence", context =>
                 {
                     var formKey = context.Request.RouteValues["formId"]?.ToString()
                         ?? context.Request.RouteValues["formLink"]?.ToString()
                         ?? "0";
-                    var key = $"{context.Connection.RemoteIpAddress}:{formKey}";
+                    var clientKey = GetClientDeviceIdentifier(context);
+                    var key = $"{clientKey}:{formKey}";
+
                     return RateLimitPartition.GetSlidingWindowLimiter(key, _ => new SlidingWindowRateLimiterOptions
                     {
-                        PermitLimit = 600,
+                        PermitLimit = 120, // 120 event per menit per perangkat (heartbeat 5s = 12/min, sangat aman)
                         Window = TimeSpan.FromMinutes(1),
                         SegmentsPerWindow = 6,
                         QueueLimit = 0,
@@ -338,5 +346,53 @@ namespace FormUpAPI
                 "your-super-secret-key-at-least-32-characters" => true,
                 _ => key.Trim().Length < 32,
             };
+
+        /// <summary>
+        /// Mengidentifikasi perangkat/klien secara unik agar ratusan siswa/pengguna
+        /// di balik satu router Wi-Fi/NAT (sekolah/kampus) tidak saling memblokir kuota.
+        /// Prioritas: User ID (jika login) -> X-Device-Id -> X-Session-Id -> IP:UserAgentHash.
+        /// </summary>
+        public static string GetClientDeviceIdentifier(HttpContext context)
+        {
+            // 1. Jika terautentikasi, gunakan User Id
+            var userId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userId))
+            {
+                return $"user:{userId}";
+            }
+
+            // 2. Cek Header X-Device-Id dari frontend Web / Mobile
+            if (context.Request.Headers.TryGetValue("X-Device-Id", out var deviceId) && !string.IsNullOrWhiteSpace(deviceId))
+            {
+                var cleanDevId = deviceId.ToString().Trim();
+                if (cleanDevId.Length >= 4 && cleanDevId.Length <= 100)
+                {
+                    return $"dev:{cleanDevId}";
+                }
+            }
+
+            // 3. Cek Header X-Session-Id atau route session (misal saat ujian)
+            if (context.Request.Headers.TryGetValue("X-Session-Id", out var sessId) && !string.IsNullOrWhiteSpace(sessId))
+            {
+                var cleanSessId = sessId.ToString().Trim();
+                if (cleanSessId.Length >= 4 && cleanSessId.Length <= 100)
+                {
+                    return $"sess:{cleanSessId}";
+                }
+            }
+
+            var routeSessionId = context.Request.RouteValues["sessionId"]?.ToString();
+            if (!string.IsNullOrWhiteSpace(routeSessionId))
+            {
+                return $"sess:{routeSessionId.Trim()}";
+            }
+
+            // 4. Fallback jika tidak ada header device: IP + User-Agent Hash agar membedakan perangkat berbeda
+            var ip = context.Connection.RemoteIpAddress?.ToString() ?? "anon";
+            var ua = context.Request.Headers.UserAgent.ToString();
+            var uaHash = string.IsNullOrEmpty(ua) ? "noua" : (ua.GetHashCode() & 0x7FFFFFFF).ToString("x");
+
+            return $"ip_ua:{ip}:{uaHash}";
+        }
     }
 }
