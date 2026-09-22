@@ -5,6 +5,7 @@ import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
 import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/utils/safe_load.dart';
 import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/search_field.dart';
@@ -61,7 +62,8 @@ class _ResponseScreenState extends State<ResponseScreen> {
   List<MyResponseItem> _history = [];
   List<FormData> _myForms = [];
   bool _loading = true;
-  String? _loadError;
+  String? _historyError;
+  String? _analyticsError;
 
   // Search terpisah per tab
   final TextEditingController _historySearchController = TextEditingController();
@@ -121,26 +123,50 @@ class _ResponseScreenState extends State<ResponseScreen> {
   Future<void> _load({bool refresh = false}) async {
     setState(() {
       _loading = true;
-      _loadError = null;
+      _historyError = null;
+      _analyticsError = null;
     });
     try {
-      final results = await Future.wait([
-        FormService.getMyResponses(refresh: refresh),
-        FormService.getMyForms(refresh: refresh),
-      ]);
+      // Paralel tapi per-sumber: satu gagal tidak menghanguskan yang lain.
+      final historyFut = captureLoad<List<MyResponseItem>>(
+        () => FormService.getMyResponses(refresh: refresh),
+      );
+      final formsFut = captureLoad<List<FormData>>(
+        () => FormService.getMyForms(refresh: refresh),
+      );
+      final (historyVal, historyErr) = await historyFut;
+      final (formsVal, formsErr) = await formsFut;
       if (!mounted) return;
+      final nonConnErrors = <String>[];
       setState(() {
-        _history = results[0] as List<MyResponseItem>;
-        _myForms = results[1] as List<FormData>;
-        _loadError = null;
+        if (historyVal != null) {
+          _history = historyVal;
+          _historyError = null;
+        } else if (historyErr != null) {
+          if (AuthService.isConnectionError(historyErr)) {
+            if (_history.isEmpty) {
+              _historyError = AuthService.errorMessage(historyErr);
+            }
+          } else {
+            nonConnErrors.add(AuthService.errorMessage(historyErr));
+          }
+        }
+        if (formsVal != null) {
+          _myForms = formsVal;
+          _analyticsError = null;
+        } else if (formsErr != null) {
+          if (AuthService.isConnectionError(formsErr)) {
+            if (_myForms.isEmpty) {
+              _analyticsError = AuthService.errorMessage(formsErr);
+            }
+          } else {
+            nonConnErrors.add(AuthService.errorMessage(formsErr));
+          }
+        }
       });
-    } catch (e) {
-      if (!mounted) return;
-      // Error koneksi: tampilkan view retry, bukan daftar kosong.
-      if (AuthService.isConnectionError(e)) {
-        setState(() => _loadError = AuthService.errorMessage(e));
-      } else {
-        showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      for (final msg in nonConnErrors) {
+        if (!mounted) break;
+        showAuthToast(context, msg, isError: true);
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -407,7 +433,8 @@ class _ResponseScreenState extends State<ResponseScreen> {
                   ? const SingleChildScrollView(
                       physics: NeverScrollableScrollPhysics(),
                       padding: EdgeInsets.fromLTRB(20, 0, 20, 24),
-                      child: SkeletonList.tiles(itemCount: 4),
+                      // Tab awal = Riwayat: mirror kontainer grup riwayat.
+                      child: SkeletonGroupedList.history(itemCount: 3),
                     )
                   : TabBarView(
                       children: [
@@ -591,7 +618,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
   }
 
   Widget _buildHistoryList(List<ResponseHistoryGroup> groups) {
-    if (_loadError != null && groups.isEmpty && _historyQuery.isEmpty) {
+    if (_historyError != null && groups.isEmpty && _historyQuery.isEmpty) {
       return AppRefreshIndicator(
         onRefresh: () => _load(refresh: true),
         indicatorColor: Theme.of(context).colorScheme.primary,
@@ -605,7 +632,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
                   child: ConnectionErrorView(
-                    message: _loadError!,
+                    message: _historyError!,
                     onRetry: () => _load(refresh: true),
                     bare: true,
                   ),
@@ -684,7 +711,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
   }
 
   Widget _buildAnalyticsList(List<FormData> forms) {
-    if (_loadError != null && forms.isEmpty && _analyticsQuery.isEmpty) {
+    if (_analyticsError != null && forms.isEmpty && _analyticsQuery.isEmpty) {
       return AppRefreshIndicator(
         onRefresh: () => _load(refresh: true),
         indicatorColor: Theme.of(context).colorScheme.primary,
@@ -698,7 +725,7 @@ class _ResponseScreenState extends State<ResponseScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
                   child: ConnectionErrorView(
-                    message: _loadError!,
+                    message: _analyticsError!,
                     onRetry: () => _load(refresh: true),
                     bare: true,
                   ),

@@ -35,7 +35,7 @@ class HomeRecentActivity extends StatelessWidget {
     if (loading && responses.isEmpty) {
       const skeleton = Padding(
         padding: EdgeInsets.symmetric(vertical: 4),
-        child: SkeletonList.tiles(itemCount: 3),
+        child: SkeletonList.activity(itemCount: 3),
       );
       if (bare) return skeleton;
       return Container(

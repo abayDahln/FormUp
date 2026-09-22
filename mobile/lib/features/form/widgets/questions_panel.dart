@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/adaptive_fab.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
@@ -679,9 +680,18 @@ class QuestionsPanelState extends State<QuestionsPanel>
 
   /// Isi body (dipakai layar tunggal & kolom dual).
   Widget _buildBodyContent() {
-    return _loading
-          ? const LoadingOverlay(contained: true)
-          : AbsorbPointer(
+    if (_loading) {
+      // Mirror daftar kartu soal (padding sama seperti daftar asli).
+      return SingleChildScrollView(
+        padding: widget.centerContent
+            ? centerPad(context,
+                base: const EdgeInsets.fromLTRB(22, 16, 22, 24),
+                wideMaxWidth: 900)
+            : const EdgeInsets.fromLTRB(22, 16, 22, 24),
+        child: const SkeletonList.questions(itemCount: 4),
+      );
+    }
+    return AbsorbPointer(
               absorbing: _saving || _importing,
               child: AuthBackground(
                 plain: true,

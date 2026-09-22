@@ -5,6 +5,7 @@ import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
+import 'package:form_up/core/utils/safe_load.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -64,29 +65,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
     }
     try {
-      final results = await Future.wait([
-        UserService.getProfile(refresh: refresh),
-        UserService.getStats(refresh: refresh),
-        // 1c: rekap aktivitas untuk panel kanan desktop (best-effort).
-        FormService.getMyResponses(refresh: refresh).catchError((_) => <MyResponseItem>[]),
-      ]);
+      // Paralel tapi per-sumber: statistik gagal tidak boleh
+      // menghanguskan profil (dan sebaliknya).
+      final profileFut = captureLoad<UserProfile>(
+        () => UserService.getProfile(refresh: refresh),
+      );
+      final statsFut = captureLoad<UserStats>(
+        () => UserService.getStats(refresh: refresh),
+      );
+      // 1c: rekap aktivitas untuk panel kanan desktop (best-effort).
+      final recentFut = captureLoad<List<MyResponseItem>>(
+        () => FormService.getMyResponses(refresh: refresh),
+      );
+      final (profileVal, profileErr) = await profileFut;
+      final (statsVal, statsErr) = await statsFut;
+      final (recentVal, _) = await recentFut;
       if (!mounted) return;
       setState(() {
-        _profile = results[0] as UserProfile;
-        _stats = results[1] as UserStats;
-        _recent = (results[2] as List<MyResponseItem>).take(5).toList();
-        _loadError = null;
+        if (profileVal != null) {
+          _profile = profileVal;
+          _loadError = null;
+        } else if (profileErr != null &&
+            showLoader &&
+            AuthService.isConnectionError(profileErr)) {
+          // Profil (data utama) gagal koneksi saat belum tampil:
+          // tampilkan view retry penuh.
+          _loadError = AuthService.errorMessage(profileErr);
+        }
+        if (statsVal != null) {
+          _stats = statsVal;
+        }
+        if (recentVal != null) {
+          _recent = recentVal.take(5).toList();
+        }
       });
-    } catch (e) {
-      if (!mounted) return;
-      // Error koneksi saat data belum tampil: tampilkan view retry penuh.
-      if (showLoader && AuthService.isConnectionError(e)) {
-        setState(() => _loadError = AuthService.errorMessage(e));
-        return;
+      // Error non-koneksi atau error saat data lama tampil: toast saja,
+      // jangan timpa layar (data cache tetap berguna).
+      final toastMsgs = <String>[];
+      if (profileVal == null &&
+          profileErr != null &&
+          !(showLoader && AuthService.isConnectionError(profileErr))) {
+        toastMsgs.add(AuthService.errorMessage(profileErr));
       }
-      // Refresh senyap gagal saat data lama masih tampil: cukup toast,
-      // jangan timpa layar dengan error (data cache tetap berguna).
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      if (statsVal == null && statsErr != null) {
+        toastMsgs.add(AuthService.errorMessage(statsErr));
+      }
+      for (final msg in toastMsgs) {
+        if (!mounted) break;
+        showAuthToast(context, msg, isError: true);
+      }
     } finally {
       _refreshing = false;
       if (mounted && showLoader) setState(() => _loading = false);

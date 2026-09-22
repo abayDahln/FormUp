@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/responsive.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/answer_fields.dart';
 import 'package:form_up/core/utils/form_zoom.dart';
@@ -157,7 +157,21 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
         ],
       ),
       body: _loading
-          ? const AppLoadingOverlay()
+          ? SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: centerPad(context,
+                  base: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                  wideMaxWidth: 860),
+              // Mirror layout asli: kartu header + kartu-kartu soal.
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SkeletonTitleCard(),
+                  SizedBox(height: 16),
+                  SkeletonList.preview(itemCount: 3),
+                ],
+              ),
+            )
           : _loadError != null && _questions.isEmpty && _title.isEmpty
               ? Center(
                   child: SingleChildScrollView(

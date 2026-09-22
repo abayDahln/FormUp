@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/search_field.dart';
@@ -155,7 +155,14 @@ class _ExamMonitoringPanelState extends State<ExamMonitoringPanel>
     final cs = Theme.of(context).colorScheme;
     final data = _data;
     if (_loading && data == null) {
-      return const LoadingOverlay(contained: true);
+      // Mirror daftar kartu sesi (padding sama seperti daftar asli).
+      return SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: centerPad(context,
+            base: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            wideMaxWidth: 1000),
+        child: const SkeletonList.sessions(itemCount: 4),
+      );
     }
     if (_loadError != null && data == null) {
       return Center(

@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
 import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
@@ -506,7 +507,23 @@ Berikan analisis yang mencakup:
   Widget _buildResponTab() {
     final cs = Theme.of(context).colorScheme;
     if (_loading && _analytics == null) {
-      return const LoadingOverlay(contained: true);
+      // Mirror layout asli: kartu judul + baris ringkasan + kartu responden.
+      return SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: centerPad(context,
+            base: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            wideMaxWidth: 1100),
+        child: const Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SkeletonTitleCard(),
+            SizedBox(height: 16),
+            SkeletonSummaryRow(),
+            SizedBox(height: 16),
+            SkeletonList.respondents(itemCount: 4),
+          ],
+        ),
+      );
     }
     return AbsorbPointer(
       absorbing: _exporting,

@@ -276,7 +276,10 @@ class _FormScreenState extends State<FormScreen> {
             if (_loadingForms && _myForms.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 4),
-                child: SkeletonList.cards(itemCount: 4),
+                child: SkeletonFormGrid(
+                  itemCount: 4,
+                  columnCountFor: formGridColumns,
+                ),
               )
             else if (_loadError != null && _myForms.isEmpty)
               ConnectionErrorView(

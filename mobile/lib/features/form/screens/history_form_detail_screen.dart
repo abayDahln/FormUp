@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/responsive.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
@@ -115,7 +115,26 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
         ),
       ),
       body: _loading
-          ? const AppLoadingOverlay()
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: centerPad(context,
+                  base: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  wideMaxWidth: 1000),
+              children: const [
+                // Mirror kartu info + daftar attempt di bawahnya.
+                SkeletonInfoCard(),
+                SizedBox(height: 16),
+                Row(
+                  children: [
+                    SkeletonBox(width: 180, height: 16, borderRadius: 8),
+                    Spacer(),
+                    SkeletonBox(width: 36, height: 36, borderRadius: 18),
+                  ],
+                ),
+                SizedBox(height: 12),
+                SkeletonList.attempts(itemCount: 3),
+              ],
+            )
           : _loadError != null && _attempts.isEmpty
               ? Center(
                   child: AppRefreshIndicator(

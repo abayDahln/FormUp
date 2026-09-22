@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/responsive.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/admin_service.dart';
@@ -313,7 +313,13 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
                     ],
                   )
                 : _loading
-                    ? const AppLoadingOverlay()
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
+                        children: const [
+                          SkeletonList.admin(itemCount: 5),
+                        ],
+                      )
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -563,7 +569,13 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                     ],
                   )
                 : _loading
-                    ? const AppLoadingOverlay()
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
+                        children: const [
+                          SkeletonList.admin(itemCount: 5),
+                        ],
+                      )
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -777,7 +789,13 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
                     ],
                   )
                 : _loading
-                    ? const AppLoadingOverlay()
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
+                        children: const [
+                          SkeletonList.admin(itemCount: 5),
+                        ],
+                      )
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),

@@ -23,6 +23,7 @@ import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/adaptive_fab.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
 import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/utils/safe_load.dart';
 import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/form_card.dart';
 import 'package:form_up/features/home/widgets/user_guide_sheet.dart';
@@ -46,7 +47,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<MyResponseItem> _myResponses = [];
   String? _avatarPath;
   bool _loading = true;
-  String? _loadError;
+  String? _formsError;
+  String? _responsesError;
   final _codeController = TextEditingController();
   bool _validatingCode = false;
 
@@ -192,34 +194,62 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _load() async {
     setState(() {
       _loading = true;
-      _loadError = null;
+      _formsError = null;
+      _responsesError = null;
     });
     try {
-      final results = await Future.wait([
-        FormService.getMyForms(),
-        FormService.getMyResponses(),
-        // Foto profil untuk tombol akun sidebar (best-effort).
-        UserService.getProfile()
-            .then((p) => p.profileImage ?? '')
-            .catchError((_) => ''),
-      ]);
-      if (!mounted) return;
-      setState(() {
-        _myForms = results[0] as List<FormData>;
-        _myResponses = results[1] as List<MyResponseItem>;
-        _avatarPath = results[2] as String;
-        _loadError = null;
+      // Jalan paralel, tapi tiap sumber ditangani SENDIRI: satu request
+      // yang gagal (mis. blip koneksi) tidak boleh menghanguskan data
+      // sumber lain — sebelumnya Future.wait all-or-nothing membuat
+      // seluruh beranda error padahal 2 dari 3 sumber sukses.
+      final formsFut = captureLoad<List<FormData>>(FormService.getMyForms);
+      final respFut =
+          captureLoad<List<MyResponseItem>>(FormService.getMyResponses);
+      final avatarFut = captureLoad<String>(() async {
+        try {
+          final p = await UserService.getProfile();
+          return p.profileImage ?? '';
+        } catch (_) {
+          return '';
+        }
       });
-      _maybeAutoTour();
-    } catch (e) {
+      final (formsVal, formsErr) = await formsFut;
+      final (respVal, respErr) = await respFut;
+      final (avatarVal, _) = await avatarFut;
       if (!mounted) return;
-      // Error koneksi: tampilkan view retry di konten, bukan daftar kosong.
-      if (AuthService.isConnectionError(e)) {
-        setState(() => _loadError = AuthService.errorMessage(e));
-      } else {
-        // Konsisten: selalu toast float, tidak ada banner inline di dalam view
-        showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      final nonConnErrors = <String>[];
+      setState(() {
+        if (formsVal != null) {
+          _myForms = formsVal;
+          _formsError = null;
+        } else if (formsErr != null) {
+          if (AuthService.isConnectionError(formsErr)) {
+            if (_myForms.isEmpty) {
+              _formsError = AuthService.errorMessage(formsErr);
+            }
+          } else {
+            nonConnErrors.add(AuthService.errorMessage(formsErr));
+          }
+        }
+        if (respVal != null) {
+          _myResponses = respVal;
+          _responsesError = null;
+        } else if (respErr != null) {
+          if (AuthService.isConnectionError(respErr)) {
+            if (_myResponses.isEmpty) {
+              _responsesError = AuthService.errorMessage(respErr);
+            }
+          } else {
+            nonConnErrors.add(AuthService.errorMessage(respErr));
+          }
+        }
+        if (avatarVal != null) _avatarPath = avatarVal;
+      });
+      for (final msg in nonConnErrors) {
+        if (!mounted) break;
+        showAuthToast(context, msg, isError: true);
       }
+      _maybeAutoTour();
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -374,11 +404,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     if (_loading && _myForms.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: SkeletonList.cards(itemCount: formCount),
+                        child: SkeletonFormGrid(itemCount: formCount),
                       )
-                    else if (_loadError != null && _myForms.isEmpty)
+                    else if (_formsError != null && _myForms.isEmpty)
                       ConnectionErrorView(
-                        message: _loadError!,
+                        message: _formsError!,
                         onRetry: _load,
                         bare: true,
                       )
@@ -412,7 +442,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       onOpenResponse: _openResponse,
                       limit: activityCount,
                       bare: true,
-                      loadError: _loadError,
+                      loadError: _responsesError,
                       onRetry: _load,
                     ),
                     const SizedBox(height: 8),
@@ -488,7 +518,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 'formId': form.id,
                 'form': form,
               }),
-              loadError: _loadError,
+              loadError: _formsError,
               onRetry: _load,
             ),
             const SizedBox(height: 25),
@@ -508,7 +538,7 @@ class _HomeScreenState extends State<HomeScreen> {
               loading: _loading,
               responses: _myResponses,
               onOpenResponse: _openResponse,
-              loadError: _loadError,
+              loadError: _responsesError,
               onRetry: _load,
             ),
             const SizedBox(height: 30),

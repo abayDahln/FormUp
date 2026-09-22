@@ -26,9 +26,20 @@ class HomeRecentForms extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading && forms.isEmpty) {
+      // Mirror layout asli: kolom tunggal di phone, grid di tablet/desktop.
+      if (!isTablet(context)) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 4),
+          child: SkeletonList.cards(itemCount: 3),
+        );
+      }
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 4),
-        child: SkeletonList.cards(itemCount: 3),
+        child: SkeletonFormGrid(
+          itemCount: 4,
+          compact: true,
+          columnCountFor: formGridColumns,
+        ),
       );
     }
     if (forms.isEmpty) {

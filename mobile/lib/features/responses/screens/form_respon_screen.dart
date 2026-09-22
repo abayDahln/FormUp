@@ -8,6 +8,7 @@ import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
 import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -309,7 +310,12 @@ class _FormResponScreenState extends State<FormResponScreen>
             child: Column(children: [
             if (_exporting) const progress.ProgressIndicator.linear(semanticsLabel: 'Mengekspor respon'),
             Expanded(child: _loading
-              ? const LoadingOverlay(contained: true)
+              ? SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: centerPad(context,
+                      base: const EdgeInsets.fromLTRB(20, 12, 20, 24)),
+                  child: const SkeletonList.responses(itemCount: 5),
+                )
               : AbsorbPointer(
                   absorbing: _exporting,
                   child: AuthBackground(plain: true,

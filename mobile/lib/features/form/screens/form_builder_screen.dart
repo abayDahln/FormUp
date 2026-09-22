@@ -12,6 +12,7 @@ import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
@@ -749,12 +750,8 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
   /// Daftar kartu accordion soal + state loading/empty (dipakai dua layout).
   List<Widget> _questionItems(ColorScheme cs) {
     if (_loadingQuestions) {
-      return const [
-        Padding(
-          padding: EdgeInsets.all(32),
-          child: Center(child: LoadingIndicator.circular()),
-        ),
-      ];
+      // Mirror daftar kartu soal (bukan spinner tengah).
+      return const [SkeletonList.questions(itemCount: 3)];
     }
     // Error koneksi saat daftar soal kosong: tampilkan retry, bukan "belum ada soal".
     if (_questionsError != null && _questions.isEmpty) {

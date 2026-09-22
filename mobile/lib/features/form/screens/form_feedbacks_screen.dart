@@ -2,9 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/responsive.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
-import 'package:form_up/core/widgets/loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/search_field.dart';
@@ -235,7 +234,13 @@ class _FormFeedbacksScreenState extends State<FormFeedbacksScreen> {
         ),
       ),
       body: _loading
-          ? const LoadingOverlay(contained: true)
+          ? SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: centerPad(context,
+                  base: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  wideMaxWidth: 1000),
+              child: const SkeletonList.feedback(itemCount: 4),
+            )
           : AuthBackground(
               plain: true,
               child: SafeArea(
