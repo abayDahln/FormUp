@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/adaptive_fab.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
-import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form/widgets/ai_form_agent_panel.dart';
@@ -350,21 +350,23 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
   /// FAB AFA selalu ter-mount (dibungkus [Visibility]) agar tidak
   /// dilepas-pasang — Scaffold menahan FAB lama 200 ms saat berganti,
   /// sehingga memasang ulang GlobalKey yang sama bisa memicu duplikat.
+  /// Hanya tampil di tab Pengaturan: di tab Soal, kolom FAB (AI + tambah
+  /// soal) milik QuestionsPanel yang tampil — menampilkan FAB layar juga
+  /// akan menumpuk/duplikat tombol AI di posisi yang sama.
   Widget _fabSlot(ColorScheme cs) {
+    final onSoalTab = _tabController.index == 1;
     return Visibility(
-      visible: !_aiOpen,
+      visible: !_aiOpen && !onSoalTab,
       maintainState: true,
       maintainAnimation: true,
       maintainSize: true,
-      child: FloatingActionButton.small(
+      child: buildAiFab(
+        key: null,
         heroTag: 'aiFormAgentTabs',
         onPressed: () => setState(() => _aiOpen = true),
         backgroundColor: cs.surface,
         foregroundColor: cs.primary,
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         tooltip: 'Buka AFA (AI Form Agent)',
-        child: AiChatIcon(size: 18, color: cs.primary, filled: true),
       ),
     );
   }
@@ -395,7 +397,23 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
                       child: AiFormAgentPanel(
                         formId: _formId,
                         settings: () => _settingsKey.currentState?.formController,
-                        onChanged: () => setState(() {}),
+                        // AFA terikat ke form ini: soal dibaca langsung dari
+                        // draf tab Soal (live list) agar bisa menyusun /
+                        // mengubah soal, bukan hanya judul & deskripsi.
+                        // Null bila tab Soal belum dibangun → kemampuan soal
+                        // dianggap mati (jujur, anti hasil hilang).
+                        // Mode kunci: agen tak diberi akses daftar soal.
+                        questions: widget.questionsLocked
+                            ? null
+                            : () => _questionsKey
+                                  .currentState
+                                  ?.importQuestions,
+                        onChanged: () {
+                          setState(() {});
+                          // Draf diubah dari tab Pengaturan — daftar soal ikut
+                          // rebuild agar perubahan AFA langsung terlihat.
+                          _questionsKey.currentState?.notifyDraftChanged();
+                        },
                         onClose: () => setState(() => _aiOpen = false),
                       ),
                     ),

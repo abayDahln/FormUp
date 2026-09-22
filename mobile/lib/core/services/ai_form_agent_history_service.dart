@@ -13,6 +13,11 @@ class FormAgentMessage {
   final List<String> applied;
   final bool isError;
 
+  /// True bila perubahan pesan ini sudah diurungkan user. Snapshot undo
+  /// tidak dipersist (berat) sehingga pesan lama tak bisa di-undo ulang,
+  /// tetapi status "dibatalkan" tetap ditampilkan.
+  final bool undone;
+
   /// Metadata lampiran (tanpa bytes) — agar chip lampiran tetap tampil
   /// setelah restart. Bytes dimuat ulang dari disk lewat
   /// `AiAttachment.reloadBytes()`.
@@ -23,6 +28,7 @@ class FormAgentMessage {
     required this.text,
     this.applied = const [],
     this.isError = false,
+    this.undone = false,
     this.attachments,
   });
 
@@ -31,6 +37,7 @@ class FormAgentMessage {
         'text': text,
         'applied': applied,
         'isError': isError,
+        if (undone) 'undone': true,
         if (attachments != null) 'attachments': attachments,
       };
 
@@ -50,6 +57,7 @@ class FormAgentMessage {
           .map((e) => e.toString())
           .toList(),
       isError: j['isError'] == true,
+      undone: j['undone'] == true,
       attachments: atts,
     );
   }

@@ -12,7 +12,6 @@ import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/router/app_router.dart';
-import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/onboarding_tour.dart';
 import 'package:form_up/features/form/controllers/question_validation.dart';
 import 'package:form_up/features/form/controllers/questions_persist.dart';
@@ -84,6 +83,12 @@ class QuestionsPanelState extends State<QuestionsPanel>
   bool get isQuestionsEmpty => _questions.isEmpty;
   bool get canEditQuestions => !widget.questionsLocked;
   int? get currentFormId => _formId;
+
+  /// Dipanggil layar editor setelah AFA mengubah draf dari luar panel
+  /// (mis. dari tab Pengaturan) agar daftar soal langsung rebuild.
+  void notifyDraftChanged() {
+    if (mounted) setState(() {});
+  }
 
   // --- QuestionImportMixin accessors ---
   @override
@@ -226,13 +231,16 @@ class QuestionsPanelState extends State<QuestionsPanel>
             'Ketuk tombol + untuk menambah soal baru: pilihan ganda, checkbox, essay, benar/salah, atau tanggal.',
         icon: Icons.add_circle_outline,
       ),
-      OnboardingStep(
-        anchorKey: _aiKey,
-        title: 'Buat Soal dengan AI',
-        description:
-            'Minta AI buatkan soal untuk form ini — sebutkan topik dan jumlah soal yang kamu mau.',
-        icon: Icons.auto_awesome_outlined,
-      ),
+      // Langkah AI hanya bila panel menampilkan tombol AI sendiri (mode
+      // layar tunggal). Mode embedded memakai FAB AI milik layar editor.
+      if (!widget.embedded)
+        OnboardingStep(
+          anchorKey: _aiKey,
+          title: 'Buat Soal dengan AI',
+          description:
+              'Minta AI buatkan soal untuk form ini — sebutkan topik dan jumlah soal yang kamu mau.',
+          icon: Icons.auto_awesome_outlined,
+        ),
       if (!widget.embedded)
         OnboardingStep(
           anchorKey: _saveKey,
@@ -801,17 +809,13 @@ class QuestionsPanelState extends State<QuestionsPanel>
   /// bawah berlevel (tablet L1â€“L2, desktop L2â€“L5 mengikuti ukuran window).
   Widget _buildQuestionFab(ColorScheme cs) {
     final disabled = _saving || _importing || widget.questionsLocked;
-    final aiFab = FloatingActionButton.small(
+    final aiFab = buildAiFab(
       key: _aiKey,
       heroTag: 'aiChatForForm',
       onPressed: _formId == null ? null : () => setState(() => _aiOpen = true),
       backgroundColor: cs.surface,
       foregroundColor: cs.primary,
-      elevation: 3,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       tooltip: 'Tanya AFA tentang form ini',
-      child: AiChatIcon(size: 18, color: cs.primary, filled: true),
     );
     final Widget addFab = isTablet(context)
         ? buildExtendedAddFab(
@@ -830,8 +834,11 @@ class QuestionsPanelState extends State<QuestionsPanel>
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         // Shortcut AI chat: buka chat dengan form ini otomatis di-mention.
-        aiFab,
-        const SizedBox(height: 12),
+        // Mode embedded (tab Soal layar editor phone) tidak menampilkan
+        // tombol AI sendiri — layar editor sudah punya FAB AI; dua tombol
+        // AI di posisi yang sama terlihat duplikat.
+        if (!widget.embedded) aiFab,
+        if (!widget.embedded) const SizedBox(height: 12),
         addFab,
       ],
     );

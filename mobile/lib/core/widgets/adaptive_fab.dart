@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 
@@ -106,6 +107,38 @@ Widget buildExtendedAddFab({
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
+    ),
+  );
+}
+
+/// FAB AI Form Agent 56px (FAB standar M3) — pendamping FAB tambah 68px:
+/// jelas lebih besar dari FAB small (40px) agar tidak terlihat kecil di
+/// desktop/Windows, namun tetap sekunder terhadap tombol tambah.
+/// Satu definisi agar ukuran tombol AI identik di semua layar edit form
+/// (builder desktop, tab phone, panel soal).
+Widget buildAiFab({
+  required Key? key,
+  required VoidCallback? onPressed,
+  required Color backgroundColor,
+  required Color foregroundColor,
+  String? tooltip,
+  Object? heroTag,
+}) {
+  return SizedBox(
+    width: 56,
+    height: 56,
+    child: FloatingActionButton(
+      key: key,
+      heroTag: heroTag,
+      onPressed: onPressed,
+      tooltip: tooltip,
+      backgroundColor: backgroundColor,
+      foregroundColor: foregroundColor,
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: AiChatIcon(size: 26, color: foregroundColor, filled: true),
     ),
   );
 }

@@ -10,7 +10,6 @@ import 'package:form_up/core/widgets/adaptive_fab.dart';
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
 import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
-import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
 import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
@@ -434,17 +433,15 @@ class _FormBuilderScreenState extends State<FormBuilderScreen>
 
   Widget _buildFab(ColorScheme cs) {
     final disabled = _savingQuestions || widget.questionsLocked;
-    final aiFab = FloatingActionButton.small(
+    final aiFab = buildAiFab(
+      key: null,
       heroTag: 'aiChatForFormBuilder',
       onPressed: _formId == null
           ? null
           : () => setState(() => _aiOpen = !_aiOpen),
       backgroundColor: _aiOpen ? cs.primaryContainer : cs.surface,
       foregroundColor: cs.primary,
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       tooltip: _aiOpen ? 'Tutup AI Form Agent' : 'Buka AI Form Agent',
-      child: AiChatIcon(size: 18, color: cs.primary, filled: true),
     );
     final Widget addFab = isTablet(context)
         ? buildExtendedAddFab(
