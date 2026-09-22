@@ -1,61 +1,26 @@
-name: formup
+version: '3.8'
 
 services:
-  # --- Database SQL Server ---
-  mssql:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: formup-mssql
-    restart: unless-stopped
-    environment:
-      - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
-    ports:
-      - "1433:1433"
-    volumes:
-      - mssql_data:/var/opt/mssql
-    networks:
-      - formup-net
-
-  # --- Service API (.NET Core) ---
   api:
     image: formup-api:latest
     container_name: formup-api
     restart: unless-stopped
-    environment:
-      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Production}"
-      DB_CONNECTION: "${DB_CONNECTION}"
-      JWT_KEY: "${JWT_KEY}"
-      SMTP_HOST: "${SMTP_HOST:-}"
-      SMTP_PORT: "${SMTP_PORT:-587}"
-      SMTP_USER: "${SMTP_USER:-}"
-      SMTP_PASS: "${SMTP_PASS:-}"
-      SMTP_FROM: "${SMTP_FROM:-}"
-      PUBLIC_URL: "${PUBLIC_URL:-}"
     ports:
-      - "${API_HOST_PORT:-5000}:5000"
-    volumes:
-      - ./api/wwwroot:/app/wwwroot
-    depends_on:
-      mssql:
-        condition: service_started
+      - "5000:5000"
+    environment:
+      - DB_CONNECTION=${DB_CONNECTION}
     networks:
       - formup-net
 
-  # --- Cloudflare Tunnel ---
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: formup-cloudflared
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    depends_on:
-      api:
-        condition: service_started
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
       - formup-net
-
-volumes:
-  mssql_data:
-    driver: local
 
 networks:
   formup-net:
