@@ -1,23 +1,23 @@
 name: formup
 
 services:
-  migrate:
-    profiles: ["migrate"]
-    build:
-      context: ./api
-      target: migrate
-    container_name: formup-migrate
-    restart: "no"
+  # --- Database SQL Server ---
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: formup-mssql
+    restart: unless-stopped
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      DB_CONNECTION: "${DB_CONNECTION}"
-      JWT_KEY: "${JWT_KEY}"
-    command: ["dotnet", "ef", "database", "update", "--no-build", "-c", "Release"]
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    networks:
+      - formup-net
 
+  # --- Service API (.NET Core) ---
   api:
-    build:
-      context: ./api
-      target: final
     image: formup-api:latest
     container_name: formup-api
     restart: unless-stopped
@@ -35,7 +35,13 @@ services:
       - "${API_HOST_PORT:-5000}:5000"
     volumes:
       - ./api/wwwroot:/app/wwwroot
+    depends_on:
+      mssql:
+        condition: service_started
+    networks:
+      - formup-net
 
+  # --- Cloudflare Tunnel ---
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: formup-cloudflared
@@ -44,8 +50,13 @@ services:
     depends_on:
       api:
         condition: service_started
+    networks:
+      - formup-net
+
+volumes:
+  mssql_data:
+    driver: local
 
 networks:
-  default:
-    external: true
-    name: formup-net
+  formup-net:
+    driver: bridge
