@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Copy, Check, Code as CodeIcon } from 'lucide-react';
 
-export default function RichContentRenderer({ content, className = '' }) {
-    const [, setKatexLoaded] = useState(() => typeof window !== 'undefined' && Boolean(window.katex));
+export default function RichContentRenderer({ content, className = '', format }) {
+        const [, setKatexLoaded] = useState(() => typeof window !== 'undefined' && Boolean(window.katex));
 
     useEffect(() => {
         if (typeof window !== 'undefined' && window.katex) {
@@ -110,7 +110,7 @@ function dedentCode(str) {
 /**
  * Universal Parser that breaks down text into Code Blocks, Math Blocks, Headers, Lists, Quotes, Tables, and Formatted Text
  */
-function parseMixedContent(text) {
+function parseMixedContent(text, format) {
     if (!text) return null;
 
     // Combined regex for Code Blocks (both markdown ```...``` and HTML <pre><code>...</code></pre>)
@@ -131,7 +131,7 @@ function parseMixedContent(text) {
         const isHtmlPre = match[0].startsWith('<pre');
         const lang = (isHtmlPre ? match[1] : match[3]) || 'code';
         const rawCode = (isHtmlPre ? match[2] : match[4]) || '';
-        const cleanCode = rawCode.replace(/<[^>]+>/g, '').trim();
+        const cleanCode = rawCode.trim();
 
         sections.push({
             type: 'code',
@@ -154,21 +154,16 @@ function parseMixedContent(text) {
         if (sec.type === 'code') {
             return <CodeBlock key={sec.key || `sec_code_${secIdx}`} code={sec.code} language={sec.language} />;
         }
-        return renderMarkdownBlocks(sec.content, `sec_md_${secIdx}`);
+        return renderMarkdownBlocks(sec.content, `sec_md_${secIdx}`, format);
     });
 }
 
 /**
  * Parses block-level markdown (headers, blockquotes, lists, hr, paragraphs)
  */
-function renderMarkdownBlocks(text, keyPrefix) {
+function renderMarkdownBlocks(text, keyPrefix, format) {
     if (!text) return null;
-
-    // WYSIWYG content is already valid HTML. Do not wrap block elements such
-    // as <h1> or <div> in a generated <p>; that invalid nesting makes the
-    // heading look correct in contentEditable but disappear in previews and
-    // the runner. Render the sanitized block tree as-is.
-    if (/<(?:h[1-6]|p|div|ul|ol|li|blockquote|pre|table|hr)\b/i.test(text)) {
+    if (format !== 'text' && /<(?:h[1-6]|p|div|ul|ol|li|blockquote|pre|table|hr)\b/i.test(text)) {
         return (
             <div key={`${keyPrefix}_rich_html`} dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(text) }} />
         );
@@ -185,7 +180,7 @@ function renderMarkdownBlocks(text, keyPrefix) {
                     <ul key={`${keyPrefix}_ul_${blockIdx}`} className="list-disc list-inside space-y-1 my-2 pl-2">
                         {currentList.items.map((item, iIdx) => (
                             <li key={iIdx} className="leading-relaxed">
-                                {renderInlineMarkdownAndMath(item, `${keyPrefix}_li_${blockIdx}_${iIdx}`)}
+                                {renderInlineMarkdownAndMath(item, `${keyPrefix}_li_${blockIdx}_${iIdx}`, format)}
                             </li>
                         ))}
                     </ul>
@@ -195,7 +190,7 @@ function renderMarkdownBlocks(text, keyPrefix) {
                     <ol key={`${keyPrefix}_ol_${blockIdx}`} className="list-decimal list-inside space-y-1 my-2 pl-2">
                         {currentList.items.map((item, iIdx) => (
                             <li key={iIdx} className="leading-relaxed">
-                                {renderInlineMarkdownAndMath(item, `${keyPrefix}_oli_${blockIdx}_${iIdx}`)}
+                                {renderInlineMarkdownAndMath(item, `${keyPrefix}_oli_${blockIdx}_${iIdx}`, format)}
                             </li>
                         ))}
                     </ol>
@@ -236,7 +231,7 @@ function renderMarkdownBlocks(text, keyPrefix) {
 
             blocks.push(
                 <div key={`${keyPrefix}_h_${lIdx}`} className={sizeClass}>
-                    {renderInlineMarkdownAndMath(title, `${keyPrefix}_ht_${lIdx}`)}
+                    {renderInlineMarkdownAndMath(title, `${keyPrefix}_ht_${lIdx}`, format)}
                 </div>
             );
             return;
@@ -248,7 +243,7 @@ function renderMarkdownBlocks(text, keyPrefix) {
             const quoteContent = trimmed.replace(/^>\s*/, '');
             blocks.push(
                 <blockquote key={`${keyPrefix}_bq_${lIdx}`} className="border-l-4 border-teal-500 pl-3 my-2 text-slate-600 dark:text-slate-300 italic bg-teal-50/40 dark:bg-teal-950/20 py-1 rounded-r-xl">
-                    {renderInlineMarkdownAndMath(quoteContent, `${keyPrefix}_bqt_${lIdx}`)}
+                    {renderInlineMarkdownAndMath(quoteContent, `${keyPrefix}_bqt_${lIdx}`, format)}
                 </blockquote>
             );
             return;
@@ -280,7 +275,7 @@ function renderMarkdownBlocks(text, keyPrefix) {
         flushList(lIdx);
         blocks.push(
             <p key={`${keyPrefix}_p_${lIdx}`} className="my-1 leading-relaxed">
-                {renderInlineMarkdownAndMath(line, `${keyPrefix}_pt_${lIdx}`)}
+                {renderInlineMarkdownAndMath(line, `${keyPrefix}_pt_${lIdx}`, format)}
             </p>
         );
     });
@@ -292,7 +287,7 @@ function renderMarkdownBlocks(text, keyPrefix) {
 /**
  * Parses inline formatting: **bold**, *italic*, `code`, math ($...$, $$...$$), links [text](url)
  */
-function renderInlineMarkdownAndMath(text, keyPrefix) {
+function renderInlineMarkdownAndMath(text, keyPrefix, format) {
     if (!text) return null;
 
     // WYSIWYG fields store real HTML (for example <strong>...</strong> and
@@ -305,7 +300,7 @@ function renderInlineMarkdownAndMath(text, keyPrefix) {
         // Strip only the presentation tags here so the math tokenizer still
         // gets a chance to create MathBlock instead of showing raw $$ text.
         if (/[\$]/.test(text) || /\\(?:frac|sqrt|int|sum|begin)\b/.test(text)) {
-            return renderInlineMarkdownAndMath(text.replace(/<[^>]+>/g, ''), keyPrefix);
+            return renderInlineMarkdownAndMath(text.replace(/<[^>]+>/g, ''), keyPrefix, format);
         }
         return (
             <span

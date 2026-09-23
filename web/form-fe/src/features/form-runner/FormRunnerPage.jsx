@@ -22,6 +22,11 @@ export default function FormRunnerPage() {
     const isPreviewMode = searchParams.get('preview') === 'true';
 
     const [form, setForm] = useState(null);
+    const localSubmittedId = typeof window !== 'undefined' ? localStorage.getItem(`formup_submitted_${formLink}`) : null;
+    const isLocked = !isPreviewMode && Boolean(
+        (form?.oneResponse && (form.alreadySubmitted || localSubmittedId)) ||
+        ((form?.isExamMode || form?.detectTabSwitch) && localSubmittedId)
+    );
     const [questions, setQuestions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -49,6 +54,7 @@ export default function FormRunnerPage() {
     const [violationCount, setViolationCount] = useState(0);
     const [tabSwitchWarning, setTabSwitchWarning] = useState(false);
     const lastTabSwitchAtRef = useRef(0);
+    const blurTimerRef = useRef(null);
 
     // Persistent sessionId for exam mode (per formLink).
     // Kontrak dengan backend: event pertama dikirim TANPA sessionId
@@ -126,6 +132,7 @@ export default function FormRunnerPage() {
 
     useEffect(() => {
         const handleOnline = () => {
+            if (isLocked) return;
             setIsOnline(true);
             setShowRestoredToast(true);
             setTimeout(() => setShowRestoredToast(false), 4000);
@@ -146,7 +153,7 @@ export default function FormRunnerPage() {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
-    }, [form, answers, formLink, getStoredSessionId]);
+    }, [form, answers, formLink, getStoredSessionId, isLocked]);
 
     // auto-cache to local storage on answer change
     useEffect(() => {
@@ -166,6 +173,9 @@ export default function FormRunnerPage() {
 
     const [isForceSubmitted, setIsForceSubmitted] = useState(false);
     const isForceSubmittedRef = useRef(false);
+    // P0-3: Disqualification on anti-cheat threshold reached
+    const [isDisqualified, setIsDisqualified] = useState(false);
+    const isDisqualifiedRef = useRef(false);
 
     // B12 Proctoring: Handle proctor force submit / session termination
     const handleForceSubmitTermination = useCallback((responseId = null) => {
@@ -194,6 +204,100 @@ export default function FormRunnerPage() {
             navigate(`/f/${formLink}/result/${responseId}`);
         }
     }, [formLink, navigate]);
+
+    // P1-2: Audio alert for genuine violations with autoplay priming
+    const violationAudioRef = useRef(null);
+    const audioPrimedRef = useRef(false);
+    const pendingSoundRef = useRef(false);
+
+// Preload sekali saat mount — biar 404 / gagal load ketahuan lebih awal
+useEffect(() => {
+    if (typeof Audio === 'undefined') return;
+    const a = new Audio('/sound/exam-warning.mp3');
+    a.preload = 'auto';
+    a.addEventListener('error', () => {
+        console.error('[Violation] Gagal memuat /sound/exam-warning.mp3 — cek path & base URL build.');
+    });
+    a.load();
+    violationAudioRef.current = a;
+}, []);
+
+// Priming otomatis pada interaksi user PERTAMA di mana pun (klik, tap, keyboard)
+useEffect(() => {
+    const prime = () => {
+        if (audioPrimedRef.current) return;
+        const a = violationAudioRef.current;
+        if (!a) return;
+        audioPrimedRef.current = true;
+        a.muted = true;
+        const p = a.play();
+        if (p && typeof p.then === 'function') {
+            p.then(() => {
+                a.pause();
+                a.currentTime = 0;
+                a.muted = false;
+            }).catch(() => { a.muted = false; });
+        }
+    };
+    window.addEventListener('pointerdown', prime, { once: true });
+    window.addEventListener('keydown', prime, { once: true });
+    window.addEventListener('touchstart', prime, { once: true });
+    return () => {
+        window.removeEventListener('pointerdown', prime);
+        window.removeEventListener('keydown', prime);
+        window.removeEventListener('touchstart', prime);
+    };
+}, []);
+
+    const beepFallback = useCallback(() => {
+        try {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            const ctx = new Ctx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.value = 880;
+            gain.gain.value = 0.25;
+            osc.connect(gain).connect(ctx.destination);
+            osc.start();
+            setTimeout(() => { osc.stop(); ctx.close(); }, 600);
+        } catch {}
+    }, []);
+
+        const playViolationSound = useCallback(() => {
+        pendingSoundRef.current = true;
+        const a = violationAudioRef.current;
+        if (a) {
+            a.currentTime = 0;
+            const p = a.play();
+            if (p && typeof p.then === 'function') {
+                p.then(() => { pendingSoundRef.current = false; })
+                 .catch(err => {
+                    console.warn('[Violation] audio ditolak:', err?.name, err?.message);
+                    beepFallback();
+                 });
+                return;
+            }
+        }
+        beepFallback();
+    }, [beepFallback]);
+
+        // Putar ulang suara pelanggaran saat user kembali ke tab ujian
+    useEffect(() => {
+        const onFocusBack = () => {
+            if (pendingSoundRef.current && !document.hidden) {
+                pendingSoundRef.current = false;
+                playViolationSound();
+            }
+        };
+        document.addEventListener('visibilitychange', onFocusBack);
+        window.addEventListener('focus', onFocusBack);
+        return () => {
+            document.removeEventListener('visibilitychange', onFocusBack);
+            window.removeEventListener('focus', onFocusBack);
+        };
+    }, [playViolationSound]);
 
     const sendExamEvent = useCallback(async (eventType) => {
     if (!form || isPreviewMode || form.isOwner) return;
@@ -235,21 +339,33 @@ export default function FormRunnerPage() {
                 if (typeof res.data.violationCount === 'number') {
                     setViolationCount(res.data.violationCount);
                 }
-                // Only show warning banner when an actual violation event occurs, not on presence (session_start / heartbeat)
+                // Only show warning banner & sound when an actual violation event occurs, not on presence (session_start / heartbeat)
                 if (eventType !== 'session_start' && eventType !== 'heartbeat') {
                     setTabSwitchWarning(true);
+                    playViolationSound();
                 }
-                if (res.data.shouldAutoSubmit && !isSubmittingRef.current) {
-                    setTimeout(() => handleSubmit(null, true), 1000);
+
+                const currentSw = typeof res.data.tabSwitchCount === 'number' ? res.data.tabSwitchCount : tabSwitchCount;
+                const maxSw = form?.maxTabSwitch || form?.settings?.maxTabSwitch || 3;
+                const shouldDisqualify = res.data.shouldAutoSubmit || (form?.autoSubmitOnTabSwitch && currentSw >= maxSw);
+
+                    if (shouldDisqualify && !isSubmittingRef.current && !isDisqualifiedRef.current) {
+                    isDisqualifiedRef.current = true;
+                    playViolationSound();
+                    setIsDisqualified(true);
+                    isSubmittingRef.current = true;
+                    if (timerRef.current) clearInterval(timerRef.current);
+                    setTimeout(() => handleSubmit(null, true, true, true), 300);
                 }
             }
         } catch (err) {
             console.warn('[ExamEvent] Background event report failed:', eventType, err);
         }
-    }, [form, formLink, isPreviewMode, currentUser, handleForceSubmitTermination]);
+    }, [form, formLink, isPreviewMode, currentUser, handleForceSubmitTermination, playViolationSound]);
 
     // Exam mode session presence: session_start and periodic heartbeat
     useEffect(() => {
+        if (isLocked) return;
         if (!form || isPreviewMode || form.isOwner) return;
         if (!form.isExamMode && !form.detectTabSwitch) return;
         if (form.requiresToken && !tokenUnlocked) return;
@@ -265,13 +381,14 @@ export default function FormRunnerPage() {
         }, 30000);
 
         return () => clearInterval(heartbeatTimer);
-    }, [form, isPreviewMode, tokenUnlocked, sendExamEvent]);
+    }, [form, isPreviewMode, tokenUnlocked, sendExamEvent, isLocked]);
 
     // Exam mode violation detection (Real-time incremental report, anti double-count)
     // BUG-2 FIX: Guard with tokenUnlocked so the visibilitychange / copy / paste
     // listeners are only attached AFTER the user has passed the token screen and
     // is actually on the question page.
     useEffect(() => {
+        if (isLocked) return;
         if (!form || isPreviewMode || form.isOwner || isForceSubmitted) return;
         // Do NOT attach violation listeners until the exam has actually started
         if (form.requiresToken && !tokenUnlocked) return;
@@ -280,23 +397,43 @@ export default function FormRunnerPage() {
         const disableCopy = form.disableCopyPaste || isExam;
 
         const handleVisibilityChange = () => {
-            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
-            // Anti-double-count: ONLY report on hidden (leaving), never on visible (return)
-            if (document.hidden && isExam) reportTabSwitch();
-        };
+    if (isForceSubmittedRef.current || isSubmittingRef.current || !isExam) return;
+    if (document.hidden) {
+        // visibilitychange sudah sinyal yang andal — laporkan langsung,
+        // jangan tunggu untuk lihat apakah user balik lagi.
+        reportTabSwitch();
+    }
+};
 
         const reportTabSwitch = () => {
             if (!isExam || isForceSubmittedRef.current || isSubmittingRef.current) return;
             const now = Date.now();
-            // blur and visibilitychange can describe the same tab switch.
-            if (now - lastTabSwitchAtRef.current < 1000) return;
+            // Anti-dobel-hitung: blur & visibilitychange bisa menggambarkan
+            // pindah tab yang sama dalam rentang sangat singkat.
+            if (now - lastTabSwitchAtRef.current < 500) return;
             lastTabSwitchAtRef.current = now;
             sendExamEvent('tab_switch');
         };
 
-        const handleWindowBlur = () => {
-            if (document.hidden || isExam) reportTabSwitch();
-        };
+            const handleWindowBlur = () => {
+                if (isForceSubmittedRef.current || isSubmittingRef.current || !isExam) return;
+                // Hanya fallback untuk kombinasi OS/browser yang kadang tidak
+                // memicu visibilitychange saat alt-tab. Delay kecil (bukan 800ms)
+                // supaya tidak menelan pelanggaran asli.
+                if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+                blurTimerRef.current = setTimeout(() => {
+                    if (!document.hasFocus()) {
+                        reportTabSwitch();
+                    }
+                }, 150);
+            };
+
+            const handleWindowFocus = () => {
+                if (blurTimerRef.current) {
+                    clearTimeout(blurTimerRef.current);
+                    blurTimerRef.current = null;
+                }
+            };
 
         const handleCopy = (e) => {
             if (isForceSubmittedRef.current || isSubmittingRef.current) return;
@@ -325,6 +462,7 @@ export default function FormRunnerPage() {
         if (isExam) {
             document.addEventListener('visibilitychange', handleVisibilityChange);
             window.addEventListener('blur', handleWindowBlur);
+            window.addEventListener('focus', handleWindowFocus);
         }
         if (disableCopy) {
             document.addEventListener('copy', handleCopy);
@@ -334,9 +472,14 @@ export default function FormRunnerPage() {
         }
 
         return () => {
+            if (blurTimerRef.current) {
+                clearTimeout(blurTimerRef.current);
+                blurTimerRef.current = null;
+            }
             if (isExam) {
                 document.removeEventListener('visibilitychange', handleVisibilityChange);
                 window.removeEventListener('blur', handleWindowBlur);
+                window.removeEventListener('focus', handleWindowFocus);
             }
             if (disableCopy) {
                 document.removeEventListener('copy', handleCopy);
@@ -345,7 +488,7 @@ export default function FormRunnerPage() {
                 document.removeEventListener('contextmenu', handleContextMenu);
             }
         };
-    }, [form, isPreviewMode, tokenUnlocked, sendExamEvent, isForceSubmitted]);
+    }, [form, isPreviewMode, tokenUnlocked, sendExamEvent, isForceSubmitted, isLocked]);
 
     useEffect(() => { answersRef.current = answers; }, [answers]);
     useEffect(() => { questionsRef.current = questions; }, [questions]);
@@ -355,6 +498,7 @@ export default function FormRunnerPage() {
     const lastSyncedHashRef = useRef('');
 
     const syncDraftAnswers = useCallback(async (customAnswers = null, forceCheck = false) => {
+    if (isLocked) return;
     if (!form || isPreviewMode || form.isOwner || isForceSubmittedRef.current) return;
     const isExam = form.isExamMode || form.detectTabSwitch;
     if (!isExam) return;
@@ -436,10 +580,11 @@ export default function FormRunnerPage() {
     } finally {
         syncInProgressRef.current = false;
     }
-}, [form, isPreviewMode, tokenUnlocked, formLink, currentUser, getStoredSessionId, questions, handleForceSubmitTermination]);
+}, [form, isPreviewMode, tokenUnlocked, formLink, currentUser, getStoredSessionId, questions, handleForceSubmitTermination, isLocked]);
 
     // Debounced sync answers on answer changes
     useEffect(() => {
+    if (isLocked) return;
     if (!form || isPreviewMode || form.isOwner) return;
     if (!form.isExamMode && !form.detectTabSwitch) return;
     if (form.requiresToken && !tokenUnlocked) return;
@@ -451,10 +596,11 @@ export default function FormRunnerPage() {
     }, 4000);
 
     return () => clearInterval(interval);
-}, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers]);
+}, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers, isLocked]);
 
     // Periodic sync answers every 30 seconds
     useEffect(() => {
+        if (isLocked) return;
         if (!form || isPreviewMode || form.isOwner) return;
         if (!form.isExamMode && !form.detectTabSwitch) return;
         if (form.requiresToken && !tokenUnlocked) return;
@@ -466,7 +612,7 @@ export default function FormRunnerPage() {
         }, 30000);
 
         return () => clearInterval(interval);
-    }, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers]);
+    }, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers, isLocked]);
 
     const loadQuestionsInternal = async (token) => {
         const res = await getPublicFormQuestions(formLink, { token, name: '' });
@@ -487,24 +633,31 @@ export default function FormRunnerPage() {
     };
 
     const loadQuestions = async (token = null) => {
-        const res = await getPublicFormQuestions(formLink, { token, name: respondentName });
-        if (res.ok && res.data) {
-            const qList = res.data.questions || res.data || [];
-            setQuestions(qList);
-            questionsRef.current = qList;
-            try {
-                const cached = localStorage.getItem(`formup_cache_${formLink}`);
-                if (cached) {
-                    const parsed = JSON.parse(cached);
-                    if (parsed && typeof parsed === 'object') {
-                        setAnswers(prev => { const next = { ...parsed, ...prev }; answersRef.current = next; return next; });
-                    }
+    const res = await getPublicFormQuestions(formLink, { token, name: respondentName });
+    if (res.ok && res.data) {
+        const qList = res.data.questions || res.data || [];
+        setQuestions(qList);
+        questionsRef.current = qList;
+        try {
+            const cached = localStorage.getItem(`formup_cache_${formLink}`);
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (parsed && typeof parsed === 'object') {
+                    setAnswers(prev => { const next = { ...parsed, ...prev }; answersRef.current = next; return next; });
                 }
-            } catch {}
-        } else {
-            setError(res.message || 'Gagal memuat soal formulir.');
-        }
-    };
+            }
+        } catch {}
+        return true;
+    }
+    const alreadyDone = /sudah pernah mengerjakan|hanya 1 kali pengerjaan|sudah disubmit/i.test(res.message || '');
+    if (alreadyDone) {
+        try { localStorage.setItem(`formup_submitted_${formLink}`, 'blocked'); } catch {}
+        setForm(prev => prev ? { ...prev, alreadySubmitted: true } : prev);
+    } else {
+        setError(res.message || 'Gagal memuat soal formulir.');
+    }
+    return false;
+};
 
     useEffect(() => {
         const load = async () => {
@@ -567,15 +720,15 @@ export default function FormRunnerPage() {
                 }
 
                 const localSub = localStorage.getItem(`formup_submitted_${formLink}`);
-                if (f.oneResponse && (f.alreadySubmitted || localSub)) return;
+                if ((f.oneResponse && (f.alreadySubmitted || localSub)) || ((f.isExamMode || f.detectTabSwitch) && localSub)) return;
 
                 let savedToken = '';
                 try { savedToken = localStorage.getItem(`formup_token_${formLink}`) || ''; } catch {}
                 if (savedToken) setTokenInput(savedToken);
 
                 if (!f.requiresToken) {
-                    setTokenUnlocked(true);
-                    await loadQuestions();
+                    const ok = await loadQuestions();
+                    if (ok) setTokenUnlocked(true);
                 } else if (savedToken) {
                     const unlockRes = await getPublicFormQuestions(formLink, { token: savedToken, name: currentUser?.fullname || '' });
                     if (unlockRes.ok && unlockRes.data) {
@@ -583,6 +736,12 @@ export default function FormRunnerPage() {
                         const qList = unlockRes.data.questions || unlockRes.data || [];
                         setQuestions(qList);
                         questionsRef.current = qList;
+                    } else {
+                        const alreadyDone = /sudah pernah mengerjakan|hanya 1 kali pengerjaan|sudah disubmit/i.test(unlockRes.message || '');
+                        if (alreadyDone) {
+                            try { localStorage.setItem(`formup_submitted_${formLink}`, 'blocked'); } catch {}
+                            setForm(prev => prev ? { ...prev, alreadySubmitted: true } : prev);
+                        }
                     }
                 }
 
@@ -658,8 +817,8 @@ export default function FormRunnerPage() {
     };
 
     const handleUnlockToken = async (e) => {
-        e.preventDefault();
-        setError('');
+    e.preventDefault();
+    setError('');
         const token = tokenInput.trim();
         const res = await getPublicFormQuestions(formLink, { token, name: respondentName });
         if (res.ok && res.data) {
@@ -679,7 +838,7 @@ export default function FormRunnerPage() {
 
     const showValidationAlert = (msg) => { setValidationToast(msg); setTimeout(() => setValidationToast(null), 4500); };
 
-    const handleSubmit = async (e, isAuto = false, skipWarnings = false) => {
+    const handleSubmit = async (e, isAuto = false, skipWarnings = false, disqualified = false) => {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
         if (isPreviewMode) { window.close(); return; }
         // B10: First check for ragu-ragu questions (only for manual submit)
@@ -688,12 +847,13 @@ export default function FormRunnerPage() {
             return;
         }
         setSubmitConfirmOpen(false);
-        if (isSubmittingRef.current) return;
+        if (isSubmittingRef.current && !disqualified) return;
 
+        const isActuallyDisqualified = Boolean(disqualified || isDisqualifiedRef.current);
         const currentQuestions = questionsRef.current?.length ? questionsRef.current : questions;
         const currentAnswers = answersRef.current || answers;
 
-        if (!isAuto) {
+        if (!isAuto && !isActuallyDisqualified) {
             const unanswered = currentQuestions.filter(q => {
                 if (!q.isRequired) return false;
                 const val = currentAnswers[q.id];
@@ -728,7 +888,11 @@ export default function FormRunnerPage() {
             const payload = {
                 token: tokenInput ? tokenInput.trim() : null,
                 respondentName: respondentName.trim() || 'Anonim',
-                isAutoSubmit: Boolean(isAuto), IsAutoSubmit: Boolean(isAuto),
+                isAutoSubmit: Boolean(isAuto || isActuallyDisqualified),
+                IsAutoSubmit: Boolean(isAuto || isActuallyDisqualified),
+                isDisqualified: isActuallyDisqualified,
+                IsDisqualified: isActuallyDisqualified,
+                score: isActuallyDisqualified ? 0 : undefined,
                 answers: formattedAnswers,
                 examSessionId: examSessionIdRef.current || null,
                 tabSwitchCount: typeof tabSwitchCount === 'number' ? tabSwitchCount : null,
@@ -744,7 +908,16 @@ export default function FormRunnerPage() {
                     sessionStorage.removeItem(`formup_exam_session_${formLink}`);
                     sessionStorage.removeItem(`formup_violations_${formLink}`);
                 } catch {}
-                navigate(`/f/${formLink}/result/${responseId}`, { state: { guestToken: d?.guestToken || null } });
+                if (isActuallyDisqualified) {
+                    setIsDisqualified(true);
+                    return true;
+                }
+                navigate(`/f/${formLink}/result/${responseId}`, {
+                    state: {
+                        guestToken: d?.guestToken || null,
+                        isDisqualified: isActuallyDisqualified,
+                    }
+                });
                 return true;
             };
             const res = await submitPublicFormResponse(formLink, payload);
@@ -803,6 +976,52 @@ export default function FormRunnerPage() {
         </div>
     );
 
+    // P0-3: Dedicated Violation Detected Card when cheat threshold is reached
+    if (isDisqualified) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-red-50/40 dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">
+                <div className="bg-white dark:bg-slate-900 border-2 border-red-500/80 dark:border-red-600 rounded-3xl p-8 max-w-md w-full text-center space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                    <div className="w-20 h-20 bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+                        <AlertTriangle size={40} />
+                    </div>
+                    <div className="space-y-2">
+                        <span className="inline-block px-3 py-1 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded-full text-xs font-black uppercase tracking-wider">
+                            Ujian Dihentikan
+                        </span>
+                        <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                            Pelanggaran Terdeteksi
+                        </h2>
+                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                            Aktivitas yang tidak diizinkan telah melebihi batas toleransi ujian. Ujian Anda telah dihentikan secara otomatis oleh sistem anti-cheat.
+                        </p>
+                    </div>
+
+                    {/* <div className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/80 rounded-2xl space-y-1">
+                        <div className="text-[11px] font-extrabold text-red-600 dark:text-red-400 uppercase tracking-wider">
+                            Status Penilaian
+                        </div>
+                        <div className="text-3xl font-black text-red-700 dark:text-red-400">
+                            Skor: 0
+                        </div>
+                        <p className="text-[11px] text-red-600/80 dark:text-red-400/80 font-bold">
+                            Didiskualifikasi karena pelanggaran sistem ujian
+                        </p>
+                    </div> */}
+
+                    <div className="pt-2">
+                        <button
+                            type="button"
+                            onClick={() => navigate('/')}
+                            className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
+                        >
+                            Kembali ke Beranda
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (isForceSubmitted) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#F4F8F7] dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">
@@ -833,8 +1052,7 @@ export default function FormRunnerPage() {
     }
 
     // A-5: skip locked screen in preview
-    const localSubmittedId = typeof window !== 'undefined' ? localStorage.getItem(`formup_submitted_${formLink}`) : null;
-    if (!isPreviewMode && form && form.oneResponse && (form.alreadySubmitted || localSubmittedId)) {
+    if (isLocked && form) {
         const previousId = form.previousResponseId || localSubmittedId;
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#F4F8F7] dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">

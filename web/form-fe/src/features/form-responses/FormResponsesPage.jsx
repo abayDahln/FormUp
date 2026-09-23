@@ -346,13 +346,67 @@ export default function FormResponsesPage() {
         });
     };
 
+    // P0-4: Deduplicate exam monitoring sessions by respondent identity
+    const processMonitoringData = useCallback((data) => {
+    if (!data) return null;
+    const rawSessions = data.sessions || [];
+    const byKey = new Map();
+
+    // Waktu aktivitas paling relevan dari sebuah entri: kalau submitted,
+    // pakai waktu submit; kalau masih berjalan, pakai aktivitas terakhir.
+    const activityTime = (s) => {
+        const t = s.status === 'submitted' ? (s.submittedAt || s.lastSeenAt) : (s.lastSeenAt || s.startedAt);
+        return t ? new Date(t).getTime() : 0;
+    };
+
+    for (const s of rawSessions) {
+        // Untuk form ini respondentId selalu ada (wajib login), jadi aman
+        // dipakai sebagai kunci identitas. Fallback sess_/responseId hanya
+        // jaga-jaga bila suatu saat ada responden tanpa identitas.
+        const key = s.respondentId
+            ? `id_${s.respondentId}`
+            : `sess_${s.sessionId || s.responseId}`;
+        const existing = byKey.get(key);
+
+        if (!existing) {
+            byKey.set(key, s);
+            continue;
+        }
+
+        // Dua entri identitas sama (mis. sesi lama yang sudah submitted +
+        // sesi baru yang sedang berjalan setelah reset). JANGAN paksa
+        // "submitted menang" — itu menyembunyikan sesi yang sedang
+        // berlangsung sekarang. Menangkan yang aktivitasnya PALING BARU,
+        // gabungkan log pelanggaran dari keduanya biar tidak ada yang hilang.
+        const mergedViolations = [...(existing.violations || []), ...(s.violations || [])];
+        const mergedCount = (existing.violationCount || 0) + (s.violationCount || 0);
+        const winner = activityTime(s) >= activityTime(existing) ? s : existing;
+
+        byKey.set(key, {
+            ...winner,
+            violations: mergedViolations,
+            violationCount: mergedCount,
+            tabSwitchCount: Math.max(existing.tabSwitchCount || 0, s.tabSwitchCount || 0),
+        });
+    }
+
+    const dedupedSessions = Array.from(byKey.values());
+    return {
+        ...data,
+        sessions: dedupedSessions,
+        inProgressCount: dedupedSessions.filter(s => s.status === 'in_progress').length,
+        onlineCount: dedupedSessions.filter(s => s.isOnline).length,
+        submittedCount: dedupedSessions.filter(s => s.status === 'submitted').length,
+    };
+}, []);
+
     const fetchExamMonitoring = useCallback(async (isSilent = false) => {
         if (!id) return;
         if (!isSilent) setMonitoringLoading(true);
         try {
             const res = await getExamMonitoring(id);
             if (res.ok && res.data) {
-                setMonitoringData(res.data);
+                setMonitoringData(processMonitoringData(res.data));
                 setLastRefreshedAt(new Date());
                 setMonitoringError('');
             } else if (!isSilent) {
@@ -363,7 +417,7 @@ export default function FormResponsesPage() {
         } finally {
             if (!isSilent) setMonitoringLoading(false);
         }
-    }, [id]);
+    }, [id, processMonitoringData]);
 
     // Polling effect when activeTab === 'monitoring'
     useEffect(() => {
@@ -462,7 +516,7 @@ export default function FormResponsesPage() {
             try {
                 // Silently load monitoring data in parallel if available
                 getExamMonitoring(id).then(res => {
-                    if (res.ok && res.data) setMonitoringData(res.data);
+                    if (res.ok && res.data) setMonitoringData(processMonitoringData(res.data));
                 }).catch(() => {});
 
                 const [formRes, respRes, analyticsRes, questionsRes] = await Promise.all([
@@ -663,10 +717,12 @@ export default function FormResponsesPage() {
                 return `"${str.replace(/"/g, '""')}"`;
             };
 
+            // P1-1: Include Nilai / Skor column next to Respondent
             const headerRow = [
                 'Response ID',
                 'Submitted At',
                 'Respondent',
+                'Nilai / Skor',
                 ...Array.from(questionMap.values()).map(stripMathNotation)
             ];
 
@@ -680,6 +736,7 @@ export default function FormResponsesPage() {
                     'KUNCI',
                     'JAWABAN',
                     '-',
+                    '-',
                     ...Array.from(questionMap.keys()).map(qId => {
                         const qDef = (formQuestions || []).find(q => q.id === qId);
                         return stripMathNotation(resolveAnswerKey(qDef));
@@ -690,11 +747,13 @@ export default function FormResponsesPage() {
 
             const dataRows = (respondentsList || []).map(r => {
                 const answerByQ = new Map((r.answers || []).map(a => [a.questionId, a.answerText || a.answerValue || a.optionText || '']));
+                const scoreDisplay = r.score != null ? `${r.score}%` : '-';
 
                 return [
                     r.responseId,
                     r.submittedAt ? formatDate(r.submittedAt) : '-',
                     r.respondentName || 'Anonim',
+                    scoreDisplay,
                     ...Array.from(questionMap.keys()).map(qId => stripMathNotation(answerByQ.get(qId) || ''))
                 ].map(escapeCsv).join(',');
             });

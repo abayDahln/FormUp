@@ -157,8 +157,14 @@ export default function FormResultPage() {
         </div>
     );
 
-    const showScore = form?.showScore || form?.settings?.showScore || result?.showScore;
-    const score = result?.score;
+    // P0-3: Disqualification state and score 0
+    const isDisqualified = Boolean(location.state?.isDisqualified || result?.isDisqualified || result?.status === 'disqualified');
+
+    // P0-2: Live form setting takes strict precedence over submission snapshot (retroactive)
+    const showScore = form
+        ? Boolean(form.showScore ?? form.settings?.showScore ?? form.formSetting?.showScore ?? false)
+        : Boolean(result?.showScore);
+    const score = isDisqualified ? 0 : result?.score;
 
     return (
         <div className="min-h-screen bg-[#F4F8F7] dark:bg-slate-950 font-sans antialiased text-slate-800 dark:text-slate-100 py-12 px-4 flex justify-center transition-colors">
@@ -166,32 +172,56 @@ export default function FormResultPage() {
 
                 {/* Main Success Card */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-8 sm:p-10 text-center shadow-xl space-y-6">
-                    <div className="w-16 h-16 bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 rounded-3xl flex items-center justify-center mx-auto shadow-xs">
-                        <CheckCircle2 size={36} />
+                    <div className={`w-16 h-16 ${isDisqualified ? 'bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400' : 'bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400'} rounded-3xl flex items-center justify-center mx-auto shadow-xs`}>
+                        {isDisqualified ? <AlertTriangle size={36} /> : <CheckCircle2 size={36} />}
                     </div>
 
                     <div className="space-y-2">
                         <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                            Respons Anda Telah Terkirim!
+                            {isDisqualified ? 'Ujian Dihentikan' : 'Respons Anda Telah Terkirim!'}
                         </h1>
                         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
-                            Terima kasih telah meluangkan waktu untuk mengisi <span className="font-bold text-slate-800 dark:text-slate-200">{form?.title || 'formulir ini'}</span>.
+                            {isDisqualified
+                                ? 'Ujian dihentikan secara otomatis karena pelanggaran anti-cheat melebihi batas toleransi.'
+                                : <>Terima kasih telah meluangkan waktu untuk mengisi <span className="font-bold text-slate-800 dark:text-slate-200">{form?.title || 'formulir ini'}</span>.</>}
                         </p>
                     </div>
 
-                    {/* Score Display if enabled */}
-                    {showScore && score != null && (
-                        <div className="bg-linear-to-br from-teal-50/60 to-emerald-50/60 dark:from-teal-950/40 dark:to-slate-800 border border-teal-100 dark:border-teal-900/50 rounded-2xl p-6 space-y-2">
-                            <div className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#00897B] dark:text-teal-400 uppercase tracking-wider">
-                                <Award size={15} /> Skor Akhir Anda
+                    {isDisqualified ? (
+                        <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/80 rounded-2xl p-6 space-y-2 text-center">
+                            <div className="inline-flex items-center gap-1.5 text-xs font-extrabold text-red-600 dark:text-red-400 uppercase tracking-wider">
+                                <AlertTriangle size={15} /> Status: Didiskualifikasi
                             </div>
-                            <div className="text-4xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
-                                {score}%
+                            <div className="text-4xl sm:text-5xl font-black text-red-700 dark:text-red-400 tracking-tight">
+                                Skor: 0
                             </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                                Penilaian otomatis berdasarkan kunci jawaban.
+                            <p className="text-xs text-red-600/80 dark:text-red-400/80 font-bold">
+                                Didiskualifikasi karena pelanggaran sistem ujian
                             </p>
                         </div>
+                    ) : (
+                        <>
+                            {/* Score Display if enabled */}
+                            {showScore && score != null && (
+                                <div className="bg-linear-to-br from-teal-50/60 to-emerald-50/60 dark:from-teal-950/40 dark:to-slate-800 border border-teal-100 dark:border-teal-900/50 rounded-2xl p-6 space-y-2">
+                                    <div className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#00897B] dark:text-teal-400 uppercase tracking-wider">
+                                        <Award size={15} /> Skor Akhir Anda
+                                    </div>
+                                    <div className="text-4xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
+                                        {score}%
+                                    </div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                        Penilaian otomatis berdasarkan kunci jawaban.
+                                    </p>
+                                </div>
+                            )}
+
+                            {!showScore && (
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium text-center">
+                                    Anda sudah submit. Terima kasih.
+                                </div>
+                            )}
+                        </>
                     )}
 
                     {/* Action Buttons */}
@@ -335,8 +365,8 @@ export default function FormResultPage() {
                             </div>
                             )}
 
-                {/* Detailed Answer Review Section */}
-                {result?.answers && result.answers.length > 0 && (
+                {/* Detailed Answer Review Section - only visible when showScore is enabled and not disqualified */}
+                {!isDisqualified && showScore && result?.answers && result.answers.length > 0 && (
                     <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-4">
                         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
                             <div>
@@ -526,7 +556,7 @@ export default function FormResultPage() {
                                                                 <span className="w-5 h-5 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center font-bold text-[10px] shrink-0">
                                                                     {String.fromCharCode(65 + oIdx)}
                                                                 </span>
-                                                                <span>{opt.optionText}</span>
+                                                                <RichContentRenderer content={opt.optionText} />
                                                             </div>
                                                             {practiceSubmitted && opt.isCorrect && (
                                                                 <Check size={14} className="text-emerald-600 shrink-0" />

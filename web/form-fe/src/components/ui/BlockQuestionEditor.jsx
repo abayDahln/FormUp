@@ -30,6 +30,16 @@ const HIGHLIGHT_COLORS = [
     { name: 'Ungu', value: '#e9d5ff', class: 'bg-purple-200' },
 ];
 
+const escapeHtml = (str) => String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+const decodeHtmlEntities = (str) => String(str)
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+
 /**
  * Parse an HTML or Markdown string into structured content blocks
  */
@@ -60,15 +70,16 @@ function parseStringToBlocks(rawStr) {
         }
 
         if (match[0].startsWith('<pre') || match[0].startsWith('```')) {
-            const lang = match[1] || match[3] || 'javascript';
-            const code = (match[2] || match[4] || '').trim();
-            blocks.push({
-                id: `b_${Date.now()}_${blocks.length}`,
-                type: 'code',
-                language: lang,
-                content: code
-            });
-        } else {
+        const lang = match[1] || match[3] || 'javascript';
+        const rawCode = (match[2] || match[4] || '').trim();
+        const code = match[0].startsWith('<pre') ? decodeHtmlEntities(rawCode) : rawCode;
+        blocks.push({
+            id: `b_${Date.now()}_${blocks.length}`,
+            type: 'code',
+            language: lang,
+            content: code
+        });
+    } else {
             const formula = (match[5] || match[6] || '').trim();
             blocks.push({
                 id: `b_${Date.now()}_${blocks.length}`,
@@ -102,8 +113,8 @@ function serializeBlocksToString(blocks) {
 
     return blocks.map(b => {
         if (b.type === 'code') {
-            const cleanCode = b.content ? b.content.trim() : '';
-            return `<pre><code class="language-${b.language || 'javascript'}">${cleanCode}</code></pre>`;
+        const cleanCode = b.content ? escapeHtml(b.content.trim()) : '';
+        return `<pre><code class="language-${b.language || 'javascript'}">${cleanCode}</code></pre>`;
         }
         if (b.type === 'math') {
             const formula = b.content ? b.content.trim() : '';
@@ -205,12 +216,31 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
         updateBlocksAndEmit(next);
     };
 
-    const handleMoveBlock = (index, dir) => {
+        const handleMoveBlock = (index, dir) => {
         const target = index + dir;
         if (target < 0 || target >= blocks.length) return;
         const next = [...blocks];
         [next[index], next[target]] = [next[target], next[index]];
         updateBlocksAndEmit(next);
+    };
+
+    // Intercept paste: ambil hanya teks polos dari clipboard (aman untuk paste
+    // dari Word, browser, atau dokumen HTML apa pun), escape karakter <, >, &
+    // supaya tampil sebagai teks literal, dan pertahankan baris jamak via <br>.
+    const handlePaste = (e, blockId) => {
+        e.preventDefault();
+        const text = e.clipboardData.getData('text/plain');
+        if (!text) return;
+
+        const safeHtml = text
+            .split(/\r\n|\r|\n/)
+            .map(line => escapeHtml(line))
+            .join('<br>');
+
+        document.execCommand('insertHTML', false, safeHtml);
+
+        const editor = editorRefs.current[blockId];
+        if (editor) handleUpdateBlock(blockId, 'content', editor.innerHTML);
     };
 
     // WYSIWYG Formatting Helpers for contentEditable
@@ -661,6 +691,7 @@ export default function BlockQuestionEditor({ value, onChange, placeholder = 'Tu
                                     aria-multiline="true"
                                     data-placeholder={placeholder}
                                     onInput={e => handleUpdateBlock(block.id, 'content', e.currentTarget.innerHTML)}
+                                    onPaste={e => handlePaste(e, block.id)}
                                     onFocus={() => setActiveBlockId(block.id)}
                                     className="formup-rich-editor min-h-20 w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00897B] dark:focus:ring-teal-400 leading-relaxed transition-colors empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 dark:empty:before:text-slate-500"
                                 />

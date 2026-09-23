@@ -16,6 +16,11 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
 
     if (!isOpen) return null;
 
+       const escapeHtml = (str) => str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
     const handleInsert = () => {
         if (mode === 'math') {
             const formula = mathInput.trim();
@@ -29,7 +34,8 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
         } else if (mode === 'code') {
             const code = codeInput.trim();
             if (code) {
-                onInsert(`<pre><code class="language-${codeLanguage}">${code}</code></pre><p><br></p>`);
+                const escapedCode = escapeHtml(code);
+                onInsert(`<pre><code class="language-${codeLanguage}">${escapedCode}</code></pre><p><br></p>`);
             }
         }
         onClose();
@@ -191,7 +197,7 @@ export default function MathAndCodeModal({ isOpen, mode, onClose, onInsert }) {
                         <div>
                             <label className="text-[11px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">Pratinjau Kode:</label>
                             <div className="max-h-40 overflow-y-auto rounded-xl">
-                                <RichContentRenderer content={`<pre><code class="language-${codeLanguage}">${codeInput || '// ...'}</code></pre>`} />
+                                <RichContentRenderer content={`<pre><code class="language-${codeLanguage}">${escapeHtml(codeInput || '// ...')}</code></pre>`} />
                             </div>
                         </div>
                     </div>

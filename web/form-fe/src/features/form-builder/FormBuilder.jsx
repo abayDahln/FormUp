@@ -2238,7 +2238,7 @@ const ensureOptionSaved = async (idx, oIdx) => {
                                                             {q.options?.map((opt, oIdx) => (
                                                                 <label key={oIdx} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
                                                                     <input type="radio" name={`preview_live_q_${qIdx}`} disabled className="text-teal-600" />
-                                                                    <span>{opt.optionText || `Pilihan ${String.fromCharCode(65 + oIdx)}`}</span>
+                                                                    <span><RichContentRenderer content={opt.optionText || `Pilihan ${String.fromCharCode(65 + oIdx)}`} /></span>
                                                                 </label>
                                                             ))}
                                                         </div>
@@ -2249,7 +2249,7 @@ const ensureOptionSaved = async (idx, oIdx) => {
                                                             {q.options?.map((opt, oIdx) => (
                                                                 <label key={oIdx} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
                                                                     <input type="checkbox" disabled className="rounded text-teal-600" />
-                                                                    <span>{opt.optionText || `Pilihan ${String.fromCharCode(65 + oIdx)}`}</span>
+                                                                    <span><RichContentRenderer content={opt.optionText || `Pilihan ${String.fromCharCode(65 + oIdx)}`} /></span>
                                                                 </label>
                                                             ))}
                                                         </div>
