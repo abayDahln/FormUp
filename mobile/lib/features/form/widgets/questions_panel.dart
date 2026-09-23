@@ -104,6 +104,28 @@ class QuestionsPanelState extends State<QuestionsPanel>
     return validateQuestionsList(_questions, allowEmpty: true);
   }
 
+  /// Indeks draf soal pertama yang gagal validasi (null = semua valid).
+  /// Murni tanpa efek samping — dipakai Simpan global layar editor agar
+  /// pesan error bisa bernomor ("Soal #N: ...").
+  int? firstInvalidIndex() {
+    if (widget.questionsLocked) return null;
+    for (var i = 0; i < _questions.length; i++) {
+      if (validateQuestionDraft(_questions[i]) != null) return i;
+    }
+    return null;
+  }
+
+  /// Pesan validasi untuk draf pada [index] (null = valid / di luar jangkauan).
+  String? invalidErrorAt(int index) {
+    if (index < 0 || index >= _questions.length) return null;
+    return validateQuestionDraft(_questions[index]);
+  }
+
+  /// Sorot + scroll ke kartu soal [index] (dipakai saat validasi gabungan
+  /// gagal agar user tahu soal mana yang harus diperbaiki). Memakai
+  /// highlight yang sama dengan sentuhan AI (menarik perhatian + auto-scroll).
+  void revealQuestion(int index) => flashAiTouched([index]);
+
   /// Dipanggil layar editor setelah AFA mengubah draf dari luar panel
   /// (mis. dari tab Pengaturan) agar daftar soal langsung rebuild.
   void notifyDraftChanged() {
@@ -461,31 +483,42 @@ class QuestionsPanelState extends State<QuestionsPanel>
   /// Navigasi diserahkan ke parent via [QuestionsPanel.onSaved].
   /// No-op saat soal dikunci (tidak ada perubahan yang mungkin).
   ///
+  /// Return true bila state server kini sinkron (tersimpan bersih /
+  /// dihapus semua / dikunci). False = masih ada yang belum tersimpan
+  /// (validasi gagal, media gagal upload, prerasyarat belum siap).
+  ///
   /// [formIdOverride] = id form yang baru dibuat parent (form baru):
   /// state ini belum rebuild sehingga `_formId` internal masih null —
   /// tanpa override, soal diam-diam tidak tersimpan.
-  Future<void> save({int? formIdOverride}) {
-    if (widget.questionsLocked) return Future.value();
+  Future<bool> save({int? formIdOverride}) {
+    if (widget.questionsLocked) return Future.value(true);
     if (formIdOverride != null && _formId == null) {
       _formId = formIdOverride;
     }
     return _save();
   }
 
-  Future<void> _save() async {
-    if (!AppDebouncer.tryAcquire('form:saveQuestions')) return;
-    if (_saving) return;
+  Future<bool> _save() async {
+    if (!AppDebouncer.tryAcquire('form:saveQuestions')) return false;
+    if (_saving) return false;
     if (_loading) {
       showAuthToast(context, 'Soal masih dimuat, tunggu sebentar', isError: true);
-      return;
+      return false;
     }
     final error = validateQuestionsList(_questions, allowEmpty: true);
     if (error != null) {
       showAuthToast(context, error, isError: true);
-      return;
+      return false;
     }
     final formId = _formId;
-    if (formId == null) return;
+    if (formId == null) {
+      showAuthToast(
+        context,
+        'Simpan pengaturan form dulu sebelum menyimpan soal',
+        isError: true,
+      );
+      return false;
+    }
     // Pengaman hapus tak disengaja: daftar belum pernah dimuat dari server
     // (mis. gagal koneksi) + draf kosong bukan berarti user menghapus semua.
     if (_loadError != null) {
@@ -494,9 +527,9 @@ class QuestionsPanelState extends State<QuestionsPanel>
         'Gagal memuat soal — tarik untuk memuat ulang sebelum menyimpan',
         isError: true,
       );
-      return;
+      return false;
     }
-    if (!_hasLoadedServer && _questions.isEmpty) return;
+    if (!_hasLoadedServer && _questions.isEmpty) return false;
     setState(() => _saving = true);
     try {
       final res = await persistQuestions(
@@ -509,8 +542,8 @@ class QuestionsPanelState extends State<QuestionsPanel>
           if (mounted) showAuthToast(context, msg, isError: isError);
         },
       );
-      if (!mounted) return;
-      if (res.abortedOversize) return;
+      if (!mounted) return false;
+      if (res.abortedOversize) return false;
       if (res.deletedAll) {
         showAuthToast(context, "Semua soal berhasil dihapus");
         // Dual-stay: baseline ikut kosong agar guard tidak menagih lagi.
@@ -518,7 +551,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
         _hasLoadedServer = true;
         await Future<void>.delayed(const Duration(milliseconds: 120));
         await widget.onSaved?.call(formId);
-        return;
+        return true;
       }
       if (res.mediaFailed > 0) {
         // Soal sudah tersimpan; tetap di layar agar media bisa dicoba lagi.
@@ -527,7 +560,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
           'Soal tersimpan, tetapi ${res.mediaFailed} media gagal diupload. Tekan Simpan lagi untuk mencoba ulang.',
           isError: true,
         );
-        return;
+        return false;
       }
       // Dual-stay: segarkan baseline agar guard keluar tidak menagih lagi.
       // (Layar tunggal langsung pop sehingga tidak terpengaruh.)
@@ -536,9 +569,11 @@ class QuestionsPanelState extends State<QuestionsPanel>
       showAuthToast(context, "Soal berhasil disimpan");
       await Future<void>.delayed(const Duration(milliseconds: 120));
       await widget.onSaved?.call(formId);
+      return true;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return false;
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      return false;
     } finally {
       if (mounted)
         setState(() {

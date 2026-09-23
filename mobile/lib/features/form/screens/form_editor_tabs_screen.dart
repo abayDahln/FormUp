@@ -104,43 +104,82 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
   /// (pengaturan tidak tersimpan bila soal invalid), dan soal hanya
   /// menyentuh server bila ada perubahan — draf kosong yang belum dimuat
   /// tidak boleh menghapus soal server.
+  ///
+  /// Setiap jalan buntu memberi umpan balik (toast), tidak pernah diam:
+  /// sebelumnya tombol Simpan tampak tidak bisa diklik dari tab Soal saat
+  /// state panel belum siap / validasi gagal tanpa nomor soal.
   Future<void> _saveAll() async {
     if (_savingAll) return;
     final settings = _settingsKey.currentState;
+    if (settings == null) {
+      // Tab Pengaturan belum ter-mount (mis. layar dibuka langsung ke tab
+      // Soal): bangun dulu dengan pindah ke sana, user tekan Simpan lagi.
+      _tabController.animateTo(0);
+      showAuthToast(context, 'Buka tab Pengaturan dulu, lalu tekan Simpan lagi');
+      return;
+    }
     final questions = _questionsKey.currentState;
-    if (settings == null || settings.isSaving || (questions?.isBusy ?? false)) {
+    if (settings.isSaving || (questions?.isBusy ?? false)) {
+      showAuthToast(context, 'Masih menyimpan, tunggu sebentar');
       return;
     }
     if (questions?.isLoading ?? false) {
       showAuthToast(context, 'Soal masih dimuat, tunggu sebentar', isError: true);
       return;
     }
-    final qError = questions?.validateNow();
-    if (qError != null) {
-      showAuthToast(context, qError, isError: true);
-      _tabController.animateTo(1);
-      return;
-    }
+    // Soal divalidasi DULU dengan nomor + sorot kartu yang bermasalah.
+    if (!await _ensureQuestionsValid()) return;
     final bool created = _formId == null;
-    final needQuestions = !widget.questionsLocked &&
-        questions != null &&
-        (questions.hasChanges || (created && !questions.isQuestionsEmpty));
     setState(() => _savingAll = true);
     try {
       final id = await settings.save();
-      if (id == null || !mounted) return;
+      if (!mounted) return;
+      if (id == null) {
+        // settings.save() sudah menampilkan alasannya (mis. judul kosong).
+        // Bawa user ke tab Pengaturan bila judul kosong agar field-nya
+        // terlihat (dari tab Soal field judul tidak kelihatan).
+        if (settings.isTitleEmpty && _tabController.index != 0) {
+          _tabController.animateTo(0);
+        }
+        return;
+      }
       if (_formId == null) setState(() => _formId = id);
       // Soal dikunci (form sudah ada yang mengerjakan): hanya pengaturan
       // yang disimpan; draf soal tidak boleh menyentuh server.
+      // Perubahan dibaca ULANG setelah pengaturan tersimpan agar edit soal
+      // yang terjadi selama simpan pengaturan ikut tersimpan juga.
+      final qs = _questionsKey.currentState;
+      final needQuestions = !widget.questionsLocked &&
+          qs != null &&
+          (qs.hasChanges || (created && !qs.isQuestionsEmpty));
       if (needQuestions) {
         // Oper id eksplisit: state tab Soal belum rebuild sehingga
-        // _formId internalnya masih null untuk form baru. Baca ulang
-        // state (bisa null bila tab dilepas saat simpan berjalan).
-        await _questionsKey.currentState?.save(formIdOverride: id);
+        // _formId internalnya masih null untuk form baru.
+        await qs.save(formIdOverride: id);
       }
     } finally {
       if (mounted) setState(() => _savingAll = false);
     }
+  }
+
+  /// Validasi draf soal dengan umpan balik bernomor ("Soal #N: ...") +
+  /// sorot & scroll ke kartu yang bermasalah. False = ada yang invalid
+  /// (user sudah diberi tahu), true = valid / terkunci / panel belum siap.
+  Future<bool> _ensureQuestionsValid() async {
+    final questions = _questionsKey.currentState;
+    if (widget.questionsLocked || questions == null) return true;
+    final bad = questions.firstInvalidIndex();
+    if (bad == null) return true;
+    final detail = questions.invalidErrorAt(bad) ?? 'Tidak valid';
+    showAuthToast(context, 'Soal #${bad + 1}: $detail', isError: true);
+    if (_tabController.index != 1) {
+      _tabController.animateTo(1);
+      // Tunggu animasi tab selesai agar scroll ke kartu tepat sasaran.
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      if (!mounted) return false;
+    }
+    _questionsKey.currentState?.revealQuestion(bad);
+    return false;
   }
 
   /// Konfirmasi keluar: simpan / buang draf / batal (bila ada perubahan di
@@ -160,15 +199,26 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
     if (!mounted) return false;
     if (choice == 'discard') return true;
     if (choice == 'save') {
-      if (questions?.isLoading ?? false) return false;
-      final id = await settings?.save();
+      if ((_questionsKey.currentState?.isLoading ?? false)) return false;
+      // Samakan urutan Simpan global: soal divalidasi dulu (dengan sorot
+      // kartu) agar pengaturan tidak tersimpan bila soal invalid.
+      if (!await _ensureQuestionsValid()) return false;
+      final settingsNow = _settingsKey.currentState;
+      final id = await settingsNow?.save();
       if (!mounted) return false;
+      if (id == null) {
+        if ((settingsNow?.isTitleEmpty ?? false) && _tabController.index != 0) {
+          _tabController.animateTo(0);
+        }
+        return false;
+      }
       // Form baru: onSettingsSaved sudah adopsi formId + pindah tab Soal.
       // Simpan soal hanya bila ada perubahan — draf kosong yang belum
       // dimuat tidak boleh menghapus soal server.
-      final needQ = !widget.questionsLocked && (questions?.hasChanges ?? false);
+      final needQ = !widget.questionsLocked &&
+          ((_questionsKey.currentState?.hasChanges ?? false));
       if (needQ) {
-        await _questionsKey.currentState?.save(formIdOverride: id ?? _formId);
+        await _questionsKey.currentState?.save(formIdOverride: id);
       }
       if (!mounted) return false;
       if (widget.formId != null) {

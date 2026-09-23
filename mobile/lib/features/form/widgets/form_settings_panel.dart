@@ -66,6 +66,11 @@ class FormSettingsPanelState extends State<FormSettingsPanel> {
 
   bool get isSaving => _saving;
 
+  /// True bila judul kosong — dipakai Simpan global layar editor untuk
+  /// mengarahkan user ke tab Pengaturan saat validasi gagal dari tab Soal
+  /// (field judul tidak terlihat dari tab Soal).
+  bool get isTitleEmpty => _form.titleController.text.trim().isEmpty;
+
   final ScrollController _scrollController = ScrollController();
   final FocusNode _titleFocusNode = FocusNode();
   final GlobalKey _titleFieldKey = GlobalKey();
