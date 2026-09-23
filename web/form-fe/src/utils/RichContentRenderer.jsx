@@ -50,15 +50,9 @@ export default function RichContentRenderer({ content, className = '', format })
 
     return (
         <div className={`rich-text-content leading-relaxed break-words break-all [overflow-wrap:anywhere] ${className}`}>
-            {parseMixedContent(rawStr, format)}
+            {parseMixedContent(rawStr)}
         </div>
     );
-}
-
-function decodeFormattingEntities(str) {
-    if (!str || typeof str !== 'string') return str;
-    return str
-        .replace(/&lt;(\/?(?:p|div|span|strong|b|em|i|u|s|strike|h[1-6]|ul|ol|li|blockquote|br|table|thead|tbody|tr|th|td)(?:\s[^>]*)?)&gt;/gi, '<$1>');
 }
 
 // Keep only presentation HTML emitted by the editor. In particular, preserve
@@ -120,7 +114,7 @@ function parseMixedContent(text, format) {
     if (!text) return null;
 
     // Combined regex for Code Blocks (both markdown ```...``` and HTML <pre><code>...</code></pre>)
-    const codeBlockRegex = /<pre(?:\s+[^>]*)?><code(?: class="language-([a-zA-Z0-9_#-]+)")?>([\s\S]*?)<\/code><\/pre>|```([a-zA-Z0-9_#-]*)[ \t\r\n]*([\s\S]*?)```/gi;
+    const codeBlockRegex = /<pre><code(?: class="language-([a-zA-Z0-9_#-]+)")?>([\s\S]*?)<\/code><\/pre>|```([a-zA-Z0-9_#-]*)[ \t\r\n]*([\s\S]*?)```/gi;
 
     const sections = [];
     let lastIndex = 0;
@@ -137,12 +131,13 @@ function parseMixedContent(text, format) {
         const isHtmlPre = match[0].startsWith('<pre');
         const lang = (isHtmlPre ? match[1] : match[3]) || 'code';
         const rawCode = (isHtmlPre ? match[2] : match[4]) || '';
-        const cleanCode = rawCode.trim();
+        const cleanCode = rawCode.replace(/<[^>]+>/g, '').trim();
+
         sections.push({
             type: 'code',
             code: cleanCode,
             language: lang.trim().toLowerCase() || 'code',
-            key: `code_${match.index}_${sections.length}`
+            key: `code_${match.index}`
         });
 
         lastIndex = match.index + match[0].length;
@@ -159,8 +154,7 @@ function parseMixedContent(text, format) {
         if (sec.type === 'code') {
             return <CodeBlock key={sec.key || `sec_code_${secIdx}`} code={sec.code} language={sec.language} />;
         }
-        const content = format !== 'text' ? decodeFormattingEntities(sec.content) : sec.content;
-        return renderMarkdownBlocks(content, `sec_md_${secIdx}`, format);
+        return renderMarkdownBlocks(sec.content, `sec_md_${secIdx}`, format);
     });
 }
 
@@ -301,7 +295,7 @@ function renderInlineMarkdownAndMath(text, keyPrefix, format) {
     // preview, runner and result) instead of treating them as visible text.
     // The editor only emits formatting tags; links/scripts are deliberately
     // excluded from this path.
-    if (format !== 'text' && /<\/?(strong|b|em|i|u|s|strike|span|p|div|br|h[1-6]|ul|ol|li|blockquote|a|font|mark|small|sub|sup)(?:\s[^>]*)?>/i.test(text)) {
+    if (/<\/?(strong|b|em|i|u|s|strike|span|p|div|br|h[1-6]|ul|ol|li|blockquote|a|font|mark|small|sub|sup)(?:\s[^>]*)?>/i.test(text)) {
         // HTML from the WYSIWYG can wrap a KaTeX token in <p>...</p>.
         // Strip only the presentation tags here so the math tokenizer still
         // gets a chance to create MathBlock instead of showing raw $$ text.
@@ -312,7 +306,8 @@ function renderInlineMarkdownAndMath(text, keyPrefix, format) {
             <span
                 key={`${keyPrefix}_html`}
                 dangerouslySetInnerHTML={{
-                    __html: sanitizeRichHtml(text)
+                    __html: text
+                        .replace(/<[^>]+>/g, (tag) => sanitizeRichHtml(tag))
                 }}
             />
         );
@@ -446,7 +441,7 @@ export function CodeBlock({ code, language = 'code' }) {
                         <div key={i}>{i + 1}</div>
                     ))}
                 </div>
-                <pre className="flex-1 font-mono text-slate-200 font-normal whitespace-pre-wrap break-words border-0 p-0 m-0 bg-transparent text-xs">
+                <pre className="flex-1 font-mono text-slate-200 font-normal whitespace-pre border-0 p-0 m-0 bg-transparent text-xs">
                     <code>{cleanCode}</code>
                 </pre>
             </div>

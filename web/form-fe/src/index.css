@@ -117,30 +117,68 @@
 
 /* Styling & Theming Global untuk Material Web Components */
 @layer components {
-  /* Dynamic Variables alignment with App Theme */
-  md-outlined-text-field,
-  md-filled-text-field {
-    width: 100%;
-    /* Mengikuti variabel warna bawaan Anda */
-    --md-sys-color-primary: #0d9488; /* Teal-600 */
+  /* 1. Global Tokens (Berlaku untuk semua komponen Material Web) */
+  :root {
+    /* Brand Accent Main (#00897B / #0d9488) */
+    --md-sys-color-primary: #00897B;
+    --md-sys-color-on-primary: #ffffff;
+    --md-sys-color-primary-container: #ccfbf1;
+    --md-sys-color-on-primary-container: #0f766e;
+
+    /* Surface & Background */
+    --md-sys-color-surface: var(--bg-card);
     --md-sys-color-on-surface: var(--text-primary);
     --md-sys-color-on-surface-variant: var(--text-secondary);
     --md-sys-color-outline: var(--border-color);
-    --md-sys-color-surface: var(--bg-card);
-    --md-outlined-text-field-container-shape: 12px;
-  }
+    --md-sys-color-outline-variant: var(--border-color);
 
-  md-filled-button,
-  md-outlined-button,
-  md-text-button {
-    --md-sys-color-primary: #0d9488;
-    --md-filled-button-container-color: #0d9488;
-    --md-filled-button-label-text-color: #ffffff;
+    /* Shape / Border Radius Seragam */
     --md-filled-button-container-shape: 12px;
+    --md-outlined-button-container-shape: 12px;
+    --md-outlined-text-field-container-shape: 12px;
+    --md-filled-text-field-container-shape: 12px;
   }
 
+  /* 2. Overrides Spesifik Komponen */
+  
+  /* Text Fields */
+  md-outlined-text-field,
+  md-filled-text-field {
+    width: 100%;
+    --md-sys-color-primary: #00897B;
+    --md-outlined-text-field-focus-outline-color: #00897B;
+    --md-outlined-text-field-focus-label-text-color: #00897B;
+  }
+
+  /* Buttons */
+  md-filled-button {
+    --md-sys-color-primary: #00897B;
+    --md-filled-button-container-color: #00897B;
+    --md-filled-button-label-text-color: #ffffff;
+    --md-filled-button-hover-state-layer-color: #ffffff;
+  }
+
+  md-outlined-button {
+    --md-sys-color-primary: #00897B;
+    --md-outlined-button-label-text-color: #00897B;
+    --md-outlined-button-outline-color: var(--border-color);
+  }
+
+  md-text-button {
+    --md-sys-color-primary: #00897B;
+    --md-text-button-label-text-color: #00897B;
+  }
+
+  /* Checkbox & Switch */
   md-checkbox {
-    --md-sys-color-primary: #0d9488;
-    --md-sys-color-on-surface-variant: var(--text-secondary);
+    --md-sys-color-primary: #00897B;
+    --md-sys-color-on-primary: #ffffff;
+  }
+
+  /* Dark Mode Adjustments */
+  html.dark {
+    --md-sys-color-primary: #2dd4bf; /* Teal terang untuk dark mode agar kontras */
+    --md-filled-button-container-color: #00897B;
+    --md-filled-button-label-text-color: #ffffff;
   }
 }

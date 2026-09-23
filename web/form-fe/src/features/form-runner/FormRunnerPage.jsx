@@ -1,323 +1,491 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import {
-    Clock, Lock, ArrowRight, ArrowLeft,
-    AlertCircle, Send, Loader2, Maximize2,
-    Sun, Moon, AlertTriangle, X, CheckCircle2, Bookmark, BookmarkCheck, Eye,
-    LayoutGrid, Wifi, WifiOff
-} from 'lucide-react';
-import {
-    getPublicFormByLink, getPublicFormQuestions, submitPublicFormResponse,
-    submitFeedback, clearSession, assetUrl, getLocalUser,
-    getFormById, getQuestions, getMyForms, postExamEvent,
-    syncExamAnswers
-} from '../../services/apiService';
-import RichContentRenderer from '../../utils/RichContentRenderer';
-import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
+    import { useState, useEffect, useRef, useCallback } from 'react';
+    import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+    import {
+        Clock, Lock, ArrowRight, ArrowLeft,
+        AlertCircle, Send, Loader2, Maximize2,
+        Sun, Moon, AlertTriangle, X, CheckCircle2, Bookmark, BookmarkCheck, Eye,
+        LayoutGrid, Wifi, WifiOff
+    } from 'lucide-react';
+    import {
+        getPublicFormByLink, getPublicFormQuestions, submitPublicFormResponse,
+        submitFeedback, clearSession, assetUrl, getLocalUser,
+        getFormById, getQuestions, getMyForms, postExamEvent,
+        syncExamAnswers
+    } from '../../services/apiService';
+    import RichContentRenderer from '../../utils/RichContentRenderer';
+    import ImageLightboxModal from '../../components/ui/ImageLightboxModal';
 
-export default function FormRunnerPage() {
-    const { formLink } = useParams();
-    const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
-    const isPreviewMode = searchParams.get('preview') === 'true';
+    export default function FormRunnerPage() {
+        const { formLink } = useParams();
+        const navigate = useNavigate();
+        const [searchParams] = useSearchParams();
+        const isPreviewMode = searchParams.get('preview') === 'true';
 
-    const [form, setForm] = useState(null);
-    const localSubmittedId = typeof window !== 'undefined' ? localStorage.getItem(`formup_submitted_${formLink}`) : null;
-    const isLocked = !isPreviewMode && Boolean(
-        (form?.oneResponse && (form.alreadySubmitted || localSubmittedId)) ||
-        ((form?.isExamMode || form?.detectTabSwitch) && localSubmittedId)
-    );
-    const [questions, setQuestions] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [submitting, setSubmitting] = useState(false);
-    const [error, setError] = useState('');
-    const [validationToast, setValidationToast] = useState(null);
+        const [form, setForm] = useState(null);
+        const [questions, setQuestions] = useState([]);
+        const [loading, setLoading] = useState(true);
+        const [submitting, setSubmitting] = useState(false);
+        const [error, setError] = useState('');
+        const [validationToast, setValidationToast] = useState(null);
 
-    const [tokenInput, setTokenInput] = useState('');
-    const [tokenUnlocked, setTokenUnlocked] = useState(false);
-    const [respondentName, setRespondentName] = useState('');
-    // BUG-5 FIX: Keep respondentName in a ref so sendExamEvent doesn't need it
-    // as a useCallback dependency — preventing session_start from re-firing on
-    // every keystroke while the user types their name.
-    const respondentNameRef = useRef('');
+        const [tokenInput, setTokenInput] = useState('');
+        const [tokenUnlocked, setTokenUnlocked] = useState(false);
+        const [respondentName, setRespondentName] = useState('');
+        // BUG-5 FIX: Keep respondentName in a ref so sendExamEvent doesn't need it
+        // as a useCallback dependency — preventing session_start from re-firing on
+        // every keystroke while the user types their name.
+        const respondentNameRef = useRef('');
 
-    // A-2: solid yellow ragu-ragu
-    const [markedForReview, setMarkedForReview] = useState(new Set());
-    // A-1: nav popup
-    const [navPopupOpen, setNavPopupOpen] = useState(false);
-    // FEAT-3: submit confirm
-    const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
-    // B10: First dialog — warns about ragu-ragu questions before submit confirmation
-    const [reviewWarningOpen, setReviewWarningOpen] = useState(false);
-    // Exam mode monitoring & violation tracking (Server-side source of truth)
-    const [tabSwitchCount, setTabSwitchCount] = useState(0);
-    const [violationCount, setViolationCount] = useState(0);
-    const [tabSwitchWarning, setTabSwitchWarning] = useState(false);
-    const lastTabSwitchAtRef = useRef(0);
-    const blurTimerRef = useRef(null);
+        // A-2: solid yellow ragu-ragu
+        const [markedForReview, setMarkedForReview] = useState(new Set());
+        // A-1: nav popup
+        const [navPopupOpen, setNavPopupOpen] = useState(false);
+        // FEAT-3: submit confirm
+        const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+        // B10: First dialog — warns about ragu-ragu questions before submit confirmation
+        const [reviewWarningOpen, setReviewWarningOpen] = useState(false);
+        // Exam mode monitoring & violation tracking (Server-side source of truth)
+        const [tabSwitchCount, setTabSwitchCount] = useState(0);
+        const [violationCount, setViolationCount] = useState(0);
+        const [tabSwitchWarning, setTabSwitchWarning] = useState(false);
+        const lastTabSwitchAtRef = useRef(0);
 
-    // Persistent sessionId for exam mode (per formLink).
-    // Kontrak dengan backend: event pertama dikirim TANPA sessionId
-    // (null) agar server yang generate; ID balikan server disimpan dan
-    // dipakai ulang. Jangan pre-generate UUID di klien — ID tak dikenal
-    // tidak lagi diartikan sebagai "sesi di-reset".
-    const getStoredSessionId = useCallback(() => {
-        if (typeof window === 'undefined') return null;
-        try {
-            return sessionStorage.getItem(`formup_exam_session_${formLink}`);
-        } catch {
-            return null;
-        }
-    }, [formLink]);
-    const examSessionIdRef = useRef(null);
-    if (!examSessionIdRef.current && typeof window !== 'undefined') {
-        examSessionIdRef.current = getStoredSessionId();
-    }
-
-    const [answers, setAnswers] = useState(() => {
-        if (typeof window !== 'undefined') {
+        // Persistent sessionId for exam mode (per formLink).
+        // Kontrak dengan backend: event pertama dikirim TANPA sessionId
+        // (null) agar server yang generate; ID balikan server disimpan dan
+        // dipakai ulang. Jangan pre-generate UUID di klien — ID tak dikenal
+        // tidak lagi diartikan sebagai "sesi di-reset".
+        const getStoredSessionId = useCallback(() => {
+            if (typeof window === 'undefined') return null;
             try {
-                const cached = localStorage.getItem(`formup_cache_${formLink}`);
-                if (cached) {
-                    const parsed = JSON.parse(cached);
-                    if (parsed && typeof parsed === 'object') return parsed;
-                }
-            } catch {}
+                return sessionStorage.getItem(`formup_exam_session_${formLink}`);
+            } catch {
+                return null;
+            }
+        }, [formLink]);
+        const examSessionIdRef = useRef(null);
+        if (!examSessionIdRef.current && typeof window !== 'undefined') {
+            examSessionIdRef.current = getStoredSessionId();
         }
-        return {};
-    });
-    const answersRef = useRef(answers);
-    const questionsRef = useRef(questions);
 
-    const [currentStep, setCurrentStep] = useState(0);
-    const [lightboxImage, setLightboxImage] = useState(null);
-
-    const [reportModalOpen, setReportModalOpen] = useState(false);
-    const [reportReason, setReportReason] = useState('PERTANYAAN_TIDAK_JELAS');
-    const [reportDescription, setReportDescription] = useState('');
-    const [submittingReport, setSubmittingReport] = useState(false);
-    const [reportSuccess, setReportSuccess] = useState(false);
-    const [reportError, setReportError] = useState('');
-
-    const [timeLeft, setTimeLeft] = useState(null);
-    const timerRef = useRef(null);
-    const isSubmittingRef = useRef(false);
-
-    const [isDarkMode, setIsDarkMode] = useState(() => {
-        if (typeof window !== 'undefined') {
-            return document.documentElement.classList.contains('dark') || localStorage.getItem('theme') === 'dark';
-        }
-        return false;
-    });
-
-    const toggleDarkMode = () => {
-        setIsDarkMode(prev => {
-            const next = !prev;
-            if (next) { document.documentElement.classList.add('dark'); localStorage.setItem('theme', 'dark'); }
-            else { document.documentElement.classList.remove('dark'); localStorage.setItem('theme', 'light'); }
-            return next;
+        const [answers, setAnswers] = useState(() => {
+            if (typeof window !== 'undefined') {
+                try {
+                    const cached = localStorage.getItem(`formup_cache_${formLink}`);
+                    if (cached) {
+                        const parsed = JSON.parse(cached);
+                        if (parsed && typeof parsed === 'object') return parsed;
+                    }
+                } catch {}
+            }
+            return {};
         });
-    };
+        const answersRef = useRef(answers);
+        const questionsRef = useRef(questions);
 
-    const currentUserRef = useRef(getLocalUser());
-    const currentUser = currentUserRef.current;
+        const [currentStep, setCurrentStep] = useState(0);
+        const [lightboxImage, setLightboxImage] = useState(null);
 
-    const examEventSeqRef = useRef(0);
+        const [reportModalOpen, setReportModalOpen] = useState(false);
+        const [reportReason, setReportReason] = useState('PERTANYAAN_TIDAK_JELAS');
+        const [reportDescription, setReportDescription] = useState('');
+        const [submittingReport, setSubmittingReport] = useState(false);
+        const [reportSuccess, setReportSuccess] = useState(false);
+        const [reportError, setReportError] = useState('');
 
-    useEffect(() => { respondentNameRef.current = respondentName; }, [respondentName]);
+        const [timeLeft, setTimeLeft] = useState(null);
+        const timerRef = useRef(null);
+        const isSubmittingRef = useRef(false);
 
-    // Offline-First Mode: Track online/offline status and auto-sync
-    const [isOnline, setIsOnline] = useState(() => typeof window !== 'undefined' ? window.navigator.onLine : true);
-    const [showRestoredToast, setShowRestoredToast] = useState(false);
+        const [isDarkMode, setIsDarkMode] = useState(() => {
+            if (typeof window !== 'undefined') {
+                return document.documentElement.classList.contains('dark') || localStorage.getItem('theme') === 'dark';
+            }
+            return false;
+        });
 
-    useEffect(() => {
-        const handleOnline = () => {
-            if (isLocked) return;
-            setIsOnline(true);
-            setShowRestoredToast(true);
-            setTimeout(() => setShowRestoredToast(false), 4000);
-            if (form && answers && Object.keys(answers).length > 0) {
-                const sid = examSessionIdRef.current || getStoredSessionId();
-                if (sid) {
-                    syncExamAnswers(formLink, sid, answers).catch(() => {});
+        const toggleDarkMode = () => {
+            setIsDarkMode(prev => {
+                const next = !prev;
+                if (next) { document.documentElement.classList.add('dark'); localStorage.setItem('theme', 'dark'); }
+                else { document.documentElement.classList.remove('dark'); localStorage.setItem('theme', 'light'); }
+                return next;
+            });
+        };
+
+        const currentUserRef = useRef(getLocalUser());
+        const currentUser = currentUserRef.current;
+
+        const examEventSeqRef = useRef(0);
+
+        useEffect(() => { respondentNameRef.current = respondentName; }, [respondentName]);
+
+        // Offline-First Mode: Track online/offline status and auto-sync
+        const [isOnline, setIsOnline] = useState(() => typeof window !== 'undefined' ? window.navigator.onLine : true);
+        const [showRestoredToast, setShowRestoredToast] = useState(false);
+
+        useEffect(() => {
+            const handleOnline = () => {
+                setIsOnline(true);
+                setShowRestoredToast(true);
+                setTimeout(() => setShowRestoredToast(false), 4000);
+                if (form && answers && Object.keys(answers).length > 0) {
+                    const sid = examSessionIdRef.current || getStoredSessionId();
+                    if (sid) {
+                        syncExamAnswers(formLink, sid, answers).catch(() => {});
+                    }
                 }
-            }
-        };
-        const handleOffline = () => {
-            setIsOnline(false);
-        };
-
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
-    }, [form, answers, formLink, getStoredSessionId, isLocked]);
-
-    // auto-cache to local storage on answer change
-    useEffect(() => {
-        if (formLink && Object.keys(answers).length > 0) {
-            try { localStorage.setItem(`formup_cache_${formLink}`, JSON.stringify(answers)); } catch {}
-        }
-    }, [answers, formLink]);
-
-    // B-2: apply theme
-    useEffect(() => {
-        if (!form) return;
-        const root = document.documentElement;
-        if (form.themePrimaryColor) root.style.setProperty('--form-primary', form.themePrimaryColor);
-        if (form.themeBackgroundColor) root.style.setProperty('--form-bg', form.themeBackgroundColor);
-        return () => { root.style.removeProperty('--form-primary'); root.style.removeProperty('--form-bg'); };
-    }, [form]);
-
-    const [isForceSubmitted, setIsForceSubmitted] = useState(false);
-    const isForceSubmittedRef = useRef(false);
-    // P0-3: Disqualification on anti-cheat threshold reached
-    const [isDisqualified, setIsDisqualified] = useState(false);
-    const isDisqualifiedRef = useRef(false);
-
-    // B12 Proctoring: Handle proctor force submit / session termination
-    const handleForceSubmitTermination = useCallback((responseId = null) => {
-        if (isForceSubmittedRef.current) return;
-        isForceSubmittedRef.current = true;
-        isSubmittingRef.current = true;
-
-        if (timerRef.current) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-        }
-
-        try {
-            localStorage.removeItem(`formup_cache_${formLink}`);
-            localStorage.removeItem(`formup_timer_deadline_${formLink}`);
-            localStorage.removeItem(`formup_token_${formLink}`);
-            if (responseId) {
-                localStorage.setItem(`formup_submitted_${formLink}`, String(responseId));
-            }
-            sessionStorage.removeItem(`formup_exam_session_${formLink}`);
-            sessionStorage.removeItem(`formup_violations_${formLink}`);
-        } catch {}
-
-        setIsForceSubmitted(true);
-        if (responseId) {
-            navigate(`/f/${formLink}/result/${responseId}`);
-        }
-    }, [formLink, navigate]);
-
-    // P1-2: Audio alert for genuine violations with autoplay priming
-    const violationAudioRef = useRef(null);
-    const audioPrimedRef = useRef(false);
-    const pendingSoundRef = useRef(false);
-
-// Preload sekali saat mount — biar 404 / gagal load ketahuan lebih awal
-useEffect(() => {
-    if (typeof Audio === 'undefined') return;
-    const a = new Audio('/sound/exam-warning.mp3');
-    a.preload = 'auto';
-    a.addEventListener('error', () => {
-        console.error('[Violation] Gagal memuat /sound/exam-warning.mp3 — cek path & base URL build.');
-    });
-    a.load();
-    violationAudioRef.current = a;
-}, []);
-
-// Priming otomatis pada interaksi user PERTAMA di mana pun (klik, tap, keyboard)
-useEffect(() => {
-    const prime = () => {
-        if (audioPrimedRef.current) return;
-        const a = violationAudioRef.current;
-        if (!a) return;
-        audioPrimedRef.current = true;
-        a.muted = true;
-        const p = a.play();
-        if (p && typeof p.then === 'function') {
-            p.then(() => {
-                a.pause();
-                a.currentTime = 0;
-                a.muted = false;
-            }).catch(() => { a.muted = false; });
-        }
-    };
-    window.addEventListener('pointerdown', prime, { once: true });
-    window.addEventListener('keydown', prime, { once: true });
-    window.addEventListener('touchstart', prime, { once: true });
-    return () => {
-        window.removeEventListener('pointerdown', prime);
-        window.removeEventListener('keydown', prime);
-        window.removeEventListener('touchstart', prime);
-    };
-}, []);
-
-    const beepFallback = useCallback(() => {
-        try {
-            const Ctx = window.AudioContext || window.webkitAudioContext;
-            if (!Ctx) return;
-            const ctx = new Ctx();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'square';
-            osc.frequency.value = 880;
-            gain.gain.value = 0.25;
-            osc.connect(gain).connect(ctx.destination);
-            osc.start();
-            setTimeout(() => { osc.stop(); ctx.close(); }, 600);
-        } catch {}
-    }, []);
-
-        const playViolationSound = useCallback(() => {
-        pendingSoundRef.current = true;
-        const a = violationAudioRef.current;
-        if (a) {
-            a.currentTime = 0;
-            const p = a.play();
-            if (p && typeof p.then === 'function') {
-                p.then(() => { pendingSoundRef.current = false; })
-                 .catch(err => {
-                    console.warn('[Violation] audio ditolak:', err?.name, err?.message);
-                    beepFallback();
-                 });
-                return;
-            }
-        }
-        beepFallback();
-    }, [beepFallback]);
-
-        // Putar ulang suara pelanggaran saat user kembali ke tab ujian
-    useEffect(() => {
-        const onFocusBack = () => {
-            if (pendingSoundRef.current && !document.hidden) {
-                pendingSoundRef.current = false;
-                playViolationSound();
-            }
-        };
-        document.addEventListener('visibilitychange', onFocusBack);
-        window.addEventListener('focus', onFocusBack);
-        return () => {
-            document.removeEventListener('visibilitychange', onFocusBack);
-            window.removeEventListener('focus', onFocusBack);
-        };
-    }, [playViolationSound]);
-
-    const sendExamEvent = useCallback(async (eventType) => {
-    if (!form || isPreviewMode || form.isOwner) return;
-    const isExam = form.isExamMode || form.detectTabSwitch;
-    if (!isExam && !form.disableCopyPaste) return;
-    if (isSubmittingRef.current || isForceSubmittedRef.current) return;
-
-    const mySeq = ++examEventSeqRef.current;
-
-        try {
-            const sid = examSessionIdRef.current || getStoredSessionId();
-            const payload = {
-                sessionId: sid,
-                respondentName: (respondentNameRef.current || '').trim() || currentUser?.fullname || 'Anonim',
-                type: eventType,
-                occurredAt: new Date().toISOString(),
             };
-            const res = await postExamEvent(formLink, payload);
+            const handleOffline = () => {
+                setIsOnline(false);
+            };
 
+            window.addEventListener('online', handleOnline);
+            window.addEventListener('offline', handleOffline);
+            return () => {
+                window.removeEventListener('online', handleOnline);
+                window.removeEventListener('offline', handleOffline);
+            };
+        }, [form, answers, formLink, getStoredSessionId]);
+
+        // auto-cache to local storage on answer change
+        useEffect(() => {
+            if (formLink && Object.keys(answers).length > 0) {
+                try { localStorage.setItem(`formup_cache_${formLink}`, JSON.stringify(answers)); } catch {}
+            }
+        }, [answers, formLink]);
+
+        // B-2: apply theme
+        useEffect(() => {
+            if (!form) return;
+            const root = document.documentElement;
+            if (form.themePrimaryColor) root.style.setProperty('--form-primary', form.themePrimaryColor);
+            if (form.themeBackgroundColor) root.style.setProperty('--form-bg', form.themeBackgroundColor);
+            return () => { root.style.removeProperty('--form-primary'); root.style.removeProperty('--form-bg'); };
+        }, [form]);
+
+        const [isForceSubmitted, setIsForceSubmitted] = useState(false);
+        const isForceSubmittedRef = useRef(false);
+        // P0-3: Disqualification on anti-cheat threshold reached
+        const [isDisqualified, setIsDisqualified] = useState(false);
+        const isDisqualifiedRef = useRef(false);
+
+        // B12 Proctoring: Handle proctor force submit / session termination
+        const handleForceSubmitTermination = useCallback((responseId = null) => {
+            if (isForceSubmittedRef.current) return;
+            isForceSubmittedRef.current = true;
+            isSubmittingRef.current = true;
+
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
+
+            try {
+                localStorage.removeItem(`formup_cache_${formLink}`);
+                localStorage.removeItem(`formup_timer_deadline_${formLink}`);
+                localStorage.removeItem(`formup_token_${formLink}`);
+                if (responseId) {
+                    localStorage.setItem(`formup_submitted_${formLink}`, String(responseId));
+                }
+                sessionStorage.removeItem(`formup_exam_session_${formLink}`);
+                sessionStorage.removeItem(`formup_violations_${formLink}`);
+            } catch {}
+
+            setIsForceSubmitted(true);
+            if (responseId) {
+                navigate(`/f/${formLink}/result/${responseId}`);
+            }
+        }, [formLink, navigate]);
+
+        // P1-2: Play violation sound on genuine violation
+        const playViolationSound = useCallback(() => {
+            try {
+                const audio = new Audio('/sound/exam-warning.mp3');
+                audio.play().catch(() => {});
+            } catch {}
+        }, []);
+
+        const sendExamEvent = useCallback(async (eventType) => {
+        if (!form || isPreviewMode || form.isOwner) return;
+        const isExam = form.isExamMode || form.detectTabSwitch;
+        if (!isExam && !form.disableCopyPaste) return;
+        if (isSubmittingRef.current || isForceSubmittedRef.current) return;
+
+        const mySeq = ++examEventSeqRef.current;
+
+            try {
+                const sid = examSessionIdRef.current || getStoredSessionId();
+                const payload = {
+                    sessionId: sid,
+                    respondentName: (respondentNameRef.current || '').trim() || currentUser?.fullname || 'Anonim',
+                    type: eventType,
+                    occurredAt: new Date().toISOString(),
+                };
+                const res = await postExamEvent(formLink, payload);
+
+                const isTerminated = res.status === 410 || res.status === 409 ||
+                    res.data?.isForceSubmitted || res.data?.isSubmitted ||
+                    res.data?.status === 'submitted' || res.data?.status === 'force-submitted' ||
+                    res.data?.status === 'terminated';
+
+                if (isTerminated) {
+                    const respId = res.data?.responseId || res.data?.id;
+                    handleForceSubmitTermination(respId);
+                    return;
+                }
+
+                if (res.ok && res.data) {
+                    if (res.data.sessionId) {
+                        examSessionIdRef.current = res.data.sessionId;
+                        try { sessionStorage.setItem(`formup_exam_session_${formLink}`, res.data.sessionId); } catch {}
+                    }
+                    if (typeof res.data.tabSwitchCount === 'number') {
+                        setTabSwitchCount(res.data.tabSwitchCount);
+                    }
+                    if (typeof res.data.violationCount === 'number') {
+                        setViolationCount(res.data.violationCount);
+                    }
+                    // Only show warning banner & sound when an actual violation event occurs, not on presence (session_start / heartbeat)
+                    if (eventType !== 'session_start' && eventType !== 'heartbeat') {
+                        setTabSwitchWarning(true);
+                        playViolationSound();
+                    }
+                    // P0-3: When cheat threshold is reached, disqualify and auto-set score 0
+                    const currentSw = typeof res.data.tabSwitchCount === 'number' ? res.data.tabSwitchCount : tabSwitchCount;
+                    const maxSw = form?.maxTabSwitch || form?.settings?.maxTabSwitch || 3;
+                    const shouldDisqualify = res.data.shouldAutoSubmit || (form?.autoSubmitOnTabSwitch && currentSw >= maxSw);
+
+                    if (shouldDisqualify && !isSubmittingRef.current && !isDisqualifiedRef.current) {
+                        isDisqualifiedRef.current = true;
+                        setIsDisqualified(true);
+                        isSubmittingRef.current = true;
+                        if (timerRef.current) clearInterval(timerRef.current);
+                        setTimeout(() => handleSubmit(null, true, true, true), 300);
+                    }
+                }
+            } catch (err) {
+                console.warn('[ExamEvent] Background event report failed:', eventType, err);
+            }
+        }, [form, formLink, isPreviewMode, currentUser, handleForceSubmitTermination]);
+
+        // P0-4: Exam mode session presence: session_start (once) and periodic heartbeat
+        const sessionStartedRef = useRef(false);
+        useEffect(() => {
+            if (!form || isPreviewMode || form.isOwner) return;
+            if (!form.isExamMode && !form.detectTabSwitch) return;
+            if (form.requiresToken && !tokenUnlocked) return;
+
+            // Start session on server exactly once to avoid duplicate monitoring entries
+            if (!sessionStartedRef.current) {
+                sessionStartedRef.current = true;
+                sendExamEvent('session_start');
+            }
+
+            // Periodic heartbeat every 30 seconds
+            const heartbeatTimer = setInterval(() => {
+                if (!isSubmittingRef.current && !isForceSubmittedRef.current) {
+                    sendExamEvent('heartbeat');
+                }
+            }, 30000);
+
+            return () => clearInterval(heartbeatTimer);
+        }, [form?.id, form?.isExamMode, form?.detectTabSwitch, form?.requiresToken, tokenUnlocked, isPreviewMode, sendExamEvent]);
+
+        // Exam mode violation detection (Real-time incremental report, anti double-count)
+        // BUG-2 FIX: Guard with tokenUnlocked so the visibilitychange / copy / paste
+        // listeners are only attached AFTER the user has passed the token screen and
+        // is actually on the question page.
+        useEffect(() => {
+            if (!form || isPreviewMode || form.isOwner || isForceSubmitted) return;
+            // Do NOT attach violation listeners until the exam has actually started
+            if (form.requiresToken && !tokenUnlocked) return;
+
+            const isExam = form.isExamMode || form.detectTabSwitch;
+            const disableCopy = form.disableCopyPaste || isExam;
+
+            let hiddenTimer = null;
+            let blurTimer = null;
+
+            const clearTimers = () => {
+                if (hiddenTimer) {
+                    clearTimeout(hiddenTimer);
+                    hiddenTimer = null;
+                }
+                if (blurTimer) {
+                    clearTimeout(blurTimer);
+                    blurTimer = null;
+                }
+            };
+
+            const reportTabSwitch = () => {
+                if (!isExam || isForceSubmittedRef.current || isSubmittingRef.current) return;
+                const now = Date.now();
+                if (now - lastTabSwitchAtRef.current < 1500) return;
+                lastTabSwitchAtRef.current = now;
+                sendExamEvent('tab_switch');
+            };
+
+            const handleVisibilityChange = () => {
+                if (isForceSubmittedRef.current || isSubmittingRef.current) return;
+                // Primary signal: visibilityState hidden.
+                // Require it to stay hidden for >= 400ms to avoid flicker / native dialog glitches.
+                if (document.hidden && document.visibilityState === 'hidden') {
+                    if (!hiddenTimer) {
+                        hiddenTimer = setTimeout(() => {
+                            hiddenTimer = null;
+                            if (document.hidden && document.visibilityState === 'hidden') {
+                                reportTabSwitch();
+                            }
+                        }, 400);
+                    }
+                } else {
+                    clearTimers();
+                }
+            };
+
+            const handleWindowBlur = () => {
+                if (isForceSubmittedRef.current || isSubmittingRef.current) return;
+                // Native browser dialogs (password save, OS notifs, print) cause blur without visibilityState hidden.
+                // Wait 500ms and check if document is actually hidden and lacks focus.
+                if (!blurTimer) {
+                    blurTimer = setTimeout(() => {
+                        blurTimer = null;
+                        if (document.visibilityState === 'hidden' && !document.hasFocus()) {
+                            reportTabSwitch();
+                        }
+                    }, 500);
+                }
+            };
+
+            const handleWindowFocus = () => {
+                // Regained focus quickly -> cancel any pending blur check
+                clearTimers();
+            };
+
+            const handleCopy = (e) => {
+                if (isForceSubmittedRef.current || isSubmittingRef.current) return;
+                if (disableCopy) {
+                    e.preventDefault();
+                    sendExamEvent('copy_attempt');
+                }
+            };
+
+            const handlePaste = (e) => {
+                if (isForceSubmittedRef.current || isSubmittingRef.current) return;
+                if (disableCopy) {
+                    e.preventDefault();
+                    sendExamEvent('paste_attempt');
+                }
+            };
+
+            const handleContextMenu = (e) => {
+                if (isForceSubmittedRef.current || isSubmittingRef.current) return;
+                if (disableCopy) {
+                    e.preventDefault();
+                    sendExamEvent('context_menu');
+                }
+            };
+
+            if (isExam) {
+                document.addEventListener('visibilitychange', handleVisibilityChange);
+                window.addEventListener('blur', handleWindowBlur);
+                window.addEventListener('focus', handleWindowFocus);
+            }
+            if (disableCopy) {
+                document.addEventListener('copy', handleCopy);
+                document.addEventListener('cut', handleCopy);
+                document.addEventListener('paste', handlePaste);
+                document.addEventListener('contextmenu', handleContextMenu);
+            }
+
+            return () => {
+                clearTimers();
+                if (isExam) {
+                    document.removeEventListener('visibilitychange', handleVisibilityChange);
+                    window.removeEventListener('blur', handleWindowBlur);
+                    window.removeEventListener('focus', handleWindowFocus);
+                }
+                if (disableCopy) {
+                    document.removeEventListener('copy', handleCopy);
+                    document.removeEventListener('cut', handleCopy);
+                    document.removeEventListener('paste', handlePaste);
+                    document.removeEventListener('contextmenu', handleContextMenu);
+                }
+            };
+        }, [form, isPreviewMode, tokenUnlocked, sendExamEvent, isForceSubmitted]);
+
+        useEffect(() => { answersRef.current = answers; }, [answers]);
+        useEffect(() => { questionsRef.current = questions; }, [questions]);
+
+        // B12 Proctoring: Continuous background sync of draft answers for exam mode
+        const syncInProgressRef = useRef(false);
+        const lastSyncedHashRef = useRef('');
+
+        const syncDraftAnswers = useCallback(async (customAnswers = null, forceCheck = false) => {
+        if (!form || isPreviewMode || form.isOwner || isForceSubmittedRef.current) return;
+        const isExam = form.isExamMode || form.detectTabSwitch;
+        if (!isExam) return;
+        if (form.requiresToken && !tokenUnlocked) return;
+        if (isSubmittingRef.current || syncInProgressRef.current) return;
+
+        const sid = examSessionIdRef.current || getStoredSessionId();
+        if (!sid) return;
+
+        const curAns = customAnswers || answersRef.current || {};
+        const curQs = questionsRef.current?.length ? questionsRef.current : questions;
+
+        // FIX (Force Submit tidak menghentikan responden): dulu fungsi ini
+        // langsung berhenti kalau belum ada jawaban sama sekali, atau kalau
+        // jawaban tidak berubah sejak sync terakhir. Akibatnya, responden yang
+        // sedang diam/belum menjawab tidak pernah mengirim request apa pun ke
+        // server, sehingga force-submit dari owner tidak pernah terdeteksi.
+        // forceCheck=true (dipakai polling status berkala) melewati guard ini
+        // supaya tetap ping server murni untuk mengecek status sesi — backend
+        // tetap mengembalikan 400 "Sesi sudah disubmit" walau payload kosong,
+        // karena pengecekan itu dilakukan SEBELUM backend mengecek isi jawaban.
+        if (!forceCheck && (!curQs.length || Object.keys(curAns).length === 0)) return;
+
+        const formattedAnswers = Object.entries(curAns).map(([questionId, value]) => {
+            const q = curQs.find(item => item.id === parseInt(questionId, 10));
+            if (!q) return null;
+            if (q.typeId === 2) {
+                const p = parseInt(value, 10);
+                return (!isNaN(p) && p > 0) ? { questionId: q.id, optionId: p } : null;
+            }
+            if (q.typeId === 3) {
+                const ids = Array.isArray(value) ? value.map(v => parseInt(v, 10)).filter(id => !isNaN(id) && id > 0) : [];
+                return ids.length ? ids.map(id => ({ questionId: q.id, optionId: id })) : null;
+            }
+            if (q.typeId === 5) {
+                const s = String(value || '').trim();
+                return s ? { questionId: q.id, answerValue: (s.toLowerCase() === 'benar' || s.toLowerCase() === 'true') ? 'Benar' : 'Salah' } : null;
+            }
+            const t = String(value || '').trim();
+            return t ? { questionId: q.id, answerValue: t } : null;
+        }).flat().filter(Boolean);
+
+        if (!forceCheck && formattedAnswers.length === 0) return;
+
+        const payloadHash = JSON.stringify(formattedAnswers);
+        if (!forceCheck && payloadHash === lastSyncedHashRef.current) return;
+
+        syncInProgressRef.current = true;
+        try {
+            const res = await syncExamAnswers(formLink, sid, {
+                answers: formattedAnswers,
+                respondentName: (respondentNameRef.current || '').trim() || currentUser?.fullname || 'Anonim',
+            });
+
+            // FIX: backend membalikan 404 (bukan 410/409) dengan pesan
+            // "Sesi sudah disubmit" saat sesi sudah di-force-submit — tambahkan
+            // pengecekan itu, karena kondisi sebelumnya tidak pernah cocok.
+            // Catatan: tidak ada lagi sinyal "reset" — reset pengawas hanya
+            // berlaku untuk jawaban yang sudah disubmit dan tidak pernah
+            // menghapus jawaban yang sedang dikerjakan, jadi 404 generik
+            // tidak boleh me-reset state lokal.
             const isTerminated = res.status === 410 || res.status === 409 ||
+                (res.status === 400 && /disubmit/i.test(res.message || '')) ||
                 res.data?.isForceSubmitted || res.data?.isSubmitted ||
                 res.data?.status === 'submitted' || res.data?.status === 'force-submitted' ||
                 res.data?.status === 'terminated';
@@ -328,1226 +496,916 @@ useEffect(() => {
                 return;
             }
 
-            if (res.ok && res.data) {
-                if (res.data.sessionId) {
-                    examSessionIdRef.current = res.data.sessionId;
-                    try { sessionStorage.setItem(`formup_exam_session_${formLink}`, res.data.sessionId); } catch {}
-                }
-                if (typeof res.data.tabSwitchCount === 'number') {
-                    setTabSwitchCount(res.data.tabSwitchCount);
-                }
-                if (typeof res.data.violationCount === 'number') {
-                    setViolationCount(res.data.violationCount);
-                }
-                // Only show warning banner & sound when an actual violation event occurs, not on presence (session_start / heartbeat)
-                if (eventType !== 'session_start' && eventType !== 'heartbeat') {
-                    setTabSwitchWarning(true);
-                    playViolationSound();
-                }
-
-                const currentSw = typeof res.data.tabSwitchCount === 'number' ? res.data.tabSwitchCount : tabSwitchCount;
-                const maxSw = form?.maxTabSwitch || form?.settings?.maxTabSwitch || 3;
-                const shouldDisqualify = res.data.shouldAutoSubmit || (form?.autoSubmitOnTabSwitch && currentSw >= maxSw);
-
-                    if (shouldDisqualify && !isSubmittingRef.current && !isDisqualifiedRef.current) {
-                    isDisqualifiedRef.current = true;
-                    playViolationSound();
-                    setIsDisqualified(true);
-                    isSubmittingRef.current = true;
-                    if (timerRef.current) clearInterval(timerRef.current);
-                    setTimeout(() => handleSubmit(null, true, true, true), 300);
-                }
+            if (res.ok) {
+                lastSyncedHashRef.current = payloadHash;
             }
         } catch (err) {
-            console.warn('[ExamEvent] Background event report failed:', eventType, err);
+            console.warn('[SyncAnswers] Background answer sync failed:', err);
+        } finally {
+            syncInProgressRef.current = false;
         }
-    }, [form, formLink, isPreviewMode, currentUser, handleForceSubmitTermination, playViolationSound]);
+    }, [form, isPreviewMode, tokenUnlocked, formLink, currentUser, getStoredSessionId, questions, handleForceSubmitTermination]);
 
-    // Exam mode session presence: session_start and periodic heartbeat
-    useEffect(() => {
-        if (isLocked) return;
-        if (!form || isPreviewMode || form.isOwner) return;
-        if (!form.isExamMode && !form.detectTabSwitch) return;
-        if (form.requiresToken && !tokenUnlocked) return;
-
-        // Start session on server
-        sendExamEvent('session_start');
-
-        // Periodic heartbeat every 30 seconds
-        const heartbeatTimer = setInterval(() => {
-            if (!isSubmittingRef.current) {
-                sendExamEvent('heartbeat');
-            }
-        }, 30000);
-
-        return () => clearInterval(heartbeatTimer);
-    }, [form, isPreviewMode, tokenUnlocked, sendExamEvent, isLocked]);
-
-    // Exam mode violation detection (Real-time incremental report, anti double-count)
-    // BUG-2 FIX: Guard with tokenUnlocked so the visibilitychange / copy / paste
-    // listeners are only attached AFTER the user has passed the token screen and
-    // is actually on the question page.
-    useEffect(() => {
-        if (isLocked) return;
-        if (!form || isPreviewMode || form.isOwner || isForceSubmitted) return;
-        // Do NOT attach violation listeners until the exam has actually started
-        if (form.requiresToken && !tokenUnlocked) return;
-
-        const isExam = form.isExamMode || form.detectTabSwitch;
-        const disableCopy = form.disableCopyPaste || isExam;
-
-        const handleVisibilityChange = () => {
-    if (isForceSubmittedRef.current || isSubmittingRef.current || !isExam) return;
-    if (document.hidden) {
-        // visibilitychange sudah sinyal yang andal — laporkan langsung,
-        // jangan tunggu untuk lihat apakah user balik lagi.
-        reportTabSwitch();
-    }
-};
-
-        const reportTabSwitch = () => {
-            if (!isExam || isForceSubmittedRef.current || isSubmittingRef.current) return;
-            const now = Date.now();
-            // Anti-dobel-hitung: blur & visibilitychange bisa menggambarkan
-            // pindah tab yang sama dalam rentang sangat singkat.
-            if (now - lastTabSwitchAtRef.current < 500) return;
-            lastTabSwitchAtRef.current = now;
-            sendExamEvent('tab_switch');
-        };
-
-            const handleWindowBlur = () => {
-                if (isForceSubmittedRef.current || isSubmittingRef.current || !isExam) return;
-                // Hanya fallback untuk kombinasi OS/browser yang kadang tidak
-                // memicu visibilitychange saat alt-tab. Delay kecil (bukan 800ms)
-                // supaya tidak menelan pelanggaran asli.
-                if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
-                blurTimerRef.current = setTimeout(() => {
-                    if (!document.hasFocus()) {
-                        reportTabSwitch();
-                    }
-                }, 150);
-            };
-
-            const handleWindowFocus = () => {
-                if (blurTimerRef.current) {
-                    clearTimeout(blurTimerRef.current);
-                    blurTimerRef.current = null;
-                }
-            };
-
-        const handleCopy = (e) => {
-            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
-            if (disableCopy) {
-                e.preventDefault();
-                sendExamEvent('copy_attempt');
-            }
-        };
-
-        const handlePaste = (e) => {
-            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
-            if (disableCopy) {
-                e.preventDefault();
-                sendExamEvent('paste_attempt');
-            }
-        };
-
-        const handleContextMenu = (e) => {
-            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
-            if (disableCopy) {
-                e.preventDefault();
-                sendExamEvent('context_menu');
-            }
-        };
-
-        if (isExam) {
-            document.addEventListener('visibilitychange', handleVisibilityChange);
-            window.addEventListener('blur', handleWindowBlur);
-            window.addEventListener('focus', handleWindowFocus);
-        }
-        if (disableCopy) {
-            document.addEventListener('copy', handleCopy);
-            document.addEventListener('cut', handleCopy);
-            document.addEventListener('paste', handlePaste);
-            document.addEventListener('contextmenu', handleContextMenu);
-        }
-
-        return () => {
-            if (blurTimerRef.current) {
-                clearTimeout(blurTimerRef.current);
-                blurTimerRef.current = null;
-            }
-            if (isExam) {
-                document.removeEventListener('visibilitychange', handleVisibilityChange);
-                window.removeEventListener('blur', handleWindowBlur);
-                window.removeEventListener('focus', handleWindowFocus);
-            }
-            if (disableCopy) {
-                document.removeEventListener('copy', handleCopy);
-                document.removeEventListener('cut', handleCopy);
-                document.removeEventListener('paste', handlePaste);
-                document.removeEventListener('contextmenu', handleContextMenu);
-            }
-        };
-    }, [form, isPreviewMode, tokenUnlocked, sendExamEvent, isForceSubmitted, isLocked]);
-
-    useEffect(() => { answersRef.current = answers; }, [answers]);
-    useEffect(() => { questionsRef.current = questions; }, [questions]);
-
-    // B12 Proctoring: Continuous background sync of draft answers for exam mode
-    const syncInProgressRef = useRef(false);
-    const lastSyncedHashRef = useRef('');
-
-    const syncDraftAnswers = useCallback(async (customAnswers = null, forceCheck = false) => {
-    if (isLocked) return;
-    if (!form || isPreviewMode || form.isOwner || isForceSubmittedRef.current) return;
-    const isExam = form.isExamMode || form.detectTabSwitch;
-    if (!isExam) return;
-    if (form.requiresToken && !tokenUnlocked) return;
-    if (isSubmittingRef.current || syncInProgressRef.current) return;
-
-    const sid = examSessionIdRef.current || getStoredSessionId();
-    if (!sid) return;
-
-    const curAns = customAnswers || answersRef.current || {};
-    const curQs = questionsRef.current?.length ? questionsRef.current : questions;
-
-    // FIX (Force Submit tidak menghentikan responden): dulu fungsi ini
-    // langsung berhenti kalau belum ada jawaban sama sekali, atau kalau
-    // jawaban tidak berubah sejak sync terakhir. Akibatnya, responden yang
-    // sedang diam/belum menjawab tidak pernah mengirim request apa pun ke
-    // server, sehingga force-submit dari owner tidak pernah terdeteksi.
-    // forceCheck=true (dipakai polling status berkala) melewati guard ini
-    // supaya tetap ping server murni untuk mengecek status sesi — backend
-    // tetap mengembalikan 400 "Sesi sudah disubmit" walau payload kosong,
-    // karena pengecekan itu dilakukan SEBELUM backend mengecek isi jawaban.
-    if (!forceCheck && (!curQs.length || Object.keys(curAns).length === 0)) return;
-
-    const formattedAnswers = Object.entries(curAns).map(([questionId, value]) => {
-        const q = curQs.find(item => item.id === parseInt(questionId, 10));
-        if (!q) return null;
-        if (q.typeId === 2) {
-            const p = parseInt(value, 10);
-            return (!isNaN(p) && p > 0) ? { questionId: q.id, optionId: p } : null;
-        }
-        if (q.typeId === 3) {
-            const ids = Array.isArray(value) ? value.map(v => parseInt(v, 10)).filter(id => !isNaN(id) && id > 0) : [];
-            return ids.length ? ids.map(id => ({ questionId: q.id, optionId: id })) : null;
-        }
-        if (q.typeId === 5) {
-            const s = String(value || '').trim();
-            return s ? { questionId: q.id, answerValue: (s.toLowerCase() === 'benar' || s.toLowerCase() === 'true') ? 'Benar' : 'Salah' } : null;
-        }
-        const t = String(value || '').trim();
-        return t ? { questionId: q.id, answerValue: t } : null;
-    }).flat().filter(Boolean);
-
-    if (!forceCheck && formattedAnswers.length === 0) return;
-
-    const payloadHash = JSON.stringify(formattedAnswers);
-    if (!forceCheck && payloadHash === lastSyncedHashRef.current) return;
-
-    syncInProgressRef.current = true;
-    try {
-        const res = await syncExamAnswers(formLink, sid, {
-            answers: formattedAnswers,
-            respondentName: (respondentNameRef.current || '').trim() || currentUser?.fullname || 'Anonim',
-        });
-
-        // FIX: backend membalikan 404 (bukan 410/409) dengan pesan
-        // "Sesi sudah disubmit" saat sesi sudah di-force-submit — tambahkan
-        // pengecekan itu, karena kondisi sebelumnya tidak pernah cocok.
-        // Catatan: tidak ada lagi sinyal "reset" — reset pengawas hanya
-        // berlaku untuk jawaban yang sudah disubmit dan tidak pernah
-        // menghapus jawaban yang sedang dikerjakan, jadi 404 generik
-        // tidak boleh me-reset state lokal.
-        const isTerminated = res.status === 410 || res.status === 409 ||
-            (res.status === 400 && /disubmit/i.test(res.message || '')) ||
-            res.data?.isForceSubmitted || res.data?.isSubmitted ||
-            res.data?.status === 'submitted' || res.data?.status === 'force-submitted' ||
-            res.data?.status === 'terminated';
-
-        if (isTerminated) {
-            const respId = res.data?.responseId || res.data?.id;
-            handleForceSubmitTermination(respId);
-            return;
-        }
-
-        if (res.ok) {
-            lastSyncedHashRef.current = payloadHash;
-        }
-    } catch (err) {
-        console.warn('[SyncAnswers] Background answer sync failed:', err);
-    } finally {
-        syncInProgressRef.current = false;
-    }
-}, [form, isPreviewMode, tokenUnlocked, formLink, currentUser, getStoredSessionId, questions, handleForceSubmitTermination, isLocked]);
-
-    // Debounced sync answers on answer changes
-    useEffect(() => {
-    if (isLocked) return;
-    if (!form || isPreviewMode || form.isOwner) return;
-    if (!form.isExamMode && !form.detectTabSwitch) return;
-    if (form.requiresToken && !tokenUnlocked) return;
-
-    const interval = setInterval(() => {
-        if (!isSubmittingRef.current) {
-            syncDraftAnswers(null, true);
-        }
-    }, 4000);
-
-    return () => clearInterval(interval);
-}, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers, isLocked]);
-
-    // Periodic sync answers every 30 seconds
-    useEffect(() => {
-        if (isLocked) return;
+        // Debounced sync answers on answer changes
+        useEffect(() => {
         if (!form || isPreviewMode || form.isOwner) return;
         if (!form.isExamMode && !form.detectTabSwitch) return;
         if (form.requiresToken && !tokenUnlocked) return;
 
         const interval = setInterval(() => {
             if (!isSubmittingRef.current) {
-                syncDraftAnswers();
+                syncDraftAnswers(null, true);
             }
-        }, 30000);
+        }, 4000);
 
         return () => clearInterval(interval);
-    }, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers, isLocked]);
+    }, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers]);
 
-    const loadQuestionsInternal = async (token) => {
-        const res = await getPublicFormQuestions(formLink, { token, name: '' });
-        if (res.ok && res.data) {
-            const qList = res.data.questions || res.data || [];
-            setQuestions(qList);
-            questionsRef.current = qList;
-            try {
-                const cached = localStorage.getItem(`formup_cache_${formLink}`);
-                if (cached) {
-                    const parsed = JSON.parse(cached);
-                    if (parsed && typeof parsed === 'object') {
-                        setAnswers(prev => { const next = { ...parsed, ...prev }; answersRef.current = next; return next; });
+        // Periodic sync answers every 30 seconds
+        useEffect(() => {
+            if (!form || isPreviewMode || form.isOwner) return;
+            if (!form.isExamMode && !form.detectTabSwitch) return;
+            if (form.requiresToken && !tokenUnlocked) return;
+
+            const interval = setInterval(() => {
+                if (!isSubmittingRef.current) {
+                    syncDraftAnswers();
+                }
+            }, 30000);
+
+            return () => clearInterval(interval);
+        }, [form, isPreviewMode, tokenUnlocked, syncDraftAnswers]);
+
+        const loadQuestionsInternal = async (token) => {
+            const res = await getPublicFormQuestions(formLink, { token, name: '' });
+            if (res.ok && res.data) {
+                const qList = res.data.questions || res.data || [];
+                setQuestions(qList);
+                questionsRef.current = qList;
+                try {
+                    const cached = localStorage.getItem(`formup_cache_${formLink}`);
+                    if (cached) {
+                        const parsed = JSON.parse(cached);
+                        if (parsed && typeof parsed === 'object') {
+                            setAnswers(prev => { const next = { ...parsed, ...prev }; answersRef.current = next; return next; });
+                        }
+                    }
+                } catch {}
+            }
+        };
+
+        const loadQuestions = async (token = null) => {
+            const res = await getPublicFormQuestions(formLink, { token, name: respondentName });
+            if (res.ok && res.data) {
+                const qList = res.data.questions || res.data || [];
+                setQuestions(qList);
+                questionsRef.current = qList;
+                try {
+                    const cached = localStorage.getItem(`formup_cache_${formLink}`);
+                    if (cached) {
+                        const parsed = JSON.parse(cached);
+                        if (parsed && typeof parsed === 'object') {
+                            setAnswers(prev => { const next = { ...parsed, ...prev }; answersRef.current = next; return next; });
+                        }
+                    }
+                } catch {}
+            } else {
+                setError(res.message || 'Gagal memuat soal formulir.');
+            }
+        };
+
+        useEffect(() => {
+            const load = async () => {
+                setLoading(true);
+                setError('');
+
+                // A-3: In preview mode, load draft/published form via owner endpoints
+                if (isPreviewMode) {
+                    let targetFormId = searchParams.get('formId');
+                    if (!targetFormId) {
+                        try {
+                            const myFormsRes = await getMyForms();
+                            if (myFormsRes.ok && Array.isArray(myFormsRes.data)) {
+                                const found = myFormsRes.data.find(f => f.formLink === formLink);
+                                if (found) targetFormId = found.id;
+                            }
+                        } catch {}
+                    }
+
+                    if (targetFormId) {
+                        try {
+                            const [formRes, questionsRes] = await Promise.all([
+                                getFormById(targetFormId),
+                                getQuestions(targetFormId)
+                            ]);
+                            setLoading(false);
+                            if (formRes.ok && formRes.data) {
+                                setForm(formRes.data);
+                                setTokenUnlocked(true);
+                                if (currentUser?.fullname) setRespondentName(currentUser.fullname);
+                                const qList = Array.isArray(questionsRes.data) ? questionsRes.data : [];
+                                setQuestions(qList);
+                                questionsRef.current = qList;
+                                return;
+                            }
+                        } catch {}
                     }
                 }
-            } catch {}
-        }
-    };
 
-    const loadQuestions = async (token = null) => {
-    const res = await getPublicFormQuestions(formLink, { token, name: respondentName });
-    if (res.ok && res.data) {
-        const qList = res.data.questions || res.data || [];
-        setQuestions(qList);
-        questionsRef.current = qList;
-        try {
-            const cached = localStorage.getItem(`formup_cache_${formLink}`);
-            if (cached) {
-                const parsed = JSON.parse(cached);
-                if (parsed && typeof parsed === 'object') {
-                    setAnswers(prev => { const next = { ...parsed, ...prev }; answersRef.current = next; return next; });
-                }
-            }
-        } catch {}
-        return true;
-    }
-    const alreadyDone = /sudah pernah mengerjakan|hanya 1 kali pengerjaan|sudah disubmit/i.test(res.message || '');
-    if (alreadyDone) {
-        try { localStorage.setItem(`formup_submitted_${formLink}`, 'blocked'); } catch {}
-        setForm(prev => prev ? { ...prev, alreadySubmitted: true } : prev);
-    } else {
-        setError(res.message || 'Gagal memuat soal formulir.');
-    }
-    return false;
-};
+                const res = await getPublicFormByLink(formLink);
+                setLoading(false);
+                if (res.status === 401) { clearSession(); navigate('/login'); return; }
+                if (res.ok && res.data) {
+                    const f = res.data;
+                    setForm(f);
+                    if (currentUser?.fullname) setRespondentName(currentUser.fullname);
 
-    useEffect(() => {
-        const load = async () => {
-            setLoading(true);
-            setError('');
+                    // Reset owner: server menyatakan kuota masih ada (belum
+                    // terkunci) → buang penanda submit lokal yang basi agar
+                    // peserta tidak terkunci selamanya di layar "Terkunci".
+                    if (f.oneResponse && !f.alreadySubmitted) {
+                        try { localStorage.removeItem(`formup_submitted_${formLink}`); } catch { /* abaikan: storage boleh tidak tersedia */ }
+                    }
 
-            // A-3: In preview mode, load draft/published form via owner endpoints
-            if (isPreviewMode) {
-                let targetFormId = searchParams.get('formId');
-                if (!targetFormId) {
-                    try {
-                        const myFormsRes = await getMyForms();
-                        if (myFormsRes.ok && Array.isArray(myFormsRes.data)) {
-                            const found = myFormsRes.data.find(f => f.formLink === formLink);
-                            if (found) targetFormId = found.id;
-                        }
-                    } catch {}
-                }
+                    // A-5: preview bypasses all gates
+                    if (isPreviewMode) {
+                        setTokenUnlocked(true);
+                        await loadQuestionsInternal(null);
+                        return;
+                    }
 
-                if (targetFormId) {
-                    try {
-                        const [formRes, questionsRes] = await Promise.all([
-                            getFormById(targetFormId),
-                            getQuestions(targetFormId)
-                        ]);
-                        setLoading(false);
-                        if (formRes.ok && formRes.data) {
-                            setForm(formRes.data);
+                    const localSub = localStorage.getItem(`formup_submitted_${formLink}`);
+                    if (f.oneResponse && (f.alreadySubmitted || localSub)) return;
+
+                    let savedToken = '';
+                    try { savedToken = localStorage.getItem(`formup_token_${formLink}`) || ''; } catch {}
+                    if (savedToken) setTokenInput(savedToken);
+
+                    if (!f.requiresToken) {
+                        setTokenUnlocked(true);
+                        await loadQuestions();
+                    } else if (savedToken) {
+                        const unlockRes = await getPublicFormQuestions(formLink, { token: savedToken, name: currentUser?.fullname || '' });
+                        if (unlockRes.ok && unlockRes.data) {
                             setTokenUnlocked(true);
-                            if (currentUser?.fullname) setRespondentName(currentUser.fullname);
-                            const qList = Array.isArray(questionsRes.data) ? questionsRes.data : [];
+                            const qList = unlockRes.data.questions || unlockRes.data || [];
                             setQuestions(qList);
                             questionsRef.current = qList;
-                            return;
                         }
-                    } catch {}
+                    }
+
+                    if (f.timerDuration && f.timerDuration > 0) {
+                        const timerDeadlineKey = `formup_timer_deadline_${formLink}`;
+                        const now = Date.now();
+                        let deadlineMs = parseInt(localStorage.getItem(timerDeadlineKey), 10);
+                        if (!deadlineMs || isNaN(deadlineMs)) {
+                            deadlineMs = now + (f.timerDuration * 1000);
+                            localStorage.setItem(timerDeadlineKey, String(deadlineMs));
+                        }
+                        setTimeLeft(Math.max(0, Math.ceil((deadlineMs - now) / 1000)));
+                    }
+                } else {
+                    setError(res.message || 'Formulir tidak ditemukan atau belum dipublikasikan.');
                 }
+            };
+            load();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [formLink, navigate]);
+
+        useEffect(() => {
+            if (!tokenUnlocked || !form?.timerDuration || form.timerDuration <= 0) return;
+            const timerDeadlineKey = `formup_timer_deadline_${formLink}`;
+            let stored = localStorage.getItem(timerDeadlineKey);
+            let deadlineMs = stored ? parseInt(stored, 10) : null;
+            const now = Date.now();
+            if (!deadlineMs || isNaN(deadlineMs)) {
+                deadlineMs = now + (form.timerDuration * 1000);
+                localStorage.setItem(timerDeadlineKey, String(deadlineMs));
             }
+            const checkTimer = () => {
+                const remaining = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+                setTimeLeft(remaining);
+                if (remaining <= 0) { if (timerRef.current) clearInterval(timerRef.current); if (!isSubmittingRef.current) handleSubmit(null, true); }
+            };
+            checkTimer();
+            timerRef.current = setInterval(checkTimer, 1000);
+            return () => { if (timerRef.current) clearInterval(timerRef.current); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [tokenUnlocked, form?.timerDuration, formLink]);
 
-            const res = await getPublicFormByLink(formLink);
-            setLoading(false);
-            if (res.status === 401) { clearSession(); navigate('/login'); return; }
+        // B13: Support HH:MM:SS for exams > 1 hour
+        const formatTimer = (seconds) => {
+            if (seconds >= 3600) {
+                const h = Math.floor(seconds / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                const s = seconds % 60;
+                return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+            }
+            const m = Math.floor(seconds / 60), s = seconds % 60;
+            return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        };
+
+        const handleAnswerChange = (questionId, value) => {
+            setAnswers(prev => {
+                const next = { ...prev, [questionId]: value };
+                answersRef.current = next;
+                try { localStorage.setItem(`formup_cache_${formLink}`, JSON.stringify(next)); } catch {}
+                return next;
+            });
+        };
+
+        const handleCheckboxChange = (questionId, optionId, checked) => {
+            setAnswers(prev => {
+                const current = Array.isArray(prev[questionId]) ? prev[questionId] : [];
+                const updated = checked ? [...current, optionId] : current.filter(id => id !== optionId);
+                const next = { ...prev, [questionId]: updated };
+                answersRef.current = next;
+                try { localStorage.setItem(`formup_cache_${formLink}`, JSON.stringify(next)); } catch {}
+                return next;
+            });
+        };
+
+        const handleUnlockToken = async (e) => {
+            e.preventDefault();
+            setError('');
+            const token = tokenInput.trim();
+            const res = await getPublicFormQuestions(formLink, { token, name: respondentName });
             if (res.ok && res.data) {
-                const f = res.data;
-                setForm(f);
-                if (currentUser?.fullname) setRespondentName(currentUser.fullname);
+                try { localStorage.setItem(`formup_token_${formLink}`, token); } catch {}
+                setTokenUnlocked(true);
+                const qList = res.data.questions || res.data || [];
+                setQuestions(qList);
+                questionsRef.current = qList;
+                try {
+                    const cached = localStorage.getItem(`formup_cache_${formLink}`);
+                    if (cached) { const parsed = JSON.parse(cached); if (parsed) { setAnswers(parsed); answersRef.current = parsed; } }
+                } catch {}
+            } else {
+                setError(res.message || 'Token sandi akses salah.');
+            }
+        };
 
-                // Reset owner: server menyatakan kuota masih ada (belum
-                // terkunci) → buang penanda submit lokal yang basi agar
-                // peserta tidak terkunci selamanya di layar "Terkunci".
-                if (f.oneResponse && !f.alreadySubmitted) {
-                    try { localStorage.removeItem(`formup_submitted_${formLink}`); } catch { /* abaikan: storage boleh tidak tersedia */ }
-                }
+        const showValidationAlert = (msg) => { setValidationToast(msg); setTimeout(() => setValidationToast(null), 4500); };
 
-                // A-5: preview bypasses all gates
-                if (isPreviewMode) {
-                    setTokenUnlocked(true);
-                    await loadQuestionsInternal(null);
+        const handleSubmit = async (e, isAuto = false, skipWarnings = false, disqualified = false) => {
+            if (e && typeof e.preventDefault === 'function') e.preventDefault();
+            if (isPreviewMode) { window.close(); return; }
+            // B10: First check for ragu-ragu questions (only for manual submit)
+            if (!isAuto && !skipWarnings && markedForReview.size > 0 && !reviewWarningOpen && !submitConfirmOpen) {
+                setReviewWarningOpen(true);
+                return;
+            }
+            setSubmitConfirmOpen(false);
+            if (isSubmittingRef.current && !disqualified) return;
+
+            const isActuallyDisqualified = Boolean(disqualified || isDisqualifiedRef.current);
+            const currentQuestions = questionsRef.current?.length ? questionsRef.current : questions;
+            const currentAnswers = answersRef.current || answers;
+
+            if (!isAuto && !isActuallyDisqualified) {
+                const unanswered = currentQuestions.filter(q => {
+                    if (!q.isRequired) return false;
+                    const val = currentAnswers[q.id];
+                    return q.typeId === 3 ? !(Array.isArray(val) && val.length > 0) : !(val !== undefined && val !== null && String(val).trim().length > 0);
+                });
+                if (unanswered.length > 0) {
+                    const msg = `Ada ${unanswered.length} pertanyaan wajib yang belum dijawab.`;
+                    showValidationAlert(msg); setError(msg);
+                    const first = unanswered[0];
+                    const isStep = form?.formTypeId === 2;
+                    if (isStep) { const idx = currentQuestions.findIndex(q => q.id === first.id); if (idx !== -1) setCurrentStep(idx); }
+                    else { const el = document.getElementById(`question-card-${first.id}`); if (el) { el.scrollIntoView({ behavior:'smooth', block:'center' }); el.classList.add('ring-2','ring-red-400'); setTimeout(() => el.classList.remove('ring-2','ring-red-400'), 3500); } }
                     return;
                 }
-
-                const localSub = localStorage.getItem(`formup_submitted_${formLink}`);
-                if ((f.oneResponse && (f.alreadySubmitted || localSub)) || ((f.isExamMode || f.detectTabSwitch) && localSub)) return;
-
-                let savedToken = '';
-                try { savedToken = localStorage.getItem(`formup_token_${formLink}`) || ''; } catch {}
-                if (savedToken) setTokenInput(savedToken);
-
-                if (!f.requiresToken) {
-                    const ok = await loadQuestions();
-                    if (ok) setTokenUnlocked(true);
-                } else if (savedToken) {
-                    const unlockRes = await getPublicFormQuestions(formLink, { token: savedToken, name: currentUser?.fullname || '' });
-                    if (unlockRes.ok && unlockRes.data) {
-                        setTokenUnlocked(true);
-                        const qList = unlockRes.data.questions || unlockRes.data || [];
-                        setQuestions(qList);
-                        questionsRef.current = qList;
-                    } else {
-                        const alreadyDone = /sudah pernah mengerjakan|hanya 1 kali pengerjaan|sudah disubmit/i.test(unlockRes.message || '');
-                        if (alreadyDone) {
-                            try { localStorage.setItem(`formup_submitted_${formLink}`, 'blocked'); } catch {}
-                            setForm(prev => prev ? { ...prev, alreadySubmitted: true } : prev);
-                        }
-                    }
-                }
-
-                if (f.timerDuration && f.timerDuration > 0) {
-                    const timerDeadlineKey = `formup_timer_deadline_${formLink}`;
-                    const now = Date.now();
-                    let deadlineMs = parseInt(localStorage.getItem(timerDeadlineKey), 10);
-                    if (!deadlineMs || isNaN(deadlineMs)) {
-                        deadlineMs = now + (f.timerDuration * 1000);
-                        localStorage.setItem(timerDeadlineKey, String(deadlineMs));
-                    }
-                    setTimeLeft(Math.max(0, Math.ceil((deadlineMs - now) / 1000)));
-                }
-            } else {
-                setError(res.message || 'Formulir tidak ditemukan atau belum dipublikasikan.');
             }
-        };
-        load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [formLink, navigate]);
 
-    useEffect(() => {
-        if (!tokenUnlocked || !form?.timerDuration || form.timerDuration <= 0) return;
-        const timerDeadlineKey = `formup_timer_deadline_${formLink}`;
-        let stored = localStorage.getItem(timerDeadlineKey);
-        let deadlineMs = stored ? parseInt(stored, 10) : null;
-        const now = Date.now();
-        if (!deadlineMs || isNaN(deadlineMs)) {
-            deadlineMs = now + (form.timerDuration * 1000);
-            localStorage.setItem(timerDeadlineKey, String(deadlineMs));
-        }
-        const checkTimer = () => {
-            const remaining = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
-            setTimeLeft(remaining);
-            if (remaining <= 0) { if (timerRef.current) clearInterval(timerRef.current); if (!isSubmittingRef.current) handleSubmit(null, true); }
-        };
-        checkTimer();
-        timerRef.current = setInterval(checkTimer, 1000);
-        return () => { if (timerRef.current) clearInterval(timerRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tokenUnlocked, form?.timerDuration, formLink]);
+            isSubmittingRef.current = true;
+            setSubmitting(true);
+            if (timerRef.current) clearInterval(timerRef.current);
+            setError(''); setValidationToast(null);
 
-    // B13: Support HH:MM:SS for exams > 1 hour
-    const formatTimer = (seconds) => {
-        if (seconds >= 3600) {
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = seconds % 60;
-            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-        }
-        const m = Math.floor(seconds / 60), s = seconds % 60;
-        return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    };
+            const formattedAnswers = Object.entries(currentAnswers).map(([questionId, value]) => {
+                const q = currentQuestions.find(item => item.id === parseInt(questionId, 10));
+                if (!q) return null;
+                if (q.typeId === 2) { const p = parseInt(value, 10); return (!isNaN(p) && p > 0) ? { questionId: q.id, optionId: p } : null; }
+                if (q.typeId === 3) { const ids = Array.isArray(value) ? value.map(v => parseInt(v,10)).filter(id => !isNaN(id) && id > 0) : []; return ids.length ? ids.map(id => ({ questionId: q.id, optionId: id })) : null; }
+                if (q.typeId === 5) { const s = String(value||'').trim(); return s ? { questionId: q.id, answerValue: (s.toLowerCase()==='benar'||s.toLowerCase()==='true') ? 'Benar' : 'Salah' } : null; }
+                const t = String(value||'').trim(); return t ? { questionId: q.id, answerValue: t } : null;
+            }).flat().filter(Boolean);
 
-    const handleAnswerChange = (questionId, value) => {
-        setAnswers(prev => {
-            const next = { ...prev, [questionId]: value };
-            answersRef.current = next;
-            try { localStorage.setItem(`formup_cache_${formLink}`, JSON.stringify(next)); } catch {}
-            return next;
-        });
-    };
-
-    const handleCheckboxChange = (questionId, optionId, checked) => {
-        setAnswers(prev => {
-            const current = Array.isArray(prev[questionId]) ? prev[questionId] : [];
-            const updated = checked ? [...current, optionId] : current.filter(id => id !== optionId);
-            const next = { ...prev, [questionId]: updated };
-            answersRef.current = next;
-            try { localStorage.setItem(`formup_cache_${formLink}`, JSON.stringify(next)); } catch {}
-            return next;
-        });
-    };
-
-    const handleUnlockToken = async (e) => {
-    e.preventDefault();
-    setError('');
-        const token = tokenInput.trim();
-        const res = await getPublicFormQuestions(formLink, { token, name: respondentName });
-        if (res.ok && res.data) {
-            try { localStorage.setItem(`formup_token_${formLink}`, token); } catch {}
-            setTokenUnlocked(true);
-            const qList = res.data.questions || res.data || [];
-            setQuestions(qList);
-            questionsRef.current = qList;
             try {
-                const cached = localStorage.getItem(`formup_cache_${formLink}`);
-                if (cached) { const parsed = JSON.parse(cached); if (parsed) { setAnswers(parsed); answersRef.current = parsed; } }
-            } catch {}
-        } else {
-            setError(res.message || 'Token sandi akses salah.');
-        }
-    };
-
-    const showValidationAlert = (msg) => { setValidationToast(msg); setTimeout(() => setValidationToast(null), 4500); };
-
-    const handleSubmit = async (e, isAuto = false, skipWarnings = false, disqualified = false) => {
-        if (e && typeof e.preventDefault === 'function') e.preventDefault();
-        if (isPreviewMode) { window.close(); return; }
-        // B10: First check for ragu-ragu questions (only for manual submit)
-        if (!isAuto && !skipWarnings && markedForReview.size > 0 && !reviewWarningOpen && !submitConfirmOpen) {
-            setReviewWarningOpen(true);
-            return;
-        }
-        setSubmitConfirmOpen(false);
-        if (isSubmittingRef.current && !disqualified) return;
-
-        const isActuallyDisqualified = Boolean(disqualified || isDisqualifiedRef.current);
-        const currentQuestions = questionsRef.current?.length ? questionsRef.current : questions;
-        const currentAnswers = answersRef.current || answers;
-
-        if (!isAuto && !isActuallyDisqualified) {
-            const unanswered = currentQuestions.filter(q => {
-                if (!q.isRequired) return false;
-                const val = currentAnswers[q.id];
-                return q.typeId === 3 ? !(Array.isArray(val) && val.length > 0) : !(val !== undefined && val !== null && String(val).trim().length > 0);
-            });
-            if (unanswered.length > 0) {
-                const msg = `Ada ${unanswered.length} pertanyaan wajib yang belum dijawab.`;
-                showValidationAlert(msg); setError(msg);
-                const first = unanswered[0];
-                const isStep = form?.formTypeId === 2;
-                if (isStep) { const idx = currentQuestions.findIndex(q => q.id === first.id); if (idx !== -1) setCurrentStep(idx); }
-                else { const el = document.getElementById(`question-card-${first.id}`); if (el) { el.scrollIntoView({ behavior:'smooth', block:'center' }); el.classList.add('ring-2','ring-red-400'); setTimeout(() => el.classList.remove('ring-2','ring-red-400'), 3500); } }
-                return;
-            }
-        }
-
-        isSubmittingRef.current = true;
-        setSubmitting(true);
-        if (timerRef.current) clearInterval(timerRef.current);
-        setError(''); setValidationToast(null);
-
-        const formattedAnswers = Object.entries(currentAnswers).map(([questionId, value]) => {
-            const q = currentQuestions.find(item => item.id === parseInt(questionId, 10));
-            if (!q) return null;
-            if (q.typeId === 2) { const p = parseInt(value, 10); return (!isNaN(p) && p > 0) ? { questionId: q.id, optionId: p } : null; }
-            if (q.typeId === 3) { const ids = Array.isArray(value) ? value.map(v => parseInt(v,10)).filter(id => !isNaN(id) && id > 0) : []; return ids.length ? ids.map(id => ({ questionId: q.id, optionId: id })) : null; }
-            if (q.typeId === 5) { const s = String(value||'').trim(); return s ? { questionId: q.id, answerValue: (s.toLowerCase()==='benar'||s.toLowerCase()==='true') ? 'Benar' : 'Salah' } : null; }
-            const t = String(value||'').trim(); return t ? { questionId: q.id, answerValue: t } : null;
-        }).flat().filter(Boolean);
-
-        try {
-            const payload = {
-                token: tokenInput ? tokenInput.trim() : null,
-                respondentName: respondentName.trim() || 'Anonim',
-                isAutoSubmit: Boolean(isAuto || isActuallyDisqualified),
-                IsAutoSubmit: Boolean(isAuto || isActuallyDisqualified),
-                isDisqualified: isActuallyDisqualified,
-                IsDisqualified: isActuallyDisqualified,
-                score: isActuallyDisqualified ? 0 : undefined,
-                answers: formattedAnswers,
-                examSessionId: examSessionIdRef.current || null,
-                tabSwitchCount: typeof tabSwitchCount === 'number' ? tabSwitchCount : null,
-            };
-            const finishOk = (d) => {
+                const res = await submitPublicFormResponse(formLink, {
+                    token: tokenInput ? tokenInput.trim() : null,
+                    respondentName: respondentName.trim() || 'Anonim',
+                    isAutoSubmit: Boolean(isAuto || isActuallyDisqualified),
+                    IsAutoSubmit: Boolean(isAuto || isActuallyDisqualified),
+                    isDisqualified: isActuallyDisqualified,
+                    IsDisqualified: isActuallyDisqualified,
+                    score: isActuallyDisqualified ? 0 : undefined,
+                    answers: formattedAnswers,
+                    examSessionId: examSessionIdRef.current || null,
+                    tabSwitchCount: typeof tabSwitchCount === 'number' ? tabSwitchCount : null,
+                });
+                const d = res.data;
                 const responseId = d?.responseId || d?.id || (typeof d === 'number' || typeof d === 'string' ? d : null);
-                if (!responseId) return false;
-                try {
-                    localStorage.removeItem(`formup_cache_${formLink}`);
-                    localStorage.removeItem(`formup_timer_deadline_${formLink}`);
-                    localStorage.removeItem(`formup_token_${formLink}`);
-                    localStorage.setItem(`formup_submitted_${formLink}`, String(responseId));
-                    sessionStorage.removeItem(`formup_exam_session_${formLink}`);
-                    sessionStorage.removeItem(`formup_violations_${formLink}`);
-                } catch {}
-                navigate(`/f/${formLink}/result/${responseId}`, { state: { guestToken: d?.guestToken || null } });
-                return true;
-            };
-            const res = await submitPublicFormResponse(formLink, payload);
-            if (res.ok && finishOk(res.data)) return;
-            // Sesi terminasi (force-submit pengawas / sesi lama pasca-reset):
-            // backend menolak 409 walau kuota isi ulang masih ada. Buang sesi
-            // basi, cek kuota terbaru; bila masih ada jatah, ulangi sekali
-            // dengan sesi baru (examSessionId null → server buatkan sesi baru).
-            const terminated = res.status === 409 || res.status === 410 || /disubmit/i.test(res.message || '');
-            if (terminated) {
-                try { sessionStorage.removeItem(`formup_exam_session_${formLink}`); } catch { /* abaikan: storage boleh tidak tersedia */ }
-                examSessionIdRef.current = null;
-                try {
-                    const fresh = await getPublicFormByLink(formLink);
-                    if (fresh?.ok && fresh.data) {
-                        setForm(fresh.data);
-                        if (fresh.data.oneResponse && !fresh.data.alreadySubmitted) {
-                            const retry = await submitPublicFormResponse(formLink, { ...payload, examSessionId: null });
-                            if (retry.ok && finishOk(retry.data)) return;
-                            const errText = retry.message || 'Gagal mengirimkan respons formulir.';
-                            isSubmittingRef.current = false; setSubmitting(false);
-                            setError(errText); showValidationAlert(errText);
-                            return;
-                        }
+                if (res.ok && responseId) {
+                    try {
+                        localStorage.removeItem(`formup_cache_${formLink}`);
+                        localStorage.removeItem(`formup_timer_deadline_${formLink}`);
+                        localStorage.removeItem(`formup_token_${formLink}`);
+                        localStorage.setItem(`formup_submitted_${formLink}`, String(responseId));
+                        sessionStorage.removeItem(`formup_exam_session_${formLink}`);
+                        sessionStorage.removeItem(`formup_violations_${formLink}`);
+                    } catch {}
+                    if (isActuallyDisqualified) {
+                        setIsDisqualified(true);
+                        return;
                     }
-                } catch { /* abaikan: lanjut ke pesan terkunci */ }
+                    navigate(`/f/${formLink}/result/${responseId}`, {
+                        state: {
+                            guestToken: d?.guestToken || null,
+                            isDisqualified: isActuallyDisqualified,
+                        }
+                    });
+                } else {
+                    isSubmittingRef.current = false; setSubmitting(false);
+                    const errText = res.message || 'Gagal mengirimkan respons formulir.';
+                    setError(errText); showValidationAlert(errText);
+                }
+            } catch {
                 isSubmittingRef.current = false; setSubmitting(false);
-                const errText = 'Sesi ujian Anda telah diselesaikan pengawas dan jatah pengerjaan sudah habis.';
+                const errText = 'Terjadi kesalahan koneksi saat mengirim formulir.';
                 setError(errText); showValidationAlert(errText);
-                return;
             }
-            isSubmittingRef.current = false; setSubmitting(false);
-            const errText = res.message || 'Gagal mengirimkan respons formulir.';
-            setError(errText); showValidationAlert(errText);
-        } catch {
-            isSubmittingRef.current = false; setSubmitting(false);
-            const errText = 'Terjadi kesalahan koneksi saat mengirim formulir.';
-            setError(errText); showValidationAlert(errText);
-        }
-    };
+        };
 
-    const handleSendReport = async (e) => {
-        e.preventDefault(); setReportError(''); setSubmittingReport(true);
-        const res = await submitFeedback(form?.id, { reason: reportReason, description: reportDescription.trim() });
-        setSubmittingReport(false);
-        if (res.ok) { setReportSuccess(true); setReportDescription(''); setTimeout(() => { setReportModalOpen(false); setReportSuccess(false); }, 2500); }
-        else setReportError(res.message || 'Gagal mengirimkan laporan masalah.');
-    };
+        const handleSendReport = async (e) => {
+            e.preventDefault(); setReportError(''); setSubmittingReport(true);
+            const res = await submitFeedback(form?.id, { reason: reportReason, description: reportDescription.trim() });
+            setSubmittingReport(false);
+            if (res.ok) { setReportSuccess(true); setReportDescription(''); setTimeout(() => { setReportModalOpen(false); setReportSuccess(false); }, 2500); }
+            else setReportError(res.message || 'Gagal mengirimkan laporan masalah.');
+        };
 
-    if (loading) return (
-        <div className="flex items-center justify-center min-h-screen bg-[#F4F8F7] dark:bg-slate-950">
-            <div className="text-center space-y-2">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#00897B] dark:text-teal-400" />
-                <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">Memuat formulir...</p>
-            </div>
-        </div>
-    );
-
-    // P0-3: Dedicated Violation Detected Card when cheat threshold is reached
-    if (isDisqualified) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-red-50/40 dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">
-                <div className="bg-white dark:bg-slate-900 border-2 border-red-500/80 dark:border-red-600 rounded-3xl p-8 max-w-md w-full text-center space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-                    <div className="w-20 h-20 bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
-                        <AlertTriangle size={40} />
-                    </div>
-                    <div className="space-y-2">
-                        <span className="inline-block px-3 py-1 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded-full text-xs font-black uppercase tracking-wider">
-                            Ujian Dihentikan
-                        </span>
-                        <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                            Pelanggaran Terdeteksi
-                        </h2>
-                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                            Aktivitas yang tidak diizinkan telah melebihi batas toleransi ujian. Ujian Anda telah dihentikan secara otomatis oleh sistem anti-cheat.
-                        </p>
-                    </div>
-
-                    {/* <div className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/80 rounded-2xl space-y-1">
-                        <div className="text-[11px] font-extrabold text-red-600 dark:text-red-400 uppercase tracking-wider">
-                            Status Penilaian
-                        </div>
-                        <div className="text-3xl font-black text-red-700 dark:text-red-400">
-                            Skor: 0
-                        </div>
-                        <p className="text-[11px] text-red-600/80 dark:text-red-400/80 font-bold">
-                            Didiskualifikasi karena pelanggaran sistem ujian
-                        </p>
-                    </div> */}
-
-                    <div className="pt-2">
-                        <button
-                            type="button"
-                            onClick={() => navigate('/')}
-                            className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
-                        >
-                            Kembali ke Beranda
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    if (isForceSubmitted) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-[#F4F8F7] dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-5 shadow-xl">
-                    <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
-                        <Lock size={32} />
-                    </div>
-                    <div className="space-y-2">
-                        <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">
-                            Sesi Ujian Selesai
-                        </h2>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                            Sesi ujian Anda telah diselesaikan dan dikunci oleh pengawas. Semua jawaban draf Anda telah tersimpan dengan aman di sistem.
-                        </p>
-                    </div>
-                    <div className="pt-2">
-                        <button
-                            type="button"
-                            onClick={() => navigate('/')}
-                            className="w-full py-3 bg-[#00897B] hover:bg-[#00796B] text-white font-bold rounded-xl text-xs shadow-sm transition-all cursor-pointer"
-                        >
-                            Kembali ke Beranda
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    // A-5: skip locked screen in preview
-    if (isLocked && form) {
-        const previousId = form.previousResponseId || localSubmittedId;
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-[#F4F8F7] dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-5 shadow-xl">
-                    <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/60 text-amber-500 rounded-2xl flex items-center justify-center mx-auto shadow-xs"><Lock size={30} /></div>
-                    <div className="space-y-2">
-                        <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">Formulir Terkunci</h2>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">Anda sudah pernah mengerjakan formulir <b>{form.title}</b>. Pembuat formulir membatasi pengisian hanya <b>1 kali pengerjaan</b> per responden.</p>
-                    </div>
-                    <div className="pt-2 flex flex-col gap-2.5">
-                        {previousId && form.showScore && <button type="button" onClick={() => navigate(`/f/${formLink}/result/${previousId}`)} className="w-full py-3 bg-[#00897B] hover:bg-[#00796B] text-white font-bold rounded-xl text-xs shadow-sm transition-all cursor-pointer">Lihat Hasil Pengerjaan Sebelumnya</button>}
-                        <button type="button" onClick={() => navigate(currentUser?.id ? '/dashboard' : '/login')} className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs transition-all cursor-pointer">Kembali ke {currentUser?.id ? 'Dashboard' : 'Halaman Utama'}</button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    if (error && !form) return (
-        <div className="min-h-screen flex items-center justify-center bg-[#F4F8F7] dark:bg-slate-950 p-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-xl">
-                <div className="w-14 h-14 bg-red-50 dark:bg-red-950/50 text-red-500 rounded-2xl flex items-center justify-center mx-auto"><AlertCircle size={28} /></div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Formulir Tidak Tersedia</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{error}</p>
-            </div>
-        </div>
-    );
-
-    // A-5: skip token screen in preview
-    if (!isPreviewMode && !tokenUnlocked) return (
-        <div className="min-h-screen flex items-center justify-center bg-[#F4F8F7] dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full space-y-6 shadow-xl">
+        if (loading) return (
+            <div className="flex items-center justify-center min-h-screen bg-[#F4F8F7] dark:bg-slate-950">
                 <div className="text-center space-y-2">
-                    <div className="w-14 h-14 bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 rounded-2xl flex items-center justify-center mx-auto shadow-xs"><Lock size={26} /></div>
-                    <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">Formulir Membutuhkan Sandi Akses</h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Masukkan token sandi yang diberikan oleh pembuat formulir untuk mulai mengisi.</p>
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#00897B] dark:text-teal-400" />
+                    <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">Memuat formulir...</p>
                 </div>
-                {error && <div className="px-4 py-2.5 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-xl text-xs font-bold text-red-600 dark:text-red-400">{error}</div>}
-                <form onSubmit={handleUnlockToken} className="space-y-4">
-                    <input type="password" required value={tokenInput} onChange={e => setTokenInput(e.target.value)} placeholder="Masukkan token sandi..." className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-mono font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]" />
-                    <button type="submit" className="w-full py-3 bg-[#00897B] hover:bg-[#00796B] text-white font-bold rounded-xl text-xs shadow-sm transition-all cursor-pointer">Buka Formulir</button>
-                </form>
             </div>
-        </div>
-    );
+        );
 
-    const isStepLayout = form?.formTypeId === 2 || form?.settings?.formTypeId === 2;
-    const currentQ = questions[currentStep];
-    const totalSteps = questions.length;
+        // P0-3: Dedicated Violation Detected Card when cheat threshold is reached
+        if (isDisqualified) {
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-red-50/40 dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">
+                    <div className="bg-white dark:bg-slate-900 border-2 border-red-500/80 dark:border-red-600 rounded-3xl p-8 max-w-md w-full text-center space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                        <div className="w-20 h-20 bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+                            <AlertTriangle size={40} />
+                        </div>
+                        <div className="space-y-2">
+                            <span className="inline-block px-3 py-1 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded-full text-xs font-black uppercase tracking-wider">
+                                Ujian Dihentikan
+                            </span>
+                            <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                                Pelanggaran Terdeteksi
+                            </h2>
+                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                                Aktivitas yang tidak diizinkan telah melebihi batas toleransi ujian. Ujian Anda telah dihentikan secara otomatis oleh sistem anti-cheat.
+                            </p>
+                        </div>
 
-    // FEAT-4: progress
-    const answeredCount = questions.filter(q => {
-        const val = answers[q.id];
-        return q.typeId === 3 ? Array.isArray(val) && val.length > 0 : val !== undefined && val !== null && String(val).trim().length > 0;
-    }).length;
-    const progressPercent = totalSteps > 0 ? Math.round((answeredCount / totalSteps) * 100) : 0;
+                        <div className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/80 rounded-2xl space-y-1">
+                            <div className="text-[11px] font-extrabold text-red-600 dark:text-red-400 uppercase tracking-wider">
+                                Status Penilaian
+                            </div>
+                            <div className="text-3xl font-black text-red-700 dark:text-red-400">
+                                Skor: 0
+                            </div>
+                            <p className="text-[11px] text-red-600/80 dark:text-red-400/80 font-bold">
+                                Didiskualifikasi karena pelanggaran sistem ujian
+                            </p>
+                        </div>
 
-    // B-2: theme
-    const primaryColor = form?.themePrimaryColor || '#00897B';
-    const bgColor = form?.themeBackgroundColor;
-
-    return (
-        <div className={`min-h-screen font-sans antialiased text-slate-800 dark:text-slate-100 ${questions.length > 0 ? 'pt-16' : 'py-8'} pb-8 px-4 sm:px-6 transition-colors`} style={{ backgroundColor: bgColor || undefined }}>
-
-            {/* A-4: Sticky full-width progress bar at top of viewport */}
-            {questions.length > 0 && (
-                <div className="fixed top-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-8 py-2.5 shadow-xs transition-all">
-                    <div className={`${isStepLayout ? 'max-w-4xl lg:max-w-5xl' : 'max-w-3xl'} mx-auto flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5`}>
-                        <span className="truncate mr-3">{form?.title ? `${form.title} — ` : ''}{answeredCount} dari {totalSteps} soal terjawab</span>
-                        <span className="shrink-0 font-mono" style={{ color: primaryColor }}>{progressPercent}%</span>
-                    </div>
-                    <div className={`${isStepLayout ? 'max-w-4xl lg:max-w-5xl' : 'max-w-3xl'} mx-auto w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden`}>
-                        <div className="h-full rounded-full transition-all duration-300" style={{ width: `${progressPercent}%`, backgroundColor: primaryColor }} />
-                    </div>
-                </div>
-            )}
-
-            {/* Offline-First: Disconnection & Auto-save warning badge */}
-            {!isOnline && (
-                <div className="fixed top-14 sm:top-16 right-4 sm:right-6 z-50 bg-amber-500 text-white px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2.5 max-w-sm border border-amber-400 font-bold text-xs animate-pulse">
-                    <WifiOff size={16} className="shrink-0" />
-                    <div>
-                        <p>Koneksi Terputus / Buruk</p>
-                        <p className="text-[10px] font-normal opacity-90">{answeredCount} jawaban tersimpan aman di perangkat.</p>
-                    </div>
-                </div>
-            )}
-
-            {/* Offline-First: Reconnected Toast */}
-            {isOnline && showRestoredToast && (
-                <div className="fixed top-14 sm:top-16 right-4 sm:right-6 z-50 bg-emerald-600 text-white px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2.5 max-w-sm border border-emerald-500 font-bold text-xs">
-                    <Wifi size={16} className="shrink-0" />
-                    <div>
-                        <p>Koneksi Pulih</p>
-                        <p className="text-[10px] font-normal opacity-90">Semua jawaban berhasil disinkronisasi!</p>
-                    </div>
-                </div>
-            )}
-
-            {/* Exam mode violation warning */}
-            {tabSwitchWarning && (form?.detectTabSwitch || form?.isExamMode) && (
-                <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 max-w-md w-[92vw]">
-                    <AlertCircle size={18} className="shrink-0" />
-                    <div className="flex-1">
-                        <p className="text-xs font-extrabold">Peringatan: Terdeteksi aktivitas keluar / pelanggaran mode ujian!</p>
-                        {form.maxTabSwitch ? (
-                            <p className="text-[11px] opacity-90">Pindah Tab: {tabSwitchCount}/{form.maxTabSwitch} {violationCount > tabSwitchCount ? `• Total Pelanggaran: ${violationCount}` : ''}</p>
-                        ) : (
-                            <p className="text-[11px] opacity-90">Pindah Tab: {tabSwitchCount} {violationCount > tabSwitchCount ? `• Total Pelanggaran: ${violationCount}` : ''}</p>
-                        )}
-                    </div>
-                    <button onClick={() => setTabSwitchWarning(false)} className="p-1 hover:bg-white/20 rounded cursor-pointer"><X size={15} /></button>
-                </div>
-            )}
-
-            {/* Validation Toast */}
-            {validationToast && (
-                <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92vw] sm:w-auto bg-red-600 dark:bg-red-700 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-between gap-3 border border-red-500 animate-in fade-in slide-in-from-top-3 duration-200">
-                    <div className="flex items-center gap-2.5"><AlertCircle size={18} className="shrink-0 text-white" /><span className="text-xs sm:text-sm font-bold">{validationToast}</span></div>
-                    <button type="button" onClick={() => setValidationToast(null)} className="p-1 text-white/80 hover:text-white rounded-lg cursor-pointer shrink-0"><X size={16} /></button>
-                </div>
-            )}
-
-            <div className={`${isStepLayout ? 'max-w-4xl lg:max-w-5xl' : 'max-w-3xl'} mx-auto space-y-6 transition-all`}>
-
-                {/* A-5: Preview banner */}
-                {isPreviewMode && (
-                    <div className="bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 text-xs font-bold"><Eye size={15} /><span>Mode Preview — Jawaban tidak akan disimpan</span></div>
-                        <button type="button" onClick={() => window.close()} className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer">Tutup Preview</button>
-                    </div>
-                )}
-
-                {/* Top Bar — hide report button in preview mode (A-4) */}
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="flex items-center gap-2">
-                        <button type="button" onClick={toggleDarkMode} className="p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-xs transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer">
-                            {isDarkMode ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-teal-600" />}
-                            <span>{isDarkMode ? 'Mode Terang' : 'Mode Gelap'}</span>
-                        </button>
-                        {/* A-4: Hide report button in preview mode */}
-                        {!isPreviewMode && (
-                            <button type="button" onClick={() => setReportModalOpen(true)} className="p-2.5 rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 shadow-xs transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer">
-                                <AlertTriangle size={14} /><span>Laporkan Masalah</span>
+                        <div className="pt-2">
+                            <button
+                                type="button"
+                                onClick={() => navigate('/')}
+                                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
+                            >
+                                Kembali ke Beranda
                             </button>
-                        )}
-                    </div>
-                    {timeLeft !== null && (
-                        <div className={`px-4 py-2 rounded-2xl shadow-lg border backdrop-blur-md flex items-center gap-2 font-mono font-bold text-xs sm:text-sm ${
-                            timeLeft <= 60
-                                ? 'bg-red-500/90 text-white border-red-400 animate-pulse'
-                                : timeLeft <= 300
-                                ? 'bg-amber-500/90 text-white border-amber-400'
-                                : 'bg-slate-900/90 dark:bg-slate-800/90 text-teal-400 border-slate-700'
-                        }`}>
-                            <Clock size={15} /><span>Waktu: {formatTimer(timeLeft)}</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* B13: Timer progress bar */}
-                {timeLeft !== null && form?.timerDuration > 0 && (
-                    <div className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden mb-4">
-                        <div
-                            className={`h-full rounded-full transition-all duration-1000 ${
-                                timeLeft <= 60 ? 'bg-red-500' : timeLeft <= 300 ? 'bg-amber-500' : 'bg-teal-500'
-                            }`}
-                            style={{ width: `${Math.max(0, (timeLeft / form.timerDuration) * 100)}%` }}
-                        />
-                    </div>
-                )}
-
-                {/* Form header */}
-                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-sm">
-                    {form?.bannerImage && (
-                        <div className="w-full h-44 sm:h-56 relative bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                            <img src={assetUrl(form.bannerImage)} alt={form.title} className="w-full h-full object-cover" />
-                        </div>
-                    )}
-                    <div className="p-5 sm:p-8 space-y-4">
-                        <div className="space-y-1">
-                            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight break-words">{form?.title || 'Formulir'}</h1>
-                            {form?.description && <div className="pt-2 text-slate-600 dark:text-slate-300 text-sm leading-relaxed break-words break-all [overflow-wrap:anywhere]"><RichContentRenderer content={form.description} /></div>}
-                        </div>
-                        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-1">
-                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Nama Anda (Opsional):</label>
-                            <input type="text" value={respondentName} onChange={e => setRespondentName(e.target.value)} placeholder="Masukkan nama lengkap Anda..." className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]" />
                         </div>
                     </div>
                 </div>
+            );
+        }
 
-                {error && (
-                    <div className="px-5 py-3.5 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-2xl text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
-                        <AlertCircle size={16} /><span>{error}</span>
-                    </div>
-                )}
-
-                {/* ── STEP LAYOUT ── */}
-                {isStepLayout && currentQ ? (
-                    <div id={`question-card-${currentQ.id}`} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 sm:p-10 lg:p-12 shadow-sm space-y-8 transition-all">
-                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-                            <div className="flex items-center gap-2.5">
-                                <span className="text-xs sm:text-sm font-bold px-3.5 py-1.5 rounded-full" style={{ backgroundColor: `${primaryColor}18`, color: primaryColor }}>
-                                    Soal {currentStep + 1} dari {totalSteps}
-                                </span>
-                                {/* A-1: nav popup trigger */}
-                                <button type="button" onClick={() => setNavPopupOpen(true)} title="Navigasi soal cepat" className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer">
-                                    <LayoutGrid size={15} />
-                                </button>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {currentQ.isRequired && <span className="text-xs font-bold text-red-500 bg-red-50 dark:bg-red-950/60 px-2.5 py-0.5 rounded-md">Wajib</span>}
-                                {/* A-2: solid yellow ragu-ragu */}
-                                <button type="button"
-                                    onClick={() => setMarkedForReview(prev => { const next = new Set(prev); if (next.has(currentQ.id)) next.delete(currentQ.id); else next.add(currentQ.id); return next; })}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                                        markedForReview.has(currentQ.id)
-                                            ? 'bg-yellow-400 dark:bg-yellow-500 text-white border-yellow-400 dark:border-yellow-500'
-                                            : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-yellow-400'
-                                    }`}>
-                                    {markedForReview.has(currentQ.id) ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
-                                    <span>{markedForReview.has(currentQ.id) ? 'Ragu-ragu' : 'Tandai'}</span>
-                                </button>
-                            </div>
+        if (isForceSubmitted) {
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-[#F4F8F7] dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-5 shadow-xl">
+                        <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
+                            <Lock size={32} />
                         </div>
-
-                        <div className="space-y-6">
-                            {currentQ.questionImage && (
-                                <div className="my-2 w-full max-w-2xl relative group/img overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs mx-auto">
-                                    <img src={assetUrl(currentQ.questionImage)} alt="Gambar Soal" className="max-h-96 sm:max-h-[440px] w-auto max-w-full rounded-xl object-contain mx-auto cursor-zoom-in" onClick={() => setLightboxImage({ src: assetUrl(currentQ.questionImage), alt: 'Gambar Soal' })} />
-                                    <button type="button" onClick={() => setLightboxImage({ src: assetUrl(currentQ.questionImage), alt: 'Gambar Soal' })} className="absolute bottom-3 right-3 p-2 bg-slate-900/80 hover:bg-slate-900 text-white rounded-xl shadow-md text-xs font-bold flex items-center gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity cursor-pointer"><Maximize2 size={13} /> Perbesar</button>
-                                </div>
-                            )}
-                            {currentQ.questionAudio && (
-                                <div className="my-2 max-w-md w-full bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs">
-                                    <audio controls src={assetUrl(currentQ.questionAudio)} className="w-full h-8 rounded-xl outline-none" />
-                                </div>
-                            )}
-                            <div className="text-base sm:text-lg lg:text-xl font-bold text-slate-900 dark:text-white leading-relaxed break-words break-all [overflow-wrap:anywhere]">
-                                <RichContentRenderer content={currentQ.question} />
-                            </div>
-                            <div className="pt-2">{renderAnswerField(currentQ, answers, handleAnswerChange, handleCheckboxChange, primaryColor, setLightboxImage)}</div>
+                        <div className="space-y-2">
+                            <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">
+                                Sesi Ujian Selesai
+                            </h2>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                Sesi ujian Anda telah diselesaikan dan dikunci oleh pengawas. Semua jawaban draf Anda telah tersimpan dengan aman di sistem.
+                            </p>
                         </div>
-
-                        <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-                            <button type="button" onClick={() => setCurrentStep(prev => Math.max(prev - 1, 0))} disabled={currentStep === 0} className="px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer">
-                                <ArrowLeft size={14} /> Sebelumnya
+                        <div className="pt-2">
+                            <button
+                                type="button"
+                                onClick={() => navigate('/')}
+                                className="w-full py-3 bg-[#00897B] hover:bg-[#00796B] text-white font-bold rounded-xl text-xs shadow-sm transition-all cursor-pointer"
+                            >
+                                Kembali ke Beranda
                             </button>
-                            {currentStep < totalSteps - 1 ? (
-                                <button type="button" onClick={() => setCurrentStep(prev => prev + 1)} className="px-5 py-2.5 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer" style={{ backgroundColor: primaryColor }}>
-                                    Selanjutnya <ArrowRight size={14} />
-                                </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // A-5: skip locked screen in preview
+        const localSubmittedId = typeof window !== 'undefined' ? localStorage.getItem(`formup_submitted_${formLink}`) : null;
+        if (!isPreviewMode && form && form.oneResponse && (form.alreadySubmitted || localSubmittedId)) {
+            const previousId = form.previousResponseId || localSubmittedId;
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-[#F4F8F7] dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-5 shadow-xl">
+                        <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/60 text-amber-500 rounded-2xl flex items-center justify-center mx-auto shadow-xs"><Lock size={30} /></div>
+                        <div className="space-y-2">
+                            <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">Formulir Terkunci</h2>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">Anda sudah pernah mengerjakan formulir <b>{form.title}</b>. Pembuat formulir membatasi pengisian hanya <b>1 kali pengerjaan</b> per responden.</p>
+                        </div>
+                        <div className="pt-2 flex flex-col gap-2.5">
+                            {previousId && form.showScore && <button type="button" onClick={() => navigate(`/f/${formLink}/result/${previousId}`)} className="w-full py-3 bg-[#00897B] hover:bg-[#00796B] text-white font-bold rounded-xl text-xs shadow-sm transition-all cursor-pointer">Lihat Hasil Pengerjaan Sebelumnya</button>}
+                            <button type="button" onClick={() => navigate(currentUser?.id ? '/dashboard' : '/login')} className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs transition-all cursor-pointer">Kembali ke {currentUser?.id ? 'Dashboard' : 'Halaman Utama'}</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        if (error && !form) return (
+            <div className="min-h-screen flex items-center justify-center bg-[#F4F8F7] dark:bg-slate-950 p-4">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-xl">
+                    <div className="w-14 h-14 bg-red-50 dark:bg-red-950/50 text-red-500 rounded-2xl flex items-center justify-center mx-auto"><AlertCircle size={28} /></div>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Formulir Tidak Tersedia</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{error}</p>
+                </div>
+            </div>
+        );
+
+        // A-5: skip token screen in preview
+        if (!isPreviewMode && !tokenUnlocked) return (
+            <div className="min-h-screen flex items-center justify-center bg-[#F4F8F7] dark:bg-slate-950 p-4 font-sans text-slate-800 dark:text-slate-100">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full space-y-6 shadow-xl">
+                    <div className="text-center space-y-2">
+                        <div className="w-14 h-14 bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400 rounded-2xl flex items-center justify-center mx-auto shadow-xs"><Lock size={26} /></div>
+                        <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">Formulir Membutuhkan Sandi Akses</h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Masukkan token sandi yang diberikan oleh pembuat formulir untuk mulai mengisi.</p>
+                    </div>
+                    {error && <div className="px-4 py-2.5 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-xl text-xs font-bold text-red-600 dark:text-red-400">{error}</div>}
+                    <form onSubmit={handleUnlockToken} className="space-y-4">
+                        <input type="password" required value={tokenInput} onChange={e => setTokenInput(e.target.value)} placeholder="Masukkan token sandi..." className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm font-mono font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]" />
+                        <button type="submit" className="w-full py-3 bg-[#00897B] hover:bg-[#00796B] text-white font-bold rounded-xl text-xs shadow-sm transition-all cursor-pointer">Buka Formulir</button>
+                    </form>
+                </div>
+            </div>
+        );
+
+        const isStepLayout = form?.formTypeId === 2 || form?.settings?.formTypeId === 2;
+        const currentQ = questions[currentStep];
+        const totalSteps = questions.length;
+
+        // FEAT-4: progress
+        const answeredCount = questions.filter(q => {
+            const val = answers[q.id];
+            return q.typeId === 3 ? Array.isArray(val) && val.length > 0 : val !== undefined && val !== null && String(val).trim().length > 0;
+        }).length;
+        const progressPercent = totalSteps > 0 ? Math.round((answeredCount / totalSteps) * 100) : 0;
+
+        // B-2: theme
+        const primaryColor = form?.themePrimaryColor || '#00897B';
+        const bgColor = form?.themeBackgroundColor;
+
+        return (
+            <div className={`min-h-screen font-sans antialiased text-slate-800 dark:text-slate-100 ${questions.length > 0 ? 'pt-16' : 'py-8'} pb-8 px-4 sm:px-6 transition-colors`} style={{ backgroundColor: bgColor || undefined }}>
+
+                {/* A-4: Sticky full-width progress bar at top of viewport */}
+                {questions.length > 0 && (
+                    <div className="fixed top-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-8 py-2.5 shadow-xs transition-all">
+                        <div className={`${isStepLayout ? 'max-w-4xl lg:max-w-5xl' : 'max-w-3xl'} mx-auto flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5`}>
+                            <span className="truncate mr-3">{form?.title ? `${form.title} — ` : ''}{answeredCount} dari {totalSteps} soal terjawab</span>
+                            <span className="shrink-0 font-mono" style={{ color: primaryColor }}>{progressPercent}%</span>
+                        </div>
+                        <div className={`${isStepLayout ? 'max-w-4xl lg:max-w-5xl' : 'max-w-3xl'} mx-auto w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden`}>
+                            <div className="h-full rounded-full transition-all duration-300" style={{ width: `${progressPercent}%`, backgroundColor: primaryColor }} />
+                        </div>
+                    </div>
+                )}
+
+                {/* Offline-First: Disconnection & Auto-save warning badge */}
+                {!isOnline && (
+                    <div className="fixed top-14 sm:top-16 right-4 sm:right-6 z-50 bg-amber-500 text-white px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2.5 max-w-sm border border-amber-400 font-bold text-xs animate-pulse">
+                        <WifiOff size={16} className="shrink-0" />
+                        <div>
+                            <p>Koneksi Terputus / Buruk</p>
+                            <p className="text-[10px] font-normal opacity-90">{answeredCount} jawaban tersimpan aman di perangkat.</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Offline-First: Reconnected Toast */}
+                {isOnline && showRestoredToast && (
+                    <div className="fixed top-14 sm:top-16 right-4 sm:right-6 z-50 bg-emerald-600 text-white px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2.5 max-w-sm border border-emerald-500 font-bold text-xs">
+                        <Wifi size={16} className="shrink-0" />
+                        <div>
+                            <p>Koneksi Pulih</p>
+                            <p className="text-[10px] font-normal opacity-90">Semua jawaban berhasil disinkronisasi!</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Exam mode violation warning */}
+                {tabSwitchWarning && (form?.detectTabSwitch || form?.isExamMode) && (
+                    <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 max-w-md w-[92vw]">
+                        <AlertCircle size={18} className="shrink-0" />
+                        <div className="flex-1">
+                            <p className="text-xs font-extrabold">Peringatan: Terdeteksi aktivitas keluar / pelanggaran mode ujian!</p>
+                            {form.maxTabSwitch ? (
+                                <p className="text-[11px] opacity-90">Pindah Tab: {tabSwitchCount}/{form.maxTabSwitch} {violationCount > tabSwitchCount ? `• Total Pelanggaran: ${violationCount}` : ''}</p>
                             ) : (
-                                // A-4: In preview mode, show "Selesai Preview" instead of submit
-                                isPreviewMode ? (
-                                    <button type="button" onClick={() => window.close()} className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 cursor-pointer">
-                                        <Eye size={14} /> Selesai Preview
-                                    </button>
-                                ) : (
-                                    <button type="button" onClick={(e) => handleSubmit(e, false)} disabled={submitting} className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-60">
-                                        <Send size={14} /> {submitting ? 'Mengirimkan...' : 'Kirim Formulir'}
-                                    </button>
-                                )
+                                <p className="text-[11px] opacity-90">Pindah Tab: {tabSwitchCount} {violationCount > tabSwitchCount ? `• Total Pelanggaran: ${violationCount}` : ''}</p>
                             )}
                         </div>
+                        <button onClick={() => setTabSwitchWarning(false)} className="p-1 hover:bg-white/20 rounded cursor-pointer"><X size={15} /></button>
                     </div>
-                ) : (
-                    // ── SCROLL LAYOUT ──
-                    <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-5">
-                        {questions.map((q, idx) => (
-                            <div key={q.id || idx} id={`question-card-${q.id}`} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-5 sm:p-8 shadow-sm space-y-4 transition-all">
-                                <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-2.5">
-                                    <span className="shrink-0 w-7 h-7 flex items-center justify-center rounded-xl text-xs font-bold text-white" style={{ backgroundColor: primaryColor }}>{idx + 1}</span>
-                                    {q.isRequired && <span className="shrink-0 text-[11px] font-extrabold text-red-500 bg-red-50 dark:bg-red-950/60 px-2 py-0.5 rounded-md">Wajib</span>}
+                )}
+
+                {/* Validation Toast */}
+                {validationToast && (
+                    <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92vw] sm:w-auto bg-red-600 dark:bg-red-700 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-between gap-3 border border-red-500 animate-in fade-in slide-in-from-top-3 duration-200">
+                        <div className="flex items-center gap-2.5"><AlertCircle size={18} className="shrink-0 text-white" /><span className="text-xs sm:text-sm font-bold">{validationToast}</span></div>
+                        <button type="button" onClick={() => setValidationToast(null)} className="p-1 text-white/80 hover:text-white rounded-lg cursor-pointer shrink-0"><X size={16} /></button>
+                    </div>
+                )}
+
+                <div className={`${isStepLayout ? 'max-w-4xl lg:max-w-5xl' : 'max-w-3xl'} mx-auto space-y-6 transition-all`}>
+
+                    {/* A-5: Preview banner */}
+                    {isPreviewMode && (
+                        <div className="bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 text-xs font-bold"><Eye size={15} /><span>Mode Preview — Jawaban tidak akan disimpan</span></div>
+                            <button type="button" onClick={() => window.close()} className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer">Tutup Preview</button>
+                        </div>
+                    )}
+
+                    {/* Top Bar — hide report button in preview mode (A-4) */}
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-2">
+                            <button type="button" onClick={toggleDarkMode} className="p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-xs transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer">
+                                {isDarkMode ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-teal-600" />}
+                                <span>{isDarkMode ? 'Mode Terang' : 'Mode Gelap'}</span>
+                            </button>
+                            {/* A-4: Hide report button in preview mode */}
+                            {!isPreviewMode && (
+                                <button type="button" onClick={() => setReportModalOpen(true)} className="p-2.5 rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 shadow-xs transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer">
+                                    <AlertTriangle size={14} /><span>Laporkan Masalah</span>
+                                </button>
+                            )}
+                        </div>
+                        {timeLeft !== null && (
+                            <div className={`px-4 py-2 rounded-2xl shadow-lg border backdrop-blur-md flex items-center gap-2 font-mono font-bold text-xs sm:text-sm ${
+                                timeLeft <= 60
+                                    ? 'bg-red-500/90 text-white border-red-400 animate-pulse'
+                                    : timeLeft <= 300
+                                    ? 'bg-amber-500/90 text-white border-amber-400'
+                                    : 'bg-slate-900/90 dark:bg-slate-800/90 text-teal-400 border-slate-700'
+                            }`}>
+                                <Clock size={15} /><span>Waktu: {formatTimer(timeLeft)}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* B13: Timer progress bar */}
+                    {timeLeft !== null && form?.timerDuration > 0 && (
+                        <div className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden mb-4">
+                            <div
+                                className={`h-full rounded-full transition-all duration-1000 ${
+                                    timeLeft <= 60 ? 'bg-red-500' : timeLeft <= 300 ? 'bg-amber-500' : 'bg-teal-500'
+                                }`}
+                                style={{ width: `${Math.max(0, (timeLeft / form.timerDuration) * 100)}%` }}
+                            />
+                        </div>
+                    )}
+
+                    {/* Form header */}
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-sm">
+                        {form?.bannerImage && (
+                            <div className="w-full h-44 sm:h-56 relative bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                                <img src={assetUrl(form.bannerImage)} alt={form.title} className="w-full h-full object-cover" />
+                            </div>
+                        )}
+                        <div className="p-5 sm:p-8 space-y-4">
+                            <div className="space-y-1">
+                                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight break-words">{form?.title || 'Formulir'}</h1>
+                                {form?.description && <div className="pt-2 text-slate-600 dark:text-slate-300 text-sm leading-relaxed break-words break-all [overflow-wrap:anywhere]"><RichContentRenderer content={form.description} format="text"/></div>}
+                            </div>
+                            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Nama Anda (Opsional):</label>
+                                <input type="text" value={respondentName} onChange={e => setRespondentName(e.target.value)} placeholder="Masukkan nama lengkap Anda..." className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {error && (
+                        <div className="px-5 py-3.5 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-2xl text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+                            <AlertCircle size={16} /><span>{error}</span>
+                        </div>
+                    )}
+
+                    {/* ── STEP LAYOUT ── */}
+                    {isStepLayout && currentQ ? (
+                        <div id={`question-card-${currentQ.id}`} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 sm:p-10 lg:p-12 shadow-sm space-y-8 transition-all">
+                            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                                <div className="flex items-center gap-2.5">
+                                    <span className="text-xs sm:text-sm font-bold px-3.5 py-1.5 rounded-full" style={{ backgroundColor: `${primaryColor}18`, color: primaryColor }}>
+                                        Soal {currentStep + 1} dari {totalSteps}
+                                    </span>
+                                    {/* A-1: nav popup trigger */}
+                                    <button type="button" onClick={() => setNavPopupOpen(true)} title="Navigasi soal cepat" className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer">
+                                        <LayoutGrid size={15} />
+                                    </button>
                                 </div>
-                                {q.questionImage && (
+                                <div className="flex items-center gap-2">
+                                    {currentQ.isRequired && <span className="text-xs font-bold text-red-500 bg-red-50 dark:bg-red-950/60 px-2.5 py-0.5 rounded-md">Wajib</span>}
+                                    {/* A-2: solid yellow ragu-ragu */}
+                                    <button type="button"
+                                        onClick={() => setMarkedForReview(prev => { const next = new Set(prev); if (next.has(currentQ.id)) next.delete(currentQ.id); else next.add(currentQ.id); return next; })}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                            markedForReview.has(currentQ.id)
+                                                ? 'bg-yellow-400 dark:bg-yellow-500 text-white border-yellow-400 dark:border-yellow-500'
+                                                : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-yellow-400'
+                                        }`}>
+                                        {markedForReview.has(currentQ.id) ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
+                                        <span>{markedForReview.has(currentQ.id) ? 'Ragu-ragu' : 'Tandai'}</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-6">
+                                {currentQ.questionImage && (
                                     <div className="my-2 w-full max-w-2xl relative group/img overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs mx-auto">
-                                        <img src={assetUrl(q.questionImage)} alt="Gambar Soal" className="max-h-96 sm:max-h-[440px] w-auto max-w-full rounded-xl object-contain mx-auto cursor-zoom-in" onClick={() => setLightboxImage({ src: assetUrl(q.questionImage), alt: 'Gambar Soal' })} />
-                                        <button type="button" onClick={() => setLightboxImage({ src: assetUrl(q.questionImage), alt: 'Gambar Soal' })} className="absolute bottom-3 right-3 p-2 bg-slate-900/80 hover:bg-slate-900 text-white rounded-xl shadow-md text-xs font-bold flex items-center gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity cursor-pointer"><Maximize2 size={13} /> Perbesar</button>
+                                        <img src={assetUrl(currentQ.questionImage)} alt="Gambar Soal" className="max-h-96 sm:max-h-[440px] w-auto max-w-full rounded-xl object-contain mx-auto cursor-zoom-in" onClick={() => setLightboxImage({ src: assetUrl(currentQ.questionImage), alt: 'Gambar Soal' })} />
+                                        <button type="button" onClick={() => setLightboxImage({ src: assetUrl(currentQ.questionImage), alt: 'Gambar Soal' })} className="absolute bottom-3 right-3 p-2 bg-slate-900/80 hover:bg-slate-900 text-white rounded-xl shadow-md text-xs font-bold flex items-center gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity cursor-pointer"><Maximize2 size={13} /> Perbesar</button>
                                     </div>
                                 )}
-                                {q.questionAudio && <div className="my-2 max-w-md w-full bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs"><audio controls src={assetUrl(q.questionAudio)} className="w-full h-8 rounded-xl outline-none" /></div>}
-                                <div className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-relaxed break-words break-all [overflow-wrap:anywhere]"><RichContentRenderer content={q.question} /></div>
-                                <div className="pt-2">{renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange, primaryColor, setLightboxImage)}</div>
+                                {currentQ.questionAudio && (
+                                    <div className="my-2 max-w-md w-full bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs">
+                                        <audio controls src={assetUrl(currentQ.questionAudio)} className="w-full h-8 rounded-xl outline-none" />
+                                    </div>
+                                )}
+                                <div className="text-base sm:text-lg lg:text-xl font-bold text-slate-900 dark:text-white leading-relaxed break-words break-all [overflow-wrap:anywhere]">
+                                    <RichContentRenderer content={currentQ.question} />
+                                </div>
+                                <div className="pt-2">{renderAnswerField(currentQ, answers, handleAnswerChange, handleCheckboxChange, primaryColor, setLightboxImage)}</div>
                             </div>
-                        ))}
-                        <div className="pt-4 flex justify-end">
-                            {/* A-4: Preview mode — show "Selesai Preview" only, no real submit */}
-                            {isPreviewMode ? (
-                                <button type="button" onClick={() => window.close()}
-                                    className="w-full sm:w-auto px-8 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-2xl shadow-md transition-all text-sm flex items-center justify-center gap-2 cursor-pointer">
-                                    <Eye size={16} />
-                                    <span>Selesai Preview</span>
-                                </button>
-                            ) : (
-                                <button type="submit" disabled={submitting}
-                                    className="w-full sm:w-auto px-8 py-3.5 text-white font-bold rounded-2xl shadow-md transition-all text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                                    style={{ backgroundColor: primaryColor }}>
-                                    <Send size={16} />
-                                    <span>{submitting ? 'Mengirimkan Respons...' : 'Kirim Respons Formulir'}</span>
-                                </button>
-                            )}
-                        </div>
-                    </form>
-                )}
-            </div>
 
-            {/* A-1: Nav popup modal */}
-            {navPopupOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="fixed inset-0 bg-black/50 backdrop-blur-xs" onClick={() => setNavPopupOpen(false)} />
-                    <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 max-w-sm w-full shadow-2xl z-10">
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2"><LayoutGrid size={16} className="text-teal-600" /> Navigasi Soal</h3>
-                            <button onClick={() => setNavPopupOpen(false)} className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"><X size={16} /></button>
-                        </div>
-                        <div className="flex items-center gap-3 mb-3 flex-wrap text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500 inline-block" /> Terjawab</span>
-                            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-slate-200 dark:bg-slate-700 inline-block" /> Belum</span>
-                            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-400 inline-block" /> Ragu-ragu</span>
-                        </div>
-                        <div className="grid grid-cols-5 gap-2">
-                            {questions.map((q, qIdx) => {
-                                const isAnswered = (() => { const val = answers[q.id]; return q.typeId === 3 ? Array.isArray(val) && val.length > 0 : val !== undefined && val !== null && String(val).trim().length > 0; })();
-                                const isActive = qIdx === currentStep;
-                                const isMarked = markedForReview.has(q.id);
-                                return (
-                                    <button key={q.id || qIdx} type="button"
-                                        onClick={() => { setCurrentStep(qIdx); setNavPopupOpen(false); }}
-                                        className={`relative w-full aspect-square rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
-                                            isActive
-                                                ? 'text-white ring-2 ring-offset-1 ring-teal-500'
-                                                : isMarked
-                                                ? 'bg-yellow-400 text-white'
-                                                : isAnswered
-                                                ? 'bg-emerald-500 text-white'
-                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                                        }`}
-                                        style={isActive ? { backgroundColor: primaryColor } : {}}>
-                                        {qIdx + 1}
-                                        {isMarked && !isActive && (
-                                            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-yellow-400 rounded-full border-2 border-white dark:border-slate-900" />
-                                        )}
+                            <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                                <button type="button" onClick={() => setCurrentStep(prev => Math.max(prev - 1, 0))} disabled={currentStep === 0} className="px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer">
+                                    <ArrowLeft size={14} /> Sebelumnya
+                                </button>
+                                {currentStep < totalSteps - 1 ? (
+                                    <button type="button" onClick={() => setCurrentStep(prev => prev + 1)} className="px-5 py-2.5 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer" style={{ backgroundColor: primaryColor }}>
+                                        Selanjutnya <ArrowRight size={14} />
                                     </button>
-                                );
-                            })}
+                                ) : (
+                                    // A-4: In preview mode, show "Selesai Preview" instead of submit
+                                    isPreviewMode ? (
+                                        <button type="button" onClick={() => window.close()} className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 cursor-pointer">
+                                            <Eye size={14} /> Selesai Preview
+                                        </button>
+                                    ) : (
+                                        <button type="button" onClick={(e) => handleSubmit(e, false)} disabled={submitting} className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-60">
+                                            <Send size={14} /> {submitting ? 'Mengirimkan...' : 'Kirim Formulir'}
+                                        </button>
+                                    )
+                                )}
+                            </div>
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Report Modal */}
-            {reportModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setReportModalOpen(false)} />
-                    <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4 z-10 animate-in fade-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-amber-500 font-extrabold text-sm"><AlertTriangle size={18} /><span>Laporkan Masalah Formulir</span></div>
-                            <button type="button" onClick={() => setReportModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer"><X size={18} /></button>
-                        </div>
-                        {reportSuccess ? (
-                            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2"><CheckCircle2 size={16} /><span>Laporan masalah Anda telah terkirim. Terima kasih!</span></div>
-                        ) : (
-                            <form onSubmit={handleSendReport} className="space-y-4">
-                                {reportError && <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-xl text-xs font-bold text-red-600 dark:text-red-400">{reportError}</div>}
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Alasan Masalah</label>
-                                    <select value={reportReason} onChange={e => setReportReason(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]">
-                                        <option value="PERTANYAAN_TIDAK_JELAS">Pertanyaan tidak jelas / rancu</option>
-                                        <option value="KUNCI_JAWABAN_SALAH">Kunci jawaban / opsi salah</option>
-                                        <option value="KENDALA_TEKNIS">Kendala teknis / media tidak tampil</option>
-                                        <option value="KONTEN_TIDAK_PANTAS">Konten tidak pantas</option>
-                                        <option value="LAINNYA">Alasan lainnya</option>
-                                    </select>
+                    ) : (
+                        // ── SCROLL LAYOUT ──
+                        <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-5">
+                            {questions.map((q, idx) => (
+                                <div key={q.id || idx} id={`question-card-${q.id}`} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-5 sm:p-8 shadow-sm space-y-4 transition-all">
+                                    <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                                        <span className="shrink-0 w-7 h-7 flex items-center justify-center rounded-xl text-xs font-bold text-white" style={{ backgroundColor: primaryColor }}>{idx + 1}</span>
+                                        {q.isRequired && <span className="shrink-0 text-[11px] font-extrabold text-red-500 bg-red-50 dark:bg-red-950/60 px-2 py-0.5 rounded-md">Wajib</span>}
+                                    </div>
+                                    {q.questionImage && (
+                                        <div className="my-2 w-full max-w-2xl relative group/img overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-2 shadow-xs mx-auto">
+                                            <img src={assetUrl(q.questionImage)} alt="Gambar Soal" className="max-h-96 sm:max-h-[440px] w-auto max-w-full rounded-xl object-contain mx-auto cursor-zoom-in" onClick={() => setLightboxImage({ src: assetUrl(q.questionImage), alt: 'Gambar Soal' })} />
+                                            <button type="button" onClick={() => setLightboxImage({ src: assetUrl(q.questionImage), alt: 'Gambar Soal' })} className="absolute bottom-3 right-3 p-2 bg-slate-900/80 hover:bg-slate-900 text-white rounded-xl shadow-md text-xs font-bold flex items-center gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity cursor-pointer"><Maximize2 size={13} /> Perbesar</button>
+                                        </div>
+                                    )}
+                                    {q.questionAudio && <div className="my-2 max-w-md w-full bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs"><audio controls src={assetUrl(q.questionAudio)} className="w-full h-8 rounded-xl outline-none" /></div>}
+                                    <div className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-relaxed break-words break-all [overflow-wrap:anywhere]"><RichContentRenderer content={q.question} /></div>
+                                    <div className="pt-2">{renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange, primaryColor, setLightboxImage)}</div>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Deskripsi Kendala (Opsional)</label>
-                                    <textarea rows={3} value={reportDescription} onChange={e => setReportDescription(e.target.value)} placeholder="Ceritakan detail kendala yang dialami..." className="w-full border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]" />
-                                </div>
-                                <div className="flex justify-end gap-2 pt-1">
-                                    <button type="button" onClick={() => setReportModalOpen(false)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">Batal</button>
-                                    <button type="submit" disabled={submittingReport} className="px-5 py-2 bg-[#00897B] hover:bg-[#00796B] text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-60"><Send size={13} /><span>{submittingReport ? 'Mengirim...' : 'Kirim Laporan'}</span></button>
-                                </div>
-                            </form>
-                        )}
-                    </div>
+                            ))}
+                            <div className="pt-4 flex justify-end">
+                                {/* A-4: Preview mode — show "Selesai Preview" only, no real submit */}
+                                {isPreviewMode ? (
+                                    <button type="button" onClick={() => window.close()}
+                                        className="w-full sm:w-auto px-8 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-2xl shadow-md transition-all text-sm flex items-center justify-center gap-2 cursor-pointer">
+                                        <Eye size={16} />
+                                        <span>Selesai Preview</span>
+                                    </button>
+                                ) : (
+                                    <button type="submit" disabled={submitting}
+                                        className="w-full sm:w-auto px-8 py-3.5 text-white font-bold rounded-2xl shadow-md transition-all text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                                        style={{ backgroundColor: primaryColor }}>
+                                        <Send size={16} />
+                                        <span>{submitting ? 'Mengirimkan Respons...' : 'Kirim Respons Formulir'}</span>
+                                    </button>
+                                )}
+                            </div>
+                        </form>
+                    )}
                 </div>
-            )}
 
-            {/* B10: Ragu-ragu warning dialog (first of two-dialog sequence) */}
-            {reviewWarningOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setReviewWarningOpen(false)} />
-                    <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 z-10">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-500"><Bookmark size={20} /></div>
-                            <h3 className="text-base font-bold text-slate-900 dark:text-white">Ada Soal Ragu-Ragu</h3>
-                        </div>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                            Kamu masih menandai <span className="font-bold text-amber-600 dark:text-amber-400">{markedForReview.size} soal</span> sebagai ragu-ragu. Ingin meninjau dulu sebelum mengirim?
-                        </p>
-                        <div className="flex items-center gap-2 pt-2">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setReviewWarningOpen(false);
-                                    const firstMarkedId = [...markedForReview][0];
-                                    if (firstMarkedId) {
-                                        const el = document.getElementById(`question-card-${firstMarkedId}`);
-                                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                    }
-                                }}
-                                className="flex-1 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-xs font-bold rounded-xl cursor-pointer"
-                            >Tinjau Soal Ragu-Ragu</button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setReviewWarningOpen(false);
-                                    handleSubmit(null, false, true);
-                                }}
-                                className="flex-1 px-4 py-2.5 text-white text-xs font-bold rounded-xl cursor-pointer"
-                                style={{ backgroundColor: primaryColor }}
-                            >Tetap Kirim</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* FEAT-3: Submit confirm */}
-            {submitConfirmOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setSubmitConfirmOpen(false)} />
-                    <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 z-10">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-full bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400"><Send size={20} /></div>
-                            <h3 className="text-base font-bold text-slate-900 dark:text-white">Kirim Jawaban?</h3>
-                        </div>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">Jawaban tidak dapat diubah setelah dikirim. Apakah Anda yakin?</p>
-                        <div className="flex items-center gap-2 pt-2">
-                            <button type="button" onClick={() => setSubmitConfirmOpen(false)} className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl cursor-pointer">Batal</button>
-                            <button type="button" onClick={() => handleSubmit(null, false)} className="flex-1 px-4 py-2.5 text-white text-xs font-bold rounded-xl cursor-pointer" style={{ backgroundColor: primaryColor }}>Ya, Kirim</button>
+                {/* A-1: Nav popup modal */}
+                {navPopupOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs" onClick={() => setNavPopupOpen(false)} />
+                        <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 max-w-sm w-full shadow-2xl z-10">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2"><LayoutGrid size={16} className="text-teal-600" /> Navigasi Soal</h3>
+                                <button onClick={() => setNavPopupOpen(false)} className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"><X size={16} /></button>
+                            </div>
+                            <div className="flex items-center gap-3 mb-3 flex-wrap text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500 inline-block" /> Terjawab</span>
+                                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-slate-200 dark:bg-slate-700 inline-block" /> Belum</span>
+                                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-400 inline-block" /> Ragu-ragu</span>
+                            </div>
+                            <div className="grid grid-cols-5 gap-2">
+                                {questions.map((q, qIdx) => {
+                                    const isAnswered = (() => { const val = answers[q.id]; return q.typeId === 3 ? Array.isArray(val) && val.length > 0 : val !== undefined && val !== null && String(val).trim().length > 0; })();
+                                    const isActive = qIdx === currentStep;
+                                    const isMarked = markedForReview.has(q.id);
+                                    return (
+                                        <button key={q.id || qIdx} type="button"
+                                            onClick={() => { setCurrentStep(qIdx); setNavPopupOpen(false); }}
+                                            className={`relative w-full aspect-square rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                                                isActive
+                                                    ? 'text-white ring-2 ring-offset-1 ring-teal-500'
+                                                    : isMarked
+                                                    ? 'bg-yellow-400 text-white'
+                                                    : isAnswered
+                                                    ? 'bg-emerald-500 text-white'
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                            }`}
+                                            style={isActive ? { backgroundColor: primaryColor } : {}}>
+                                            {qIdx + 1}
+                                            {isMarked && !isActive && (
+                                                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-yellow-400 rounded-full border-2 border-white dark:border-slate-900" />
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            <ImageLightboxModal isOpen={!!lightboxImage} src={lightboxImage?.src} alt={lightboxImage?.alt} onClose={() => setLightboxImage(null)} />
-        </div>
-    );
-}
-
-function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange, primaryColor = '#00897B', onOpenImage = null) {
-    const val = answers[q.id];
-
-    if (q.typeId === 1) return (
-        <textarea rows={3} value={val || ''} onChange={e => handleAnswerChange(q.id, e.target.value)} placeholder="Ketikkan jawaban Anda di sini..." className="w-full border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]" />
-    );
-
-    if (q.typeId === 2) return (
-        <div className="space-y-2.5">
-            {(q.options || []).map(opt => {
-                const isSelected = String(val) === String(opt.id);
-                const optImg = opt.optionImage || opt.image || opt.imageUrl;
-                return (
-                    <label key={opt.id} className={`flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${isSelected ? 'font-bold' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50'}`}
-                        style={isSelected ? { borderColor: primaryColor, backgroundColor: `${primaryColor}18`, color: primaryColor } : {}}>
-                        <input type="radio" name={`q_${q.id}`} value={opt.id} checked={isSelected} onChange={() => handleAnswerChange(q.id, opt.id)} className="w-4 h-4 cursor-pointer mt-0.5" style={{ accentColor: primaryColor }} />
-                        <div className="text-xs sm:text-sm leading-relaxed flex-1 space-y-2">
-                            {optImg && (
-                                <img
-                                    src={assetUrl(optImg)}
-                                    alt={opt.optionText || 'Gambar Opsi'}
-                                    className="max-h-48 max-w-full rounded-xl object-contain border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-1 cursor-zoom-in"
-                                    onClick={(event) => {
-                                        event.preventDefault();
-                                        event.stopPropagation();
-                                        onOpenImage?.({ src: assetUrl(optImg), alt: opt.optionText || 'Gambar Opsi' });
-                                    }}
-                                />
+                {/* Report Modal */}
+                {reportModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setReportModalOpen(false)} />
+                        <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4 z-10 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-amber-500 font-extrabold text-sm"><AlertTriangle size={18} /><span>Laporkan Masalah Formulir</span></div>
+                                <button type="button" onClick={() => setReportModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer"><X size={18} /></button>
+                            </div>
+                            {reportSuccess ? (
+                                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2"><CheckCircle2 size={16} /><span>Laporan masalah Anda telah terkirim. Terima kasih!</span></div>
+                            ) : (
+                                <form onSubmit={handleSendReport} className="space-y-4">
+                                    {reportError && <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-xl text-xs font-bold text-red-600 dark:text-red-400">{reportError}</div>}
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Alasan Masalah</label>
+                                        <select value={reportReason} onChange={e => setReportReason(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]">
+                                            <option value="PERTANYAAN_TIDAK_JELAS">Pertanyaan tidak jelas / rancu</option>
+                                            <option value="KUNCI_JAWABAN_SALAH">Kunci jawaban / opsi salah</option>
+                                            <option value="KENDALA_TEKNIS">Kendala teknis / media tidak tampil</option>
+                                            <option value="KONTEN_TIDAK_PANTAS">Konten tidak pantas</option>
+                                            <option value="LAINNYA">Alasan lainnya</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Deskripsi Kendala (Opsional)</label>
+                                        <textarea rows={3} value={reportDescription} onChange={e => setReportDescription(e.target.value)} placeholder="Ceritakan detail kendala yang dialami..." className="w-full border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]" />
+                                    </div>
+                                    <div className="flex justify-end gap-2 pt-1">
+                                        <button type="button" onClick={() => setReportModalOpen(false)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">Batal</button>
+                                        <button type="submit" disabled={submittingReport} className="px-5 py-2 bg-[#00897B] hover:bg-[#00796B] text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-60"><Send size={13} /><span>{submittingReport ? 'Mengirim...' : 'Kirim Laporan'}</span></button>
+                                    </div>
+                                </form>
                             )}
-                            <RichContentRenderer content={opt.optionText} />
                         </div>
-                    </label>
-                );
-            })}
-        </div>
-    );
+                    </div>
+                )}
 
-    if (q.typeId === 3) {
-        const selectedArr = Array.isArray(val) ? val : [];
-        return (
+                {/* B10: Ragu-ragu warning dialog (first of two-dialog sequence) */}
+                {reviewWarningOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setReviewWarningOpen(false)} />
+                        <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 z-10">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-500"><Bookmark size={20} /></div>
+                                <h3 className="text-base font-bold text-slate-900 dark:text-white">Ada Soal Ragu-Ragu</h3>
+                            </div>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                                Kamu masih menandai <span className="font-bold text-amber-600 dark:text-amber-400">{markedForReview.size} soal</span> sebagai ragu-ragu. Ingin meninjau dulu sebelum mengirim?
+                            </p>
+                            <div className="flex items-center gap-2 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setReviewWarningOpen(false);
+                                        const firstMarkedId = [...markedForReview][0];
+                                        if (firstMarkedId) {
+                                            const el = document.getElementById(`question-card-${firstMarkedId}`);
+                                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        }
+                                    }}
+                                    className="flex-1 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-xs font-bold rounded-xl cursor-pointer"
+                                >Tinjau Soal Ragu-Ragu</button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setReviewWarningOpen(false);
+                                        handleSubmit(null, false, true);
+                                    }}
+                                    className="flex-1 px-4 py-2.5 text-white text-xs font-bold rounded-xl cursor-pointer"
+                                    style={{ backgroundColor: primaryColor }}
+                                >Tetap Kirim</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* FEAT-3: Submit confirm */}
+                {submitConfirmOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setSubmitConfirmOpen(false)} />
+                        <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 z-10">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-full bg-teal-50 dark:bg-teal-950/60 text-[#00897B] dark:text-teal-400"><Send size={20} /></div>
+                                <h3 className="text-base font-bold text-slate-900 dark:text-white">Kirim Jawaban?</h3>
+                            </div>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Jawaban tidak dapat diubah setelah dikirim. Apakah Anda yakin?</p>
+                            <div className="flex items-center gap-2 pt-2">
+                                <button type="button" onClick={() => setSubmitConfirmOpen(false)} className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl cursor-pointer">Batal</button>
+                                <button type="button" onClick={() => handleSubmit(null, false)} className="flex-1 px-4 py-2.5 text-white text-xs font-bold rounded-xl cursor-pointer" style={{ backgroundColor: primaryColor }}>Ya, Kirim</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <ImageLightboxModal isOpen={!!lightboxImage} src={lightboxImage?.src} alt={lightboxImage?.alt} onClose={() => setLightboxImage(null)} />
+            </div>
+        );
+    }
+
+    function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange, primaryColor = '#00897B', onOpenImage = null) {
+        const val = answers[q.id];
+
+        if (q.typeId === 1) return (
+            <textarea rows={3} value={val || ''} onChange={e => handleAnswerChange(q.id, e.target.value)} placeholder="Ketikkan jawaban Anda di sini..." className="w-full border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]" />
+        );
+
+        if (q.typeId === 2) return (
             <div className="space-y-2.5">
                 {(q.options || []).map(opt => {
-                    const isChecked = selectedArr.includes(opt.id);
+                    const isSelected = String(val) === String(opt.id);
                     const optImg = opt.optionImage || opt.image || opt.imageUrl;
                     return (
-                        <label key={opt.id} className={`flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${isChecked ? 'font-bold' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50'}`}
-                            style={isChecked ? { borderColor: primaryColor, backgroundColor: `${primaryColor}18`, color: primaryColor } : {}}>
-                            <input type="checkbox" checked={isChecked} onChange={e => handleCheckboxChange(q.id, opt.id, e.target.checked)} className="w-4 h-4 rounded cursor-pointer mt-0.5" style={{ accentColor: primaryColor }} />
+                        <label key={opt.id} className={`flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${isSelected ? 'font-bold' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50'}`}
+                            style={isSelected ? { borderColor: primaryColor, backgroundColor: `${primaryColor}18`, color: primaryColor } : {}}>
+                            <input type="radio" name={`q_${q.id}`} value={opt.id} checked={isSelected} onChange={() => handleAnswerChange(q.id, opt.id)} className="w-4 h-4 cursor-pointer mt-0.5" style={{ accentColor: primaryColor }} />
                             <div className="text-xs sm:text-sm leading-relaxed flex-1 space-y-2">
                                 {optImg && (
                                     <img
                                         src={assetUrl(optImg)}
-                                    alt={opt.optionText || 'Gambar Opsi'}
+                                        alt={opt.optionText || 'Gambar Opsi'}
                                         className="max-h-48 max-w-full rounded-xl object-contain border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-1 cursor-zoom-in"
                                         onClick={(event) => {
                                             event.preventDefault();
@@ -1556,38 +1414,70 @@ function renderAnswerField(q, answers, handleAnswerChange, handleCheckboxChange,
                                         }}
                                     />
                                 )}
-                                <RichContentRenderer content={opt.optionText} />
+                                <RichContentRenderer content={opt.optionText} format="text"/>
                             </div>
                         </label>
                     );
                 })}
             </div>
         );
+
+        if (q.typeId === 3) {
+            const selectedArr = Array.isArray(val) ? val : [];
+            return (
+                <div className="space-y-2.5">
+                    {(q.options || []).map(opt => {
+                        const isChecked = selectedArr.includes(opt.id);
+                        const optImg = opt.optionImage || opt.image || opt.imageUrl;
+                        return (
+                            <label key={opt.id} className={`flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${isChecked ? 'font-bold' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50'}`}
+                                style={isChecked ? { borderColor: primaryColor, backgroundColor: `${primaryColor}18`, color: primaryColor } : {}}>
+                                <input type="checkbox" checked={isChecked} onChange={e => handleCheckboxChange(q.id, opt.id, e.target.checked)} className="w-4 h-4 rounded cursor-pointer mt-0.5" style={{ accentColor: primaryColor }} />
+                                <div className="text-xs sm:text-sm leading-relaxed flex-1 space-y-2">
+                                    {optImg && (
+                                        <img
+                                            src={assetUrl(optImg)}
+                                        alt={opt.optionText || 'Gambar Opsi'}
+                                            className="max-h-48 max-w-full rounded-xl object-contain border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-1 cursor-zoom-in"
+                                            onClick={(event) => {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                                onOpenImage?.({ src: assetUrl(optImg), alt: opt.optionText || 'Gambar Opsi' });
+                                            }}
+                                        />
+                                    )}
+                                    <RichContentRenderer content={opt.optionText} format="text"/>
+                                </div>
+                            </label>
+                        );
+                    })}
+                </div>
+            );
+        }
+
+        if (q.typeId === 4) return (
+            <input
+                type={q.includeTime ? "datetime-local" : "date"}
+                value={val || ''}
+                onChange={e => handleAnswerChange(q.id, e.target.value)}
+                className="w-full max-w-xs border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]"
+            />
+        );
+
+        if (q.typeId === 5) return (
+            <div className="grid grid-cols-2 gap-3 max-w-sm">
+                {[{ value: 'Benar', label: 'Benar' }, { value: 'Salah', label: 'Salah' }].map(choice => {
+                    const isSelected = String(val) === choice.value;
+                    return (
+                        <button key={choice.value} type="button" onClick={() => handleAnswerChange(q.id, choice.value)}
+                            className={`py-3 px-4 rounded-2xl border text-xs font-bold transition-all cursor-pointer ${isSelected ? 'text-white shadow-xs' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50'}`}
+                            style={isSelected ? { backgroundColor: primaryColor, borderColor: primaryColor } : {}}>
+                            {choice.label}
+                        </button>
+                    );
+                })}
+            </div>
+        );
+
+        return null;
     }
-
-    if (q.typeId === 4) return (
-        <input
-            type={q.includeTime ? "datetime-local" : "date"}
-            value={val || ''}
-            onChange={e => handleAnswerChange(q.id, e.target.value)}
-            className="w-full max-w-xs border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#00897B]"
-        />
-    );
-
-    if (q.typeId === 5) return (
-        <div className="grid grid-cols-2 gap-3 max-w-sm">
-            {[{ value: 'Benar', label: 'Benar' }, { value: 'Salah', label: 'Salah' }].map(choice => {
-                const isSelected = String(val) === choice.value;
-                return (
-                    <button key={choice.value} type="button" onClick={() => handleAnswerChange(q.id, choice.value)}
-                        className={`py-3 px-4 rounded-2xl border text-xs font-bold transition-all cursor-pointer ${isSelected ? 'text-white shadow-xs' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50'}`}
-                        style={isSelected ? { backgroundColor: primaryColor, borderColor: primaryColor } : {}}>
-                        {choice.label}
-                    </button>
-                );
-            })}
-        </div>
-    );
-
-    return null;
-}
