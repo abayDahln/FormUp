@@ -348,27 +348,57 @@ export default function FormResponsesPage() {
 
     // P0-4: Deduplicate exam monitoring sessions by respondent identity
     const processMonitoringData = useCallback((data) => {
-        if (!data) return null;
-        const rawSessions = data.sessions || [];
-        const seen = new Set();
-        const dedupedSessions = [];
-        for (const s of rawSessions) {
-            const key = s.respondentId
-                ? `id_${s.respondentId}`
-                : (s.respondentName ? `name_${s.respondentName.trim().toLowerCase()}` : `sess_${s.sessionId}`);
-            if (!seen.has(key)) {
-                seen.add(key);
-                dedupedSessions.push(s);
-            }
+    if (!data) return null;
+    const rawSessions = data.sessions || [];
+    const byKey = new Map();
+
+    // Waktu aktivitas paling relevan dari sebuah entri: kalau submitted,
+    // pakai waktu submit; kalau masih berjalan, pakai aktivitas terakhir.
+    const activityTime = (s) => {
+        const t = s.status === 'submitted' ? (s.submittedAt || s.lastSeenAt) : (s.lastSeenAt || s.startedAt);
+        return t ? new Date(t).getTime() : 0;
+    };
+
+    for (const s of rawSessions) {
+        // Untuk form ini respondentId selalu ada (wajib login), jadi aman
+        // dipakai sebagai kunci identitas. Fallback sess_/responseId hanya
+        // jaga-jaga bila suatu saat ada responden tanpa identitas.
+        const key = s.respondentId
+            ? `id_${s.respondentId}`
+            : `sess_${s.sessionId || s.responseId}`;
+        const existing = byKey.get(key);
+
+        if (!existing) {
+            byKey.set(key, s);
+            continue;
         }
-        return {
-            ...data,
-            sessions: dedupedSessions,
-            inProgressCount: dedupedSessions.filter(s => s.status === 'in_progress').length,
-            onlineCount: dedupedSessions.filter(s => s.isOnline).length,
-            submittedCount: dedupedSessions.filter(s => s.status === 'submitted').length,
-        };
-    }, []);
+
+        // Dua entri identitas sama (mis. sesi lama yang sudah submitted +
+        // sesi baru yang sedang berjalan setelah reset). JANGAN paksa
+        // "submitted menang" — itu menyembunyikan sesi yang sedang
+        // berlangsung sekarang. Menangkan yang aktivitasnya PALING BARU,
+        // gabungkan log pelanggaran dari keduanya biar tidak ada yang hilang.
+        const mergedViolations = [...(existing.violations || []), ...(s.violations || [])];
+        const mergedCount = (existing.violationCount || 0) + (s.violationCount || 0);
+        const winner = activityTime(s) >= activityTime(existing) ? s : existing;
+
+        byKey.set(key, {
+            ...winner,
+            violations: mergedViolations,
+            violationCount: mergedCount,
+            tabSwitchCount: Math.max(existing.tabSwitchCount || 0, s.tabSwitchCount || 0),
+        });
+    }
+
+    const dedupedSessions = Array.from(byKey.values());
+    return {
+        ...data,
+        sessions: dedupedSessions,
+        inProgressCount: dedupedSessions.filter(s => s.status === 'in_progress').length,
+        onlineCount: dedupedSessions.filter(s => s.isOnline).length,
+        submittedCount: dedupedSessions.filter(s => s.status === 'submitted').length,
+    };
+}, []);
 
     const fetchExamMonitoring = useCallback(async (isSilent = false) => {
         if (!id) return;

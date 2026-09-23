@@ -293,8 +293,6 @@ public class ResponsesController : ControllerBase
         return Ok(new ApiResponse<object>(200, "OK", attempts));
     }
 
-<<<<<<< HEAD
-=======
     /// <summary>
     /// Reset pengerjaan ulang one-response per respons (dipakai untuk form
     /// non-exam yang tidak punya sesi ujian, tapi berlaku juga untuk exam):
@@ -366,28 +364,6 @@ public class ResponsesController : ControllerBase
 
         return Ok(new ApiResponse<object>(200,
             "Jawaban peserta berhasil di-reset. Data lama dipertahankan sebagai riwayat. Form dibuka kembali — peserta dapat mengerjakan satu kali pengerjaan ulang dengan sesi baru."));
-<<<<<<< HEAD
-=======
-    }
-
-    [HttpGet("api/response-statuses")]
-    public async Task<ActionResult<ApiResponse<object>>> GetStatuses()
-    {
-        var user = await GetCurrentUser();
-        if (user == null)
-            return Unauthorized(new ApiResponse<object>(401, "User not found"));
-
-        // Daftar referensi kanonik (id + nama): hanya "new" (draft) dan
-        // "submitted" (hasil sah). Klien (web) membangun opsi dari sini agar
-        // tidak menebak id di sisi klien (lihat migrasi
-        // SeedResponseStatusCanonical).
-        var items = await _db.ResponseStatuses
-            .OrderBy(s => s.Id)
-            .Select(s => new { id = s.Id, status = s.Status })
-            .ToListAsync();
-
-        return Ok(new ApiResponse<object>(200, "OK", items));
->>>>>>> 7393fd95d2eae2ca95ff7620bd3aaebed568a1b2
     }
 
     [HttpGet("api/response-statuses")]
@@ -409,7 +385,6 @@ public class ResponsesController : ControllerBase
         return Ok(new ApiResponse<object>(200, "OK", items));
     }
 
->>>>>>> origin/main
     [HttpPut("api/responses/{id}/status")]
     public async Task<ActionResult<ApiResponse<object>>> UpdateStatus(int id, [FromBody] UpdateResponseStatusRequest request)
     {

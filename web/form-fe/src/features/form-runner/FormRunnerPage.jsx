@@ -207,38 +207,97 @@ export default function FormRunnerPage() {
 
     // P1-2: Audio alert for genuine violations with autoplay priming
     const violationAudioRef = useRef(null);
-    const primeViolationAudio = useCallback(() => {
+    const audioPrimedRef = useRef(false);
+    const pendingSoundRef = useRef(false);
+
+// Preload sekali saat mount — biar 404 / gagal load ketahuan lebih awal
+useEffect(() => {
+    if (typeof Audio === 'undefined') return;
+    const a = new Audio('/sound/exam-warning.mp3');
+    a.preload = 'auto';
+    a.addEventListener('error', () => {
+        console.error('[Violation] Gagal memuat /sound/exam-warning.mp3 — cek path & base URL build.');
+    });
+    a.load();
+    violationAudioRef.current = a;
+}, []);
+
+// Priming otomatis pada interaksi user PERTAMA di mana pun (klik, tap, keyboard)
+useEffect(() => {
+    const prime = () => {
+        if (audioPrimedRef.current) return;
+        const a = violationAudioRef.current;
+        if (!a) return;
+        audioPrimedRef.current = true;
+        a.muted = true;
+        const p = a.play();
+        if (p && typeof p.then === 'function') {
+            p.then(() => {
+                a.pause();
+                a.currentTime = 0;
+                a.muted = false;
+            }).catch(() => { a.muted = false; });
+        }
+    };
+    window.addEventListener('pointerdown', prime, { once: true });
+    window.addEventListener('keydown', prime, { once: true });
+    window.addEventListener('touchstart', prime, { once: true });
+    return () => {
+        window.removeEventListener('pointerdown', prime);
+        window.removeEventListener('keydown', prime);
+        window.removeEventListener('touchstart', prime);
+    };
+}, []);
+
+    const beepFallback = useCallback(() => {
         try {
-            if (!violationAudioRef.current && typeof Audio !== 'undefined') {
-                violationAudioRef.current = new Audio('/sound/exam-warning.mp3');
-            }
-            if (violationAudioRef.current) {
-                const a = violationAudioRef.current;
-                const p = a.play();
-                if (p && typeof p.then === 'function') {
-                    p.then(() => {
-                        a.pause();
-                        a.currentTime = 0;
-                    }).catch(() => {});
-                }
-            }
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            const ctx = new Ctx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.value = 880;
+            gain.gain.value = 0.25;
+            osc.connect(gain).connect(ctx.destination);
+            osc.start();
+            setTimeout(() => { osc.stop(); ctx.close(); }, 600);
         } catch {}
     }, []);
 
-    const playViolationSound = useCallback(() => {
-        try {
-            if (!violationAudioRef.current && typeof Audio !== 'undefined') {
-                violationAudioRef.current = new Audio('/sound/exam-warning.mp3');
+        const playViolationSound = useCallback(() => {
+        pendingSoundRef.current = true;
+        const a = violationAudioRef.current;
+        if (a) {
+            a.currentTime = 0;
+            const p = a.play();
+            if (p && typeof p.then === 'function') {
+                p.then(() => { pendingSoundRef.current = false; })
+                 .catch(err => {
+                    console.warn('[Violation] audio ditolak:', err?.name, err?.message);
+                    beepFallback();
+                 });
+                return;
             }
-            if (violationAudioRef.current) {
-                const audio = violationAudioRef.current;
-                audio.currentTime = 0;
-                audio.play().catch(err => console.warn('violation sound failed:', err));
-            }
-        } catch (err) {
-            console.warn('violation sound initialization failed:', err);
         }
-    }, []);
+        beepFallback();
+    }, [beepFallback]);
+
+        // Putar ulang suara pelanggaran saat user kembali ke tab ujian
+    useEffect(() => {
+        const onFocusBack = () => {
+            if (pendingSoundRef.current && !document.hidden) {
+                pendingSoundRef.current = false;
+                playViolationSound();
+            }
+        };
+        document.addEventListener('visibilitychange', onFocusBack);
+        window.addEventListener('focus', onFocusBack);
+        return () => {
+            document.removeEventListener('visibilitychange', onFocusBack);
+            window.removeEventListener('focus', onFocusBack);
+        };
+    }, [playViolationSound]);
 
     const sendExamEvent = useCallback(async (eventType) => {
     if (!form || isPreviewMode || form.isOwner) return;
@@ -285,13 +344,14 @@ export default function FormRunnerPage() {
                     setTabSwitchWarning(true);
                     playViolationSound();
                 }
-                // P0-3: When cheat threshold is reached, disqualify and auto-set score 0
+
                 const currentSw = typeof res.data.tabSwitchCount === 'number' ? res.data.tabSwitchCount : tabSwitchCount;
                 const maxSw = form?.maxTabSwitch || form?.settings?.maxTabSwitch || 3;
                 const shouldDisqualify = res.data.shouldAutoSubmit || (form?.autoSubmitOnTabSwitch && currentSw >= maxSw);
 
-                if (shouldDisqualify && !isSubmittingRef.current && !isDisqualifiedRef.current) {
+                    if (shouldDisqualify && !isSubmittingRef.current && !isDisqualifiedRef.current) {
                     isDisqualifiedRef.current = true;
+                    playViolationSound();
                     setIsDisqualified(true);
                     isSubmittingRef.current = true;
                     if (timerRef.current) clearInterval(timerRef.current);
@@ -337,47 +397,43 @@ export default function FormRunnerPage() {
         const disableCopy = form.disableCopyPaste || isExam;
 
         const handleVisibilityChange = () => {
-            if (isForceSubmittedRef.current || isSubmittingRef.current) return;
-            if (document.hidden && isExam) {
-                if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
-                blurTimerRef.current = setTimeout(() => {
-                    if (document.visibilityState === 'hidden' && !document.hasFocus()) {
-                        reportTabSwitch();
-                    }
-                }, 800);
-            } else if (!document.hidden) {
-                if (blurTimerRef.current) {
-                    clearTimeout(blurTimerRef.current);
-                    blurTimerRef.current = null;
-                }
-            }
-        };
+    if (isForceSubmittedRef.current || isSubmittingRef.current || !isExam) return;
+    if (document.hidden) {
+        // visibilitychange sudah sinyal yang andal — laporkan langsung,
+        // jangan tunggu untuk lihat apakah user balik lagi.
+        reportTabSwitch();
+    }
+};
 
         const reportTabSwitch = () => {
             if (!isExam || isForceSubmittedRef.current || isSubmittingRef.current) return;
             const now = Date.now();
-            // blur and visibilitychange can describe the same tab switch.
-            if (now - lastTabSwitchAtRef.current < 1000) return;
+            // Anti-dobel-hitung: blur & visibilitychange bisa menggambarkan
+            // pindah tab yang sama dalam rentang sangat singkat.
+            if (now - lastTabSwitchAtRef.current < 500) return;
             lastTabSwitchAtRef.current = now;
             sendExamEvent('tab_switch');
         };
 
-        const handleWindowBlur = () => {
-            if (isForceSubmittedRef.current || isSubmittingRef.current || !isExam) return;
-            if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
-            blurTimerRef.current = setTimeout(() => {
-                if (document.visibilityState === 'hidden' && !document.hasFocus()) {
-                    reportTabSwitch();
-                }
-            }, 800);
-        };
+            const handleWindowBlur = () => {
+                if (isForceSubmittedRef.current || isSubmittingRef.current || !isExam) return;
+                // Hanya fallback untuk kombinasi OS/browser yang kadang tidak
+                // memicu visibilitychange saat alt-tab. Delay kecil (bukan 800ms)
+                // supaya tidak menelan pelanggaran asli.
+                if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+                blurTimerRef.current = setTimeout(() => {
+                    if (!document.hasFocus()) {
+                        reportTabSwitch();
+                    }
+                }, 150);
+            };
 
-        const handleWindowFocus = () => {
-            if (blurTimerRef.current) {
-                clearTimeout(blurTimerRef.current);
-                blurTimerRef.current = null;
-            }
-        };
+            const handleWindowFocus = () => {
+                if (blurTimerRef.current) {
+                    clearTimeout(blurTimerRef.current);
+                    blurTimerRef.current = null;
+                }
+            };
 
         const handleCopy = (e) => {
             if (isForceSubmittedRef.current || isSubmittingRef.current) return;
@@ -577,24 +633,31 @@ export default function FormRunnerPage() {
     };
 
     const loadQuestions = async (token = null) => {
-        const res = await getPublicFormQuestions(formLink, { token, name: respondentName });
-        if (res.ok && res.data) {
-            const qList = res.data.questions || res.data || [];
-            setQuestions(qList);
-            questionsRef.current = qList;
-            try {
-                const cached = localStorage.getItem(`formup_cache_${formLink}`);
-                if (cached) {
-                    const parsed = JSON.parse(cached);
-                    if (parsed && typeof parsed === 'object') {
-                        setAnswers(prev => { const next = { ...parsed, ...prev }; answersRef.current = next; return next; });
-                    }
+    const res = await getPublicFormQuestions(formLink, { token, name: respondentName });
+    if (res.ok && res.data) {
+        const qList = res.data.questions || res.data || [];
+        setQuestions(qList);
+        questionsRef.current = qList;
+        try {
+            const cached = localStorage.getItem(`formup_cache_${formLink}`);
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (parsed && typeof parsed === 'object') {
+                    setAnswers(prev => { const next = { ...parsed, ...prev }; answersRef.current = next; return next; });
                 }
-            } catch {}
-        } else {
-            setError(res.message || 'Gagal memuat soal formulir.');
-        }
-    };
+            }
+        } catch {}
+        return true;
+    }
+    const alreadyDone = /sudah pernah mengerjakan|hanya 1 kali pengerjaan|sudah disubmit/i.test(res.message || '');
+    if (alreadyDone) {
+        try { localStorage.setItem(`formup_submitted_${formLink}`, 'blocked'); } catch {}
+        setForm(prev => prev ? { ...prev, alreadySubmitted: true } : prev);
+    } else {
+        setError(res.message || 'Gagal memuat soal formulir.');
+    }
+    return false;
+};
 
     useEffect(() => {
         const load = async () => {
@@ -664,8 +727,8 @@ export default function FormRunnerPage() {
                 if (savedToken) setTokenInput(savedToken);
 
                 if (!f.requiresToken) {
-                    setTokenUnlocked(true);
-                    await loadQuestions();
+                    const ok = await loadQuestions();
+                    if (ok) setTokenUnlocked(true);
                 } else if (savedToken) {
                     const unlockRes = await getPublicFormQuestions(formLink, { token: savedToken, name: currentUser?.fullname || '' });
                     if (unlockRes.ok && unlockRes.data) {
@@ -673,6 +736,12 @@ export default function FormRunnerPage() {
                         const qList = unlockRes.data.questions || unlockRes.data || [];
                         setQuestions(qList);
                         questionsRef.current = qList;
+                    } else {
+                        const alreadyDone = /sudah pernah mengerjakan|hanya 1 kali pengerjaan|sudah disubmit/i.test(unlockRes.message || '');
+                        if (alreadyDone) {
+                            try { localStorage.setItem(`formup_submitted_${formLink}`, 'blocked'); } catch {}
+                            setForm(prev => prev ? { ...prev, alreadySubmitted: true } : prev);
+                        }
                     }
                 }
 
@@ -748,9 +817,8 @@ export default function FormRunnerPage() {
     };
 
     const handleUnlockToken = async (e) => {
-        e.preventDefault();
-        primeViolationAudio();
-        setError('');
+    e.preventDefault();
+    setError('');
         const token = tokenInput.trim();
         const res = await getPublicFormQuestions(formLink, { token, name: respondentName });
         if (res.ok && res.data) {
@@ -840,20 +908,7 @@ export default function FormRunnerPage() {
                     sessionStorage.removeItem(`formup_exam_session_${formLink}`);
                     sessionStorage.removeItem(`formup_violations_${formLink}`);
                 } catch {}
-<<<<<<< HEAD
-                if (isActuallyDisqualified) {
-                    setIsDisqualified(true);
-                    return true;
-                }
-                navigate(`/f/${formLink}/result/${responseId}`, {
-                    state: {
-                        guestToken: d?.guestToken || null,
-                        isDisqualified: isActuallyDisqualified,
-                    }
-                });
-=======
                 navigate(`/f/${formLink}/result/${responseId}`, { state: { guestToken: d?.guestToken || null } });
->>>>>>> 7393fd95d2eae2ca95ff7620bd3aaebed568a1b2
                 return true;
             };
             const res = await submitPublicFormResponse(formLink, payload);
@@ -932,7 +987,7 @@ export default function FormRunnerPage() {
                         </p>
                     </div>
 
-                    <div className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/80 rounded-2xl space-y-1">
+                    {/* <div className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/80 rounded-2xl space-y-1">
                         <div className="text-[11px] font-extrabold text-red-600 dark:text-red-400 uppercase tracking-wider">
                             Status Penilaian
                         </div>
@@ -942,7 +997,7 @@ export default function FormRunnerPage() {
                         <p className="text-[11px] text-red-600/80 dark:text-red-400/80 font-bold">
                             Didiskualifikasi karena pelanggaran sistem ujian
                         </p>
-                    </div>
+                    </div> */}
 
                     <div className="pt-2">
                         <button

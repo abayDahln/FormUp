@@ -1100,9 +1100,6 @@ class FormRunnerViewState extends State<FormRunnerView>
     final info = _c.info;
     // Info belum ada (kode kosong / load gagal / pemilik): jangan paksa `!`,
     // tampilkan layar error yang bisa kembali ke Informasi Form.
-<<<<<<< HEAD
-    if (info == null) {
-=======
     // Error koneksi: tampilkan retry, bukan hanya tombol Kembali.
     if (info == null) {
       final msg = _loadError ?? 'Data form tidak tersedia.';
@@ -1122,7 +1119,6 @@ class FormRunnerViewState extends State<FormRunnerView>
           ),
         );
       }
->>>>>>> 7393fd95d2eae2ca95ff7620bd3aaebed568a1b2
       return Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),

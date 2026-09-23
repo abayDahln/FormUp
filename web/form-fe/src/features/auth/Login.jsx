@@ -307,12 +307,11 @@ const Login = () => {
 
             </main>
 
-            {/* Footer */}
-            <footer className="relative z-10 w-full text-center py-2">
+            {/* <footer className="relative z-10 w-full text-center py-2">
                 <p className="text-xs font-medium text-teal-100/60">
                     &copy; {new Date().getFullYear()} FormUp. All rights reserved.
                 </p>
-            </footer>
+            </footer> */}
         </div>
     );
 };

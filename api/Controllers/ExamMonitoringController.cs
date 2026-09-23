@@ -487,50 +487,7 @@ public class ExamMonitoringController : ControllerBase
 
         // Nyalakan 1 token buka (riwayat submit + sesi dipertahankan) +
         // bersihkan sisa draft "new" agar percobaan baru mulai bersih.
-<<<<<<< HEAD
-<<<<<<< HEAD
-        // Tanpa jatah ini, one-response tetap terkunci oleh respons lama.
-<<<<<<< HEAD
-        var hasIdentity = session.RespondentId.HasValue || !string.IsNullOrWhiteSpace(session.RespondentName);
-        var extra = 0;
-        if (hasIdentity)
-        {
-            extra = await AttemptAllowance.GrantExtraAttemptAsync(
-                _db, formId, session.RespondentId, session.RespondentName);
-
-            var newStatusId = await ReferenceCache.GetResponseStatusIdAsync(_db, "new");
-            if (newStatusId.HasValue)
-            {
-                var drafts = await _db.Responses
-                    .Where(r => r.FormId == formId
-                        && r.StatusId == newStatusId.Value
-                        && (session.RespondentId.HasValue
-                            ? r.RespondentId == session.RespondentId
-                            : r.RespondentId == null && r.RespondentName == session.RespondentName))
-                    .ToListAsync();
-                if (drafts.Count > 0)
-                {
-                    var draftIds = drafts.Select(d => d.Id).ToList();
-                    var draftAnswers = await _db.RespondentAnswers
-                        .Where(a => draftIds.Contains(a.ResponseId))
-                        .ToListAsync();
-                    _db.RespondentAnswers.RemoveRange(draftAnswers);
-                    _db.Responses.RemoveRange(drafts);
-                }
-            }
-        }
-
-        await _db.SaveChangesAsync();
-        return Ok(new ApiResponse<object>(200, hasIdentity
-            ? $"Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan."
-            : "Jawaban peserta berhasil di-reset."));
-=======
-=======
         // Tanpa token ini, one-response tetap terkunci oleh respons lama.
->>>>>>> 095c2ebf8341912d618d7db42037ed2c784fae43
-=======
-        // Tanpa token ini, one-response tetap terkunci oleh respons lama.
->>>>>>> 7393fd95d2eae2ca95ff7620bd3aaebed568a1b2
         // Sesi lama tetap tertaut ke respons lama sebagai riwayat;
         // pengerjaan ulang memakai SESI BARU (sessionId baru dari klien).
         // Identitas diambil dari respons yang disubmit (bukan semata sesi)
@@ -573,16 +530,7 @@ public class ExamMonitoringController : ControllerBase
             _db, formId, respondentId, respondentName);
 
         return Ok(new ApiResponse<object>(200,
-<<<<<<< HEAD
-<<<<<<< HEAD
-            $"Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan. Peserta dapat mengerjakan kembali dengan sesi baru."));
->>>>>>> origin/main
-=======
             "Jawaban peserta berhasil di-reset. Data lama dipertahankan sebagai riwayat. Form dibuka kembali — peserta dapat mengerjakan satu kali pengerjaan ulang dengan sesi baru."));
->>>>>>> 095c2ebf8341912d618d7db42037ed2c784fae43
-=======
-            "Jawaban peserta berhasil di-reset. Data lama dipertahankan sebagai riwayat. Form dibuka kembali — peserta dapat mengerjakan satu kali pengerjaan ulang dengan sesi baru."));
->>>>>>> 7393fd95d2eae2ca95ff7620bd3aaebed568a1b2
     }
 
     /// <summary>

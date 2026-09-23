@@ -4,15 +4,22 @@ import Sidebar from '../../../components/layout/Sidebar';
 import Topbar from '../../../components/layout/Topbar';
 import ConfirmModal from '../../../components/ui/ConfirmModal';
 import AIFormBuilderModal from '../../../components/ui/AIFormBuilderModal';
+
+// Import Material Web Components
+import '@material/web/checkbox/checkbox.js';
+import '@material/web/button/outlined-button.js';
+import '@material/web/button/filled-button.js';
+import '@material/web/icon/icon.js';
+
 import {
     Plus, MoreVertical, MessageSquare, Calendar,
-    Edit3, Eye, Trash2, CheckCircle2, FileText,
-    ChevronLeft, ChevronRight, ChevronDown, Square, CheckSquare, Copy, Sparkles, Loader2
+    Edit3, Eye, Trash2, FileText,
+    ChevronLeft, ChevronRight, ChevronDown, Copy, Sparkles, Loader2, CheckSquare
 } from 'lucide-react';
 import { getMyForms, deleteForm, clearSession, assetUrl, createForm, bulkDeleteForms, getQuestions, saveQuestions } from '../../../services/apiService';
 import useDebounce from '../../../hooks/useDebounce';
 
-const ITEMS_PER_PAGE = 7; // 7 form cards + 1 create card = 8 cards on page 1
+const ITEMS_PER_PAGE = 8; // Disesuaikan untuk grid 4 kolom
 
 const MyForms = () => {
     const navigate = useNavigate();
@@ -47,7 +54,7 @@ const MyForms = () => {
     // AI Form Builder
     const [aiFormBuilderOpen, setAiFormBuilderOpen] = useState(false);
 
-    // FEAT-10b: Duplicate form state
+    // Duplicate form state
     const [duplicatingId, setDuplicatingId] = useState(null);
 
     useEffect(() => {
@@ -114,6 +121,45 @@ const MyForms = () => {
         }
     };
 
+    const publishedForms = myForms.filter(f => f.status?.toLowerCase() === 'published');
+    const draftForms = myForms.filter(f => f.status?.toLowerCase() === 'draft');
+
+    const filteredForms = useMemo(() => {
+        return myForms.filter((form) => {
+            const s = form.status?.toLowerCase() ?? 'draft';
+            if (activeTab === 'Published' && s !== 'published') return false;
+            if (activeTab === 'Draft' && s !== 'draft') return false;
+
+            if (debouncedSearch.trim()) {
+                const q = debouncedSearch.toLowerCase();
+                return (
+                    (form.title && form.title.toLowerCase().includes(q)) ||
+                    (form.description && form.description.toLowerCase().includes(q)) ||
+                    (form.status && form.status.toLowerCase().includes(q))
+                );
+            }
+
+            return true;
+        });
+    }, [myForms, activeTab, debouncedSearch]);
+
+    // Reset ke halaman 1 jika pencarian atau tab berubah
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeTab, debouncedSearch]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredForms.length / ITEMS_PER_PAGE));
+    const pagedForms = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredForms.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredForms, currentPage]);
+
+    // ==========================================
+    // LOGIKA DIATAS PENGGUNAAN MATERIAL CHECKBOX
+    // ==========================================
+    const isAllSelected = pagedForms.length > 0 && selectedIds.size === pagedForms.length;
+    const isSomeSelected = selectedIds.size > 0 && selectedIds.size < pagedForms.length;
+
     const toggleSelect = (id) => {
         setSelectedIds(prev => {
             const next = new Set(prev);
@@ -123,10 +169,18 @@ const MyForms = () => {
     };
 
     const toggleSelectAll = () => {
-        if (selectedIds.size === pagedForms.length) {
+        if (isAllSelected) {
             setSelectedIds(new Set());
         } else {
             setSelectedIds(new Set(pagedForms.map(f => f.id)));
+        }
+    };
+
+    const handleMainSelectToggle = () => {
+        if (!selectMode) {
+            setSelectMode(true);
+        } else {
+            toggleSelectAll();
         }
     };
 
@@ -192,7 +246,6 @@ const MyForms = () => {
         }
     };
 
-    // FEAT-10b: Duplicate form
     const handleDuplicateForm = async (formId, formTitle) => {
         setOpenMenuId(null);
         setDuplicatingId(formId);
@@ -228,40 +281,6 @@ const MyForms = () => {
         }
     };
 
-    const publishedForms = myForms.filter(f => f.status?.toLowerCase() === 'published');
-    const draftForms = myForms.filter(f => f.status?.toLowerCase() === 'draft');
-    const totalResponses = myForms.reduce((acc, f) => acc + (f.responseCount ?? 0), 0);
-
-    const filteredForms = useMemo(() => {
-        return myForms.filter((form) => {
-            const s = form.status?.toLowerCase() ?? 'draft';
-            if (activeTab === 'Published' && s !== 'published') return false;
-            if (activeTab === 'Draft' && s !== 'draft') return false;
-
-            if (debouncedSearch.trim()) {
-                const q = debouncedSearch.toLowerCase();
-                return (
-                    (form.title && form.title.toLowerCase().includes(q)) ||
-                    (form.description && form.description.toLowerCase().includes(q)) ||
-                    (form.status && form.status.toLowerCase().includes(q))
-                );
-            }
-
-            return true;
-        });
-    }, [myForms, activeTab, debouncedSearch]);
-
-    // Reset to page 1 on search or tab switch
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [activeTab, debouncedSearch]);
-
-    const totalPages = Math.max(1, Math.ceil(filteredForms.length / ITEMS_PER_PAGE));
-    const pagedForms = useMemo(() => {
-        const start = (currentPage - 1) * ITEMS_PER_PAGE;
-        return filteredForms.slice(start, start + ITEMS_PER_PAGE);
-    }, [filteredForms, currentPage]);
-
     const tabs = [
         { id: 'All', label: `Semua (${myForms.length})` },
         { id: 'Published', label: `Dipublikasikan (${publishedForms.length})` },
@@ -269,385 +288,426 @@ const MyForms = () => {
     ];
 
     return (
-        <div className="flex h-screen w-full bg-[#F8FAFC] dark:bg-slate-950 font-sans antialiased text-slate-800 dark:text-slate-100 overflow-hidden transition-colors">
-            
-            <Sidebar />
+  <div className="flex h-screen w-full bg-[#F8FAFC] dark:bg-slate-950 font-sans antialiased text-slate-800 dark:text-slate-100 overflow-hidden transition-colors">
+    <Sidebar />
 
-            <div className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto">
-                {/* Full Width Layout - Tanpa max-w-7xl agar tidak kosong kanan kiri */}
-                <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+  <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 space-y-6">
+    <Topbar 
+      searchQuery={searchQuery} 
+      onSearchChange={setSearchQuery} 
+      placeholder="Cari..." 
+    />
 
-                    <Topbar 
-                        searchQuery={searchQuery} 
-                        onSearchChange={setSearchQuery} 
-                        placeholder="Cari formulir Anda..." 
-                    />
-
-                    {/* Header & Tabs */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
-                        <div>
-                            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Formulir Saya</h1>
-                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">
-                                Kelola dan pantau seluruh koleksi formulir Anda.
-                            </p>
-                        </div>
-
-                        <div className="w-full sm:w-auto grid grid-cols-3 sm:flex items-center bg-slate-200/60 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 gap-1">
-                        {tabs.map((tab) => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`w-full px-2 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer text-center whitespace-nowrap ${
-                                    activeTab === tab.id
-                                        ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-400 shadow-xs'
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                                }`}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
-                    </div>
-                    </div>
-
-                    {/* Stats Grid - Diset grid-cols-2 untuk mobile agar 1 baris */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                        <div className="bg-[#005B52] dark:bg-teal-950/70 rounded-2xl p-4 sm:p-5 text-white shadow-xs relative overflow-hidden border border-teal-800/30 flex flex-col justify-between">
-                            <div className="relative z-10">
-                                <p className="text-teal-200/90 font-bold text-[10px] uppercase tracking-wider mb-1">Total Respons</p>
-                                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{totalResponses.toLocaleString('id-ID')}</h2>
-                            </div>
-                            <div className="absolute -right-6 -bottom-6 w-24 sm:w-28 h-24 sm:h-28 bg-white/10 rounded-full blur-xl pointer-events-none" />
-                        </div>
-
-                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col justify-between">
-                            <div>
-                                <p className="text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-wider mb-1">Formulir Aktif</p>
-                                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">{publishedForms.length}</h2>
-                            </div>
-                            <p className="text-[#00897B] dark:text-teal-400 flex items-center text-[10px] sm:text-xs font-bold mt-2">
-                                <CheckCircle2 className="w-3.5 h-3.5 mr-1 shrink-0" /> Aktif & menerima
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Selection Controls - Lebih Besar & Jelas */}
-                    <div className="flex items-center justify-between pt-2">
-                        <button
-                            onClick={() => {
-                                if (!selectMode) {
-                                    setSelectMode(true);
-                                } else {
-                                    toggleSelectAll();
-                                }
-                            }}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold border-2 transition-all cursor-pointer ${
-                                selectMode
-                                    ? 'bg-teal-500 text-white border-teal-500 shadow-sm'
-                                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:border-teal-500 dark:hover:border-teal-400'
-                            }`}
-                        >
-                            {selectMode && selectedIds.size === pagedForms.length ? (
-                                <CheckSquare size={18} className="text-white" />
-                            ) : (
-                                <Square size={18} />
-                            )}
-                            <span>
-                                {!selectMode
-                                    ? 'Pilih Beberapa'
-                                    : selectedIds.size === pagedForms.length
-                                    ? 'Batal Pilih Semua'
-                                    : 'Pilih Semua'}
-                            </span>
-                        </button>
-
-                        {selectMode && (
-                            <button
-                                onClick={() => {
-                                    setSelectMode(false);
-                                    setSelectedIds(new Set());
-                                }}
-                                className="text-xs sm:text-sm font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white bg-slate-200/60 dark:bg-slate-800 px-3.5 py-2 rounded-xl transition-colors cursor-pointer"
-                            >
-                                Selesai
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Floating Bottom Bar - Lebih Tebal & Jelas */}
-                    {selectMode && selectedIds.size > 0 && (
-                        <div className="fixed bottom-5 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md z-50 bg-slate-900/95 dark:bg-slate-800/95 text-white backdrop-blur-lg px-5 py-3.5 rounded-2xl shadow-2xl border border-slate-700 flex items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-5 duration-200">
-                            <div className="flex items-center gap-2">
-                                <span className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-pulse" />
-                                <span className="text-xs sm:text-sm font-semibold text-slate-200">
-                                    <strong className="text-white font-extrabold text-sm sm:text-base">{selectedIds.size}</strong> dipilih
-                                </span>
-                            </div>
-
-                            <button
-                                onClick={triggerBulkDelete}
-                                disabled={actionLoading === 'bulk'}
-                                className="flex items-center gap-2 bg-rose-600 hover:bg-rose-500 text-white text-xs sm:text-sm font-bold px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md active:scale-95 disabled:opacity-60"
-                            >
-                                <Trash2 size={16} />
-                                Hapus Formulir
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Cards Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" ref={menuRef}>
-                        {/* Unified Create Form Card with dropdown options */}
-                        <div
-                            ref={createMenuRef}
-                            className="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl min-h-[240px] flex flex-col items-center justify-center hover:border-[#00897B] dark:hover:border-teal-400 hover:bg-teal-50/10 dark:hover:bg-teal-950/10 transition-all group p-6 text-center relative"
-                        >
-                            <div className="w-12 h-12 bg-teal-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform text-[#00897B] dark:text-teal-400 border border-teal-200/60 dark:border-slate-700">
-                                <Plus className="w-6 h-6" />
-                            </div>
-                            <h3 className="text-slate-900 dark:text-white font-bold text-sm mb-1">
-                                Buat Formulir Baru
-                            </h3>
-                            <p className="text-slate-400 dark:text-slate-500 text-xs font-medium max-w-[170px] mb-4">
-                                Pilih cara pembuatan formulir Anda
-                            </p>
-                            <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); setShowCreateMenu(!showCreateMenu); }}
-                                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-white hover:border-teal-500 hover:text-teal-600 dark:hover:bg-slate-900 dark:hover:text-teal-400 transition-all cursor-pointer"
-                            >
-                                <Plus size={13} /> Pilih Cara Buat
-                                <ChevronDown size={13} className={`transition-transform ${showCreateMenu ? 'rotate-180' : ''}`} />
-                            </button>
-
-                            {showCreateMenu && (
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden z-30 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                                    <button
-                                        type="button"
-                                        onClick={() => { setShowCreateMenu(false); handleCreateNewForm(); }}
-                                        disabled={creatingForm}
-                                        className="w-full px-4 py-3 text-left border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-60"
-                                    >
-                                        <div className="flex items-center gap-2.5">
-                                            <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300">
-                                                <Edit3 size={15} />
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-extrabold text-slate-900 dark:text-white">
-                                                    {creatingForm ? 'Menyiapkan...' : 'Buat Manual'}
-                                                </p>
-                                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                                                    Susun soal dari awal
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => { setShowCreateMenu(false); setAiFormBuilderOpen(true); }}
-                                        className="w-full px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                                    >
-                                        <div className="flex items-center gap-2.5">
-                                            <div className="w-8 h-8 rounded-lg bg-teal-50 dark:bg-teal-950/40 flex items-center justify-center text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/40">
-                                                <Sparkles size={15} />
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-extrabold text-slate-900 dark:text-white">
-                                                    Buat dengan AI
-                                                </p>
-                                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                                                    Deskripsikan, AI susun soal
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-
-                        {loading ? (
-                            <div className="col-span-full py-16 text-center text-slate-400 dark:text-slate-500 text-sm font-medium">
-                                Memuat formulir...
-                            </div>
-                        ) : filteredForms.length === 0 ? (
-                            <div className="col-span-full py-16 text-center text-slate-400 dark:text-slate-500 text-sm font-medium">
-                                {debouncedSearch ? `Tidak ada formulir yang cocok dengan "${debouncedSearch}".` : 'Belum ada formulir pada tab ini.'}
-                            </div>
-                        ) : (
-                            pagedForms.map((form) => {
-                                const status = typeof form.status === 'string' ? form.status : 'draft';
-                                const isPublished = status.toLowerCase() === 'published';
-                                const responseCount = form.responseCount ?? 0;
-                                const isActing = actionLoading === form.id;
-                                const createdDate = form.createdAt
-                                    ? new Date(form.createdAt).toLocaleDateString('id-ID', { month: 'short', day: 'numeric', year: 'numeric' })
-                                    : 'Baru saja';
-
-                                const isSelected = selectedIds.has(form.id);
-
-                                return (
-                                    <div
-                                        key={form.id}
-                                        onClick={() => selectMode && toggleSelect(form.id)}
-                                        className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between group ${isActing ? 'opacity-60 pointer-events-none' : ''} ${selectMode ? 'cursor-pointer' : ''} ${isSelected ? 'border-[#00897B] ring-2 ring-[#00897B]/30' : 'border-slate-200/80 dark:border-slate-800'}`}
-                                    >
-                                        <div className="h-32 bg-slate-100 dark:bg-slate-800/60 relative p-3 flex items-start justify-between border-b border-slate-100 dark:border-slate-800 overflow-hidden">
-                                            {form.bannerImage ? (
-                                                <img 
-                                                    src={assetUrl(form.bannerImage)} 
-                                                    alt={form.title} 
-                                                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-                                                />
-                                            ) : (
-                                                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-teal-50/40 to-slate-100 dark:from-slate-800 dark:to-slate-900">
-                                                    <FileText size={32} className="text-[#00897B]/25 dark:text-teal-400/25" />
-                                                </div>
-                                            )}
-
-                                            {/* Checkbox Overlay */}
-                                            {selectMode && (
-                                                <div className="absolute top-2.5 left-2.5 z-20" onClick={e => { e.stopPropagation(); toggleSelect(form.id); }}>
-                                                    {isSelected
-                                                        ? <CheckSquare size={18} className="text-[#00897B] bg-white rounded-md shadow-xs" />
-                                                        : <Square size={18} className="text-slate-400 bg-white/90 rounded-md shadow-xs" />
-                                                    }
-                                                </div>
-                                            )}
-
-                                            <span className={`relative z-10 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wide shadow-xs ${selectMode ? 'ml-6' : ''} ${
-                                                isPublished 
-                                                    ? 'bg-emerald-600 text-white' 
-                                                    : 'bg-slate-800/80 text-white backdrop-blur-md'
-                                            }`}>
-                                                {isPublished ? 'Dipublikasikan' : 'Draf'}
-                                            </span>
-
-                                            <div className="relative z-10 ml-auto">
-                                                <button
-                                                    onClick={() => setOpenMenuId(openMenuId === form.id ? null : form.id)}
-                                                    className="p-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-lg text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-all cursor-pointer"
-                                                >
-                                                    <MoreVertical className="w-4 h-4" />
-                                                </button>
-
-                                                {/* Menu Dropdown */}
-                                                {openMenuId === form.id && (
-                                                    <div className="absolute right-0 top-8 w-40 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 py-1 overflow-hidden">
-                                                        <button
-                                                            onClick={() => handleDuplicateForm(form.id, form.title)}
-                                                            disabled={duplicatingId === form.id}
-                                                            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer disabled:opacity-60"
-                                                        >
-                                                            {duplicatingId === form.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
-                                                            {duplicatingId === form.id ? 'Menduplikasi...' : 'Duplikat Form'}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => triggerDelete(form.id)}
-                                                            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                                                        >
-                                                            <Trash2 className="w-3.5 h-3.5" /> Hapus
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="p-4 flex flex-col flex-1 space-y-3">
-                                            <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-snug line-clamp-1 group-hover:text-[#00897B] dark:group-hover:text-teal-400 transition-colors">
-                                                {form.title || 'Formulir Tanpa Judul'}
-                                            </h3>
-
-                                            <div className="flex items-center gap-3 text-xs font-medium text-slate-400 dark:text-slate-500">
-                                                <span className="flex items-center gap-1">
-                                                    <MessageSquare className="w-3.5 h-3.5 shrink-0" /> {responseCount}
-                                                </span>
-                                                <span className="flex items-center gap-1">
-                                                    <Calendar className="w-3.5 h-3.5 shrink-0" /> {createdDate}
-                                                </span>
-                                            </div>
-
-                                            <div className="mt-auto flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                                                <button
-                                                    onClick={() => navigate(`/forms/${form.id}/edit`)}
-                                                    className="flex-1 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold py-1.5 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-colors cursor-pointer"
-                                                >
-                                                    <Edit3 className="w-3.5 h-3.5" /> Edit
-                                                </button>
-                                                <button
-                                                    onClick={() => navigate(`/forms/${form.id}/responses`)}
-                                                    className="flex-1 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold py-1.5 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-colors cursor-pointer"
-                                                >
-                                                    <Eye className="w-3.5 h-3.5" /> Respons
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })
-                        )}
-                    </div>
-
-                    {/* Pagination */}
-                    {totalPages > 1 && (
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200/80 dark:border-slate-800">
-                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                                Menampilkan halaman <span className="font-bold text-slate-900 dark:text-white">{currentPage}</span> dari <span className="font-bold text-slate-900 dark:text-white">{totalPages}</span> (total {filteredForms.length} formulir)
-                            </p>
-                            <div className="flex items-center gap-1.5">
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
-                                    title="Halaman Sebelumnya"
-                                >
-                                    <ChevronLeft size={16} />
-                                </button>
-                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
-                                    <button
-                                        key={pageNum}
-                                        onClick={() => setCurrentPage(pageNum)}
-                                        className={`w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                            currentPage === pageNum
-                                                ? 'bg-[#00897B] text-white shadow-xs'
-                                                : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                                        }`}
-                                    >
-                                        {pageNum}
-                                    </button>
-                                ))}
-                                <button
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                    disabled={currentPage === totalPages}
-                                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
-                                    title="Halaman Selanjutnya"
-                                >
-                                    <ChevronRight size={16} />
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                </main>
+        {/* Header, Tombol Buat Baru, & Filter Tabs */}
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Formulir Saya</h1>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">
+                Kelola dan pantau seluruh koleksi formulir Anda.
+              </p>
             </div>
 
-            <ConfirmModal 
-                isOpen={confirmModal.isOpen}
-                onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
-                onConfirm={executeDelete}
-                title={confirmModal.title}
-                message={confirmModal.message}
-                variant={confirmModal.variant}
-                confirmText={confirmModal.confirmText}
-                isLoading={actionLoading !== null}
-            />
+            {/* Action: Buat Form Baru */}
+            <div className="relative" ref={createMenuRef}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setShowCreateMenu(!showCreateMenu); }}
+                className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-[#00897B] hover:bg-[#00796B] text-white text-xs sm:text-sm font-bold transition-all shadow-xs hover:shadow-md active:scale-95 cursor-pointer"
+              >
+                <Plus size={18} /> 
+                <span>Buat Formulir</span>
+                <ChevronDown size={16} className={`transition-transform duration-200 ${showCreateMenu ? 'rotate-180' : ''}`} />
+              </button>
 
-            {/* AI-1: AI Form Builder Modal */}
-            <AIFormBuilderModal
-                isOpen={aiFormBuilderOpen}
-                onClose={() => setAiFormBuilderOpen(false)}
-                onFormCreated={(newId) => navigate(`/forms/${newId}/edit`)}
-            />
+              {showCreateMenu && (
+                <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden z-30 p-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <button
+                    type="button"
+                    onClick={() => { setShowCreateMenu(false); handleCreateNewForm(); }}
+                    disabled={creatingForm}
+                    className="w-full p-3 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-60"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
+                        <Edit3 size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">
+                          {creatingForm ? 'Menyiapkan...' : 'Buat Manual'}
+                        </p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">
+                          Susun soal dari awal
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowCreateMenu(false); setAiFormBuilderOpen(true); }}
+                    className="w-full p-3 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/50 flex items-center justify-center text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/50 shrink-0">
+                        <Sparkles size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">
+                          Buat dengan AI
+                        </p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">
+                          Deskripsikan, AI susun soal
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Filter Tabs & Selection Mode */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Tab Navigasi */}
+            <div className="inline-flex items-center bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/50 gap-1">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Kontrol Seleksi Massal dengan Checkbox & Tombol X */}
+            <div className="flex items-center gap-2">
+              {selectMode ? (
+                <div className="inline-flex items-center bg-slate-200/60 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/60 gap-1.5">
+                  {/* Checkbox + Label Pilih Semua */}
+                  <button
+                    type="button"
+                    onClick={toggleSelectAll}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-bold text-teal-600 dark:text-teal-400 hover:bg-white/50 dark:hover:bg-slate-700/50 transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                      selectedIds.size === pagedForms.length && pagedForms.length > 0
+                        ? 'bg-teal-500 border-teal-500 text-slate-950'
+                        : 'border-slate-400 dark:border-slate-500 bg-transparent'
+                    }`}>
+                      {selectedIds.size === pagedForms.length && pagedForms.length > 0 && (
+                        <svg className="w-3 h-3 stroke-[3]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </div>
+                    <span>
+                      {selectedIds.size === pagedForms.length && pagedForms.length > 0
+                        ? 'Batal Pilih Semua'
+                        : 'Pilih Semua'}
+                    </span>
+                  </button>
+
+                  {/* Separator Tipis */}
+                  <div className="h-4 w-[1px] bg-slate-300 dark:bg-slate-700" />
+
+                  {/* Tombol Batal Berupa Ikon Silang (X) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectMode(false);
+                      setSelectedIds(new Set());
+                    }}
+                    title="Tutup Mode Pilih"
+                    className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50 transition-all cursor-pointer"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                /* Tombol Masuk Mode Pilih - Disamakan Style & Ukurannya dengan Tab Navigasi */
+                <div className="inline-flex items-center bg-slate-200/60 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/60">
+                  <button
+                    type="button"
+                    onClick={() => setSelectMode(true)}
+                    className="flex items-center gap-2.5 px-4 py-1.5 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50 transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    <div className="w-4 h-4 rounded border-2 border-slate-400 dark:border-slate-500" />
+                    <span>Hapus Form</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-    );
+
+        {/* Floating Bulk Action Bar */}
+        {selectMode && selectedIds.size > 0 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200">
+            <div className="bg-slate-900 border border-slate-800 text-white px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-4">
+              <span className="text-xs font-medium text-slate-300">
+                <strong className="text-white font-bold">{selectedIds.size}</strong> item dipilih
+              </span>
+
+              <div className="h-4 w-[1px] bg-slate-800" />
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectMode(false);
+                    setSelectedIds(new Set());
+                  }}
+                  className="text-xs font-medium text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+
+                <button
+                  type="button"
+                  onClick={triggerBulkDelete}
+                  disabled={actionLoading === 'bulk'}
+                  className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold px-3.5 py-1.5 rounded-xl transition-colors active:scale-95 disabled:opacity-60 cursor-pointer"
+                >
+                  <Trash2 size={14} />
+                  <span>Hapus</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5" ref={menuRef}>
+          {loading ? (
+            <div className="col-span-full py-16 text-center text-slate-400 dark:text-slate-500 text-sm font-medium">
+              Memuat formulir...
+            </div>
+          ) : filteredForms.length === 0 ? (
+            <div className="col-span-full py-16 text-center text-slate-400 dark:text-slate-500 text-sm font-medium">
+              {debouncedSearch ? `Tidak ada formulir yang cocok dengan "${debouncedSearch}".` : 'Belum ada formulir pada tab ini.'}
+            </div>
+          ) : (
+            pagedForms.map((form) => {
+              const status = typeof form.status === 'string' ? form.status : 'draft';
+              const isPublished = status.toLowerCase() === 'published';
+              const responseCount = form.responseCount ?? 0;
+              const isActing = actionLoading === form.id;
+              const createdDate = form.createdAt
+                ? new Date(form.createdAt).toLocaleDateString('id-ID', { month: 'short', day: 'numeric', year: 'numeric' })
+                : 'Baru saja';
+
+              const isSelected = selectedIds.has(form.id);
+
+              return (
+                <div
+                  key={form.id}
+                  onClick={() => selectMode && toggleSelect(form.id)}
+                  className={`bg-white dark:bg-slate-900 border rounded-2xl overflow-hidden shadow-2xs hover:shadow-lg hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between group ${
+                    isActing ? 'opacity-60 pointer-events-none' : ''
+                  } ${selectMode ? 'cursor-pointer' : ''} ${
+                    isSelected 
+                      ? 'border-[#00897B] ring-2 ring-[#00897B]/30' 
+                      : 'border-slate-200/80 dark:border-slate-800'
+                  }`}
+                >
+                  {/* Banner Header Card */}
+                  <div className="h-28 relative p-3 flex items-start justify-between overflow-hidden">
+                    {form.bannerImage ? (
+                      <img 
+                        src={assetUrl(form.bannerImage)} 
+                        alt={form.title} 
+                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ease-out" 
+                      />
+                    ) : (
+                      <div className="absolute inset-0 bg-gradient-to-br from-[#005B52] to-[#00897B] flex items-center justify-center overflow-hidden">
+                        <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/10 rounded-full blur-lg pointer-events-none" />
+                        <FileText size={36} className="text-white/25 group-hover:scale-105 group-hover:text-white/35 transition-all duration-200 relative z-0" />
+                      </div>
+                    )}
+
+                    {/* Checkbox Overlay on Cards */}
+                    {selectMode && (
+                      <div 
+                        className="absolute top-3 left-3 z-20 flex items-center justify-center" 
+                        onClick={(e) => { e.stopPropagation(); toggleSelect(form.id); }}
+                      >
+                        <label className="relative flex items-center justify-center p-1.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => toggleSelect(form.id)}
+                            className="peer appearance-none w-5 h-5 rounded-[5px] border-2 border-white/90 bg-slate-900/40 backdrop-blur-xs checked:bg-[#00897B] checked:border-[#00897B] transition-all cursor-pointer focus:outline-none shadow-sm"
+                          />
+                          <svg
+                            className="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity duration-150 pointer-events-none stroke-current stroke-[3]"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </label>
+                      </div>
+                    )}
+
+                    {/* Status Badge */}
+                    <span className={`relative z-10 px-2.5 py-1 rounded-full text-[10px] font-extrabold tracking-wide flex items-center gap-1.5 backdrop-blur-md shadow-2xs ${selectMode ? 'ml-8' : ''} ${
+                      isPublished 
+                        ? 'bg-emerald-500/90 text-white border border-emerald-400/30' 
+                        : 'bg-slate-900/75 text-slate-200 border border-slate-700/50'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${isPublished ? 'bg-white animate-pulse' : 'bg-slate-400'}`} />
+                      {isPublished ? 'Dipublikasikan' : 'Draf'}
+                    </span>
+
+                    {/* Menu Action Dot */}
+                    <div className="relative z-10 ml-auto">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === form.id ? null : form.id); }}
+                        className="p-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-lg text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 shadow-2xs transition-all cursor-pointer"
+                      >
+                        <MoreVertical className="w-3.5 h-3.5" />
+                      </button>
+
+                      {openMenuId === form.id && (
+                        <div className="absolute right-0 top-8 w-40 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200/80 dark:border-slate-700 z-50 p-1 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleDuplicateForm(form.id, form.title); }}
+                            disabled={duplicatingId === form.id}
+                            className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors cursor-pointer disabled:opacity-60"
+                          >
+                            {duplicatingId === form.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
+                            {duplicatingId === form.id ? 'Menduplikasi...' : 'Duplikat Form'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); triggerDelete(form.id); }}
+                            className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Hapus
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="p-4 flex flex-col flex-1 space-y-3">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-slate-900 dark:text-white leading-snug line-clamp-1 group-hover:text-[#00897B] dark:group-hover:text-teal-400 transition-colors">
+                        {form.title || 'Formulir Tanpa Judul'}
+                      </h3>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-400 dark:text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <MessageSquare className="w-3.5 h-3.5 text-slate-400" /> {responseCount} Respons
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400" /> {createdDate}
+                      </span>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="mt-auto flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/forms/${form.id}/edit`); }}
+                        className="flex-1 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 font-bold py-2 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-all cursor-pointer active:scale-95"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/forms/${form.id}/responses`); }}
+                        className="flex-1 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-200 font-bold py-2 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-all cursor-pointer active:scale-95"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Respons
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200/80 dark:border-slate-800">
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              Menampilkan halaman <span className="font-bold text-slate-900 dark:text-white">{currentPage}</span> dari <span className="font-bold text-slate-900 dark:text-white">{totalPages}</span> (total {filteredForms.length} formulir)
+            </p>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                title="Halaman Sebelumnya"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    currentPage === pageNum
+                      ? 'bg-[#00897B] text-white shadow-2xs'
+                      : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                title="Halaman Selanjutnya"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+
+    <ConfirmModal 
+      isOpen={confirmModal.isOpen}
+      onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      onConfirm={executeDelete}
+      title={confirmModal.title}
+      message={confirmModal.message}
+      variant={confirmModal.variant}
+      confirmText={confirmModal.confirmText}
+      isLoading={actionLoading !== null}
+    />
+
+    {/* AI Form Builder Modal */}
+    <AIFormBuilderModal
+      isOpen={aiFormBuilderOpen}
+      onClose={() => setAiFormBuilderOpen(false)}
+      onFormCreated={(newId) => navigate(`/forms/${newId}/edit`)}
+    />
+  </div>
+);
 };
 
 export default MyForms;

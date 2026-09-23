@@ -296,16 +296,6 @@ namespace FormUpAPI
 
             var app = builder.Build();
 
-<<<<<<< HEAD
-            // Cloudflare/nginx meneruskan IP & proto asli via header;
-            // tanpa ini UseHttpsRedirection bisa loop redirect (SSL Flexible) dan
-            // RemoteIpAddress rate-limit menjadi IP proxy, bukan IP user.
-            app.UseForwardedHeaders(new ForwardedHeadersOptions
-            {
-                ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-                // Origin berada di belakang Cloudflare → percayai header proxy dari jaringan mana pun.
-                // (Trade-off: klien bisa spoof X-Forwarded-*, tapi ini pola umum untuk setup Cloudflare.)
-=======
             // Bukti di log produksi: daftar origin efektif saat runtime.
             // Bila domain frontend tidak tercantum di sini, redeploy API
             // (build lama) atau perbaiki env ALLOWED_ORIGINS di host.
@@ -318,17 +308,13 @@ namespace FormUpAPI
             app.UseForwardedHeaders(new ForwardedHeadersOptions
             {
                 ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
->>>>>>> 7393fd95d2eae2ca95ff7620bd3aaebed568a1b2
                 KnownNetworks = { new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Any, 0) },
                 KnownProxies = { IPAddress.IPv6Any },
                 ForwardLimit = null,
             });
 
-<<<<<<< HEAD
-=======
             app.UseCors("AllowFrontend"); 
 
->>>>>>> 7393fd95d2eae2ca95ff7620bd3aaebed568a1b2
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {

@@ -190,9 +190,6 @@ Daftar semua attempt responden yang sama pada form yang sama — dicocokkan via 
 
 ---
 
-<<<<<<< HEAD
-## 6. Update Status Response (Owner)
-=======
 ## 6. Reset Pengerjaan Ulang One-Response (Owner)
 
 `POST /api/forms/{formId}/responses/{responseId}/reset`
@@ -238,7 +235,6 @@ berikutnya menghanguskan token.
 ---
 
 ## 7. Update Status Response (Owner)
->>>>>>> origin/main
 
 `PUT /api/responses/{id}/status`
 
@@ -266,11 +262,7 @@ Status (read-only di UI): `new` = draft, dikecualikan dari kuota;
 
 ---
 
-<<<<<<< HEAD
-## 7. Export Responses (Owner)
-=======
 ## 8. Export Responses (Owner)
->>>>>>> origin/main
 
 `GET /api/forms/{formId}/responses/export`
 
