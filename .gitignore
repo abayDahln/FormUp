@@ -38,7 +38,6 @@ packages/
 *.db
 *.sqlite
 *.sqlite3
-Migrations/
 
 # --- Logs ---
 *.log
@@ -75,9 +74,7 @@ package-lock.json
 plan/
 deploy-migration.bat
 deploy-update.bat
-<<<<<<< HEAD
-restart-services.bat
-=======
 restart-services.bat
 script.sql
->>>>>>> 7393fd95d2eae2ca95ff7620bd3aaebed568a1b2
+
+scripts/

@@ -296,6 +296,12 @@ Aturan:
   // Update pengaturan form
   {"action":"update_settings","formId":123,"settings":{"isExamMode":true,"themePrimaryColor":"#2A9D8F"}}
 - typeId: 1=Essay, 2=Multiple Choice, 3=Checkbox, 4=DateTime, 5=TrueFalse
+- Kontrak KUNCI JAWABAN (wajib — aksi DITOLAK otomatis bila dilanggar):
+  - typeId 2 (Pilihan Ganda): TEPAT 1 opsi "isCorrect": true — tidak boleh 0 atau 2+. "correctAnswer" = teks PERSIS opsi yang benar itu.
+  - typeId 3 (Checkbox): minimal 1 opsi benar bila soal dinilai.
+  - typeId 5: "correctAnswer" hanya "Benar" atau "Salah".
+  - Setiap opsi WAJIB objek {"optionText": "...", "isCorrect": ...} — DILARANG opsi string polos (kunci jawaban hilang).
+  - Soal tanpa skor (tanpa points/kunci): semua isCorrect=false dan correctAnswer=null.
 - Rumus matematika (WAJIB ditaati agar tampil benar di aplikasi):
   - Setiap potongan rumus WAJIB dibungkus delimiter: display (baris sendiri) dengan \$\$...\$\$, inline (dalam kalimat) dengan \\(...\\). Contoh inline: \\(x^2 + y^2 = r^2\\).
   - DILARANG rumus telanjang tanpa delimiter (contoh SALAH: "= \\int x dx" tanpa pembungkus — tidak akan tampil sebagai rumus).

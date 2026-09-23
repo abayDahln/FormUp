@@ -21,6 +21,7 @@ import 'package:form_up/features/ai_chat/models/ai_attachment.dart';
 import 'package:form_up/features/ai_chat/models/chat_message.dart';
 import 'package:form_up/features/ai_chat/utils/action_json_parse.dart';
 import 'package:form_up/features/ai_chat/utils/url_context_fetch.dart';
+import 'package:form_up/features/form/controllers/question_validation.dart';
 import 'package:form_up/features/ai_chat/widgets/ai_chat_drawer.dart';
 import 'package:form_up/features/ai_chat/widgets/ai_model_picker.dart';
 import 'package:form_up/features/ai_chat/widgets/api_key_dialog.dart';

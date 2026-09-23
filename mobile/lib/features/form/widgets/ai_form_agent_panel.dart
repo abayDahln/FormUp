@@ -901,6 +901,11 @@ Aturan:
 - typeId: 1=Essay, 2=Pilihan Ganda (min 2 opsi, tepat 1 kunci), 3=Checkbox
   (boleh >1 kunci, correctAnswer "A,C"), 4=Tanggal & Waktu (tanpa skor),
   5=Benar/Salah (correctAnswer "Benar" atau "Salah").
+- Kontrak kunci jawaban (wajib):
+  - Pilihan ganda: TEPAT 1 opsi benar — kirim "correctAnswer" = teks persis
+    opsi benar, dan/atau "isCorrect": true pada tepat 1 opsi. Jangan keduanya
+    berbeda, jangan 0, jangan 2+.
+  - Soal tanpa skor: tanpa kunci (correctAnswer kosong, semua isCorrect false).
 - index mengacu ke nomor soal pada DRAF SAAT INI (0-based, sesuai urutan).
 - Pertahankan soal yang tidak diminta diubah — kirim aksi hanya untuk yang
   berubah, ditambah add_question untuk soal baru.
@@ -970,6 +975,10 @@ ${_draftSnapshot(s, questions)}''';
       final id = v.toInt();
       if (questionTypes.containsKey(id)) return id;
     }
+    // Angka dalam bentuk string ("2") — sebelumnya jatuh ke default esai
+    // sehingga opsi + kunci ikut terbuang.
+    final asNum = int.tryParse(v?.toString().trim() ?? '');
+    if (asNum != null && questionTypes.containsKey(asNum)) return asNum;
     final s = v?.toString().toLowerCase().trim() ?? '';
     if (s.contains('checkbox')) return 3;
     if (s.contains('benar') || s.contains('true') || s.contains('false')) {
@@ -1017,9 +1026,28 @@ ${_draftSnapshot(s, questions)}''';
           ? (o['text'] ?? o['optionText'] ?? '').toString()
           : o.toString();
       if (text.trim().isEmpty) continue;
-      q.options.add(OptionDraft(text: text.trim()));
+      // Hormati flag isCorrect bawaan AI bila tanpa kunci eksplisit —
+      // sebelumnya flag ini dibuang sehingga kunci AI hilang.
+      final flag = key.isEmpty && o is Map && o['isCorrect'] == true;
+      q.options.add(OptionDraft(text: text.trim(), isCorrect: flag));
     }
     if (key.isNotEmpty && q.options.isNotEmpty) _markCorrect(q, key);
+    _enforceSingleCorrect(q);
+  }
+
+  /// Pilihan ganda: tepat 1 kunci — pertahankan yang pertama, sisanya
+  /// dimatikan. Mencegah kunci ganda lolos ke penyimpanan.
+  void _enforceSingleCorrect(QuestionDraft q) {
+    if (q.typeId != 2) return;
+    var kept = false;
+    for (final o in q.options) {
+      if (!o.isCorrect) continue;
+      if (!kept) {
+        kept = true;
+      } else {
+        o.isCorrect = false;
+      }
+    }
   }
 
   /// Draf soal baru hasil aksi add_question.
@@ -1067,9 +1095,18 @@ ${_draftSnapshot(s, questions)}''';
     }
     final options = j['options'] ?? j['opsi'];
     if (options is List && q.hasOptions) {
-      _fillOptions(q, options, key ?? q.correctAnswer.text.trim());
+      // Kunci eksplisit dari AI menang; bila tak ada, flag bawaan opsi
+      // dipakai — lalu kunci lama dicoba lagi agar tidak hilang sia-sia
+      // (mis. AI hanya menyusun ulang/redaksi opsi).
+      final explicitKey = (j['correctAnswer'] ?? j['kunci'])?.toString().trim() ?? '';
+      _fillOptions(q, options, explicitKey);
+      if (explicitKey.isEmpty && !q.options.any((o) => o.isCorrect)) {
+        _markCorrect(q, q.correctAnswer.text.trim());
+        _enforceSingleCorrect(q);
+      }
     } else if (key != null && q.options.isNotEmpty) {
       _markCorrect(q, key);
+      _enforceSingleCorrect(q);
     }
     if (q.typeId == 4) q.isScorable = false;
   }
