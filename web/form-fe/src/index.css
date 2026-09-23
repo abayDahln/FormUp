@@ -117,6 +117,7 @@
 
 /* Styling & Theming Global untuk Material Web Components */
 @layer components {
+<<<<<<< Updated upstream
   /* 1. Global Tokens (Berlaku untuk semua komponen Material Web) */
   :root {
     /* Brand Accent Main (#00897B / #0d9488) */
@@ -180,5 +181,32 @@
     --md-sys-color-primary: #2dd4bf; /* Teal terang untuk dark mode agar kontras */
     --md-filled-button-container-color: #00897B;
     --md-filled-button-label-text-color: #ffffff;
+=======
+  /* Dynamic Variables alignment with App Theme */
+  md-outlined-text-field,
+  md-filled-text-field {
+    width: 100%;
+    /* Mengikuti variabel warna bawaan Anda */
+    --md-sys-color-primary: #0d9488; /* Teal-600 */
+    --md-sys-color-on-surface: var(--text-primary);
+    --md-sys-color-on-surface-variant: var(--text-secondary);
+    --md-sys-color-outline: var(--border-color);
+    --md-sys-color-surface: var(--bg-card);
+    --md-outlined-text-field-container-shape: 12px;
+  }
+
+  md-filled-button,
+  md-outlined-button,
+  md-text-button {
+    --md-sys-color-primary: #0d9488;
+    --md-filled-button-container-color: #0d9488;
+    --md-filled-button-label-text-color: #ffffff;
+    --md-filled-button-container-shape: 12px;
+  }
+
+  md-checkbox {
+    --md-sys-color-primary: #0d9488;
+    --md-sys-color-on-surface-variant: var(--text-secondary);
+>>>>>>> Stashed changes
   }
 }

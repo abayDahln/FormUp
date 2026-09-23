@@ -54,7 +54,11 @@ export default function Sidebar({ onStartTour = null }) {
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { path: '/my-forms', icon: Folder, label: 'Formulir' },
         { path: '/responses', icon: MessageSquare, label: 'Respons' },
+<<<<<<< Updated upstream
         // { path: '/templates', icon: LayoutTemplate, label: 'Templat' },
+=======
+        { path: '/templates', icon: LayoutTemplate, label: 'Templat' },
+>>>>>>> Stashed changes
         { path: '/ai-chat', icon: Bot, label: 'AI Chat' },
     ];
 

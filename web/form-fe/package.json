@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@material/web": "^2.5.0",
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.8.0",
     "@studio-freight/lenis": "^1.0.42",
     "@tailwindcss/vite": "^4.3.3",
     "framer-motion": "^13.3.0",
@@ -19,7 +21,8 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "three": "^0.186.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
