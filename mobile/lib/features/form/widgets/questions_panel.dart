@@ -71,6 +71,11 @@ class QuestionsPanelState extends State<QuestionsPanel>
   bool _importing = false;
   double? _progress;
 
+  /// True setelah daftar soal berhasil dimuat dari server minimal sekali.
+  /// Dipakai pengaman simpan: draf kosong yang belum pernah dimuat (mis.
+  /// gagal koneksi) tidak boleh memicu deleteAllQuestions di server.
+  bool _hasLoadedServer = false;
+
   /// formId efektif: mulai dari widget, diadopsi belakangan bila awalnya
   /// null (dual form baru). Tidak pernah me-reload saat adopsi.
   int? _formId;
@@ -86,6 +91,18 @@ class QuestionsPanelState extends State<QuestionsPanel>
   bool get isQuestionsEmpty => _questions.isEmpty;
   bool get canEditQuestions => !widget.questionsLocked;
   int? get currentFormId => _formId;
+
+  /// True saat daftar soal masih dimuat dari server — parent wajib
+  /// menahan tombol Simpan global selama ini (draf kosong sementara bisa
+  /// menghapus seluruh soal bila dipaksakan simpan).
+  bool get isLoading => _loading;
+
+  /// Validasi draf soal tanpa efek samping (dipakai parent sebelum
+  /// menyimpan pengaturan, agar keduanya gagal/berhasil bersamaan).
+  String? validateNow() {
+    if (widget.questionsLocked) return null;
+    return validateQuestionsList(_questions, allowEmpty: true);
+  }
 
   /// Dipanggil layar editor setelah AFA mengubah draf dari luar panel
   /// (mis. dari tab Pengaturan) agar daftar soal langsung rebuild.
@@ -238,6 +255,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
           ..addAll(draftsFromQuestions(questions));
         _baseline = [for (final q in _questions) q.copy()];
         _loadError = null;
+        _hasLoadedServer = true;
       });
       _maybeAutoTour();
     } catch (e) {
@@ -442,23 +460,45 @@ class QuestionsPanelState extends State<QuestionsPanel>
   /// Simpan soal ke server (dipakai tombol Simpan + guard keluar).
   /// Navigasi diserahkan ke parent via [QuestionsPanel.onSaved].
   /// No-op saat soal dikunci (tidak ada perubahan yang mungkin).
-  Future<void> save() {
+  ///
+  /// [formIdOverride] = id form yang baru dibuat parent (form baru):
+  /// state ini belum rebuild sehingga `_formId` internal masih null —
+  /// tanpa override, soal diam-diam tidak tersimpan.
+  Future<void> save({int? formIdOverride}) {
     if (widget.questionsLocked) return Future.value();
+    if (formIdOverride != null && _formId == null) {
+      _formId = formIdOverride;
+    }
     return _save();
   }
 
   Future<void> _save() async {
     if (!AppDebouncer.tryAcquire('form:saveQuestions')) return;
     if (_saving) return;
+    if (_loading) {
+      showAuthToast(context, 'Soal masih dimuat, tunggu sebentar', isError: true);
+      return;
+    }
     final error = validateQuestionsList(_questions, allowEmpty: true);
     if (error != null) {
       showAuthToast(context, error, isError: true);
       return;
     }
+    final formId = _formId;
+    if (formId == null) return;
+    // Pengaman hapus tak disengaja: daftar belum pernah dimuat dari server
+    // (mis. gagal koneksi) + draf kosong bukan berarti user menghapus semua.
+    if (_loadError != null) {
+      showAuthToast(
+        context,
+        'Gagal memuat soal — tarik untuk memuat ulang sebelum menyimpan',
+        isError: true,
+      );
+      return;
+    }
+    if (!_hasLoadedServer && _questions.isEmpty) return;
     setState(() => _saving = true);
     try {
-      final formId = _formId;
-      if (formId == null) return;
       final res = await persistQuestions(
         formId: formId,
         questions: _questions,
@@ -475,6 +515,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
         showAuthToast(context, "Semua soal berhasil dihapus");
         // Dual-stay: baseline ikut kosong agar guard tidak menagih lagi.
         _baseline = [];
+        _hasLoadedServer = true;
         await Future<void>.delayed(const Duration(milliseconds: 120));
         await widget.onSaved?.call(formId);
         return;
@@ -491,6 +532,7 @@ class QuestionsPanelState extends State<QuestionsPanel>
       // Dual-stay: segarkan baseline agar guard keluar tidak menagih lagi.
       // (Layar tunggal langsung pop sehingga tidak terpengaruh.)
       _baseline = [for (final q in _questions) q.copy()];
+      _hasLoadedServer = true;
       showAuthToast(context, "Soal berhasil disimpan");
       await Future<void>.delayed(const Duration(milliseconds: 120));
       await widget.onSaved?.call(formId);

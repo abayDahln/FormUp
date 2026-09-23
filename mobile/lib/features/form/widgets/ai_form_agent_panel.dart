@@ -906,6 +906,12 @@ Aturan:
   berubah, ditambah add_question untuk soal baru.
 - Lampiran dari user (gambar/dokumen) bisa kamu baca — jadikan sumber isi soal
   bila user memintanya (mis. "buatkan soal dari gambar ini").
+- Aturan jumlah soal (WAJIB dipatuhi — API key milik user sendiri, jadi layani sampai tuntas):
+  - Patuhi jumlah yang diminta user, MAKSIMAL 50 soal per permintaan. Bila user meminta lebih dari 50, kerjakan 50 dulu lalu tawarkan sisanya.
+  - 15 soal atau kurang: kerjakan SEMUA dalam SATU respons ini.
+  - Lebih dari 15 soal: kirim chunk PERTAMA yang valid (10-15 aksi add_question), tulis di "reply" sisa jumlahnya + "balas 'lanjut' untuk sisanya".
+  - Saat user balas 'lanjut' (atau setuju lanjut): kirim chunk BERIKUTNYA (10-15 add_question), JANGAN mengulang soal yang sudah dibuat. Ulangi sampai total mencapai jumlah yang diminta.
+  - DILARANG meringkas permintaan besar menjadi sedikit soal (mis. diminta 30 hanya dibuat 5). DILARANG menolak dengan alasan limit — batasnya 50, bukan 5.
 - Jika permintaan tidak butuh perubahan, kirim "actions": [].
 
 DRAF SAAT INI:

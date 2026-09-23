@@ -99,6 +99,11 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
   /// + soal sekaligus (menciptakan formId bila form baru). Dipakai juga
   /// sebagai pengganti tombol Simpan di tab Pengaturan dan tab Soal yang
   /// sudah dihapus dari panel masing-masing.
+  ///
+  /// Urutan + pengaman menyamai FormBuilderScreen: soal divalidasi DULU
+  /// (pengaturan tidak tersimpan bila soal invalid), dan soal hanya
+  /// menyentuh server bila ada perubahan — draf kosong yang belum dimuat
+  /// tidak boleh menghapus soal server.
   Future<void> _saveAll() async {
     if (_savingAll) return;
     final settings = _settingsKey.currentState;
@@ -106,6 +111,20 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
     if (settings == null || settings.isSaving || (questions?.isBusy ?? false)) {
       return;
     }
+    if (questions?.isLoading ?? false) {
+      showAuthToast(context, 'Soal masih dimuat, tunggu sebentar', isError: true);
+      return;
+    }
+    final qError = questions?.validateNow();
+    if (qError != null) {
+      showAuthToast(context, qError, isError: true);
+      _tabController.animateTo(1);
+      return;
+    }
+    final bool created = _formId == null;
+    final needQuestions = !widget.questionsLocked &&
+        questions != null &&
+        (questions.hasChanges || (created && !questions.isQuestionsEmpty));
     setState(() => _savingAll = true);
     try {
       final id = await settings.save();
@@ -113,8 +132,11 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
       if (_formId == null) setState(() => _formId = id);
       // Soal dikunci (form sudah ada yang mengerjakan): hanya pengaturan
       // yang disimpan; draf soal tidak boleh menyentuh server.
-      if (!widget.questionsLocked) {
-        await questions?.save();
+      if (needQuestions) {
+        // Oper id eksplisit: state tab Soal belum rebuild sehingga
+        // _formId internalnya masih null untuk form baru. Baca ulang
+        // state (bisa null bila tab dilepas saat simpan berjalan).
+        await _questionsKey.currentState?.save(formIdOverride: id);
       }
     } finally {
       if (mounted) setState(() => _savingAll = false);
@@ -138,10 +160,16 @@ class _FormEditorTabsScreenState extends State<FormEditorTabsScreen>
     if (!mounted) return false;
     if (choice == 'discard') return true;
     if (choice == 'save') {
+      if (questions?.isLoading ?? false) return false;
       final id = await settings?.save();
       if (!mounted) return false;
       // Form baru: onSettingsSaved sudah adopsi formId + pindah tab Soal.
-      await questions?.save();
+      // Simpan soal hanya bila ada perubahan — draf kosong yang belum
+      // dimuat tidak boleh menghapus soal server.
+      final needQ = !widget.questionsLocked && (questions?.hasChanges ?? false);
+      if (needQ) {
+        await _questionsKey.currentState?.save(formIdOverride: id ?? _formId);
+      }
       if (!mounted) return false;
       if (widget.formId != null) {
         // Mode edit: tutup layar dengan hasil (menggantikan pop onSaved).

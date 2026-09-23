@@ -166,7 +166,7 @@ class _RedeemApiKeySheetState extends State<RedeemApiKeySheet> {
           onSubmitted: (_) => _redeem(),
           decoration: InputDecoration(
             labelText: 'Kode redeem',
-            hintText: 'cth. KELAS12A-2026',
+            hintText: 'Kode Redeem',
             border: const OutlineInputBorder(),
             errorText: _error,
             suffixIcon: IconButton(

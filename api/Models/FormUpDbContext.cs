@@ -191,6 +191,15 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
                 .HasColumnName("status");
+
+            // Seed referensi (kontrak id yang dipakai kode & data lama):
+            // 1=Draft, 2=Published, 3=Closed. created_at sengaja tidak diisi
+            // agar memakai default DB (getutcdate()).
+            entity.HasData(
+                new FormStatus { Id = 1, Status = "Draft" },
+                new FormStatus { Id = 2, Status = "Published" },
+                new FormStatus { Id = 3, Status = "Closed" }
+            );
         });
 
         modelBuilder.Entity<FormType>(entity =>
@@ -207,6 +216,13 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.Type)
                 .HasMaxLength(50)
                 .HasColumnName("type");
+
+            // Seed referensi (kontrak id yang dipakai FE/BE):
+            // 1=Single Page, 2=Multi Page. form_type_id default 1.
+            entity.HasData(
+                new FormType { Id = 1, Type = "Single Page" },
+                new FormType { Id = 2, Type = "Multi Page" }
+            );
         });
 
         modelBuilder.Entity<OptionQuestion>(entity =>
@@ -304,6 +320,16 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.Type)
                 .HasMaxLength(50)
                 .HasColumnName("type");
+
+            // Seed referensi (urutan id sesuai data lama yang dipakai klien):
+            // 1=Essay, 2=Multiple Choice, 3=Checkbox, 4=Date Time, 5=True False.
+            entity.HasData(
+                new QuestionType { Id = 1, Type = "Essay" },
+                new QuestionType { Id = 2, Type = "Multiple Choice" },
+                new QuestionType { Id = 3, Type = "Checkbox" },
+                new QuestionType { Id = 4, Type = "Date Time" },
+                new QuestionType { Id = 5, Type = "True False" }
+            );
         });
 
         modelBuilder.Entity<RespondentAnswer>(entity =>
@@ -490,6 +516,14 @@ public partial class FormUpDbContext : DbContext
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
                 .HasColumnName("status");
+
+            // Seed referensi (kontrak kanonik dipakai klien): 1=new (draft),
+            // 5=submitted (hasil sah). Id dihardcode di banyak tempat
+            // (attempt allowance, retake, exam sync) — jangan diubah.
+            entity.HasData(
+                new ResponseStatus { Id = 1, Status = "new" },
+                new ResponseStatus { Id = 5, Status = "submitted" }
+            );
         });
 
         modelBuilder.Entity<User>(entity =>
