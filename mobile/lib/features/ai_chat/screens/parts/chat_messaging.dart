@@ -35,9 +35,71 @@ Map<String, dynamic> _questionToSaveJson(QuestionData q) => {
       ],
     };
 
+/// Sanitasi soal AI sebelum dikirim ke server — gagal dengan pesan jelas
+/// bila ada kunci ambigu (mis. PG tanpa/tepat >1 kunci), agar data rusak
+/// tidak pernah tersimpan.
+List<Map<String, dynamic>> _sanitizedAiQuestions(List<dynamic> raw) {
+  final r = sanitizeAiQuestions(raw);
+  if (r.hasErrors) {
+    throw Exception(
+      'Kunci jawaban AI bermasalah:\n${r.errors.join('\n')}\nMinta AI perbaiki (mis. "beri tepat 1 kunci jawaban per soal").',
+    );
+  }
+  return r.questions;
+}
+
+/// Sanitasi sebagian edit AI (edit_questions) memakai tipe efektif.
+/// Opsi existing dipakai sebagai dasar bila AI tidak menyertakan opsi —
+/// sehingga kunci baru tetap dicocokkan ke flag yang konsisten.
+/// Melempar dengan pesan jelas bila ambigu (caller menggagalkan aksi).
+void _sanitizeAiEdit(
+  Map<String, dynamic> e,
+  int existingTypeId,
+  QuestionData existing,
+) {
+  final effType =
+      e['typeId'] is num ? (e['typeId'] as num).toInt() : existingTypeId;
+  if (effType != 2 && effType != 3 && effType != 5) return;
+  final touchesOptions = e['options'] is List;
+  final touchesKey = e.containsKey('correctAnswer');
+  if (!touchesOptions && !touchesKey) return;
+  final r = sanitizeAiQuestions([
+    {
+      'typeId': effType,
+      'question': e['question'] ?? existing.question,
+      'isRequired': e['isRequired'] ?? existing.isRequired ?? false,
+      'points': e.containsKey('points') ? e['points'] : existing.points,
+      'correctAnswer': touchesKey ? e['correctAnswer'] : existing.correctAnswer,
+      // Kunci baru tanpa opsi baru → cocokkan ke opsi existing.
+      'options': touchesOptions
+          ? e['options']
+          : [
+              for (final o in existing.options)
+                {'optionText': o.optionText, 'isCorrect': o.isCorrect ?? false},
+            ],
+    }
+  ]);
+  if (r.hasErrors) {
+    throw Exception(
+      'Kunci jawaban AI bermasalah:\n${r.errors.join('\n')}\nMinta AI perbaiki (mis. "beri tepat 1 kunci jawaban per soal").',
+    );
+  }
+  final clean = r.questions.first;
+  if (effType == 2 || effType == 3) {
+    // Tulis balik flag yang sudah dikonsistensikan (mencegah kunci teks
+    // vs flag opsi tidak sinkron).
+    e['options'] = clean['options'];
+    if (touchesKey) e['correctAnswer'] = clean['correctAnswer'];
+  } else if (touchesKey) {
+    e['correctAnswer'] = clean['correctAnswer'];
+  }
+  if (e.containsKey('points')) e['points'] = clean['points'];
+}
+
 /// Pengiriman pesan ke AI: kirim baru, kirim ulang, eksekusi aksi form,
 /// dan dialog konfirmasi aksi.
 extension _AiChatMessaging on _AiChatScreenState {
+  /// Kirim teks dari field input (plus lampiran pending).
   /// Kirim teks dari field input (plus lampiran pending).
   Future<void> send() async {
     await sendWithText(_controller.text.trim(), pendingAttachments: List<AiAttachment>.from(_pendingAttachments));
@@ -195,16 +257,9 @@ extension _AiChatMessaging on _AiChatScreenState {
           );
           final questions = (action['questions'] as List<dynamic>?) ?? [];
           if (questions.isNotEmpty) {
-            final payload = questions.map((q) {
-              final map = Map<String, dynamic>.from(q as Map);
-              if (map['options'] is List) {
-                map['options'] = (map['options'] as List).map((o) {
-                  if (o is String) return {'optionText': o};
-                  return Map<String, dynamic>.from(o as Map);
-                }).toList();
-              }
-              return map;
-            }).toList();
+            // Validasi kunci jawaban DULU — JSON mentah AI tidak boleh
+            // langsung ke server (pernah: 2 kunci / tanpa kunci tersimpan).
+            final payload = _sanitizedAiQuestions(questions);
             await FormService.saveQuestions(formId, payload);
           }
           // Undo create_form = hapus seluruh form (dicek dulu: form yang
@@ -217,9 +272,9 @@ extension _AiChatMessaging on _AiChatScreenState {
           final formId = action['formId'] as int?;
           if (formId == null) throw Exception('formId diperlukan');
           final questions = (action['questions'] as List<dynamic>?) ?? [];
-          final payload = questions
-              .map((q) => Map<String, dynamic>.from(q as Map))
-              .toList();
+          // Validasi kunci jawaban DULU — JSON mentah AI tidak boleh
+          // langsung ke server (pernah: 2 kunci / tanpa kunci tersimpan).
+          final payload = _sanitizedAiQuestions(questions);
           final created = await FormService.saveQuestions(formId, payload);
           // Undo = hapus soal yang barusan dibuat AI (id dari respons server).
           final createdIds = [
@@ -263,10 +318,15 @@ extension _AiChatMessaging on _AiChatScreenState {
               payload.add(_questionToSaveJson(q));
               continue;
             }
+            // Validasi kunci edit AI (gagal jelas bila ambigu — jangan
+            // simpan kunci ganda/hilang). Menulis balik opsi/kunci bersih.
+            _sanitizeAiEdit(e, q.typeId, q);
             final optsRaw = e['options'] as List<dynamic>?;
             payload.add({
               'id': q.id,
-              'typeId': (e['typeId'] as int?) ?? q.typeId,
+              'typeId': e['typeId'] is num
+                  ? (e['typeId'] as num).toInt()
+                  : int.tryParse('${e['typeId']}') ?? q.typeId,
               'question': (e['question'] as String?) ?? q.question,
               'questionOrder': (e['questionOrder'] as int?) ?? q.questionOrder,
               if (q.questionImage != null) 'questionImage': q.questionImage,

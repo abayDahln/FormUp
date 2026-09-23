@@ -46,6 +46,25 @@ class AiQuestionPreviewCard extends StatelessWidget {
     final points = q['points'];
     final options = q['options'] as List<dynamic>? ?? [];
     final correct = q['correctAnswer'];
+    final typeId = q['typeId'] is int
+        ? q['typeId']
+        : int.tryParse('${q['typeId']}');
+    final flagCount =
+        options.where((o) => o is Map && o['isCorrect'] == true).length;
+    final hasKey = correct != null && '$correct'.trim().isNotEmpty;
+    // Peringatan dini kunci ambigu — sanitizer akan menolak/memperbaiki
+    // saat diterima, tapi user perlu tahu SEBELUM menekan Terima.
+    String? keyWarning;
+    if (typeId == 2 && flagCount > 1) {
+      keyWarning = '$flagCount kunci?!';
+    } else if ((typeId == 2 || typeId == 3) &&
+        flagCount == 0 &&
+        !hasKey &&
+        points != null) {
+      keyWarning = 'Tanpa kunci';
+    } else if (typeId == 5 && !hasKey && points != null) {
+      keyWarning = 'Tanpa kunci';
+    }
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -71,6 +90,8 @@ class AiQuestionPreviewCard extends StatelessWidget {
               _chip(context, typeLabel(q['typeId'])),
               if (isRequired) _chip(context, 'Wajib', color: Colors.orange),
               if (points != null) _chip(context, '$points poin'),
+              if (keyWarning != null)
+                _chip(context, keyWarning, color: Colors.red),
             ],
           ),
           const SizedBox(height: 8),
