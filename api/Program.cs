@@ -342,7 +342,7 @@ namespace FormUpAPI
         private static bool IsKnownDefaultJwtKey(string key) =>
             key.Trim() switch
             {
-                "" => true,
+                "E49BCD35B2B5752F6990CCBE34919CA2A17224753AF482B74714062B1214C10D8F6D7EA99B4FFA3AF48C403ED7EE7A39FD8B1B1672901B31D783AEE519885AC9" => true,
                 "your-super-secret-key-at-least-32-characters" => true,
                 _ => key.Trim().Length < 32,
             };
