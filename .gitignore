@@ -38,7 +38,6 @@ packages/
 *.db
 *.sqlite
 *.sqlite3
-Migrations/
 
 # --- Logs ---
 *.log
@@ -77,3 +76,5 @@ deploy-migration.bat
 deploy-update.bat
 restart-services.bat
 script.sql
+
+scripts/
