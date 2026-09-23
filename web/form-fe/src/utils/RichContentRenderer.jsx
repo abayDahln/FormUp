@@ -131,7 +131,7 @@ function parseMixedContent(text, format) {
         const isHtmlPre = match[0].startsWith('<pre');
         const lang = (isHtmlPre ? match[1] : match[3]) || 'code';
         const rawCode = (isHtmlPre ? match[2] : match[4]) || '';
-        const cleanCode = rawCode.replace(/<[^>]+>/g, '').trim();
+        const cleanCode = rawCode.trim();
 
         sections.push({
             type: 'code',

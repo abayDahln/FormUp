@@ -218,6 +218,11 @@ const UserHome = () => {
         }
     };
 
+    const handleGoToMyForms = () => {
+    // Ganti '/my-forms' sesuai path route halaman MyForms Anda
+    navigate('/my-forms'); 
+  };
+
     const totalResponses = myForms.reduce((acc, f) => acc + (f.responseCount ?? 0), 0);
     const publishedCount = myForms.filter(f => f.status?.toLowerCase() === 'published').length;
     const draftCount = myForms.filter(f => f.status?.toLowerCase() === 'draft').length;
@@ -328,10 +333,6 @@ const formatRelativeTime = (dateString) => {
     return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
   };
 
-<<<<<<< Updated upstream
-=======
-  // Animasi Pop-Up Ringan untuk Card
->>>>>>> Stashed changes
   const popUpVariants = {
     hidden: { opacity: 0, scale: 0.95 },
     visible: { 
@@ -341,10 +342,6 @@ const formatRelativeTime = (dateString) => {
     }
   };
 
-<<<<<<< Updated upstream
-=======
-  // Animasi Simple Fade-In untuk Tiap Baris Data
->>>>>>> Stashed changes
   const fadeInVariants = {
     hidden: { opacity: 0 },
     visible: { 
@@ -352,856 +349,395 @@ const formatRelativeTime = (dateString) => {
       transition: { duration: 0.3 }
     }
   };
-<<<<<<< Updated upstream
 
   return (
   <div className="flex min-h-screen w-full bg-slate-50 dark:bg-slate-950 font-sans antialiased text-slate-900 dark:text-slate-100 transition-colors">
-    <Sidebar />
+  <Sidebar />
 
-    <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-      <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 space-y-8">
-        <Topbar 
-          searchQuery={searchQuery} 
-          onSearchChange={setSearchQuery} 
-          placeholder="Cari..." 
-        />
+  <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+    <main className="flex-1 w-full p-3 sm:p-6 lg:p-8 space-y-6 sm:space-y-8">
+      <Topbar 
+        searchQuery={searchQuery} 
+        onSearchChange={setSearchQuery} 
+        placeholder="Cari..." 
+      />
 
-        {/* Header Section */}
-        <div className="flex items-center justify-between gap-4">
-          <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-              {getGreeting()}, {user?.fullname ? user.fullname.split(' ')[0] : 'Pengguna'}
-            </h1>
-            <Sparkles size={22} className="text-teal-600 dark:text-teal-400 shrink-0" />
-          </div>
-            <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-1">
-              Selamat datang kembali! Ini adalah ringkasan performa formulir Anda hari ini
-            </p>
-          </div>
-
-          <div className="relative" ref={createDropdownRef}>
-            <button
-              onClick={() => setCreateDropdownOpen(prev => !prev)}
-              data-tour="create-form-btn"
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
-            >
-              <Plus size={18} />
-              <span>Buat Formulir</span>
-              <ChevronDown size={16} className={`transition-transform duration-200 ${createDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {createDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 overflow-hidden">
-                <button
-                  onClick={() => { setCreateDropdownOpen(false); handleCreateNewForm(); }}
-                  disabled={creatingForm}
-                  className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
-                >
-                  <Plus size={16} />
-                  <span>Buat Manual</span>
-                </button>
-                <button
-                  onClick={() => { setCreateDropdownOpen(false); setAiFormBuilderOpen(true); }}
-                  data-tour="create-ai-btn"
-                  className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 transition-colors text-left"
-                >
-                  <Sparkles size={16} />
-                  <span>Buat dengan AI</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* BARIS 1: Stats Metrics dengan Warna Berbeda */}
-        <AnimatePresence mode="wait">
-          {loading ? (
-            /* SKELETON ANIMATED */
-            <motion.div
-              key="dashboard-skeleton"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-6"
-            >
-              <div className="space-y-2">
-                <div className="h-8 w-64 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" />
-              </div>
-
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="bg-white dark:bg-slate-800/80 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between animate-pulse"
-                  >
-                    <div className="space-y-2">
-                      <div className="h-3 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
-                      <div className="h-8 w-12 bg-slate-300 dark:bg-slate-600 rounded-lg" />
-                    </div>
-                    <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700" />
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white dark:bg-slate-800/80 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4 animate-pulse">
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="h-5 w-32 bg-slate-200 dark:bg-slate-700 rounded" />
-                    <div className="h-4 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
-                  </div>
-
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-slate-50 dark:border-slate-700/50">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 shrink-0" />
-                        <div className="space-y-2">
-                          <div className="h-4 w-44 bg-slate-200 dark:bg-slate-700 rounded" />
-                          <div className="h-3 w-24 bg-slate-100 dark:bg-slate-800 rounded" />
-                        </div>
-                      </div>
-                      <div className="h-4 w-10 bg-slate-100 dark:bg-slate-800 rounded" />
-                    </div>
-                  ))}
-                </div>
-
-                <div className="bg-white dark:bg-slate-800/80 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4 animate-pulse">
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="h-5 w-36 bg-slate-200 dark:bg-slate-700 rounded" />
-                    <div className="h-4 w-14 bg-slate-200 dark:bg-slate-700 rounded" />
-                  </div>
-
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="flex items-center justify-between py-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0" />
-                        <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded" />
-                      </div>
-                      <div className="h-3 w-12 bg-slate-100 dark:bg-slate-800 rounded" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          ) : (
-            /* CARDS STATS (ANIMASI POP-UP) DENGAN WARNA VARIATIF */
-            (() => {
-          const totalFormCount = stats?.totalForms ?? stats?.formsCount ?? myForms.length;
-          const totalResponsesCount = stats?.totalResponses ?? stats?.responsesCount ?? totalResponses;
-          const activeCount = stats?.publishedForms ?? stats?.publishedCount ?? publishedCount;
-          const draftCountVal = stats?.draftForms ?? stats?.draftCount ?? draftCount;
-
-          return (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5" data-tour="stats-overview">
-              {/* Card 1: Teal */}
-              <motion.div
-                variants={popUpVariants}
-                initial="hidden"
-                animate="visible"
-                className="bg-teal-100 dark:bg-teal-950 p-5 rounded-2xl border border-teal-300 dark:border-teal-800 shadow-xs flex items-center justify-between"
-              >
-                <div>
-                  <p className="text-xs font-bold text-teal-800 dark:text-teal-300 uppercase tracking-wider">Total Form</p>
-                  <h3 className="text-2xl sm:text-3xl font-extrabold text-teal-950 dark:text-teal-50 mt-1">{totalFormCount}</h3>
-                </div>
-                <div className="p-3 rounded-xl bg-teal-200 dark:bg-teal-900 text-teal-800 dark:text-teal-200">
-                  <FileText size={22} />
-                </div>
-              </motion.div>
-
-              {/* Card 2: Indigo */}
-              <motion.div
-                variants={popUpVariants}
-                initial="hidden"
-                animate="visible"
-                className="bg-indigo-100 dark:bg-indigo-950 p-5 rounded-2xl border border-indigo-300 dark:border-indigo-800 shadow-xs flex items-center justify-between"
-              >
-                <div>
-                  <p className="text-xs font-bold text-indigo-800 dark:text-indigo-300 uppercase tracking-wider">Total Respons</p>
-                  <h3 className="text-2xl sm:text-3xl font-extrabold text-indigo-950 dark:text-indigo-50 mt-1">{totalResponsesCount}</h3>
-                </div>
-                <div className="p-3 rounded-xl bg-indigo-200 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200">
-                  <Users size={22} />
-                </div>
-              </motion.div>
-
-              {/* Card 3: Sky */}
-              <motion.div
-                variants={popUpVariants}
-                initial="hidden"
-                animate="visible"
-                className="bg-sky-100 dark:bg-sky-950 p-5 rounded-2xl border border-sky-300 dark:border-sky-800 shadow-xs flex items-center justify-between"
-              >
-                <div>
-                  <p className="text-xs font-bold text-sky-800 dark:text-sky-300 uppercase tracking-wider">Aktif</p>
-                  <h3 className="text-2xl sm:text-3xl font-extrabold text-sky-950 dark:text-sky-50 mt-1">{activeCount}</h3>
-                </div>
-                <div className="p-3 rounded-xl bg-sky-200 dark:bg-sky-900 text-sky-800 dark:text-sky-200">
-                  <CheckCircle2 size={22} />
-                </div>
-              </motion.div>
-
-              {/* Card 4: Amber */}
-              <motion.div
-                variants={popUpVariants}
-                initial="hidden"
-                animate="visible"
-                className="bg-amber-100 dark:bg-amber-950 p-5 rounded-2xl border border-amber-300 dark:border-amber-800 shadow-xs flex items-center justify-between"
-              >
-                <div>
-                  <p className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider">Draf</p>
-                  <h3 className="text-2xl sm:text-3xl font-extrabold text-amber-950 dark:text-amber-50 mt-1">{draftCountVal}</h3>
-                </div>
-                <div className="p-3 rounded-xl bg-amber-200 dark:bg-amber-900 text-amber-800 dark:text-amber-200">
-                  <Clock size={22} />
-                </div>
-              </motion.div>
-            </div>
-          );
-        })()
-          )}
-        </AnimatePresence>
-
-        {/* BARIS 2: Layout Split */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          
-          {/* KOLOM KIRI: Card Formulir */}
-          <section className="lg:col-span-2" data-tour="recent-forms-section">
-            <AnimatePresence mode="wait">
-              {loading ? (
-                <motion.div 
-                  key="forms-skeleton"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 space-y-3"
-                >
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="h-14 bg-slate-200 dark:bg-slate-800 rounded-xl w-full animate-pulse" />
-                  ))}
-                </motion.div>
-              ) : (
-                <motion.div 
-                  key="forms-card"
-                  variants={popUpVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden"
-                >
-                  <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                    <h2 className="text-base font-bold text-slate-900 dark:text-white">Formulir Saya</h2>
-                    {myForms.length > 0 && (
-                      <button
-                        onClick={() => navigate('/my-forms')}
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-600 hover:text-teal-700 transition-colors cursor-pointer"
-                      >
-                        <span>Lihat Semua</span>
-                        <ArrowRight size={14} />
-                      </button>
-                    )}
-                  </div>
-
-                  {myForms.length === 0 ? (
-                    <div className="p-10 text-center flex flex-col items-center justify-center space-y-3">
-                      <FileText size={32} className="text-slate-300 dark:text-slate-600" />
-                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Belum ada formulir</p>
-                    </div>
-                  ) : (
-                    /* DATA DENGAN FADE IN */
-                    <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                      {recentForms.slice(0, 10).map((form, index) => {
-                        const isPublished = (form.status || '').toLowerCase() === 'published' || form.isPublished;
-                        const responseCount = form.responseCount ?? form.responsesCount ?? 0;
-
-                        return (
-                          <motion.div 
-                            key={form.id || index}
-                            variants={fadeInVariants}
-                            initial="hidden"
-                            animate="visible"
-                            onClick={() => navigate(`/forms/${form.id}/edit`)}
-                            className="p-4 sm:px-5 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-all cursor-pointer flex items-center justify-between gap-4 group"
-                          >
-                            <div className="flex items-center gap-3.5 min-w-0">
-                              <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0 border border-teal-100/50 dark:border-teal-900/30">
-                                <FileText size={18} />
-                              </div>
-                              <div className="min-w-0">
-                                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
-                                  {form.title || 'Formulir Tanpa Judul'}
-                                </h3>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                                    isPublished 
-                                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400' 
-                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                                  }`}>
-                                    {isPublished ? 'Aktif' : 'Draf'}
-                                  </span>
-                                  <span className="text-xs text-slate-400">
-                                    {form.createdAt ? new Date(form.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : ''}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                onClick={() => navigate(`/forms/${form.id}/responses`)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-slate-600 hover:text-teal-600 dark:text-slate-300 dark:hover:text-teal-400 bg-slate-50 dark:bg-slate-800 hover:bg-teal-50/80 rounded-lg text-xs font-semibold border border-slate-200/60 dark:border-slate-700/60 transition-colors cursor-pointer"
-                              >
-                                <BarChart2 size={14} />
-                                <span>{responseCount}</span>
-                              </button>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </section>
-
-          {/* KOLOM KANAN: Data Responden Terbaru */}
-          <aside className="space-y-4">
-            <AnimatePresence mode="wait">
-              {loading ? (
-                <motion.div 
-                  key="resp-skeleton"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 space-y-3"
-                >
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-12 bg-slate-200 dark:bg-slate-800 rounded-xl w-full animate-pulse" />
-                  ))}
-                </motion.div>
-              ) : (
-                <motion.div 
-                  key="resp-card"
-                  variants={popUpVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 space-y-4 shadow-xs"
-                >
-                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                    <div className="flex items-center gap-2">
-                      <Users size={18} className="text-teal-600 dark:text-teal-400" />
-                      <h2 className="text-sm font-bold text-slate-900 dark:text-white">Responden Terbaru</h2>
-                    </div>
-                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
-                      Realtime
-                    </span>
-                  </div>
-
-                  {recentResponses && recentResponses.length > 0 ? (
-                    <div className="space-y-2">
-                      {recentResponses.slice(0, 10).map((resp, idx) => {
-                        const respondentName =
-                          resp.respondentName ||
-                          resp.name ||
-                          resp.respondent?.fullname ||
-                          resp.respondent?.fullName ||
-                          resp.respondent?.name ||
-                          'Responden';
-
-                        const respondentEmail =
-                          resp.respondentEmail ||
-                          resp.email ||
-                          resp.respondent?.email ||
-                          '-';
-
-                        const submittedAt =
-                          resp.submittedAt ||
-                          resp.createdAt ||
-                          resp.updatedAt;
-
-                        return (
-                          <motion.div
-                            key={resp.id || `${resp.formId || 'resp'}-${idx}`}
-                            variants={fadeInVariants}
-                            initial="hidden"
-                            animate="visible"
-                            className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
-                          >
-                            <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                              {respondentName.charAt(0).toUpperCase()}
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
-                                  {respondentName}
-                                </p>
-
-                                <span className="text-[10px] text-slate-400 shrink-0">
-                                  {formatRelativeTime(submittedAt)}
-                                </span>
-                              </div>
-
-                              <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                                {respondentEmail}
-                              </p>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="py-8 text-center">
-                      <Users
-                        size={28}
-                        className="mx-auto text-slate-300 dark:text-slate-600 mb-2"
-                      />
-                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">
-                        Belum ada respons
-                      </p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                        Respons terbaru akan muncul di sini.
-                      </p>
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </aside>
-
-        </div>
-      </main>
+      {/* Header Section */}
+<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+  <div className="space-y-1">
+    <div className="flex items-center gap-2">
+      <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+        {getGreeting()}, {user?.fullname ? user.fullname.split(' ')[0] : 'Pengguna'}
+      </h1>
+      <Sparkles size={18} className="text-teal-600 dark:text-teal-400 shrink-0" />
     </div>
-
-    {/* Modals & Tours */}
-    <AIFormBuilderModal
-      isOpen={aiFormBuilderOpen}
-      onClose={() => setAiFormBuilderOpen(false)}
-      onFormCreated={(newId) => navigate(`/forms/${newId}/edit`)}
-    />
-
-    <OnboardingTour
-      isOpen={onboardingTourOpen}
-      onClose={() => setOnboardingTourOpen(false)}
-      onComplete={handleOnboardingComplete}
-      steps={[
-        {
-          selector: '[data-tour="create-form-btn"]',
-          title: 'Buat Formulir Baru',
-          description: 'Klik di sini untuk langsung membuat formulir kosong.',
-          icon: <Plus size={18} />,
-          placement: 'bottom',
-          badge: 'Mulai Cepat'
-        },
-        {
-          selector: '[data-tour="create-ai-btn"]',
-          title: 'Kecerdasan Buat Form AI',
-          description: 'Cukup deskripsikan topik Anda, AI FormUp akan otomatis merancang pertanyaan!',
-          icon: <Sparkles size={18} />,
-          placement: 'bottom',
-          badge: 'Kecerdasan AI',
-          action: () => setCreateDropdownOpen(true)
-        }
-      ]}
-    />
+    {/* Teks Deskripsi Ringkas & Clean di Mobile */}
+    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-xl">
+      Ringkasan performa & statistik formulir Anda hari ini.
+    </p>
   </div>
-);
-=======
 
-  return (
-    <div className="flex min-h-screen w-full bg-slate-50 dark:bg-slate-950 font-sans antialiased text-slate-900 dark:text-slate-100 transition-colors">
-      <Sidebar />
+  {/* Action Button & Dropdown Wrapper */}
+  <button
+      onClick={handleGoToMyForms}
+      data-tour="create-form-btn"
+      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+    >
+      <Plus size={16} />
+      <span>Buat Formulir</span>
+    </button>
+</div>
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 space-y-6">
-          <Topbar 
-            searchQuery={searchQuery} 
-            onSearchChange={setSearchQuery} 
-            placeholder="Cari..." 
-          />
-
-          {/* Header Section */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-                {getGreeting()}, {user?.fullname ? user.fullname.split(' ')[0] : 'Pengguna'}
-              </h1>
-              <Sparkles size={18} className="text-teal-600 dark:text-teal-400" />
+{/* BARIS 1: Stats Metrics (PASTI 2 KOLOM DI MOBILE / HP) */}
+<AnimatePresence mode="wait">
+  {loading ? (
+    <motion.div
+      key="dashboard-skeleton"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="space-y-6"
+    >
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="bg-white dark:bg-slate-800/80 p-3 sm:p-4 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between animate-pulse"
+          >
+            <div className="space-y-2">
+              <div className="h-2.5 w-14 bg-slate-200 dark:bg-slate-700 rounded" />
+              <div className="h-6 w-10 bg-slate-300 dark:bg-slate-600 rounded-lg" />
             </div>
-
-            <div className="relative" ref={createDropdownRef}>
-              <button
-                onClick={() => setCreateDropdownOpen(prev => !prev)}
-                data-tour="create-form-btn"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
-              >
-                <Plus size={16} />
-                <span>Buat Formulir</span>
-                <ChevronDown size={14} className={`transition-transform duration-200 ${createDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {createDropdownOpen && (
-                <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg z-50 overflow-hidden">
-                  <button
-                    onClick={() => { setCreateDropdownOpen(false); handleCreateNewForm(); }}
-                    disabled={creatingForm}
-                    className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
-                  >
-                    <Plus size={14} />
-                    <span>Buat Manual</span>
-                  </button>
-                  <button
-                    onClick={() => { setCreateDropdownOpen(false); setAiFormBuilderOpen(true); }}
-                    data-tour="create-ai-btn"
-                    className="w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 transition-colors text-left"
-                  >
-                    <Sparkles size={14} />
-                    <span>Buat dengan AI</span>
-                  </button>
-                </div>
-              )}
-            </div>
+            <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-700" />
           </div>
+        ))}
+      </div>
+    </motion.div>
+  ) : (
+    (() => {
+      const totalFormCount = stats?.totalForms ?? stats?.formsCount ?? myForms.length;
+      const totalResponsesCount = stats?.totalResponses ?? stats?.responsesCount ?? totalResponses;
+      const activeCount = stats?.publishedForms ?? stats?.publishedCount ?? publishedCount;
+      const draftCountVal = stats?.draftForms ?? stats?.draftCount ?? draftCount;
 
-          {/* BARIS 1: Stats Metrics */}
+      return (
+        /* Perubahan di sini: 'grid-cols-2 lg:grid-cols-4' kunci 2 kolom di layar HP */
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-5" data-tour="stats-overview">
+          
+          {/* Card 1: Total Form */}
+          <motion.div
+            variants={popUpVariants}
+            initial="hidden"
+            animate="visible"
+            className="relative overflow-hidden bg-gradient-to-br from-teal-500 to-teal-700 dark:from-teal-600 dark:to-teal-900 p-3.5 sm:p-5 rounded-2xl text-white shadow-md shadow-teal-500/10 flex items-center justify-between"
+          >
+            <div className="relative z-10 space-y-0.5">
+              <p className="text-[10px] sm:text-xs font-semibold text-teal-100 uppercase tracking-wider">Total Form</p>
+              <h3 className="text-lg sm:text-3xl font-black text-white">{totalFormCount}</h3>
+            </div>
+            <div className="relative z-10 p-2 sm:p-3 bg-white/10 backdrop-blur-md rounded-xl sm:rounded-2xl border border-white/20 text-white shrink-0">
+              <FileText className="w-4 h-4 sm:w-6 sm:h-6" />
+            </div>
+            <div className="absolute -right-6 -bottom-6 w-20 h-20 bg-white/10 rounded-full blur-lg pointer-events-none" />
+          </motion.div>
+
+          {/* Card 2: Total Respons */}
+          <motion.div
+            variants={popUpVariants}
+            initial="hidden"
+            animate="visible"
+            className="relative overflow-hidden bg-gradient-to-br from-indigo-500 to-indigo-700 dark:from-indigo-600 dark:to-indigo-900 p-3.5 sm:p-5 rounded-2xl text-white shadow-md shadow-indigo-500/10 flex items-center justify-between"
+          >
+            <div className="relative z-10 space-y-0.5">
+              <p className="text-[10px] sm:text-xs font-semibold text-indigo-100 uppercase tracking-wider">Total Respons</p>
+              <h3 className="text-lg sm:text-3xl font-black text-white">{totalResponsesCount}</h3>
+            </div>
+            <div className="relative z-10 p-2 sm:p-3 bg-white/10 backdrop-blur-md rounded-xl sm:rounded-2xl border border-white/20 text-white shrink-0">
+              <Users className="w-4 h-4 sm:w-6 sm:h-6" />
+            </div>
+            <div className="absolute -right-6 -bottom-6 w-20 h-20 bg-white/10 rounded-full blur-lg pointer-events-none" />
+          </motion.div>
+
+          {/* Card 3: Aktif */}
+          <motion.div
+            variants={popUpVariants}
+            initial="hidden"
+            animate="visible"
+            className="relative overflow-hidden bg-gradient-to-br from-sky-500 to-sky-700 dark:from-sky-600 dark:to-sky-900 p-3.5 sm:p-5 rounded-2xl text-white shadow-md shadow-sky-500/10 flex items-center justify-between"
+          >
+            <div className="relative z-10 space-y-0.5">
+              <p className="text-[10px] sm:text-xs font-semibold text-sky-100 uppercase tracking-wider">Aktif</p>
+              <h3 className="text-lg sm:text-3xl font-black text-white">{activeCount}</h3>
+            </div>
+            <div className="relative z-10 p-2 sm:p-3 bg-white/10 backdrop-blur-md rounded-xl sm:rounded-2xl border border-white/20 text-white shrink-0">
+              <CheckCircle2 className="w-4 h-4 sm:w-6 sm:h-6" />
+            </div>
+            <div className="absolute -right-6 -bottom-6 w-20 h-20 bg-white/10 rounded-full blur-lg pointer-events-none" />
+          </motion.div>
+
+          {/* Card 4: Draf */}
+          <motion.div
+            variants={popUpVariants}
+            initial="hidden"
+            animate="visible"
+            className="relative overflow-hidden bg-gradient-to-br from-amber-500 to-amber-700 dark:from-amber-600 dark:to-amber-900 p-3.5 sm:p-5 rounded-2xl text-white shadow-md shadow-amber-500/10 flex items-center justify-between"
+          >
+            <div className="relative z-10 space-y-0.5">
+              <p className="text-[10px] sm:text-xs font-semibold text-amber-100 uppercase tracking-wider">Draf</p>
+              <h3 className="text-lg sm:text-3xl font-black text-white">{draftCountVal}</h3>
+            </div>
+            <div className="relative z-10 p-2 sm:p-3 bg-white/10 backdrop-blur-md rounded-xl sm:rounded-2xl border border-white/20 text-white shrink-0">
+              <Clock className="w-4 h-4 sm:w-6 sm:h-6" />
+            </div>
+            <div className="absolute -right-6 -bottom-6 w-20 h-20 bg-white/10 rounded-full blur-lg pointer-events-none" />
+          </motion.div>
+
+        </div>
+      );
+    })()
+  )}
+</AnimatePresence>
+
+      {/* BARIS 2: Layout Split */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        
+        {/* KOLOM KIRI: Card Formulir */}
+        <section className="lg:col-span-2" data-tour="recent-forms-section">
           <AnimatePresence mode="wait">
             {loading ? (
-              /* SKELETON ANIMATED */
-              <motion.div
-                key="skeleton-stats"
+              <motion.div 
+                key="forms-skeleton"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4"
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 space-y-3"
               >
                 {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="bg-slate-200 dark:bg-slate-800 h-24 rounded-2xl p-4 flex flex-col justify-between animate-pulse"
-                  />
+                  <div key={i} className="h-14 bg-slate-200 dark:bg-slate-800 rounded-xl w-full animate-pulse" />
                 ))}
               </motion.div>
             ) : (
-              /* CARDS STATS (ANIMASI POP-UP) */
-              (() => {
-                const totalFormCount = stats?.totalForms ?? stats?.formsCount ?? myForms.length;
-                const totalResponsesCount = stats?.totalResponses ?? stats?.responsesCount ?? totalResponses;
-                const activeCount = stats?.publishedForms ?? stats?.publishedCount ?? publishedCount;
-                const draftCountVal = stats?.draftForms ?? stats?.draftCount ?? draftCount;
-
-                return (
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4" data-tour="stats-overview">
-                    <motion.div
-                      variants={popUpVariants}
-                      initial="hidden"
-                      animate="visible"
-                      className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center justify-between"
+              <motion.div 
+                key="forms-card"
+                variants={popUpVariants}
+                initial="hidden"
+                animate="visible"
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden"
+              >
+                <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">Formulir Saya</h2>
+                  {myForms.length > 0 && (
+                    <button
+                      onClick={() => navigate('/my-forms')}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-600 hover:text-teal-700 transition-colors cursor-pointer"
                     >
-                      <div>
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Total Form</p>
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{totalFormCount}</h3>
-                      </div>
-                      <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400">
-                        <FileText size={18} />
-                      </div>
-                    </motion.div>
+                      <span>Lihat Semua</span>
+                      <ArrowRight size={14} />
+                    </button>
+                  )}
+                </div>
 
-                    <motion.div
-                      variants={popUpVariants}
-                      initial="hidden"
-                      animate="visible"
-                      className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center justify-between"
-                    >
-                      <div>
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Total Respons</p>
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{totalResponsesCount}</h3>
-                      </div>
-                      <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
-                        <Users size={18} />
-                      </div>
-                    </motion.div>
-
-                    <motion.div
-                      variants={popUpVariants}
-                      initial="hidden"
-                      animate="visible"
-                      className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center justify-between"
-                    >
-                      <div>
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Aktif</p>
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{activeCount}</h3>
-                      </div>
-                      <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
-                        <CheckCircle2 size={18} />
-                      </div>
-                    </motion.div>
-
-                    <motion.div
-                      variants={popUpVariants}
-                      initial="hidden"
-                      animate="visible"
-                      className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center justify-between"
-                    >
-                      <div>
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Draf</p>
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{draftCountVal}</h3>
-                      </div>
-                      <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400">
-                        <Clock size={18} />
-                      </div>
-                    </motion.div>
+                {myForms.length === 0 ? (
+                  <div className="p-8 sm:p-10 text-center flex flex-col items-center justify-center space-y-3">
+                    <FileText size={32} className="text-slate-300 dark:text-slate-600" />
+                    <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Belum ada formulir</p>
                   </div>
-                );
-              })()
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {recentForms.slice(0, 10).map((form, index) => {
+                      const isPublished = (form.status || '').toLowerCase() === 'published' || form.isPublished;
+                      const responseCount = form.responseCount ?? form.responsesCount ?? 0;
+
+                      return (
+                        <motion.div 
+                          key={form.id || index}
+                          variants={fadeInVariants}
+                          initial="hidden"
+                          animate="visible"
+                          onClick={() => navigate(`/forms/${form.id}/edit`)}
+                          className="p-3.5 sm:p-4 sm:px-5 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-all cursor-pointer flex items-center justify-between gap-3 group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0 border border-teal-100/50 dark:border-teal-900/30">
+                              <FileText size={18} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h3 className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                                {form.title || 'Formulir Tanpa Judul'}
+                              </h3>
+                              <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 sm:mt-1 flex-wrap">
+                                <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded uppercase ${
+                                  isPublished 
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400' 
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                }`}>
+                                  {isPublished ? 'Aktif' : 'Draf'}
+                                </span>
+                                <span className="text-[11px] sm:text-xs text-slate-400">
+                                  {form.createdAt ? new Date(form.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : ''}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => navigate(`/forms/${form.id}/responses`)}
+                              className="flex items-center gap-1 px-2.5 sm:px-3 py-1 sm:py-1.5 text-slate-600 hover:text-teal-600 dark:text-slate-300 dark:hover:text-teal-400 bg-slate-50 dark:bg-slate-800 hover:bg-teal-50/80 rounded-lg text-xs font-semibold border border-slate-200/60 dark:border-slate-700/60 transition-colors cursor-pointer"
+                            >
+                              <BarChart2 size={14} />
+                              <span>{responseCount}</span>
+                            </button>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
+              </motion.div>
             )}
           </AnimatePresence>
+        </section>
 
-          {/* BARIS 2: Layout Split */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            
-            {/* KOLOM KIRI: Card Formulir */}
-            <section className="lg:col-span-2" data-tour="recent-forms-section">
-              <AnimatePresence mode="wait">
-                {loading ? (
-                  <motion.div 
-                    key="forms-skeleton"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 space-y-3"
-                  >
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className="h-12 bg-slate-200 dark:bg-slate-800 rounded-xl w-full animate-pulse" />
-                    ))}
-                  </motion.div>
-                ) : (
-                  <motion.div 
-                    key="forms-card"
-                    variants={popUpVariants}
-                    initial="hidden"
-                    animate="visible"
-                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden"
-                  >
-                    <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                      <h2 className="text-sm font-bold text-slate-900 dark:text-white">Formulir Saya</h2>
-                      {myForms.length > 0 && (
-                        <button
-                          onClick={() => navigate('/my-forms')}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-teal-600 hover:text-teal-700 transition-colors cursor-pointer"
+        {/* KOLOM KANAN: Data Responden Terbaru */}
+        <aside className="space-y-4">
+          <AnimatePresence mode="wait">
+            {loading ? (
+              <motion.div 
+                key="resp-skeleton"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 space-y-3"
+              >
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-12 bg-slate-200 dark:bg-slate-800 rounded-xl w-full animate-pulse" />
+                ))}
+              </motion.div>
+            ) : (
+              <motion.div 
+                key="resp-card"
+                variants={popUpVariants}
+                initial="hidden"
+                animate="visible"
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 sm:p-5 space-y-4 shadow-xs"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Users size={18} className="text-teal-600 dark:text-teal-400" />
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-white">Responden Terbaru</h2>
+                  </div>
+                </div>
+
+                {recentResponses && recentResponses.length > 0 ? (
+                  <div className="space-y-2">
+                    {recentResponses.slice(0, 10).map((resp, idx) => {
+                      const respondentName =
+                        resp.respondentName ||
+                        resp.name ||
+                        resp.respondent?.fullname ||
+                        resp.respondent?.fullName ||
+                        resp.respondent?.name ||
+                        'Responden';
+
+                      const respondentEmail =
+                        resp.respondentEmail ||
+                        resp.email ||
+                        resp.respondent?.email ||
+                        '-';
+
+                      const submittedAt =
+                        resp.submittedAt ||
+                        resp.createdAt ||
+                        resp.updatedAt;
+
+                      return (
+                        <motion.div
+                          key={resp.id || `${resp.formId || 'resp'}-${idx}`}
+                          variants={fadeInVariants}
+                          initial="hidden"
+                          animate="visible"
+                          className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
                         >
-                          <span>Lihat Semua</span>
-                          <ArrowRight size={13} />
-                        </button>
-                      )}
-                    </div>
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300 font-bold text-[11px] sm:text-xs flex items-center justify-center shrink-0 mt-0.5">
+                            {respondentName.charAt(0).toUpperCase()}
+                          </div>
 
-                    {myForms.length === 0 ? (
-                      <div className="p-8 text-center flex flex-col items-center justify-center space-y-3">
-                        <FileText size={24} className="text-slate-300 dark:text-slate-600" />
-                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">Belum ada formulir</p>
-                      </div>
-                    ) : (
-                      /* DATA DENGAN FADE IN */
-                      <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                        {recentForms.slice(0, 10).map((form, index) => {
-                          const isPublished = (form.status || '').toLowerCase() === 'published' || form.isPublished;
-                          const responseCount = form.responseCount ?? form.responsesCount ?? 0;
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                                {respondentName}
+                              </p>
 
-                          return (
-                            <motion.div 
-                              key={form.id || index}
-                              variants={fadeInVariants}
-                              initial="hidden"
-                              animate="visible"
-                              onClick={() => navigate(`/forms/${form.id}/edit`)}
-                              className="p-3.5 sm:px-4 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-all cursor-pointer flex items-center justify-between gap-3 group"
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-8 h-8 rounded-lg bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0 border border-teal-100/50 dark:border-teal-900/30">
-                                  <FileText size={16} />
-                                </div>
-                                <div className="min-w-0">
-                                  <h3 className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
-                                    {form.title || 'Formulir Tanpa Judul'}
-                                  </h3>
-                                  <div className="flex items-center gap-2 mt-0.5">
-                                    <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
-                                      isPublished 
-                                        ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400' 
-                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                                    }`}>
-                                      {isPublished ? 'Aktif' : 'Draf'}
-                                    </span>
-                                    <span className="text-[10px] text-slate-400">
-                                      {form.createdAt ? new Date(form.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : ''}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
+                              <span className="text-[10px] text-slate-400 shrink-0">
+                                {formatRelativeTime(submittedAt)}
+                              </span>
+                            </div>
 
-                              <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  onClick={() => navigate(`/forms/${form.id}/responses`)}
-                                  className="flex items-center gap-1 px-2 py-1 text-slate-500 hover:text-teal-600 dark:text-slate-400 dark:hover:text-teal-400 bg-slate-50 dark:bg-slate-800 hover:bg-teal-50 rounded-lg text-xs font-medium border border-slate-200/60 dark:border-slate-700/60 transition-colors cursor-pointer"
-                                >
-                                  <BarChart2 size={12} />
-                                  <span>{responseCount}</span>
-                                </button>
-                              </div>
-                            </motion.div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </section>
-
-            {/* KOLOM KANAN: Data Responden Terbaru */}
-            <aside className="space-y-3">
-              <AnimatePresence mode="wait">
-                {loading ? (
-                  <motion.div 
-                    key="resp-skeleton"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 space-y-2"
-                  >
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="h-10 bg-slate-200 dark:bg-slate-800 rounded-xl w-full animate-pulse" />
-                    ))}
-                  </motion.div>
+                            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                              {respondentEmail}
+                            </p>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
                 ) : (
-                  <motion.div 
-                    key="resp-card"
-                    variants={popUpVariants}
-                    initial="hidden"
-                    animate="visible"
-                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 space-y-3 shadow-xs"
-                  >
-                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
-                      <div className="flex items-center gap-2">
-                        <Users size={15} className="text-teal-600 dark:text-teal-400" />
-                        <h2 className="text-xs font-bold text-slate-900 dark:text-white">Responden Terbaru</h2>
-                      </div>
-                      <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">
-                        Realtime
-                      </span>
-                    </div>
-
-                    {recentResponses && recentResponses.length > 0 ? (
-                      /* LIST RESPONDEN DENGAN EMAIL DIBIARKAN TEPAT DI BAWAH NAMA (FADE-IN) */
-                      <div className="space-y-1">
-                        {recentResponses.slice(0, 10).map((resp, idx) => {
-                          const respondentName =
-                            resp.respondentName ||
-                            resp.name ||
-                            resp.respondent?.fullname ||
-                            resp.respondent?.fullName ||
-                            resp.respondent?.name ||
-                            'Responden';
-
-                          const respondentEmail =
-                            resp.respondentEmail ||
-                            resp.email ||
-                            resp.respondent?.email ||
-                            '-';
-
-                          const submittedAt =
-                            resp.submittedAt ||
-                            resp.createdAt ||
-                            resp.updatedAt;
-
-                          return (
-                            <motion.div
-                              key={resp.id || `${resp.formId || 'resp'}-${idx}`}
-                              variants={fadeInVariants}
-                              initial="hidden"
-                              animate="visible"
-                              className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
-                            >
-                              <div className="w-7 h-7 rounded-full bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
-                                {respondentName.charAt(0).toUpperCase()}
-                              </div>
-
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
-                                    {respondentName}
-                                  </p>
-
-                                  <span className="text-[9px] text-slate-400 shrink-0">
-                                    {formatRelativeTime(submittedAt)}
-                                  </span>
-                                </div>
-
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                                  {respondentEmail}
-                                </p>
-                              </div>
-                            </motion.div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="py-8 text-center">
-                        <Users
-                          size={22}
-                          className="mx-auto text-slate-300 dark:text-slate-600 mb-2"
-                        />
-                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                          Belum ada respons
-                        </p>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                          Respons terbaru akan muncul di sini.
-                        </p>
-                      </div>
-                    )}
-                  </motion.div>
+                  <div className="py-8 text-center">
+                    <Users
+                      size={28}
+                      className="mx-auto text-slate-300 dark:text-slate-600 mb-2"
+                    />
+                    <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">
+                      Belum ada respons
+                    </p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      Respons terbaru akan muncul di sini.
+                    </p>
+                  </div>
                 )}
-              </AnimatePresence>
-            </aside>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </aside>
 
-          </div>
-        </main>
       </div>
+    </main>
+  </div>
 
-      {/* Modals & Tours */}
-      <AIFormBuilderModal
-        isOpen={aiFormBuilderOpen}
-        onClose={() => setAiFormBuilderOpen(false)}
-        onFormCreated={(newId) => navigate(`/forms/${newId}/edit`)}
-      />
+  {/* Modals & Tours */}
+  <AIFormBuilderModal
+    isOpen={aiFormBuilderOpen}
+    onClose={() => setAiFormBuilderOpen(false)}
+    onFormCreated={(newId) => navigate(`/forms/${newId}/edit`)}
+  />
 
-      <OnboardingTour
-        isOpen={onboardingTourOpen}
-        onClose={() => setOnboardingTourOpen(false)}
-        onComplete={handleOnboardingComplete}
-        steps={[
-          {
-            selector: '[data-tour="create-form-btn"]',
-            title: 'Buat Formulir Baru',
-            description: 'Klik di sini untuk langsung membuat formulir kosong.',
-            icon: <Plus size={18} />,
-            placement: 'bottom',
-            badge: 'Mulai Cepat'
-          },
-          {
-            selector: '[data-tour="create-ai-btn"]',
-            title: 'Kecerdasan Buat Form AI',
-            description: 'Cukup deskripsikan topik Anda, AI FormUp akan otomatis merancang pertanyaan!',
-            icon: <Sparkles size={18} />,
-            placement: 'bottom',
-            badge: 'Kecerdasan AI',
-            action: () => setCreateDropdownOpen(true)
-          }
-        ]}
-      />
-    </div>
-  );
->>>>>>> Stashed changes
+  <OnboardingTour
+    isOpen={onboardingTourOpen}
+    onClose={() => setOnboardingTourOpen(false)}
+    onComplete={handleOnboardingComplete}
+    steps={[
+      {
+        selector: '[data-tour="create-form-btn"]',
+        title: 'Buat Formulir Baru',
+        description: 'Klik di sini untuk langsung membuat formulir kosong.',
+        icon: <Plus size={18} />,
+        placement: 'bottom',
+        badge: 'Mulai Cepat'
+      },
+      {
+        selector: '[data-tour="create-ai-btn"]',
+        title: 'Kecerdasan Buat Form AI',
+        description: 'Cukup deskripsikan topik Anda, AI FormUp akan otomatis merancang pertanyaan!',
+        icon: <Sparkles size={18} />,
+        placement: 'bottom',
+        badge: 'Kecerdasan AI',
+        action: () => setCreateDropdownOpen(true)
+      }
+    ]}
+  />
+</div>
+);
 };
 
 export default UserHome;

@@ -467,7 +467,7 @@ const MyForms = () => {
 
             {/* Actions */}
             <div className="flex items-center gap-2">
-                <button
+                {/* <button
                     type="button"
                     onClick={() => {
                         setSelectMode(false);
@@ -476,7 +476,7 @@ const MyForms = () => {
                     className="text-xs font-medium text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                     Batal
-                </button>
+                </button> */}
 
                 <button
                     type="button"

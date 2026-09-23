@@ -59,6 +59,47 @@
     color: var(--text-primary);
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   }
+
+  @layer base {
+  :root {
+    --bg-main: #F4F8F7;
+    --bg-card: #FFFFFF;
+    --border-color: #E2E8F0;
+    --text-primary: #1E293B;
+    --text-secondary: #64748B;
+    --text-muted: #94A3B8;
+  }
+
+  /* ---------------------------------------------------- */
+  /* DYNAMIC FONT SIZE CONFIGURATION                      */
+  /* ---------------------------------------------------- */
+  html.text-sm-mode {
+    font-size: 14px; /* Mode Kecil */
+  }
+
+  html.text-md-mode {
+    font-size: 16px; /* Mode Normal (Default) */
+  }
+
+  html.text-lg-mode {
+    font-size: 18px; /* Mode Besar */
+  }
+
+  html.dark {
+    --bg-main: #0B1120;
+    --bg-card: #1E293B;
+    --border-color: #334155;
+    --text-primary: #F8FAFC;
+    --text-secondary: #94A3B8;
+    --text-muted: #64748B;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  }
+}
 }
 
 
@@ -117,71 +158,6 @@
 
 /* Styling & Theming Global untuk Material Web Components */
 @layer components {
-<<<<<<< Updated upstream
-  /* 1. Global Tokens (Berlaku untuk semua komponen Material Web) */
-  :root {
-    /* Brand Accent Main (#00897B / #0d9488) */
-    --md-sys-color-primary: #00897B;
-    --md-sys-color-on-primary: #ffffff;
-    --md-sys-color-primary-container: #ccfbf1;
-    --md-sys-color-on-primary-container: #0f766e;
-
-    /* Surface & Background */
-    --md-sys-color-surface: var(--bg-card);
-    --md-sys-color-on-surface: var(--text-primary);
-    --md-sys-color-on-surface-variant: var(--text-secondary);
-    --md-sys-color-outline: var(--border-color);
-    --md-sys-color-outline-variant: var(--border-color);
-
-    /* Shape / Border Radius Seragam */
-    --md-filled-button-container-shape: 12px;
-    --md-outlined-button-container-shape: 12px;
-    --md-outlined-text-field-container-shape: 12px;
-    --md-filled-text-field-container-shape: 12px;
-  }
-
-  /* 2. Overrides Spesifik Komponen */
-  
-  /* Text Fields */
-  md-outlined-text-field,
-  md-filled-text-field {
-    width: 100%;
-    --md-sys-color-primary: #00897B;
-    --md-outlined-text-field-focus-outline-color: #00897B;
-    --md-outlined-text-field-focus-label-text-color: #00897B;
-  }
-
-  /* Buttons */
-  md-filled-button {
-    --md-sys-color-primary: #00897B;
-    --md-filled-button-container-color: #00897B;
-    --md-filled-button-label-text-color: #ffffff;
-    --md-filled-button-hover-state-layer-color: #ffffff;
-  }
-
-  md-outlined-button {
-    --md-sys-color-primary: #00897B;
-    --md-outlined-button-label-text-color: #00897B;
-    --md-outlined-button-outline-color: var(--border-color);
-  }
-
-  md-text-button {
-    --md-sys-color-primary: #00897B;
-    --md-text-button-label-text-color: #00897B;
-  }
-
-  /* Checkbox & Switch */
-  md-checkbox {
-    --md-sys-color-primary: #00897B;
-    --md-sys-color-on-primary: #ffffff;
-  }
-
-  /* Dark Mode Adjustments */
-  html.dark {
-    --md-sys-color-primary: #2dd4bf; /* Teal terang untuk dark mode agar kontras */
-    --md-filled-button-container-color: #00897B;
-    --md-filled-button-label-text-color: #ffffff;
-=======
   /* Dynamic Variables alignment with App Theme */
   md-outlined-text-field,
   md-filled-text-field {
@@ -207,6 +183,5 @@
   md-checkbox {
     --md-sys-color-primary: #0d9488;
     --md-sys-color-on-surface-variant: var(--text-secondary);
->>>>>>> Stashed changes
   }
 }

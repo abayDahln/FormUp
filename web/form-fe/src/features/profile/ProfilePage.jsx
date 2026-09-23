@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  User, Lock, Upload, Save, CheckCircle2, AlertCircle, Loader2, X, Eye, EyeOff, ShieldCheck, Sun, Moon 
+  User, Lock, Upload, Save, CheckCircle2, AlertCircle, Loader2, X, Eye, EyeOff, ShieldCheck, Sun, Moon, Type 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../../components/layout/Sidebar';
@@ -16,10 +16,16 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
 
   // State Mode Gelap / Terang
   const [isDark, setIsDark] = useState(() => {
     return document.documentElement.classList.contains('dark');
+  });
+
+  // State Ukuran Teks (small | normal | large)
+  const [fontSize, setFontSize] = useState(() => {
+    return localStorage.getItem('fontSize') || 'normal';
   });
 
   // Form Profil
@@ -46,8 +52,8 @@ export default function ProfilePage() {
     const load = async () => {
       setLoading(true);
       const res = await getMyProfile();
-      if (res.status === 401) { clearSession(); navigate('/login'); return; }
-      if (res.ok && res.data) {
+      if (res?.status === 401) { clearSession(); navigate('/login'); return; }
+      if (res?.ok && res?.data) {
         const d = res.data;
         setProfile(d);
         setFullname(d.fullname || '');
@@ -55,7 +61,47 @@ export default function ProfilePage() {
       setLoading(false);
     };
     load();
+
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
   }, [navigate]);
+
+  // Efek Pengaturan Ukuran Teks
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove('text-sm', 'text-base', 'text-lg');
+    if (fontSize === 'small') root.classList.add('text-sm');
+    else if (fontSize === 'large') root.classList.add('text-lg');
+    else root.classList.add('text-base');
+
+    localStorage.setItem('fontSize', fontSize);
+  }, [fontSize]);
+
+  // Event listener tombol Escape untuk menutup modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (showPasswordModal) closePasswordModal();
+        if (showImagePreview) setShowImagePreview(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showPasswordModal, showImagePreview]);
+
+  // Helper penentuan URL Avatar & Fallback UI Avatars
+  const getAvatarUrl = (imagePath, name = 'User', size = 256) => {
+    if (imagePath) {
+      return assetUrl(imagePath);
+    }
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=00897B&color=fff&size=${size}`;
+  };
+
+  const handleImageError = (e, name = 'User', size = 256) => {
+    e.target.onerror = null;
+    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'User')}&background=00897B&color=fff&size=${size}`;
+  };
 
   // Handler Ganti Mode Gelap/Terang
   const toggleDarkMode = () => {
@@ -71,8 +117,9 @@ export default function ProfilePage() {
   };
 
   const showToast = (msg, type = 'success') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
+    toastTimerRef.current = setTimeout(() => setToast(null), 4000);
   };
 
   const handleSaveProfile = async (e) => {
@@ -80,31 +127,37 @@ export default function ProfilePage() {
     setSaving(true);
     const res = await updateProfile({ fullname });
     setSaving(false);
-    if (res.ok) {
+    if (res?.ok) {
       const updated = { ...profile, fullname };
       setProfile(updated);
       const current = getLocalUser();
       if (current) saveSession({ token: localStorage.getItem('token'), user: { ...current, fullname } });
-      showToast('Profil berhasil diperbarui!');
+      showToast('Profil berhasil diperbarui!', 'success');
     } else {
-      showToast(res.message || 'Gagal memperbarui profil', 'error');
+      showToast(res?.message || 'Gagal memperbarui profil', 'error');
     }
   };
 
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Ukuran foto maksimal 2MB', 'error');
+      return;
+    }
+
     const res = await uploadProfileImage(file);
-    if (res.ok) {
+    if (res?.ok) {
       const updated = await getMyProfile();
-      if (updated.ok) {
+      if (updated?.ok) {
         setProfile(updated.data);
         const current = getLocalUser();
         if (current) saveSession({ token: localStorage.getItem('token'), user: { ...current, profileImage: updated.data.profileImage } });
       }
-      showToast('Foto profil berhasil diubah!');
+      showToast('Foto profil berhasil diubah!', 'success');
     } else {
-      showToast(res.message || 'Gagal mengunggah foto profil', 'error');
+      showToast(res?.message || 'Gagal mengunggah foto profil', 'error');
     }
   };
 
@@ -122,11 +175,11 @@ export default function ProfilePage() {
     setPwLoading(true);
     const res = await changePassword(oldPassword, newPassword);
     setPwLoading(false);
-    if (res.ok) {
+    if (res?.ok) {
       closePasswordModal();
-      showToast('Kata sandi berhasil diperbarui!');
+      showToast('Kata sandi berhasil diperbarui!', 'success');
     } else {
-      setPwError(res.message || 'Gagal memperbarui kata sandi.');
+      setPwError(res?.message || 'Gagal memperbarui kata sandi.');
     }
   };
 
@@ -150,6 +203,10 @@ export default function ProfilePage() {
     </div>
   );
 
+  // Map slider value ke level fontSize
+  const fontStepMap = { 0: 'small', 1: 'normal', 2: 'large' };
+  const fontValueMap = { small: 0, normal: 1, large: 2 };
+
   return (
     <div className="flex min-h-screen w-full bg-[#F4F8F7] dark:bg-slate-950 font-sans antialiased text-slate-800 dark:text-slate-100 transition-colors">
       <Sidebar />
@@ -168,38 +225,46 @@ export default function ProfilePage() {
           </div>
         </header>
 
-        {/* Toast Notification Responsif */}
+        {/* ALERT / TOAST */}
         <AnimatePresence>
           {toast && (
-            <motion.div
-              initial={{ opacity: 0, y: -20, scale: 0.9 }}
+            <motion.div 
+              initial={{ opacity: 0, y: -50, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.9 }}
-              transition={{ type: "spring", stiffness: 400, damping: 25 }}
-              className="fixed top-4 right-4 left-4 sm:left-auto sm:top-6 sm:right-6 z-50"
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              className="fixed top-5 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-lg"
             >
-              <div
-                className={`flex items-center justify-center sm:justify-start gap-3 px-4 py-3 sm:px-5 sm:py-3.5 rounded-2xl shadow-xl text-xs sm:text-sm font-semibold text-white backdrop-blur-xl border border-white/20 ${
-                  toast.type === "error"
-                    ? "bg-red-500/90 shadow-red-500/10"
-                    : "bg-teal-600/90 shadow-teal-600/10"
+              <div 
+                className={`flex items-center justify-between gap-3 p-4 rounded-2xl shadow-lg border ${
+                  toast.type === 'error'
+                    ? 'bg-red-600 border-red-700 text-white'
+                    : 'bg-[#00897B] border-teal-700 text-white'
                 }`}
               >
-                {toast.type === "error" ? (
-                  <AlertCircle size={18} />
-                ) : (
-                  <CheckCircle2 size={18} />
-                )}
-                <span>{toast.msg}</span>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 rounded-xl bg-white/20 text-white shrink-0">
+                    {toast.type === 'error' ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
+                  </div>
+                  <p className="text-xs sm:text-sm font-semibold tracking-wide truncate">{toast.msg}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setToast(null)}
+                  className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/20 transition-colors shrink-0 cursor-pointer"
+                  aria-label="Tutup alert"
+                >
+                  <X size={16} />
+                </button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Main Content Area Responsif */}
+        {/* Main Content Area */}
         <main className="p-4 sm:p-8 w-full max-w-4xl mx-auto space-y-4 sm:space-y-8">
           
-          {/* CARD TEMA: HANYA MUNCUL DI HP / MOBILE (sm:hidden) */}
+          {/* CARD TEMA: MOBILE ONLY */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
@@ -220,10 +285,10 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Toggle Switch */}
               <button
                 type="button"
                 onClick={toggleDarkMode}
+                aria-label="Toggle Mode Gelap"
                 className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                   isDark ? 'bg-[#00897B]' : 'bg-slate-200'
                 }`}
@@ -252,12 +317,8 @@ export default function ProfilePage() {
               >
                 <div className="p-1 rounded-2xl sm:rounded-3xl bg-slate-200 dark:bg-slate-800">
                   <img
-                    src={assetUrl(
-                      profile?.profileImage,
-                      `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                        profile?.fullname || "User"
-                      )}&background=00897B&color=fff&size=256`
-                    )}
+                    src={getAvatarUrl(profile?.profileImage, profile?.fullname, 256)}
+                    onError={(e) => handleImageError(e, profile?.fullname, 256)}
                     alt={profile?.fullname || "Foto Profil"}
                     className="w-20 h-20 sm:w-24 sm:h-24 rounded-[18px] sm:rounded-[22px] object-cover bg-white dark:bg-slate-800"
                   />
@@ -327,7 +388,61 @@ export default function ProfilePage() {
             </form>
           </motion.div>
 
-          {/* CARD 2: KEAMANAN & SANDI */}
+          {/* CARD 2: TEXT SIZE (UKURAN TEKS) */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.05 }}
+            className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800/80 p-5 sm:p-8 shadow-sm space-y-6"
+          >
+            <div className="flex items-center gap-3">
+              <Type className="text-[#00897B] dark:text-teal-400" size={26} />
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                Text size
+              </h2>
+            </div>
+
+            <div className="flex items-center gap-4 sm:gap-6 pt-2">
+              {/* Tombol Kiri (Small Tt) */}
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 flex items-center justify-center shrink-0">
+                <span className="font-bold text-sm text-slate-600 dark:text-slate-300">Tt</span>
+              </div>
+
+              {/* Slider Track & Indicator */}
+              <div className="flex-1 space-y-3">
+                <div className="relative flex items-center">
+                  <input
+                    type="range"
+                    min="0"
+                    max="2"
+                    step="1"
+                    value={fontValueMap[fontSize]}
+                    onChange={(e) => setFontSize(fontStepMap[e.target.value])}
+                    className="w-full h-3 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-[#00897B]"
+                  />
+                </div>
+
+                <div className="flex justify-between items-center text-xs sm:text-sm font-semibold">
+                  <span className={fontSize === 'small' ? 'text-[#00897B] font-bold' : 'text-slate-400 dark:text-slate-500'}>
+                    Small
+                  </span>
+                  <span className={fontSize === 'normal' ? 'text-[#00897B] font-bold' : 'text-slate-400 dark:text-slate-500'}>
+                    Normal
+                  </span>
+                  <span className={fontSize === 'large' ? 'text-[#00897B] font-bold' : 'text-slate-400 dark:text-slate-500'}>
+                    Large
+                  </span>
+                </div>
+              </div>
+
+              {/* Tombol Kanan (Large Tt) */}
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 flex items-center justify-center shrink-0">
+                <span className="font-extrabold text-2xl text-slate-700 dark:text-slate-200">Tt</span>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* CARD 3: KEAMANAN & SANDI */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
@@ -360,7 +475,7 @@ export default function ProfilePage() {
         </main>
       </div>
 
-      {/* Modal Ubah Kata Sandi Responsif */}
+      {/* Modal Ubah Kata Sandi */}
       <AnimatePresence>
         {showPasswordModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
@@ -394,8 +509,10 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={closePasswordModal}
                   className="p-1.5 sm:p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                  aria-label="Tutup modal"
                 >
                   <X size={18} />
                 </button>
@@ -515,7 +632,7 @@ export default function ProfilePage() {
         )}
       </AnimatePresence>
 
-      {/* Modal Preview Foto Profil Responsif */}
+      {/* Modal Preview Foto Profil */}
       <AnimatePresence>
         {showImagePreview && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -533,18 +650,16 @@ export default function ProfilePage() {
               className="relative z-10 max-w-sm sm:max-w-md w-full bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col items-center"
             >
               <button
+                type="button"
                 onClick={() => setShowImagePreview(false)}
                 className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white bg-slate-100 dark:bg-slate-800 rounded-full transition-all cursor-pointer"
+                aria-label="Tutup preview"
               >
                 <X size={18} />
               </button>
               <img
-                src={assetUrl(
-                  profile?.profileImage,
-                  `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                    profile?.fullname || "User"
-                  )}&background=00897B&color=fff&size=512`
-                )}
+                src={getAvatarUrl(profile?.profileImage, profile?.fullname, 512)}
+                onError={(e) => handleImageError(e, profile?.fullname, 512)}
                 alt="Preview Profil"
                 className="w-56 h-56 sm:w-72 sm:h-72 rounded-2xl object-cover my-4"
               />
