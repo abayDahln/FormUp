@@ -65,7 +65,7 @@ class AiChatDrawer extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'FormUp AI',
+                        'FormUp AFA',
                         style: TextStyle(
                           fontFamily: kFontBold,
                           fontSize: 16,

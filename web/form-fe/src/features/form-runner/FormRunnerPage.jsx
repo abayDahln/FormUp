@@ -840,6 +840,7 @@ export default function FormRunnerPage() {
                     sessionStorage.removeItem(`formup_exam_session_${formLink}`);
                     sessionStorage.removeItem(`formup_violations_${formLink}`);
                 } catch {}
+<<<<<<< HEAD
                 if (isActuallyDisqualified) {
                     setIsDisqualified(true);
                     return true;
@@ -850,6 +851,9 @@ export default function FormRunnerPage() {
                         isDisqualified: isActuallyDisqualified,
                     }
                 });
+=======
+                navigate(`/f/${formLink}/result/${responseId}`, { state: { guestToken: d?.guestToken || null } });
+>>>>>>> 7393fd95d2eae2ca95ff7620bd3aaebed568a1b2
                 return true;
             };
             const res = await submitPublicFormResponse(formLink, payload);

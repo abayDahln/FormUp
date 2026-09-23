@@ -85,7 +85,15 @@ class QuestionTextSection extends StatelessWidget {
         ),
         if (preview) ...[
           const SizedBox(height: 8),
-          QuestionPreviewBox(draft: q),
+          // ponytail: pratinjau render ulang langsung setiap dokumen berubah
+          // (ketik/format/opsi) tanpa menunggu setState lain.
+          ListenableBuilder(
+            listenable: Listenable.merge([
+              q.question,
+              for (final o in q.options) o.text,
+            ]),
+            builder: (context, _) => QuestionPreviewBox(draft: q),
+          ),
         ],
       ],
     );

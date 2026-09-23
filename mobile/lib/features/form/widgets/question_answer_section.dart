@@ -67,13 +67,18 @@ class QuestionAnswerSection extends StatelessWidget {
         if (scorable) _buildAnswerContent(context),
         if (scorable) ...[
           const SizedBox(height: 12),
-          Row(
+          // ponytail: Wrap (bukan Row) agar tidak overflow di kolom sempit
+          // (mis. kartu akordeon / panel dua kolom yang sempit). Di layar
+          // lebar tetap sebaris dengan jarak yang sama seperti sebelumnya.
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 10,
+            runSpacing: 8,
             children: [
               Text(
                 "Poin Soal",
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface),
               ),
-              const SizedBox(width: 10),
               SizedBox(
                 width: 90,
                 child: TextFormField(
@@ -93,24 +98,28 @@ class QuestionAnswerSection extends StatelessWidget {
                   },
                 ),
               ),
-              const SizedBox(width: 10),
-              Text(
-                "Otomatis",
-                style: TextStyle(fontSize: 12, color: cs.onSurface),
-              ),
-              const SizedBox(width: 4),
-              Switch(
-                value: q.points == null,
-                activeTrackColor: cs.primary,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                onChanged: (v) {
-                  if (v) {
-                    q.points = null;
-                  } else {
-                    q.points = 1;
-                  }
-                  onChanged();
-                },
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "Otomatis",
+                    style: TextStyle(fontSize: 12, color: cs.onSurface),
+                  ),
+                  const SizedBox(width: 4),
+                  Switch(
+                    value: q.points == null,
+                    activeTrackColor: cs.primary,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onChanged: (v) {
+                      if (v) {
+                        q.points = null;
+                      } else {
+                        q.points = 1;
+                      }
+                      onChanged();
+                    },
+                  ),
+                ],
               ),
             ],
           ),

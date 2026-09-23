@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'dart:typed_data';
 
@@ -7,6 +7,8 @@ import 'package:form_up/core/widgets/responsive.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:form_up/core/widgets/ai_chat_icon.dart';
 import 'package:form_up/core/widgets/loading_indicator.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/progress_indicator.dart' as progress;
 import 'package:form_up/core/widgets/app_toast.dart' hide showAuthToast;
@@ -20,9 +22,10 @@ import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form/widgets/analytics_respondent_card.dart';
 import 'package:form_up/features/form/widgets/analytics_summary_row.dart';
 import 'package:form_up/features/responses/widgets/response_analytics_tab.dart';
+import 'package:form_up/features/form/widgets/exam_monitoring_panel.dart';
 
-/// Analisis respons form â€” 2 tab: Analisis (diagram persen seperti web)
-/// dan Respon (daftar responden).
+/// Analisis respons form - 3 tab: Analisis (diagram persen seperti web),
+/// Respon (daftar responden), dan Monitoring (pantauan live peserta).
 class AnalyticsScreen extends StatefulWidget {
   final int formId;
   final String title;
@@ -56,34 +59,17 @@ extension _RespSortExt on _RespondentSort {
 
 class _AnalyticsScreenState extends State<AnalyticsScreen>
     with SingleTickerProviderStateMixin {
-  static const _pageSize = 10;
   final _searchController = TextEditingController();
   late final TabController _tabController =
-      TabController(length: 2, vsync: this);
+      TabController(length: 3, vsync: this);
   Timer? _debounce;
   String _query = '';
   FormAnalytics? _analytics;
   List<RespondentAnalyticsData> _respondents = [];
   bool _loading = true;
-  bool _loadingMore = false;
-  bool _hasMore = true;
-  int _page = 1;
+  String? _loadError;
   bool _exporting = false;
   _RespondentSort _sort = _RespondentSort.newest;
-
-  int get _totalPages {
-    final total = _analytics?.totalDistinctUsers ?? _analytics?.totalResponses ?? 0;
-    if (total == 0) return 1;
-    return (total / _pageSize).ceil();
-  }
-
-  bool get _showPagination {
-    final distinct = _analytics?.totalDistinctUsers ?? 0;
-    // Jika backend belum kirim distinct, fallback ke jumlah respon termuat.
-    final fallbackDistinct = _respondents.length;
-    final count = distinct > 0 ? distinct : fallbackDistinct;
-    return count > 20;
-  }
 
   @override
   void initState() {
@@ -124,14 +110,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     });
   }
 
-  /// Controller list tab Respon â€” untuk kembali ke atas saat ganti halaman.
+  /// Controller list tab Respon.
   final _responScrollController = ScrollController();
-
-  void _scrollListToTop() {
-    if (_responScrollController.hasClients) {
-      _responScrollController.jumpTo(0);
-    }
-  }
 
   Future<void> _load({bool refresh = false}) async {
     if (widget.formId == 0) {
@@ -140,153 +120,146 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     }
     setState(() {
       _loading = true;
-      _page = 1;
-      _hasMore = true;
+      _loadError = null;
     });
     try {
-      final analytics = await FormService.getAnalytics(
-        widget.formId,
-        page: 1,
-        pageSize: _pageSize,
-        search: _query,
-        refresh: refresh,
-      );
+      // Muat SEMUA halaman (pageSize 100) lalu group by user di klien.
+      // Backend selalu paged (default 20) sehingga hitung badge "Nx
+      // percobaan" dari satu halaman saja berubah-ubah saat scroll
+      // (_loadMore menambah data → count naik; ganti halaman → recount).
+      final all = <RespondentAnalyticsData>[];
+      FormAnalytics? first;
+      var page = 1;
+      const fetchSize = 100;
+      while (true) {
+        final analytics = await FormService.getAnalytics(
+          widget.formId,
+          page: page,
+          pageSize: fetchSize,
+          search: _query,
+          refresh: refresh || page > 1,
+        );
+        first ??= analytics;
+        all.addAll(analytics.respondents);
+        final total = analytics.totalResponses;
+        if (all.length >= total || analytics.respondents.isEmpty) break;
+        page++;
+        if (page > 50) break; // pengaman: maks 5000 respon
+      }
       if (!mounted) return;
       setState(() {
-        _analytics = analytics;
-        _respondents = List<RespondentAnalyticsData>.from(analytics.respondents);
-        _hasMore = _respondents.length < analytics.totalResponses;
+        _analytics = first;
+        _respondents = all;
+        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
+      if (AuthService.isConnectionError(e)) {
+        setState(() {
+          _loadError = AuthService.errorMessage(e);
+          _analytics ??= const FormAnalytics();
+          _respondents = _respondents.isEmpty ? const [] : _respondents;
+        });
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
       setState(() {
         _analytics ??= const FormAnalytics();
         _respondents = _respondents.isEmpty ? const [] : _respondents;
-        _hasMore = false;
       });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
+  /// Semua data sudah dimuat penuh di [_load] (lalu di-group by user),
+  /// jadi scroll ke bawah tidak perlu mengambil halaman lanjutan.
   Future<void> _loadMore() async {
-    if (_loadingMore || !_hasMore || _loading || widget.formId == 0) return;
-    setState(() => _loadingMore = true);
-    try {
-      final next = _page + 1;
-      final analytics = await FormService.getAnalytics(
-        widget.formId,
-        page: next,
-        pageSize: _pageSize,
-        search: _query,
-      );
-      if (!mounted) return;
-      setState(() {
-        _page = next;
-        final seen = _respondents.map((r) => r.responseId).toSet();
-        final novos = analytics.respondents.where((r) => !seen.contains(r.responseId)).toList();
-        _respondents = [..._respondents, ...novos];
-        _hasMore = _respondents.length < analytics.totalResponses;
-      });
-    } catch (e) {
-      if (mounted) showAuthToast(context, AuthService.errorMessage(e), isError: true);
-    } finally {
-      if (mounted) setState(() => _loadingMore = false);
-    }
+    return;
   }
 
-  Future<void> _goToPage(int target) async {
-    if (target < 1 || target > _totalPages || _loading || _loadingMore) return;
-    setState(() {
-      _loading = true;
-      _page = target;
-    });
-    try {
-      final analytics = await FormService.getAnalytics(
-        widget.formId,
-        page: target,
-        pageSize: _pageSize,
-        search: _query,
-      );
-      if (!mounted) return;
-      setState(() {
-        _analytics = analytics;
-        _respondents = List<RespondentAnalyticsData>.from(analytics.respondents);
-        _hasMore = _respondents.length < analytics.totalResponses;
-      });
-      _scrollListToTop();
-    } catch (e) {
-      if (mounted) showAuthToast(context, AuthService.errorMessage(e), isError: true);
-    } finally {
-      if (mounted) setState(() => _loading = false);
+  /// Satu grup responden (hasil group-by user): [representative] adalah
+  /// respon TERBARU grup itu (yang dibuka saat kartu diketuk — screen detail
+  /// memuat semua attempt via getRespondentAttempts), [count] total
+  /// pengerjaan grup. Dihitung dari data penuh sehingga badge stabil.
+  List<({RespondentAnalyticsData representative, int count})>
+      get _groupedRespondents {
+    final map = <String, List<RespondentAnalyticsData>>{};
+    for (final r in _respondents) {
+      final name = (r.respondentName ?? '').trim().toLowerCase();
+      // Nama kosong = identitas tak dikenal → tiap respon baris sendiri.
+      final key = name.isEmpty ? '__anon:${r.responseId}' : 'name:$name';
+      map.putIfAbsent(key, () => []).add(r);
     }
-  }
-
-  List<RespondentAnalyticsData> get _sortedRespondents {
-    final list = List<RespondentAnalyticsData>.from(_respondents);
-    switch (_sort) {
-      case _RespondentSort.newest:
-        // Backend sudah OrderByDescending(SubmittedAt); tie-break responseId
-        // agar stabil bila timestamp sama (detik sama / null).
-        list.sort((a, b) {
+    final groups = <({RespondentAnalyticsData representative, int count})>[];
+    for (final entry in map.entries) {
+      final attempts = entry.value
+        ..sort((a, b) {
           final c = b.submittedAt.compareTo(a.submittedAt);
           if (c != 0) return c;
           return b.responseId.compareTo(a.responseId);
         });
+      groups.add((representative: attempts.first, count: attempts.length));
+    }
+    return groups;
+  }
+
+  List<({RespondentAnalyticsData representative, int count})>
+      get _sortedRespondents {
+    final list = _groupedRespondents;
+    switch (_sort) {
+      case _RespondentSort.newest:
+        // Urut per-grup berdasar respon terbaru grup (tie-break responseId
+        // agar stabil bila timestamp sama).
+        list.sort((a, b) {
+          final c = b.representative.submittedAt
+              .compareTo(a.representative.submittedAt);
+          if (c != 0) return c;
+          return b.representative.responseId
+              .compareTo(a.representative.responseId);
+        });
         break;
       case _RespondentSort.oldest:
         list.sort((a, b) {
-          final c = a.submittedAt.compareTo(b.submittedAt);
+          final c = a.representative.submittedAt
+              .compareTo(b.representative.submittedAt);
           if (c != 0) return c;
-          return a.responseId.compareTo(b.responseId);
+          return a.representative.responseId
+              .compareTo(b.representative.responseId);
         });
         break;
       case _RespondentSort.highScore:
         list.sort((a, b) {
-          final c = (b.score ?? -1).compareTo(a.score ?? -1);
+          final c = (b.representative.score ?? -1)
+              .compareTo(a.representative.score ?? -1);
           if (c != 0) return c;
-          final t = b.submittedAt.compareTo(a.submittedAt);
+          final t = b.representative.submittedAt
+              .compareTo(a.representative.submittedAt);
           if (t != 0) return t;
-          return b.responseId.compareTo(a.responseId);
+          return b.representative.responseId
+              .compareTo(a.representative.responseId);
         });
         break;
       case _RespondentSort.lowScore:
         list.sort((a, b) {
-          final c = (a.score ?? 999).compareTo(b.score ?? 999);
+          final c = (a.representative.score ?? 999)
+              .compareTo(b.representative.score ?? 999);
           if (c != 0) return c;
-          final t = a.submittedAt.compareTo(b.submittedAt);
+          final t = a.representative.submittedAt
+              .compareTo(b.representative.submittedAt);
           if (t != 0) return t;
-          return a.responseId.compareTo(b.responseId);
+          return a.representative.responseId
+              .compareTo(b.representative.responseId);
         });
         break;
     }
     return list;
   }
 
-  /// Jumlah percobaan per responden (berdasar nama lower-case) â€” dipakai
-  /// badge "Nx percobaan" tanpa menggabungkan baris, supaya urutan
-  /// Terbaru/Terlama tetap per-respon (sama seperti web & backend).
-  Map<String, int> get _attemptCounts {
-    final counts = <String, int>{};
-    for (final r in _respondents) {
-      final key = (r.respondentName ?? '').trim().toLowerCase();
-      final k = key.isEmpty ? '__anonim__' : key;
-      counts[k] = (counts[k] ?? 0) + 1;
-    }
-    return counts;
-  }
-
-  int _attemptCountOf(RespondentAnalyticsData r, Map<String, int> counts) {
-    final key = (r.respondentName ?? '').trim().toLowerCase();
-    final k = key.isEmpty ? '__anonim__' : key;
-    return counts[k] ?? 1;
-  }
-
-  /// Daftar tampil tab Respon: flat per-respon sesuai urutan filter.
-  /// (Sebelumnya dikelompokkan per nama sehingga "Terbaru" tidak urut
-  /// karena beberapa respon digabung jadi satu kartu.)
-  List<RespondentAnalyticsData> get _visibleRespondents => _sortedRespondents;
+  /// Daftar tampil tab Respon: 1 kartu per user (group by nama).
+  /// Detail attempt dibuka lewat kartu (respon terbaru grup).
+  List<({RespondentAnalyticsData representative, int count})>
+      get _visibleRespondents => _sortedRespondents;
 
   void _openRespondent(RespondentAnalyticsData respondent) {
     if (_exporting) return;
@@ -477,9 +450,10 @@ Berikan analisis yang mencakup:
         children: [
           // â”€â”€ Tab Analisis: diagram persen & analisis mendetail â”€â”€
           ResponseAnalyticsTab(formId: widget.formId, title: widget.title),
-          // â”€â”€ Tab Respon: daftar responden (isi lama screen ini) â”€â”€
           _buildResponTab(),
-        ],
+          // ── Tab Monitoring (pantauan live, formulir & ujian) ──
+          ExamMonitoringPanel(formId: widget.formId),
+          ],
       ),
       ),
     ),
@@ -491,7 +465,23 @@ Berikan analisis yang mencakup:
   Widget _buildResponTab() {
     final cs = Theme.of(context).colorScheme;
     if (_loading && _analytics == null) {
-      return const LoadingOverlay(contained: true);
+      // Mirror layout asli: kartu judul + baris ringkasan + kartu responden.
+      return SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: centerPad(context,
+            base: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            wideMaxWidth: 1100),
+        child: const Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SkeletonTitleCard(),
+            SizedBox(height: 16),
+            SkeletonSummaryRow(),
+            SizedBox(height: 16),
+            SkeletonList.respondents(itemCount: 4),
+          ],
+        ),
+      );
     }
     return AbsorbPointer(
       absorbing: _exporting,
@@ -585,7 +575,15 @@ Berikan analisis yang mencakup:
                       ),
                     ),
                     const SizedBox(height: 12),
-                    if (_visibleRespondents.isEmpty)
+                    if (_loadError != null &&
+                        _visibleRespondents.isEmpty &&
+                        _query.isEmpty)
+                      ConnectionErrorView(
+                        message: _loadError!,
+                        onRetry: () => _load(refresh: true),
+                        bare: true,
+                      )
+                    else if (_visibleRespondents.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 48),
                         child: Column(
@@ -607,12 +605,26 @@ Berikan analisis yang mencakup:
                       for (var i = 0; i < _visibleRespondents.length; i++) ...[
                         AnalyticsRespondentCard(
                           index: i,
-                          respondent: _visibleRespondents[i],
-                          attemptCount: _attemptCountOf(_visibleRespondents[i], _attemptCounts),
-                          onTap: () => _openRespondent(_visibleRespondents[i]),
+                          respondent:
+                              _visibleRespondents[i].representative,
+                          attemptCount:
+                              _visibleRespondents[i].count,
+                          onTap: () => _openRespondent(
+                            _visibleRespondents[i].representative,
+                          ),
                         ),
                         const SizedBox(height: 12),
                       ],
+                      // Ringkasan grup: X responden • Y respons.
+                      Center(
+                        child: Text(
+                          '${_visibleRespondents.length} responden • ${_respondents.length} respons',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
                       // Tablet/desktop: responden 2 kolom.
                     ] else ...[
                       ResponsiveGrid(
@@ -621,47 +633,30 @@ Berikan analisis yang mencakup:
                           for (var i = 0; i < _visibleRespondents.length; i++)
                             AnalyticsRespondentCard(
                               index: i,
-                              respondent: _visibleRespondents[i],
-                              attemptCount: _attemptCountOf(_visibleRespondents[i], _attemptCounts),
-                              onTap: () =>
-                                  _openRespondent(_visibleRespondents[i]),
+                              respondent: _visibleRespondents[i]
+                                  .representative,
+                              attemptCount:
+                                  _visibleRespondents[i].count,
+                              onTap: () => _openRespondent(
+                                _visibleRespondents[i].representative,
+                              ),
                             ),
                         ],
                       ),
-                      if (_loadingMore)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          child: Center(child: LoadingIndicator.inline()),
-                        ),
-                      // Pagination hanya jika > 20
-                      if (_showPagination)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          // Pagination dipusatkan (maks 480) agar tak melar.
-                          child: Center(
-                            child: ConstrainedBox(
-                              constraints:
-                                  const BoxConstraints(maxWidth: 480),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                            children: [
-                              IconButton.filledTonal(
-                                visualDensity: VisualDensity.compact,
-                                onPressed: _page > 1 && !_loading && !_loadingMore ? () => _goToPage(_page - 1) : null,
-                                icon: const Icon(Icons.chevron_left, size: 22),
-                              ),
-                              Text('Halaman $_page dari $_totalPages', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: kFontBold, color: cs.onSurface)),
-                              IconButton.filledTonal(
-                                visualDensity: VisualDensity.compact,
-                                onPressed: _page < _totalPages && !_loading && !_loadingMore ? () => _goToPage(_page + 1) : null,
-                                icon: const Icon(Icons.chevron_right, size: 22),
-                              ),
-                                ],
-                              ),
-                            ),
+                      // Ringkasan grup: X responden • Y respons.
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Center(
+                          child: Text(
+                            '${_visibleRespondents.length} responden • ${_respondents.length} respons',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.onSurfaceVariant,
                             ),
                           ),
+                        ),
+                      ),
+                      // Pagination dihapus: daftar group dihitung dari data penuh.
                     ],
                   ],
                 ),
@@ -674,7 +669,7 @@ Berikan analisis yang mencakup:
 }
 
 
-/// Tab Analisis/Respon bergaya Riwayat/Responden (teks + underline teal).
+/// Tab Analisis/Respon/Monitoring bergaya Riwayat/Responden (teks + underline teal).
 class _MintTabBar extends StatelessWidget implements PreferredSizeWidget {
   final TabController controller;
   const _MintTabBar({required this.controller});
@@ -703,7 +698,7 @@ class _MintTabBar extends StatelessWidget implements PreferredSizeWidget {
             fontWeight: FontWeight.bold, fontFamily: kFontBold, fontSize: 13),
         unselectedLabelStyle:
             const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-        tabs: const [Tab(text: 'Analisis'), Tab(text: 'Respon')],
+        tabs: const [Tab(text: 'Analisis'), Tab(text: 'Respon'), Tab(text: 'Monitoring')],
       ),
     );
   }

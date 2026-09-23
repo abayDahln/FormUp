@@ -168,6 +168,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
   AudioRecorder? _recorder;
   Timer? _recordTimer;
   String? _recordingPath;
+  // Amplitudo live (0..1) untuk gelombang suara VoiceInputBar.
+  StreamController<double>? _ampCtrl;
+  StreamSubscription<Amplitude>? _ampSub;
 
   Future<void> pickAttachments() async {
     if (_streaming || _sending) return;
@@ -247,6 +250,30 @@ class _AiChatScreenState extends State<AiChatScreen> {
     setState(() => _pendingAttachments.removeWhere((a) => a.id == id));
   }
 
+  /// Mulai memancarkan level suara 0..1 dari amplitudo mikrofon (dBFS)
+  /// untuk gelombang VoiceInputBar. Gagal diam-diam = waveform idle saja.
+  void _startAmplitude() {
+    _stopAmplitude();
+    try {
+      _ampCtrl = StreamController<double>.broadcast();
+      _ampSub = _recorder
+          ?.onAmplitudeChanged(const Duration(milliseconds: 150))
+          .listen((a) {
+        // Bicara normal ≈ -40..-10 dBFS; hening ≤ -60.
+        _ampCtrl?.add(((a.current + 60) / 60).clamp(0.0, 1.0));
+      });
+    } catch (_) {
+      _stopAmplitude();
+    }
+  }
+
+  void _stopAmplitude() {
+    _ampSub?.cancel();
+    _ampSub = null;
+    _ampCtrl?.close();
+    _ampCtrl = null;
+  }
+
   Future<void> toggleVoice() async {
     if (_isTranscribing) return;
     if (_isRecording) {
@@ -285,6 +312,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       _recordingPath = '${tempDir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.wav';
       await _recorder!.start(const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1, bitRate: 128000), path: _recordingPath!);
       if (!mounted) return;
+      _startAmplitude();
       setState(() => _isRecording = true);
       _recordTimer?.cancel();
       _recordTimer = Timer(const Duration(seconds: 60), () {
@@ -310,6 +338,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   Future<void> _stopAndTranscribe() async {
     if (!_isRecording) return;
     _recordTimer?.cancel();
+    _stopAmplitude();
     setState(() {
       _isRecording = false;
       _isTranscribing = true;
@@ -387,6 +416,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _typingStream?.dispose();
     _sub?.cancel();
     _recordTimer?.cancel();
+    _stopAmplitude();
     _recorder?.dispose();
     for (final m in _messages) {
       m.disposeStream();
@@ -714,6 +744,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         isListening: _isRecording,
                         isTranscribing: _isTranscribing,
                         onMicPressed: toggleVoice,
+                        amplitudeStream: _ampCtrl?.stream,
                         onModelChanged: () {
                           _dismissKeyboard();
                           setState(() {});

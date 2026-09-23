@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -92,9 +93,9 @@ class AuthResult {
 }
 
 class AuthService {
-  // ponytail: tanpa retry, error cepat terlihat. analytics butuh lebih lama (agregasi DB).
-  static const Duration _timeout = Duration(seconds: 15);
-  static const int _maxRetries = 0;
+  // Fetch API menunggu hingga 30 detik sebelum dianggap gagal koneksi,
+  // agar jaringan lag tidak langsung menampilkan error koneksi.
+  static const Duration _timeout = Duration(seconds: 30);
 
   static Duration get timeout => _timeout;
 
@@ -136,6 +137,24 @@ class AuthService {
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
+  static const _kDeviceId = 'formup_device_id';
+  static String? _cachedDeviceId;
+
+  /// Mengambil atau membuat ID unik perangkat untuk rate limiting independen di Wi-Fi bersama
+  static Future<String> getDeviceId() async {
+    if (_cachedDeviceId != null && _cachedDeviceId!.isNotEmpty) {
+      return _cachedDeviceId!;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    var devId = prefs.getString(_kDeviceId);
+    if (devId == null || devId.isEmpty) {
+      devId = 'mob_${DateTime.now().millisecondsSinceEpoch}_${(1000 + (DateTime.now().microsecond % 9000))}';
+      await prefs.setString(_kDeviceId, devId);
+    }
+    _cachedDeviceId = devId;
+    return devId;
+  }
+
   static const _offlineMessage =
       'Kamu sedang offline. Login dan perubahan data tidak tersedia.';
 
@@ -345,6 +364,12 @@ class AuthService {
   static const _rateLimitMessage =
       'Terlalu banyak permintaan. Coba lagi nanti.';
 
+  /// True bila [e] adalah error koneksi/jaringan (timeout, offline, socket,
+  /// server down) — bukan error data kosong / validasi / 404.
+  /// Dipakai layar untuk menampilkan [ConnectionErrorView] + tombol retry
+  /// alih-alih tampilan "data kosong".
+  static bool isConnectionError(Object e) => isApiConnectionError(e);
+
   /// C10: jam UTC sampai kapan klien harus menahan diri (dari header
   /// `Retry-After` respons 429 server). Polling wajib menghormatinya.
   static DateTime? retryAfterUtc;
@@ -396,40 +421,108 @@ class AuthService {
     Map<String, String> headers, {
     Duration? timeout,
   }) async {
-    if (NetworkStatus.isOffline) {
-      await NetworkStatus.refresh();
-      if (NetworkStatus.isOffline) {
-        throw const ApiException(_offlineMessage);
-      }
-    }
+    // Catatan: TIDAK ada pre-check NetworkStatus.isOffline di sini.
+    // Flag offline bisa basi (satu blip menandai offline, request berikut
+    // langsung gagal tanpa mencoba HTTP = "loading sebentar lalu error
+    // koneksi, retry langsung sukses"). Request asli adalah kebenaran
+    // final — offline vs server ditentukan dari hasil percobaan.
     final effectiveTimeout = timeout ?? _timeout;
     var attempt = 0;
     while (true) {
+      final stopwatch = Stopwatch()..start();
       try {
         final request = http.Request(method, Uri.parse('$apiBaseUrl$path'));
         request.headers.addAll(headers);
+        final devId = await getDeviceId();
+        request.headers['X-Device-Id'] = devId;
         if (body != null) {
           request.headers['Content-Type'] = 'application/json; charset=UTF-8';
           request.body = jsonEncode(body);
         }
         final streamed = await request.send().timeout(effectiveTimeout);
-        final response = await http.Response.fromStream(streamed);
+        final response =
+            await http.Response.fromStream(streamed).timeout(effectiveTimeout);
         NetworkStatus.markOnline();
         return response;
-      } on TimeoutException {
-        NetworkStatus.markOffline();
-        if (attempt >= _maxRetries) {
-          throw const ApiException(_connectionMessage);
+      } on TimeoutException catch (e) {
+        if (await _retryTransientGet(method, attempt, stopwatch, path, e)) {
+          attempt++;
+          continue;
         }
-      } on http.ClientException {
-        NetworkStatus.markOffline();
-        if (attempt >= _maxRetries) {
-          throw const ApiException(_connectionMessage);
+        if (await _failConnection()) {
+          throw const ApiException(_offlineMessage);
         }
+        throw const ApiException(_connectionMessage);
+      } on SocketException catch (e) {
+        if (await _retryTransientGet(method, attempt, stopwatch, path, e)) {
+          attempt++;
+          continue;
+        }
+        if (await _failConnection()) {
+          throw const ApiException(_offlineMessage);
+        }
+        throw const ApiException(_connectionMessage);
+      } on http.ClientException catch (e) {
+        if (await _retryTransientGet(method, attempt, stopwatch, path, e)) {
+          attempt++;
+          continue;
+        }
+        if (await _failConnection()) {
+          throw const ApiException(_offlineMessage);
+        }
+        throw const ApiException(_connectionMessage);
       }
-      attempt++;
-      await Future.delayed(Duration(milliseconds: 500 * attempt));
     }
+  }
+
+  /// Retry transparan 1x khusus GET yang gagal CEPAT (<10 dtk).
+  /// Gagal-cepat = blip transient (reset/refused sesaat, bukan timeout
+  /// 30 dtk asli) — persis kasus "retry manual langsung sukses".
+  /// Gagal-lambat (timeout penuh) dan mutasi (POST/PUT/PATCH/DELETE)
+  /// TIDAK di-retry (hindari tunggu 60 dtk & double-submit).
+  /// Return true bila pemanggil harus mengulang request.
+  static Future<bool> _retryTransientGet(
+    String method,
+    int attempt,
+    Stopwatch stopwatch,
+    String path,
+    Object e,
+  ) async {
+    stopwatch.stop();
+    if (method != 'GET' || attempt >= 1) {
+      if (kDebugMode) {
+        debugPrint(
+          '[API] $method $path gagal (${e.runtimeType}, '
+          '${stopwatch.elapsedMilliseconds}ms, attempt $attempt): tanpa retry',
+        );
+      }
+      return false;
+    }
+    if (stopwatch.elapsed >= const Duration(seconds: 10)) return false;
+    if (kDebugMode) {
+      debugPrint(
+        '[API] $method $path gagal-cepat (${e.runtimeType}, '
+        '${stopwatch.elapsedMilliseconds}ms): retry 1x…',
+      );
+    }
+    await Future.delayed(const Duration(milliseconds: 800));
+    return true;
+  }
+
+  /// Kegagalan final: sinkronkan flag offline via probe cepat.
+  /// Return true bila perangkat memang offline (pesan offline akurat),
+  /// false bila server/jaringan yang bermasalah.
+  /// Flag hanya diubah oleh hasil probe — gagal HTTP saat probe online
+  /// TIDAK menandai offline (mencegah satu request lambat meracuni
+  /// request paralel lain menjadi "offline" instan).
+  static Future<bool> _failConnection() async {
+    try {
+      await NetworkStatus.refresh();
+    } catch (_) {
+      NetworkStatus.markOffline();
+      return true;
+    }
+    return NetworkStatus.isOffline;
   }
 
   static Future<Map<String, dynamic>> _send(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/utils/action_debouncer.dart';
 import 'package:form_up/core/widgets/app_toast.dart';
@@ -458,21 +459,103 @@ class AuthBottomPill extends StatelessWidget {
   }
 }
 
-/// Input OTP 6 digit
+/// Input OTP 6 digit (single-controller agar tidak bisa "stuck di tengah").
+///
+/// Perbaikan keyboard/fokus:
+/// - visual kotak dibungkus [IgnorePointer] sehingga tap langsung mengenai
+///   [TextField] asli (keyboard selalu muncul, tidak balapan dengan
+///   GestureDetector/requestFocus manual).
+/// - [FocusNode] punya listener agar highlight kotak aktif ikut rebuild.
+/// - `autofillHints: oneTimeCode` agar saran kode/paste dari keyboard & SMS
+///   muncul, plus filter digit-only agar paste "123-456" jadi "123456".
+/// - [WidgetsBindingObserver] meminta fokus ulang saat kembali dari
+///   background (cek email) bila kode belum lengkap.
+/// - kursor selalu dikunci di ujung teks agar tidak berhenti di tengah.
 class OtpField extends StatefulWidget {
   final TextEditingController controller;
+  final VoidCallback? onSubmitted;
 
-  const OtpField({super.key, required this.controller});
+  const OtpField({super.key, required this.controller, this.onSubmitted});
 
   @override
   State<OtpField> createState() => _OtpFieldState();
 }
 
-class _OtpFieldState extends State<OtpField> {
+class _OtpFieldState extends State<OtpField> with WidgetsBindingObserver {
   final FocusNode _focusNode = FocusNode();
+  bool _notifiedComplete = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _focusNode.addListener(_onFocusChange);
+    widget.controller.addListener(_enforceDigits);
+    // Minta keyboard setelah frame pertama (autofocus saja kadang kalah
+    // dengan transisi navigasi).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          !_focusNode.hasFocus &&
+          widget.controller.text.length < 6) {
+        _focusNode.requestFocus();
+      }
+    });
+  }
+
+  void _onFocusChange() {
+    if (mounted) setState(() {});
+  }
+
+  /// Saring non-digit, batasi 6, kunci kursor di ujung, lalu rebuild visual.
+  void _enforceDigits() {
+    final raw = widget.controller.text;
+    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    final clipped = digits.length > 6 ? digits.substring(0, 6) : digits;
+    if (clipped != raw) {
+      widget.controller.value = TextEditingValue(
+        text: clipped,
+        selection: TextSelection.collapsed(offset: clipped.length),
+      );
+    } else {
+      final sel = widget.controller.selection;
+      if (!sel.isValid || sel.baseOffset != clipped.length) {
+        widget.controller.value = widget.controller.value.copyWith(
+          selection: TextSelection.collapsed(offset: clipped.length),
+        );
+      }
+    }
+    if (clipped.length == 6 && !_notifiedComplete) {
+      _notifiedComplete = true;
+      _focusNode.unfocus();
+      widget.onSubmitted?.call();
+    } else if (clipped.length < 6) {
+      _notifiedComplete = false;
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Kembali dari app email: munculkan lagi keyboard bila belum lengkap.
+    if (state == AppLifecycleState.resumed &&
+        mounted &&
+        !_focusNode.hasFocus &&
+        widget.controller.text.length < 6) {
+      Future.delayed(const Duration(milliseconds: 350), () {
+        if (mounted &&
+            !_focusNode.hasFocus &&
+            widget.controller.text.length < 6) {
+          _focusNode.requestFocus();
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    widget.controller.removeListener(_enforceDigits);
+    _focusNode.removeListener(_onFocusChange);
     _focusNode.dispose();
     super.dispose();
   }
@@ -480,70 +563,100 @@ class _OtpFieldState extends State<OtpField> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: () => _focusNode.requestFocus(),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Opacity(
-            opacity: 0,
-            child: SizedBox(
-              height: 47,
-              child: TextField(
-                controller: widget.controller,
-                focusNode: _focusNode,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
-                autofocus: true,
-                showCursor: false,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  counterText: '',
-                  border: InputBorder.none,
+    return AutofillGroup(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          if (!_focusNode.hasFocus) {
+            _focusNode.requestFocus();
+          } else {
+            // Sudah fokus tapi keyboard tertutup (mis. habis dari
+            // background): lepas lalu minta lagi agar keyboard muncul.
+            _focusNode.unfocus();
+            Future.delayed(const Duration(milliseconds: 50), () {
+              if (mounted) _focusNode.requestFocus();
+            });
+          }
+          widget.controller.selection = TextSelection.collapsed(
+            offset: widget.controller.text.length,
+          );
+        },
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Opacity(
+              opacity: 0,
+              child: SizedBox(
+                height: 47,
+                child: TextField(
+                  controller: widget.controller,
+                  focusNode: _focusNode,
+                  keyboardType: TextInputType.number,
+                  autofillHints: const [AutofillHints.oneTimeCode],
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(6),
+                  ],
+                  textInputAction: TextInputAction.done,
+                  autofocus: true,
+                  showCursor: false,
+                  enableInteractiveSelection: true,
+                  decoration: const InputDecoration(
+                    counterText: '',
+                    border: InputBorder.none,
+                  ),
+                  onSubmitted: (_) {
+                    _focusNode.unfocus();
+                    widget.onSubmitted?.call();
+                  },
                 ),
               ),
             ),
-          ),
-          Row(
-            children: List.generate(6, (i) {
-              final char = widget.controller.text.length > i
-                  ? widget.controller.text[i]
-                  : '';
-              return Expanded(
-                child: Container(
-                  height: 47,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(7.5),
-                    border: Border.all(
-                      color:
-                          i == widget.controller.text.length &&
-                              _focusNode.hasFocus
-                          ? cs.primary
-                          : cs.onSurfaceVariant,
-                      width:
-                          i == widget.controller.text.length &&
-                              _focusNode.hasFocus
-                          ? 1.5
-                          : 1,
+            // Visual murni: abaikan hit-test agar tap/long-press (paste)
+            // diteruskan ke TextField di bawahnya.
+            IgnorePointer(
+              child: Row(
+                children: List.generate(6, (i) {
+                  final char = widget.controller.text.length > i
+                      ? widget.controller.text[i]
+                      : '';
+                  return Expanded(
+                    child: Container(
+                      height: 47,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(7.5),
+                        border: Border.all(
+                          color:
+                              i == widget.controller.text.length &&
+                                  _focusNode.hasFocus
+                              ? cs.primary
+                              : cs.onSurfaceVariant,
+                          width:
+                              i == widget.controller.text.length &&
+                                  _focusNode.hasFocus
+                              ? 1.5
+                              : 1,
+                        ),
+                      ),
+                      child: Text(
+                        char,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: cs.onSurface,
+                          fontFamily: kFontBold,
+                        ),
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    char,
-                    style:  TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: cs.onSurface,
-                      fontFamily: kFontBold,
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ],
+                  );
+                }),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

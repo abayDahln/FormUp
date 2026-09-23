@@ -25,16 +25,14 @@ const Color kFieldBorderColor = Color(0xFF6E7979);
 
 /// TextStyle judul bold agar tidak perlu tulis fontFamily manual.
 /// Warna default mengikuti tema aktif (gelap → putih, terang → hitam).
-TextStyle kTitleStyle({double fontSize = 22, Color? color}) =>
-    TextStyle(
-      fontSize: fontSize,
-      fontWeight: FontWeight.bold,
-      fontFamily: kFontBold,
-      color: color ??
-          (ThemeController.instance.isDarkNow
-              ? Colors.white
-              : Colors.black87),
-    );
+TextStyle kTitleStyle({double fontSize = 22, Color? color}) => TextStyle(
+  fontSize: fontSize,
+  fontWeight: FontWeight.bold,
+  fontFamily: kFontBold,
+  color:
+      color ??
+      (ThemeController.instance.isDarkNow ? Colors.white : Colors.black87),
+);
 
 /// ThemeData aplikasi — komponen Material 3 otomatis konsisten.
 ThemeData buildFormUpTheme() {
@@ -178,7 +176,11 @@ ThemeData buildFormUpTheme() {
         minimumSize: const Size(64, 40),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold),
+        textStyle: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          fontFamily: kFontBold,
+        ),
       ),
     ),
 
@@ -196,7 +198,11 @@ ThemeData buildFormUpTheme() {
       filled: true,
       fillColor: Colors.white,
       floatingLabelBehavior: FloatingLabelBehavior.auto,
-      floatingLabelStyle: const TextStyle(color: kPrimary, fontSize: 14, fontWeight: FontWeight.w500),
+      floatingLabelStyle: const TextStyle(
+        color: kPrimary,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
       labelStyle: const TextStyle(color: Color(0xFF49454F), fontSize: 14),
       hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
       helperStyle: const TextStyle(color: Color(0xFF49454F), fontSize: 12),
@@ -204,19 +210,41 @@ ThemeData buildFormUpTheme() {
       prefixIconColor: const Color(0xFF49454F),
       suffixIconColor: const Color(0xFF49454F),
       contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: const BorderSide(color: kFieldBorderColor)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: const BorderSide(color: kFieldBorderColor)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: const BorderSide(color: kPrimary, width: 2)),
-      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: const BorderSide(color: kDangerColor)),
-      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: const BorderSide(color: kDangerColor, width: 2)),
-      disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: BorderSide(color: kFieldBorderColor.withValues(alpha: 0.38))),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        borderSide: const BorderSide(color: kFieldBorderColor),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        borderSide: const BorderSide(color: kFieldBorderColor),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        borderSide: const BorderSide(color: kPrimary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        borderSide: const BorderSide(color: kDangerColor),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        borderSide: const BorderSide(color: kDangerColor, width: 2),
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        borderSide: BorderSide(
+          color: kFieldBorderColor.withValues(alpha: 0.38),
+        ),
+      ),
     ),
 
     switchTheme: SwitchThemeData(
-      thumbColor: WidgetStateProperty.resolveWith((states) =>
-            states.contains(WidgetState.selected) ? Colors.white : null),
-      trackColor: WidgetStateProperty.resolveWith((states) =>
-            states.contains(WidgetState.selected) ? kPrimary : null),
+      thumbColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? Colors.white : null,
+      ),
+      trackColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? kPrimary : null,
+      ),
     ),
 
     // Floating action button dengan shadow
@@ -286,15 +314,19 @@ InputDecoration formUpInputDecoration({
   // saat tema berubah) agar seluruh caller otomatis ikut dark mode.
   final dark = ThemeController.instance.isDarkNow;
   final fill = fillColor ?? (dark ? const Color(0xFF232F32) : Colors.white);
-  final hint = hintStyle ??
+  final hint =
+      hintStyle ??
       TextStyle(color: dark ? Colors.white38 : Colors.black38, fontSize: 14);
-  final label = labelStyle ??
+  final label =
+      labelStyle ??
       TextStyle(
-          color: dark ? const Color(0xFFB9CACA) : const Color(0xFF49454F),
-          fontSize: 14);
+        color: dark ? const Color(0xFFB9CACA) : const Color(0xFF49454F),
+        fontSize: 14,
+      );
   final iconColor = dark ? const Color(0xFFB9CACA) : const Color(0xFF49454F);
-  final borderSide =
-      dark ? const BorderSide(color: Color(0xFF5A6E6E)) : const BorderSide(color: outline);
+  final borderSide = dark
+      ? const BorderSide(color: Color(0xFF5A6E6E))
+      : const BorderSide(color: outline);
   return InputDecoration(
     hintText: hintText,
     labelText: labelText,
@@ -303,12 +335,14 @@ InputDecoration formUpInputDecoration({
     hintStyle: hint,
     labelStyle: label,
     floatingLabelStyle: TextStyle(
-        color: dark ? kPrimaryDark : kPrimary,
-        fontSize: 14,
-        fontWeight: FontWeight.w500),
+      color: dark ? kPrimaryDark : kPrimary,
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+    ),
     helperStyle: TextStyle(
-        color: dark ? const Color(0xFFB9CACA) : const Color(0xFF49454F),
-        fontSize: 12),
+      color: dark ? const Color(0xFFB9CACA) : const Color(0xFF49454F),
+      fontSize: 12,
+    ),
     errorStyle: const TextStyle(color: kDangerColor, fontSize: 12),
     prefixIcon: prefixIcon,
     suffixIcon: suffixIcon,
@@ -352,7 +386,11 @@ InputDecoration formUpFilledDecoration({
   Widget? prefixIcon,
   Widget? suffixIcon,
 }) {
-  return formUpInputDecoration(hintText: hintText, prefixIcon: prefixIcon, suffixIcon: suffixIcon).copyWith(
+  return formUpInputDecoration(
+    hintText: hintText,
+    prefixIcon: prefixIcon,
+    suffixIcon: suffixIcon,
+  ).copyWith(
     filled: true,
     fillColor: ThemeController.instance.isDarkNow
         ? const Color(0xFF232F32)
@@ -374,25 +412,26 @@ extension ThemeSchemeX on BuildContext {
 /// ThemeData gelap — struktur mirror [buildFormUpTheme] agar semua
 /// komponen Material 3 konsisten. Aksen memakai teal terang [kPrimaryDark].
 ThemeData buildFormUpDarkTheme() {
-  // Naikkan kontras kartu terhadap background: scaffold digelapkan,
+  // Naikkan kontras kartu terhadap background: scaffold digelarkan,
   // permukaan (surface & container) diangkat agar kartu tidak menyatu.
-  final scheme = ColorScheme.fromSeed(
-    seedColor: kPrimaryDark,
-    brightness: Brightness.dark,
-  ).copyWith(
-    // Kunci aksen ke brand yang diterangkan (pilihan user) + pasangan
-    // on-container yang kontras, agar konsisten di semua widget.
-    primary: kPrimaryDark,
-    onPrimary: const Color(0xFF00332D),
-    primaryContainer: const Color(0xFF0F3D38),
-    onPrimaryContainer: const Color(0xFFA7F0E4),
-    surface: const Color(0xFF1C2629),
-    surfaceContainerLowest: const Color(0xFF0A0F11),
-    surfaceContainerLow: const Color(0xFF141C1E),
-    surfaceContainer: const Color(0xFF1C2629),
-    surfaceContainerHigh: const Color(0xFF232F32),
-    surfaceContainerHighest: const Color(0xFF2C393C),
-  );
+  final scheme =
+      ColorScheme.fromSeed(
+        seedColor: kPrimaryDark,
+        brightness: Brightness.dark,
+      ).copyWith(
+        // Kunci aksen ke brand yang diterangkan (pilihan user) + pasangan
+        // on-container yang kontras, agar konsisten di semua widget.
+        primary: kPrimaryDark,
+        onPrimary: const Color(0xFF00332D),
+        primaryContainer: const Color(0xFF0F3D38),
+        onPrimaryContainer: const Color(0xFFA7F0E4),
+        surface: const Color(0xFF1C2629),
+        surfaceContainerLowest: const Color(0xFF0A0F11),
+        surfaceContainerLow: const Color(0xFF141C1E),
+        surfaceContainer: const Color(0xFF1C2629),
+        surfaceContainerHigh: const Color(0xFF232F32),
+        surfaceContainerHighest: const Color(0xFF2C393C),
+      );
   const surface = Color(0xFF1C2629);
   const surfaceHigh = Color(0xFF232F32);
 
@@ -513,7 +552,11 @@ ThemeData buildFormUpDarkTheme() {
         minimumSize: const Size(64, 40),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: kFontBold),
+        textStyle: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          fontFamily: kFontBold,
+        ),
       ),
     ),
 
@@ -531,7 +574,11 @@ ThemeData buildFormUpDarkTheme() {
       filled: true,
       fillColor: surfaceHigh,
       floatingLabelBehavior: FloatingLabelBehavior.auto,
-      floatingLabelStyle: TextStyle(color: scheme.primary, fontSize: 14, fontWeight: FontWeight.w500),
+      floatingLabelStyle: TextStyle(
+        color: scheme.primary,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
       labelStyle: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14),
       hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
       helperStyle: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
@@ -539,19 +586,41 @@ ThemeData buildFormUpDarkTheme() {
       prefixIconColor: scheme.onSurfaceVariant,
       suffixIconColor: scheme.onSurfaceVariant,
       contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: BorderSide(color: scheme.outline)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: BorderSide(color: scheme.outline)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: BorderSide(color: scheme.primary, width: 2)),
-      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: const BorderSide(color: kDangerColor)),
-      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: const BorderSide(color: kDangerColor, width: 2)),
-      disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSm), borderSide: BorderSide(color: scheme.outline.withValues(alpha: 0.38))),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        borderSide: BorderSide(color: scheme.outline),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        borderSide: BorderSide(color: scheme.outline),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        borderSide: BorderSide(color: scheme.primary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        borderSide: const BorderSide(color: kDangerColor),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        borderSide: const BorderSide(color: kDangerColor, width: 2),
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kRadiusSm),
+        borderSide: BorderSide(color: scheme.outline.withValues(alpha: 0.38)),
+      ),
     ),
 
     switchTheme: SwitchThemeData(
-      thumbColor: WidgetStateProperty.resolveWith((states) =>
-            states.contains(WidgetState.selected) ? scheme.onPrimary : null),
-      trackColor: WidgetStateProperty.resolveWith((states) =>
-            states.contains(WidgetState.selected) ? scheme.primary : null),
+      thumbColor: WidgetStateProperty.resolveWith(
+        (states) =>
+            states.contains(WidgetState.selected) ? scheme.onPrimary : null,
+      ),
+      trackColor: WidgetStateProperty.resolveWith(
+        (states) =>
+            states.contains(WidgetState.selected) ? scheme.primary : null,
+      ),
     ),
 
     floatingActionButtonTheme: FloatingActionButtonThemeData(

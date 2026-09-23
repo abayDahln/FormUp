@@ -20,7 +20,10 @@ import 'package:form_up/core/services/user_service.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
 import 'package:form_up/core/widgets/onboarding_tour.dart';
 import 'package:form_up/core/widgets/responsive.dart';
+import 'package:form_up/core/widgets/adaptive_fab.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/utils/safe_load.dart';
 import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/form_card.dart';
 import 'package:form_up/features/home/widgets/user_guide_sheet.dart';
@@ -44,6 +47,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<MyResponseItem> _myResponses = [];
   String? _avatarPath;
   bool _loading = true;
+  String? _formsError;
+  String? _responsesError;
   final _codeController = TextEditingController();
   bool _validatingCode = false;
 
@@ -141,6 +146,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 'Ubah data lewat Edit Profil dan ganti kata sandi lewat Ubah Kata Sandi.',
             icon: Icons.person_outline,
             onEnter: () => _goTab(4),
+            // Profil first-install masih loading network (cache kosong) saat
+            // tab dibuka — beri jeda kunci ulang lebih lama agar lubang
+            // tidak terkunci prematur sebelum menu ter-layout.
+            settleMs: 600,
           ),
         ],
         onComplete: () async {
@@ -183,27 +192,64 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _formsError = null;
+      _responsesError = null;
+    });
     try {
-      final results = await Future.wait([
-        FormService.getMyForms(),
-        FormService.getMyResponses(),
-        // Foto profil untuk tombol akun sidebar (best-effort).
-        UserService.getProfile()
-            .then((p) => p.profileImage ?? '')
-            .catchError((_) => ''),
-      ]);
-      if (!mounted) return;
-      setState(() {
-        _myForms = results[0] as List<FormData>;
-        _myResponses = results[1] as List<MyResponseItem>;
-        _avatarPath = results[2] as String;
+      // Jalan paralel, tapi tiap sumber ditangani SENDIRI: satu request
+      // yang gagal (mis. blip koneksi) tidak boleh menghanguskan data
+      // sumber lain — sebelumnya Future.wait all-or-nothing membuat
+      // seluruh beranda error padahal 2 dari 3 sumber sukses.
+      final formsFut = captureLoad<List<FormData>>(FormService.getMyForms);
+      final respFut =
+          captureLoad<List<MyResponseItem>>(FormService.getMyResponses);
+      final avatarFut = captureLoad<String>(() async {
+        try {
+          final p = await UserService.getProfile();
+          return p.profileImage ?? '';
+        } catch (_) {
+          return '';
+        }
       });
-      _maybeAutoTour();
-    } catch (e) {
+      final (formsVal, formsErr) = await formsFut;
+      final (respVal, respErr) = await respFut;
+      final (avatarVal, _) = await avatarFut;
       if (!mounted) return;
-      // Konsisten: selalu toast float, tidak ada banner inline di dalam view
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      final nonConnErrors = <String>[];
+      setState(() {
+        if (formsVal != null) {
+          _myForms = formsVal;
+          _formsError = null;
+        } else if (formsErr != null) {
+          if (AuthService.isConnectionError(formsErr)) {
+            if (_myForms.isEmpty) {
+              _formsError = AuthService.errorMessage(formsErr);
+            }
+          } else {
+            nonConnErrors.add(AuthService.errorMessage(formsErr));
+          }
+        }
+        if (respVal != null) {
+          _myResponses = respVal;
+          _responsesError = null;
+        } else if (respErr != null) {
+          if (AuthService.isConnectionError(respErr)) {
+            if (_myResponses.isEmpty) {
+              _responsesError = AuthService.errorMessage(respErr);
+            }
+          } else {
+            nonConnErrors.add(AuthService.errorMessage(respErr));
+          }
+        }
+        if (avatarVal != null) _avatarPath = avatarVal;
+      });
+      for (final msg in nonConnErrors) {
+        if (!mounted) break;
+        showAuthToast(context, msg, isError: true);
+      }
+      _maybeAutoTour();
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -358,7 +404,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     if (_loading && _myForms.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: SkeletonList.cards(itemCount: formCount),
+                        child: SkeletonFormGrid(itemCount: formCount),
+                      )
+                    else if (_formsError != null && _myForms.isEmpty)
+                      ConnectionErrorView(
+                        message: _formsError!,
+                        onRetry: _load,
+                        bare: true,
                       )
                     else if (_myForms.isEmpty)
                       const EmptyState(
@@ -390,6 +442,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       onOpenResponse: _openResponse,
                       limit: activityCount,
                       bare: true,
+                      loadError: _responsesError,
+                      onRetry: _load,
                     ),
                     const SizedBox(height: 8),
                   ],
@@ -464,6 +518,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 'formId': form.id,
                 'form': form,
               }),
+              loadError: _formsError,
+              onRetry: _load,
             ),
             const SizedBox(height: 25),
 
@@ -482,6 +538,8 @@ class _HomeScreenState extends State<HomeScreen> {
               loading: _loading,
               responses: _myResponses,
               onOpenResponse: _openResponse,
+              loadError: _responsesError,
+              onRetry: _load,
             ),
             const SizedBox(height: 30),
           ],
@@ -528,7 +586,7 @@ class _HomeScreenState extends State<HomeScreen> {
         NavigationDestination(
           icon: AiChatIcon(color: cs.onSurfaceVariant, size: 24, filled: false),
           selectedIcon: AiChatIcon(color: cs.primary, size: 24, filled: true),
-          label: 'AI Chat',
+          label: 'Agent',
         ),
         NavigationDestination(
           icon: Icon(Icons.bar_chart_outlined),
@@ -556,7 +614,7 @@ class _HomeScreenState extends State<HomeScreen> {
         NavigationRailDestination(
           icon: AiChatIcon(color: cs.onSurfaceVariant, size: 24, filled: false),
           selectedIcon: AiChatIcon(color: cs.primary, size: 24, filled: true),
-          label: Text('AI Chat'),
+          label: Text('Agent'),
         ),
         NavigationRailDestination(
           icon: Icon(Icons.bar_chart_outlined),
@@ -685,7 +743,7 @@ class _HomeScreenState extends State<HomeScreen> {
         NavigationDrawerDestination(
           icon: AiChatIcon(color: cs.onSurfaceVariant, size: 24, filled: false),
           selectedIcon: AiChatIcon(color: cs.primary, size: 24, filled: true),
-          label: Text('AI Chat'),
+          label: Text('Agent'),
         ),
         NavigationDrawerDestination(
           icon: Icon(Icons.bar_chart_outlined),
@@ -711,6 +769,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
+        // Desktop: Extended FAB "Buat Form" (pengganti tombol header) —
+        // inset dinamis menempel kolom konten 1400, bukan pojok jendela.
+        floatingActionButton: _railFab(),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       );
     }
     // Tablet (semua orientasi, termasuk portrait <840) + layar lebar (≥840)
@@ -768,25 +830,40 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// FAB tambah form — dipakai phone maupun rail agar satu definisi.
-  /// Desktop (≥1200): disembunyikan karena tombol ada di header Form Saya.
-  Widget? _railFab() {
-    if (_currentIndex != 1) return null;
-    if (isDesktopWidth(context)) return null;
-    return SizedBox(
-      width: 68,
-      height: 68,
-      child: FloatingActionButton(
-        key: _fabKey,
-        onPressed: () {
-          AppRouter.of(context).push(AppPage.formTemplateChooser);
-        },
-        backgroundColor: kPrimary,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: const Icon(Icons.add, size: 32),
-      ),
+  /// FAB tambah form — satu definisi untuk semua layout.
+  /// Phone (<600): lingkaran 68px margin L1=16 (render identik).
+  /// Tablet/desktop: Extended FAB M3 (tinggi & ikon disamakan 68px/32,
+  /// plus label "Buat Form") dengan margin kanan == bawah berlevel
+  /// (tablet L1–L2, desktop L2–L5 mengikuti ukuran window).
+  ///
+  /// Widget SELALU dikembalikan (tidak null) — Scaffold menyimpan FAB lama
+  /// selama animasi keluarnya. Bila null lalu non-null dalam <200ms (pindah
+  /// tab bolak-balik cepat), FAB lama dan FAB baru hidup bersamaan dan
+  /// keduanya memakai [_fabKey] → "Duplicate GlobalKey detected". Visibilitas
+  /// diatur lewat [Visibility] berukuran tetap agar anchor tur tetap punya
+  /// rect saat tab Form aktif.
+  Widget _railFab() {
+    void onAdd() {
+      AppRouter.of(context).push(AppPage.formMaker);
+    }
+    // Phone: perilaku lama tanpa padding tambahan.
+    final Widget fab = !isTablet(context)
+        ? buildCircleAddFab(key: _fabKey, onPressed: onAdd)
+        : Padding(
+            padding: fabPad(context),
+            child: buildExtendedAddFab(
+              key: _fabKey,
+              onPressed: onAdd,
+              label: 'Buat Form',
+              tooltip: 'Buat form baru',
+            ),
+          );
+    return Visibility(
+      visible: _currentIndex == 1,
+      maintainState: true,
+      maintainAnimation: true,
+      maintainSize: true,
+      child: fab,
     );
   }
 

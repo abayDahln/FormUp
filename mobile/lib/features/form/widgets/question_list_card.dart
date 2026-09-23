@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/models/question_draft.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 
-/// Kartu satu soal pada daftar kelola soal
+/// Kartu satu soal pada daftar kelola soal.
+///
+/// [readOnly] = true saat form sudah memiliki respons: kartu hanya tampil
+/// (tap tidak membuka editor, menu aksi diganti ikon kunci).
 class QuestionListCard extends StatelessWidget {
   final int index;
   final int totalCount;
@@ -12,6 +15,7 @@ class QuestionListCard extends StatelessWidget {
   final VoidCallback onMoveDown;
   final VoidCallback onDelete;
   final double zoom;
+  final bool readOnly;
 
   const QuestionListCard({
     super.key,
@@ -23,6 +27,7 @@ class QuestionListCard extends StatelessWidget {
     required this.onMoveDown,
     required this.onDelete,
     this.zoom = 1.0,
+    this.readOnly = false,
   });
   double _zs(double v) => (v * zoom).clamp(10, 48).toDouble();
 
@@ -34,7 +39,7 @@ class QuestionListCard extends StatelessWidget {
     final typeLabel = questionTypes[q.typeId]?.$1 ?? '';
 
     return GestureDetector(
-      onTap: onEdit,
+      onTap: readOnly ? null : onEdit,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -95,7 +100,13 @@ class QuestionListCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                MenuAnchor(
+                if (readOnly)
+                  Tooltip(
+                    message: 'Soal dikunci — form sudah memiliki respons',
+                    child: Icon(Icons.lock_outline, size: 20, color: cs.onSurfaceVariant),
+                  )
+                else
+                  MenuAnchor(
                   builder: (context, controller, child) => IconButton(
                     icon: Icon(Icons.more_vert, size: 20, color: cs.onSurfaceVariant),
                     tooltip: 'Opsi soal',

@@ -167,8 +167,9 @@ extension _AiChatMessaging on _AiChatScreenState {
     }
     await sendWithText(
       'Respons kamu sebelumnya terpotong di tengah JSON aksi. '
-      'Tulis ULANG seluruh jawaban + SATU blok ```json aksi yang lengkap dan valid '
-      'dalam satu respons ini. Singkat saja penjelasannya agar tidak terpotong lagi.',
+      'Kirim ulang sebagai chunk PERTAMA yang lengkap dan valid (10-15 soal) + '
+      'SATU blok ```json aksi dalam respons ini, lalu tulis satu baris "Masih ada X soal lagi — balas \'lanjut\' ya." '
+      'Singkat saja penjelasannya agar tidak terpotong lagi.',
       pendingAttachments: resendAtts,
     );
   }

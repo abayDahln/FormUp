@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/cached_remote_image.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
+import 'package:form_up/core/utils/safe_load.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -12,6 +14,7 @@ import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/services/user_service.dart';
 import 'package:form_up/core/router/app_router.dart';
+import 'package:form_up/core/widgets/redeem_api_key_sheet.dart';
 import 'package:form_up/features/profile/widgets/image_source_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -32,6 +35,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   UserStats? _stats;
   List<MyResponseItem> _recent = [];
   bool _loading = true;
+  String? _loadError;
   // Guard agar swipe/spam/tick-online bersamaan tidak menumpuk request
   // (ApiCache juga dedup yang benar-benar bersamaan via _pending).
   bool _refreshing = false;
@@ -55,25 +59,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_refreshing) return;
     _refreshing = true;
     final showLoader = _profile == null;
-    if (showLoader) setState(() => _loading = true);
+    if (showLoader) {
+      setState(() {
+        _loading = true;
+        _loadError = null;
+      });
+    }
     try {
-      final results = await Future.wait([
-        UserService.getProfile(refresh: refresh),
-        UserService.getStats(refresh: refresh),
-        // 1c: rekap aktivitas untuk panel kanan desktop (best-effort).
-        FormService.getMyResponses(refresh: refresh).catchError((_) => <MyResponseItem>[]),
-      ]);
+      // Paralel tapi per-sumber: statistik gagal tidak boleh
+      // menghanguskan profil (dan sebaliknya).
+      final profileFut = captureLoad<UserProfile>(
+        () => UserService.getProfile(refresh: refresh),
+      );
+      final statsFut = captureLoad<UserStats>(
+        () => UserService.getStats(refresh: refresh),
+      );
+      // 1c: rekap aktivitas untuk panel kanan desktop (best-effort).
+      final recentFut = captureLoad<List<MyResponseItem>>(
+        () => FormService.getMyResponses(refresh: refresh),
+      );
+      final (profileVal, profileErr) = await profileFut;
+      final (statsVal, statsErr) = await statsFut;
+      final (recentVal, _) = await recentFut;
       if (!mounted) return;
       setState(() {
-        _profile = results[0] as UserProfile;
-        _stats = results[1] as UserStats;
-        _recent = (results[2] as List<MyResponseItem>).take(5).toList();
+        if (profileVal != null) {
+          _profile = profileVal;
+          _loadError = null;
+        } else if (profileErr != null &&
+            showLoader &&
+            AuthService.isConnectionError(profileErr)) {
+          // Profil (data utama) gagal koneksi saat belum tampil:
+          // tampilkan view retry penuh.
+          _loadError = AuthService.errorMessage(profileErr);
+        }
+        if (statsVal != null) {
+          _stats = statsVal;
+        }
+        if (recentVal != null) {
+          _recent = recentVal.take(5).toList();
+        }
       });
-    } catch (e) {
-      if (!mounted) return;
-      // Refresh senyap gagal saat data lama masih tampil: cukup toast,
-      // jangan timpa layar dengan error (data cache tetap berguna).
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      // Error non-koneksi atau error saat data lama tampil: toast saja,
+      // jangan timpa layar (data cache tetap berguna).
+      final toastMsgs = <String>[];
+      if (profileVal == null &&
+          profileErr != null &&
+          !(showLoader && AuthService.isConnectionError(profileErr))) {
+        toastMsgs.add(AuthService.errorMessage(profileErr));
+      }
+      if (statsVal == null && statsErr != null) {
+        toastMsgs.add(AuthService.errorMessage(statsErr));
+      }
+      for (final msg in toastMsgs) {
+        if (!mounted) break;
+        showAuthToast(context, msg, isError: true);
+      }
     } finally {
       _refreshing = false;
       if (mounted && showLoader) setState(() => _loading = false);
@@ -83,6 +124,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _openEditProfile() async {
     await AppRouter.of(context).push(AppPage.editProfile);
     if (mounted) _load(refresh: true);
+  }
+
+  /// Sheet redeem API key Gemini (kode dari guru/admin → salin/terapkan).
+  Future<void> _openRedeemApiKey() async {
+    await RedeemApiKeySheet.show(context);
   }
 
   @override
@@ -199,6 +245,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Column(
             children: [
               _MenuTile(
+                key: ProfileScreen.editTourKey,
                 icon: Icons.person_outline,
                 label: 'Edit Profil',
                 onTap: _openEditProfile,
@@ -207,10 +254,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const Divider(height: 1, indent: 52, color: Colors.black12),
               const SizedBox(height: 8),
               _MenuTile(
+                key: ProfileScreen.passwordTourKey,
                 icon: Icons.lock_outline,
                 label: 'Ubah Kata Sandi',
                 onTap: () =>
                     AppRouter.of(context).push(AppPage.changePassword),
+              ),
+              const SizedBox(height: 8),
+              const Divider(height: 1, indent: 52, color: Colors.black12),
+              const SizedBox(height: 8),
+              _MenuTile(
+                icon: Icons.key_outlined,
+                label: 'Dapatkan API Key',
+                onTap: _openRedeemApiKey,
               ),
             ],
           ),
@@ -411,6 +467,11 @@ if (_loading)
                 padding: EdgeInsets.symmetric(vertical: 60),
                 child: AppLoadingOverlay(),
               )
+            else if (_loadError != null && _profile == null)
+              ConnectionErrorView(
+                message: _loadError!,
+                onRetry: () => _load(refresh: true),
+              )
             // 1c: desktop — dua panel (info akun | statistik + aktivitas).
             else if (isDesktopWidth(context))
               _buildWideContent(stats)
@@ -483,6 +544,14 @@ if (_loading)
                       label: 'Ubah Kata Sandi',
                       onTap: () =>
                           AppRouter.of(context).push(AppPage.changePassword),
+                    ),
+                    const SizedBox(height: 8),
+                    const Divider(height: 1, indent: 52, color: Colors.black12),
+                    const SizedBox(height: 8),
+                    _MenuTile(
+                      icon: Icons.key_outlined,
+                      label: 'Dapatkan API Key',
+                      onTap: _openRedeemApiKey,
                     ),
                   ],
                 ),

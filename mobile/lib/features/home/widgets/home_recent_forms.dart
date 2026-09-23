@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
 import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/responsive.dart';
@@ -10,23 +11,41 @@ class HomeRecentForms extends StatelessWidget {
   final bool loading;
   final List<FormData> forms;
   final void Function(FormData form) onOpenForm;
+  final String? loadError;
+  final VoidCallback? onRetry;
 
   const HomeRecentForms({
     super.key,
     required this.loading,
     required this.forms,
     required this.onOpenForm,
+    this.loadError,
+    this.onRetry,
   });
 
   @override
   Widget build(BuildContext context) {
     if (loading && forms.isEmpty) {
+      // Mirror layout asli: kolom tunggal di phone, grid di tablet/desktop.
+      if (!isTablet(context)) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 4),
+          child: SkeletonList.cards(itemCount: 3),
+        );
+      }
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 4),
-        child: SkeletonList.cards(itemCount: 3),
+        child: SkeletonFormGrid(
+          itemCount: 4,
+          compact: true,
+          columnCountFor: formGridColumns,
+        ),
       );
     }
     if (forms.isEmpty) {
+      if (loadError != null && onRetry != null) {
+        return ConnectionErrorView(message: loadError!, onRetry: onRetry!);
+      }
       return const EmptyState(
         icon: Icons.description_outlined,
         title: 'Belum ada form',

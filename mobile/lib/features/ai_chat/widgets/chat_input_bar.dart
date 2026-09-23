@@ -5,6 +5,7 @@ import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/features/ai_chat/controllers/mention_highlight_controller.dart';
 import 'package:form_up/features/ai_chat/models/ai_attachment.dart';
 import 'package:form_up/features/ai_chat/widgets/image_preview_dialog.dart';
+import 'package:form_up/features/ai_chat/widgets/voice_input_bar.dart';
 
 class ChatInputBar extends StatefulWidget {
   final MentionHighlightController textController;
@@ -30,6 +31,7 @@ class ChatInputBar extends StatefulWidget {
   final bool isTranscribing;
   final VoidCallback onMicPressed;
   final VoidCallback? onModelChanged;
+  final Stream<double>? amplitudeStream;
   const ChatInputBar({
     super.key,
     required this.textController,
@@ -55,6 +57,7 @@ class ChatInputBar extends StatefulWidget {
     this.isTranscribing = false,
     required this.onMicPressed,
     this.onModelChanged,
+    this.amplitudeStream,
   });
   @override
   State<ChatInputBar> createState() => _ChatInputBarState();
@@ -104,7 +107,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
           maxLines: 4,
           textInputAction: TextInputAction.send,
           onSubmitted: (_) { if (canSend && !widget.streaming && !widget.sending) widget.onSend(); },
-          decoration: InputDecoration(hintText: 'Tanya Gemini', filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.fromLTRB(4, 10, 8, 8), hintStyle: TextStyle(fontSize: 15, color: cs.onSurfaceVariant)),
+          decoration: InputDecoration(hintText: 'Tanya AFA', filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.fromLTRB(4, 10, 8, 8), hintStyle: TextStyle(fontSize: 15, color: cs.onSurfaceVariant)),
           style: TextStyle(fontSize: 15, color: cs.onSurface),
         );
     Widget micButton() => widget.isTranscribing
@@ -150,12 +153,23 @@ class _ChatInputBarState extends State<ChatInputBar> {
           final isWide = MediaQuery.sizeOf(ctx).width >= 600;
           final outerPad = isWide ? const EdgeInsets.fromLTRB(24, 8, 24, 16) : const EdgeInsets.fromLTRB(16, 8, 16, 16);
           return Container(padding: outerPad, child: Container(padding: EdgeInsets.fromLTRB(8, widget.attachments.isNotEmpty ? 12 : 6, 8, 6), decoration: BoxDecoration(color: pillColor, borderRadius: BorderRadius.circular(28), boxShadow: softShadow()), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          if (widget.attachments.isNotEmpty) ...[_AttachmentPreview(attachments: widget.attachments, onRemove: widget.onRemoveAttachment), const SizedBox(height: 8)],
+          if (widget.attachments.isNotEmpty) ...[AiAttachmentPreview(attachments: widget.attachments, onRemove: widget.onRemoveAttachment), const SizedBox(height: 8)],
+          // Mode merekam: pill gelap ala Gemini + gelombang suara animasi.
+          // Kotak stop = selesai & transkrip, panah biru = kirim.
+          if (widget.isListening)
+            VoiceInputBar(
+              levelStream: widget.amplitudeStream,
+              onPickFiles: widget.onPickFiles,
+              onStop: widget.onMicPressed,
+              onSend: widget.onSend,
+              canSend: canSend,
+              actionsEnabled: !widget.streaming && !widget.sending,
+            )
           // Layout ala Gemini (lebar field TIDAK diubah). Field prompt
           // SELALU di posisi yang sama (satu field saja) — saat user
           // mengetik hanya baris tombol di bawah yang berubah konten,
           // field tidak melompat / tidak kehilangan fokus.
-          if (MediaQuery.sizeOf(context).width >= 600) ...[
+          else if (MediaQuery.sizeOf(context).width >= 600) ...[
             Padding(padding: const EdgeInsets.only(left: 8, top: 4), child: promptField()),
             const SizedBox(height: 6),
             Row(children: [plusButton(), const Spacer(), _FlashPickerCompact(onChanged: widget.onModelChanged), const SizedBox(width: 4), micButton(), trailing()]),
@@ -176,10 +190,10 @@ class _ChatInputBarState extends State<ChatInputBar> {
     return Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Row(children: [Icon(Icons.alternate_email, size: 12, color: cs.onSurfaceVariant), const SizedBox(width: 6), Expanded(child: Text(widget.pickedMentionCount == 0 ? 'Ketik @ untuk mention form' : 'Mention: ${widget.pickedMentionCount} form terpilih', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)))]));
   }
 }
-class _AttachmentPreview extends StatelessWidget {
+class AiAttachmentPreview extends StatelessWidget {
   final List<AiAttachment> attachments;
   final ValueChanged<String> onRemove;
-  const _AttachmentPreview({required this.attachments, required this.onRemove});
+  const AiAttachmentPreview({super.key, required this.attachments, required this.onRemove});
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;

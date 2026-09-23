@@ -84,18 +84,32 @@ flutter:
   uses-material-design: true
 
   fonts:
+    # Inter Text-cut (v4.1) untuk ukuran UI — setiap weight yang dipakai
+    # kode/M3 (400/500/600/700/800) punya file fisik agar tidak faux-bold.
     - family: Inter
       fonts:
-        - asset: public/fonts/Inter/Inter_18pt-Regular.ttf
-        - asset: public/fonts/Inter/Inter_18pt-Italic.ttf
+        - asset: public/fonts/Inter/Inter-Regular.ttf
+        - asset: public/fonts/Inter/Inter-Italic.ttf
           style: italic
-        - asset: public/fonts/Inter/Inter_18pt-Bold.ttf
+        - asset: public/fonts/Inter/Inter-Medium.ttf
+          weight: 500
+        - asset: public/fonts/Inter/Inter-SemiBold.ttf
+          weight: 600
+        - asset: public/fonts/Inter/Inter-Bold.ttf
           weight: 700
+        - asset: public/fonts/Inter/Inter-ExtraBold.ttf
+          weight: 800
     - family: PlusJakartaSans
       fonts:
         - asset: public/fonts/PlusJakartaSans/PlusJakartaSans-Regular.ttf
+        - asset: public/fonts/PlusJakartaSans/PlusJakartaSans-Medium.ttf
+          weight: 500
+        - asset: public/fonts/PlusJakartaSans/PlusJakartaSans-SemiBold.ttf
+          weight: 600
         - asset: public/fonts/PlusJakartaSans/PlusJakartaSans-Bold.ttf
           weight: 700
+        - asset: public/fonts/PlusJakartaSans/PlusJakartaSans-ExtraBold.ttf
+          weight: 800
 
 
   # Konfigurasi runtime (API_BASE_URL) — wajib dibundle agar terbaca di APK.

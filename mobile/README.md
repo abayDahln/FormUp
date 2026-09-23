@@ -30,6 +30,7 @@ FormUp Mobile adalah aplikasi mobile multi-platform (Android/iOS/desktop/web) un
 - **Berbagi** — share link form dan scan QR code
 - **Profil** — edit profil, foto avatar, pengaturan
 - **Admin** — kelola user, moderasi form, kelola feedback
+- **AI** — *AI Chat* (asisten pembuat/pengedit form via `@mention`, lampiran gambar/PDF/docx/xlsx, rekam suara, ganti model) dan **AFA (AI Form Agent)** di layar edit form: versi compact dari AI Chat dengan riwayat per form (Chat baru, terpisah dari AI Chat), lampiran, rekam suara, ganti model, dan API key Gemini yang sama
 
 ---
 
@@ -53,6 +54,7 @@ mobile/
 │   │                                # form_card, answer_fields, cached_remote_image, dll.)
 │   └── features/                    # Layar & widget per fitur
 │       ├── admin/                   # Panel admin (user, moderasi, feedback)
+│       ├── ai_chat/                 # AI Chat + helper bersama (lampiran, voice, model, API key)
 │       ├── auth/                    # login, register, OTP, lupa/reset/ganti password
 │       ├── form/                    # Form maker (CRUD form, soal, preview)
 │       ├── form_runner/             # Pengisian form publik (timer, auto-submit, hasil)
@@ -188,7 +190,7 @@ flutter build windows --release     # Windows .exe portable (isi folder build/wi
   (tanpa ini build gagal di `flutter_secure_storage_windows`: `atlstr.h` tidak ditemukan).
 - UI adaptif: breakpoint 600/840/1200/1400 (`core/widgets/responsive.dart`) — kartu auth terpusat,
   `NavigationRail` di ≥840 (extended di ≥1200), bottom-sheet menjadi dialog, AI chat two-pane,
-  grid 1/2/3/4 kolom, home dua kolom + galeri template 4 kolom di 1920×1080.
+  grid 1/2/3/4 kolom, home dua kolom di 1920×1080.
   Layout phone (<600px) tidak berubah.
 - Keterbatasan desktop: tanpa kamera `image_picker` (opsi "Ambil Foto" disembunyikan),
   QR via layar khusus kamera+`zxing2` (bukan `mobile_scanner`), gambar remote tanpa cache disk.

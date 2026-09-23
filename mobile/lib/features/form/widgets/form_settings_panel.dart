@@ -8,30 +8,63 @@ import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 import 'package:form_up/core/services/auth_service.dart';
 import 'package:form_up/core/services/form_service.dart';
-import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/form/controllers/form_maker_controller.dart';
 import 'package:form_up/features/form/widgets/form_confirm_dialogs.dart';
 import 'package:form_up/features/form/widgets/form_maker_header_card.dart';
 import 'package:form_up/features/form/widgets/question_image_source_sheet.dart';
 
-/// Edit informasi & pengaturan form (judul, deskripsi, banner, setting).
-class FormMakerScreen extends StatefulWidget {
+/// Panel pengaturan form (judul, deskripsi, banner, setting) — dipakai ulang
+/// oleh tab Pengaturan layar gabungan phone (FormEditorTabsScreen) dan dual panel tablet/desktop
+/// (FormEditorScreen). Draf baru 100% lokal (controller) sampai [save]
+/// dipanggil; navigasi diserahkan ke parent via [onSaved].
+class FormSettingsPanel extends StatefulWidget {
+  /// null = form baru (draf lokal).
   final int? formId;
 
-  const FormMakerScreen({super.key, this.formId});
+  /// Dipanggil SETELAH penyimpanan sukses (menggantikan navigasi internal).
+  final Future<void> Function(int formId)? onSaved;
+
+  /// False = padding tetap (dipakai kolom dual agar centerPad berbasis
+  /// lebar jendela tidak menjepit konten setengah kolom).
+  final bool centerContent;
+
+  /// False = sembunyikan tombol simpan internal (FormBuilder punya
+  /// satu tombol Simpan global di header).
+  final bool showSaveButton;
+
+  /// False = render konten kartu saja TANPA scroll sendiri — dipakai
+  /// di dalam scroll view screen builder (kartu settings + accordion soal).
+  final bool scrollable;
+
+  const FormSettingsPanel({
+    super.key,
+    this.formId,
+    this.onSaved,
+    this.centerContent = true,
+    this.showSaveButton = true,
+    this.scrollable = true,
+  });
 
   @override
-  State<FormMakerScreen> createState() => _FormMakerScreenState();
+  State<FormSettingsPanel> createState() => FormSettingsPanelState();
 }
 
-class _FormMakerScreenState extends State<FormMakerScreen> {
+class FormSettingsPanelState extends State<FormSettingsPanel> {
   final FormMakerController _form = FormMakerController();
-  AppRouterDelegate? _router;
   bool _loading = false;
   bool _saving = false;
   double? _progress;
 
   bool get _isEdit => widget.formId != null;
+
+  /// Ada perubahan vs baseline (dipakai guard keluar gabungan).
+  bool get hasChanges => _form.hasChanges;
+
+  /// Controller pengaturan form — dipakai panel agent AI draf (sidebar
+  /// builder) untuk mengubah draf lokal secara langsung.
+  FormMakerController get formController => _form;
+
+  bool get isSaving => _saving;
 
   final ScrollController _scrollController = ScrollController();
   final FocusNode _titleFocusNode = FocusNode();
@@ -48,15 +81,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _router ??= AppRouter.of(context);
-    _router!.pushBackGuard(_confirmExit);
-  }
-
-  @override
   void dispose() {
-    _router?.popBackGuard();
     _scrollController.dispose();
     _titleFocusNode.dispose();
     _form.dispose();
@@ -77,22 +102,12 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
     }
   }
 
-  /// Konfirmasi keluar: simpan / buang draf / batal (hanya jika ada perubahan).
-  Future<bool> _confirmExit() async {
-    if (!_form.hasChanges) return true;
-    final choice = await showFormExitConfirmDialog(context);
-    if (!mounted) return false;
-    if (choice == 'discard') return true;
-    if (choice == 'save') {
-      await _save();
-      return false; // _save yang menutup screen.
-    }
-    return false;
-  }
-
-  Future<void> _save() async {
-    if (!AppDebouncer.tryAcquire('form:saveMaker')) return;
-    if (_saving) return;
+  /// Simpan pengaturan ke server. Return formId bila sukses, null bila
+  /// gagal/dibatalkan. Toast + dialog yatim sama seperti alur lama;
+  /// navigasi via [FormSettingsPanel.onSaved].
+  Future<int?> save() async {
+    if (!AppDebouncer.tryAcquire('form:saveMaker')) return null;
+    if (_saving) return null;
     final title = _form.titleController.text.trim();
     if (title.isEmpty) {
       showAuthToast(context, "Judul form wajib diisi", isError: true);
@@ -106,12 +121,12 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
         );
         _titleFocusNode.requestFocus();
       }
-      return;
+      return null;
     }
     final newBanner = _form.newBanner;
     if (newBanner != null && exceedsUploadLimit(newBanner)) {
       showAuthToast(context, "Banner maksimal 10 MB", isError: true);
-      return;
+      return null;
     }
 
     final settingsPayload = _form.buildSettingsPayload();
@@ -156,39 +171,40 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
       }
       setProgress(1.0);
 
-      if (!mounted) return;
+      if (!mounted) return null;
+      // Dual-stay: segarkan baseline dari server agar guard keluar tidak
+      // menagih lagi (sekaligus meluruskan banner/settings pasca-simpan).
+      // Gagal refresh = fallback snapshot lokal (tetap konsisten, hanya
+      // banner baru akan di-upload ulang bila Simpan ditekan lagi).
       // _invalidateCaches() di FormService sudah bump formsVersion -> auto-refresh
-      if (_isEdit) {
-        AppRouter.of(context).pop(formId);
-        showAuthToast(
-          context,
-          "Form berhasil diperbarui",
-        );
-      } else {
-        // Form baru: lanjut kelola soal.
-        await AppRouter.of(context).push(AppPage.formQuestions, {
-          'formId': formId,
-          'isNew': true,
-        });
-        if (!mounted) return;
-        AppRouter.of(context).pop(formId);
-        showAuthToast(context, "Form berhasil dibuat");
+      try {
+        final fresh = await FormService.getForm(formId);
+        if (!mounted) return null;
+        setState(() => _form.applyForm(fresh));
+      } catch (_) {
+        if (!mounted) return null;
+        _form.baseline = _form.snapshot();
       }
+      if (_isEdit) {
+        showAuthToast(context, "Form berhasil diperbarui");
+      }
+      await widget.onSaved?.call(formId);
+      return formId;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return null;
       // B5: form baru + gagal di settings/banner/link = draf yatim.
       // Tawarkan hapus (dengan konfirmasi) atau lanjutkan nanti.
       final orphanId = (!_isEdit) ? createdFormId : null;
       if (orphanId != null) {
         final choice = await showOrphanFormDialog(context, e);
-        if (!mounted) return;
+        if (!mounted) return null;
         if (choice == 'delete') {
           try {
             await FormService.deleteForm(orphanId);
-            if (!mounted) return;
+            if (!mounted) return null;
             showAuthToast(context, "Draf kosong dihapus");
           } catch (_) {
-            if (!mounted) return;
+            if (!mounted) return null;
             showAuthToast(context, "Draf tersimpan (id $orphanId), lanjutkan nanti", isError: true);
           }
         } else {
@@ -197,6 +213,7 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
       } else {
         showAuthToast(context, AuthService.errorMessage(e), isError: true);
       }
+      return null;
     } finally {
       if (mounted) {
         setState(() {
@@ -207,108 +224,120 @@ class _FormMakerScreenState extends State<FormMakerScreen> {
     }
   }
 
+  /// Isi konten kartu (header card + tombol simpan bila aktif) — dipakai
+  /// mode scrollable maupun embed (FormBuilder).
+  List<Widget> _contentChildren(BuildContext context) {
+    return [
+      FormMakerHeaderCard(
+        titleController: _form.titleController,
+        descController: _form.descController,
+        bannerImage: _form.bannerImage,
+        newBanner: _form.newBanner,
+        onPickBanner: _pickBanner,
+        titleFocusNode: _titleFocusNode,
+        titleFieldKey: _titleFieldKey,
+        settingsController: _form,
+        onSettingsChanged: () => setState(() {}),
+        onPickOpenTime: _pickOpenTime,
+        onPickCloseTime: _pickCloseTime,
+      ),
+      const SizedBox(height: 24),
+      if (widget.showSaveButton)
+        AuthPrimaryButton(
+          label: _saving
+              ? "Menyimpan..."
+              : (_isEdit ? "Simpan Form" : "Simpan & Kelola Soal"),
+          loading: _saving,
+          progress: _progress,
+          onPressed: save,
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: cs.surface,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        shape:  Border(
-          bottom: BorderSide(color: cs.outlineVariant),
-        ),
-        title: Text(
-          _isEdit ? "Edit Form" : "Buat Form",
-          style:  TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            fontFamily: kFontBold,
-            color: cs.onSurface,
+    if (_loading) return const LoadingOverlay(contained: true);
+    final progressLine = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_saving)
+          progress.ProgressIndicator.linear(
+            value: _progress,
+            semanticsLabel: 'Menyimpan form',
           ),
+      ],
+    );
+    // Mode embed: konten kartu polos tanpa scroll sendiri (screen builder
+    // punya satu scroll view + satu FloatingRichToolbar global).
+    if (!widget.scrollable) {
+      return AbsorbPointer(
+        absorbing: _saving,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ...progressLine.children,
+            ..._contentChildren(context),
+          ],
         ),
-        leading: IconButton(
-          icon:  Icon(Icons.arrow_back, color: cs.onSurface),
-          onPressed: () async {
-            final allow = await _confirmExit();
-            if (!allow) return;
-            if (!mounted) return;
-            _router!.pop();
-          },
-        ),
-      ),
-      body: _loading
-          ? const LoadingOverlay(contained: true)
-          : AbsorbPointer(
-              absorbing: _saving,
-              child: Column(
-                children: [
-                  if (_saving)
-                    progress.ProgressIndicator.linear(
-                      value: _progress,
-                      semanticsLabel: 'Menyimpan form',
-                    ),
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        AuthBackground(
-                    plain: true,
-                    child: SafeArea(
-                      child: ValueListenableBuilder<ActiveRichEditor?>(
-                        valueListenable: activeRichEditor,
-                        builder: (context, active, _) {
-                          final toolbarVisible = active != null;
-                          return SingleChildScrollView(
-                            controller: _scrollController,
-                            padding: centerPad(
-                              context,
-                              base: EdgeInsets.fromLTRB(
-                                22,
-                                16,
-                                22,
-                                toolbarVisible ? 110 : 24,
-                              ),
-                              wideMaxWidth: 960,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                FormMakerHeaderCard(
-                                  titleController: _form.titleController,
-                                  descController: _form.descController,
-                                  bannerImage: _form.bannerImage,
-                                  newBanner: _form.newBanner,
-                                  onPickBanner: _pickBanner,
-                                  titleFocusNode: _titleFocusNode,
-                                  titleFieldKey: _titleFieldKey,
-                                  settingsController: _form,
-                                  onSettingsChanged: () => setState(() {}),
-                                  onPickOpenTime: _pickOpenTime,
-                                  onPickCloseTime: _pickCloseTime,
-                                ),
-                                const SizedBox(height: 24),
-                                AuthPrimaryButton(
-                                  label: _saving
-                                      ? "Menyimpan..."
-                                      : (_isEdit ? "Simpan Form" : "Simpan & Kelola Soal"),
-                                  loading: _saving,
-                                  progress: _progress,
-                                  onPressed: _save,
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                        const FloatingRichToolbar(),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+      );
+    }
+    return AbsorbPointer(
+      absorbing: _saving,
+      child: Column(
+        children: [
+          if (_saving)
+            progress.ProgressIndicator.linear(
+              value: _progress,
+              semanticsLabel: 'Menyimpan form',
             ),
+          Expanded(
+            child: Stack(
+              children: [
+                AuthBackground(
+                  plain: true,
+                  child: SafeArea(
+                    child: ValueListenableBuilder<ActiveRichEditor?>(
+                      valueListenable: activeRichEditor,
+                      builder: (context, active, _) {
+                        final toolbarVisible = active != null;
+                        return SingleChildScrollView(
+                          controller: _scrollController,
+                          padding: widget.centerContent
+                              ? centerPad(
+                                  context,
+                                  base: EdgeInsets.fromLTRB(
+                                    22,
+                                    topClearanceForRichToolbar(
+                                      toolbarVisible: toolbarVisible,
+                                    ),
+                                    22,
+                                    toolbarVisible ? 110 : 24,
+                                  ),
+                                  wideMaxWidth: 960,
+                                )
+                              : EdgeInsets.fromLTRB(
+                                  22,
+                                  topClearanceForRichToolbar(
+                                    toolbarVisible: toolbarVisible,
+                                  ),
+                                  22,
+                                  toolbarVisible ? 110 : 24,
+                                ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: _contentChildren(context),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const FloatingRichToolbar(),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

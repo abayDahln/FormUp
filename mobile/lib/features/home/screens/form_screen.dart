@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/empty_state.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -14,6 +15,7 @@ import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/features/home/controllers/form_sort_filter.dart';
 import 'package:form_up/features/home/widgets/form_filter_sheet_content.dart';
 import 'package:form_up/features/home/widgets/form_search_bar.dart';
+import 'package:form_up/core/widgets/filter_pill_button.dart';
 
 /// Tab Form: kelola form saya
 class FormScreen extends StatefulWidget {
@@ -26,6 +28,7 @@ class FormScreen extends StatefulWidget {
 class _FormScreenState extends State<FormScreen> {
   List<FormData> _myForms = [];
   bool _loadingForms = true;
+  String? _loadError;
   DateTime _lastRefresh = DateTime.fromMillisecondsSinceEpoch(0);
 
   final _searchController = TextEditingController();
@@ -66,14 +69,25 @@ class _FormScreenState extends State<FormScreen> {
 
   /// Muat ulang (tanpa debounce) — [refresh]=true melewati cache.
   Future<void> _refreshMyForms({bool refresh = false}) async {
-    setState(() => _loadingForms = true);
+    setState(() {
+      _loadingForms = true;
+      _loadError = null;
+    });
     try {
       final forms = await FormService.getMyForms(refresh: refresh);
       if (!mounted) return;
-      setState(() => _myForms = forms);
+      setState(() {
+        _myForms = forms;
+        _loadError = null;
+      });
     } catch (e) {
       if (!mounted) return;
-      showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      // Error koneksi: simpan pesan agar tampil view retry, bukan data kosong.
+      if (AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+      } else {
+        showAuthToast(context, AuthService.errorMessage(e), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _loadingForms = false);
     }
@@ -203,22 +217,16 @@ class _FormScreenState extends State<FormScreen> {
                       ),
                     ],
                   ),
-                // 3b: desktop — tombol di header (ganti FAB melayang).
-                if (isDesktopWidth(context)) ...[
-                  const SizedBox(width: 12),
-                  FilledButton.icon(
-                    onPressed: () => AppRouter.of(context)
-                        .push(AppPage.formTemplateChooser),
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Buat Form Baru'),
-                  ),
-                ],
+                // CTA tambah form hanya via Extended FAB melayang
+                // (tablet/desktop) / FAB lingkaran (phone) — tanpa duplikat
+                // tombol di header agar satu pintu aksi.
               ],
             ),
             const SizedBox(height: 16),
 
-            // 3c: desktop — search 480px + tombol filter, full width between.
-            if (isDesktopWidth(context))
+            // Tablet/desktop — search 480px + tombol filter pil,
+            // full width between. Phone memakai search + filter inline.
+            if (isTablet(context))
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -244,14 +252,9 @@ class _FormScreenState extends State<FormScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  FilledButton.tonalIcon(
+                  FilterPillButton(
                     onPressed: _openFilterSheet,
-                    icon: const Icon(Icons.tune, size: 18),
-                    label: Text(
-                      (_filterDate != null || _sort != FormSort.newest)
-                          ? 'Filter aktif'
-                          : 'Filter',
-                    ),
+                    active: _filterDate != null || _sort != FormSort.newest,
                   ),
                 ],
               )
@@ -273,7 +276,15 @@ class _FormScreenState extends State<FormScreen> {
             if (_loadingForms && _myForms.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 4),
-                child: SkeletonList.cards(itemCount: 4),
+                child: SkeletonFormGrid(
+                  itemCount: 4,
+                  columnCountFor: formGridColumns,
+                ),
+              )
+            else if (_loadError != null && _myForms.isEmpty)
+              ConnectionErrorView(
+                message: _loadError!,
+                onRetry: () => _refreshMyForms(refresh: true),
               )
             else if (all.isEmpty)
               EmptyState(

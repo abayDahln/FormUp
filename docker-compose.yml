@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  api:
+    image: formup-api:latest
+    container_name: formup-api
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    networks:
+      - formup-net
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: formup-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - formup-net
+
+networks:
+  formup-net:
+    driver: bridge

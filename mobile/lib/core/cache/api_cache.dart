@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:form_up/core/services/network_status.dart';
@@ -11,6 +13,30 @@ class OfflineCacheException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// True bila [e] adalah error koneksi/jaringan (bukan 404/validasi/data).
+/// Cerminan ringkas `AuthService.isConnectionError` — didefinisikan di sini
+/// agar tidak terjadi import sirkular (auth_service mengimpor api_cache).
+bool isApiConnectionError(Object e) {
+  if (e is OfflineCacheException) return true;
+  if (e is TimeoutException || e is SocketException || e is http.ClientException) {
+    return true;
+  }
+  final msg = e.toString().toLowerCase();
+  return msg.contains('gagal terhubung') ||
+      msg.contains('kamu sedang offline') ||
+      msg.contains('sedang offline') ||
+      msg.contains('periksa koneksi') ||
+      msg.contains('koneksi internet') ||
+      msg.contains('gangguan pada layanan') ||
+      msg.contains('tidak ada koneksi') ||
+      msg.contains('connection') ||
+      msg.contains('socket') ||
+      msg.contains('timeout') ||
+      msg.contains('timed out') ||
+      msg.contains('network') ||
+      msg.contains('jaringan');
 }
 
 class _ApiCacheEntry<T> {
@@ -183,10 +209,16 @@ class ApiCache {
         }
         try {
           return await _loadAndCache<T>(key, ttl, loader);
-        } catch (_) {
-          throw const OfflineCacheException(
-            'Kamu sedang offline. Periksa koneksi internet dan coba lagi.',
-          );
+        } catch (e) {
+          // Hanya error koneksi yang dipetakan ke pesan offline.
+          // Error non-koneksi (404/validasi) diteruskan apa adanya agar
+          // tidak disamarkan menjadi "offline".
+          if (isApiConnectionError(e)) {
+            throw const OfflineCacheException(
+              'Kamu sedang offline. Periksa koneksi internet dan coba lagi.',
+            );
+          }
+          rethrow;
         }
       }
     }

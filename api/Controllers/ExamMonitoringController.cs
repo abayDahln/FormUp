@@ -488,6 +488,7 @@ public class ExamMonitoringController : ControllerBase
         // Nyalakan 1 token buka (riwayat submit + sesi dipertahankan) +
         // bersihkan sisa draft "new" agar percobaan baru mulai bersih.
 <<<<<<< HEAD
+<<<<<<< HEAD
         // Tanpa jatah ini, one-response tetap terkunci oleh respons lama.
 <<<<<<< HEAD
         var hasIdentity = session.RespondentId.HasValue || !string.IsNullOrWhiteSpace(session.RespondentName);
@@ -527,6 +528,9 @@ public class ExamMonitoringController : ControllerBase
 =======
         // Tanpa token ini, one-response tetap terkunci oleh respons lama.
 >>>>>>> 095c2ebf8341912d618d7db42037ed2c784fae43
+=======
+        // Tanpa token ini, one-response tetap terkunci oleh respons lama.
+>>>>>>> 7393fd95d2eae2ca95ff7620bd3aaebed568a1b2
         // Sesi lama tetap tertaut ke respons lama sebagai riwayat;
         // pengerjaan ulang memakai SESI BARU (sessionId baru dari klien).
         // Identitas diambil dari respons yang disubmit (bukan semata sesi)
@@ -570,11 +574,15 @@ public class ExamMonitoringController : ControllerBase
 
         return Ok(new ApiResponse<object>(200,
 <<<<<<< HEAD
+<<<<<<< HEAD
             $"Jawaban peserta berhasil di-reset. Data lama dipertahankan, jatah isi ulang ke-{extra} diberikan. Peserta dapat mengerjakan kembali dengan sesi baru."));
 >>>>>>> origin/main
 =======
             "Jawaban peserta berhasil di-reset. Data lama dipertahankan sebagai riwayat. Form dibuka kembali — peserta dapat mengerjakan satu kali pengerjaan ulang dengan sesi baru."));
 >>>>>>> 095c2ebf8341912d618d7db42037ed2c784fae43
+=======
+            "Jawaban peserta berhasil di-reset. Data lama dipertahankan sebagai riwayat. Form dibuka kembali — peserta dapat mengerjakan satu kali pengerjaan ulang dengan sesi baru."));
+>>>>>>> 7393fd95d2eae2ca95ff7620bd3aaebed568a1b2
     }
 
     /// <summary>

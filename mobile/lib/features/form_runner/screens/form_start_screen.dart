@@ -3,6 +3,7 @@ import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/theme/form_theme.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/auth_service.dart';
@@ -347,6 +348,20 @@ class _FormStartScreenState extends State<FormStartScreen> {
     }
 
     if (_error != null) {
+      // Error koneksi: tampilkan view retry, bukan hanya tombol Kembali.
+      if (AuthService.isConnectionError(_error!)) {
+        return Center(
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(24),
+            child: ConnectionErrorView(
+              message: _error!,
+              onRetry: _loadFormInfo,
+              bare: true,
+            ),
+          ),
+        );
+      }
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),

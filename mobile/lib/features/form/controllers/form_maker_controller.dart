@@ -56,7 +56,7 @@ class FormMakerSnapshot {
   });
 }
 
-/// Controller state untuk FormMakerScreen: menampung seluruh nilai form,
+/// Controller state untuk tab Pengaturan (FormEditorTabsScreen): menampung seluruh nilai form,
 /// snapshot/deteksi perubahan, parsing data form, dan payload pengaturan.
 class FormMakerController {
   /// Judul selalu plain text (konsisten dengan versi web).

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
@@ -33,6 +34,7 @@ class RespondentDetailScreen extends StatefulWidget {
 
 class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
   bool _loading = true;
+  String? _loadError;
   PublicFormResult? _result;
   List<MyAttempt> _attempts = [];
   late int _selectedResponseId;
@@ -47,7 +49,10 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
   }
 
   Future<void> _load({bool refresh = false}) async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final results = await Future.wait([
         FormService.getResponseResult(widget.formId, _selectedResponseId, refresh: refresh),
@@ -62,10 +67,15 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
         _attempts = results[1] as List<MyAttempt>;
         _oneResponse = settings?['oneResponse'] as bool? ?? false;
         _loading = false;
+        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
+      if (_result == null && AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     }
   }
@@ -196,7 +206,18 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
       ),
       body: _loading && _result == null
           ? const AppLoadingOverlay()
-          : AuthBackground(plain: true,
+          : _loadError != null && _result == null
+              ? Center(
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(20),
+                    child: ConnectionErrorView(
+                      message: _loadError!,
+                      onRetry: () => _load(refresh: true),
+                    ),
+                  ),
+                )
+              : AuthBackground(plain: true,
               child: SafeArea(
                 child: AppRefreshIndicator(
                   onRefresh: () => _load(refresh: true),
@@ -289,52 +310,272 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
     );
   }
 
-  /// Pemilih attempt: chip horizontal dibedakan berdasarkan waktu pengerjaan.
-  /// Percobaan terbaru otomatis terpilih saat screen dibuka.
+  /// Pemilih attempt: dropdown ringkas (hemat tempat) — trigger menampilkan
+  /// percobaan aktif, mis. "Percobaan 1 (2/9/2026 - Skor 0.0)".
+  /// Diketuk → bottom sheet (phone) / dialog (desktop) berisi daftar seluruh
+  /// percobaan dari yang terbaru ke terlama. Percobaan terbaru otomatis
+  /// terpilih saat screen dibuka (urutan server: terbaru dulu).
   Widget _buildAttemptSelector() {
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _attempts.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final attempt = _attempts[i];
-          final selected = attempt.responseId == _selectedResponseId;
-          final dt = attempt.submittedAt?.toLocal();
-          final label = dt == null
-              ? "Percobaan ${i + 1}"
-              : "Percobaan ${i + 1} · "
-                  "${dt.day}/${dt.month}/${dt.year} "
-                  "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
-          return InkWell(
-            borderRadius: BorderRadius.circular(22),
-            onTap: () => _selectAttempt(attempt.responseId),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outlineVariant,
+    final cs = Theme.of(context).colorScheme;
+    var selectedIndex = _attempts.indexWhere(
+      (a) => a.responseId == _selectedResponseId,
+    );
+    if (selectedIndex < 0) selectedIndex = 0;
+    final selected = _attempts[selectedIndex];
+    return Material(
+      color: cs.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: _showAttemptPicker,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: cs.outlineVariant),
+            boxShadow: softShadow(),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.history,
+                  size: 18,
+                  color: cs.primary,
                 ),
               ),
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight:
-                      selected ? FontWeight.bold : FontWeight.normal,
-                  fontFamily: selected ? kFontBold : null,
-                  color: selected ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.onSurfaceVariant,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _attemptTitle(selected, selectedIndex),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: kFontBold,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _attemptSubtitle(selected),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          );
-        },
+              if (selectedIndex == 0)
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'Terbaru',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: kFontBold,
+                      color: cs.primary,
+                    ),
+                  ),
+                ),
+              Icon(
+                Icons.expand_more,
+                color: cs.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
       ),
     );
+  }
+
+  /// Judul attempt: "Percobaan N" (N = 1 untuk yang terbaru).
+  String _attemptTitle(MyAttempt attempt, int index) =>
+      'Percobaan ${index + 1}';
+
+  /// Subjudul attempt: "2/9/2026 14:30 - Skor 0.0" (skor hanya bila dinilai).
+  String _attemptSubtitle(MyAttempt attempt) {
+    final parts = <String>[];
+    final dt = attempt.submittedAt?.toLocal();
+    if (dt == null) {
+      parts.add('Waktu tidak diketahui');
+    } else {
+      final hh = dt.hour.toString().padLeft(2, '0');
+      final mm = dt.minute.toString().padLeft(2, '0');
+      parts.add('${dt.day}/${dt.month}/${dt.year} $hh:$mm');
+    }
+    if (attempt.showScore) {
+      parts.add(
+        'Skor ${attempt.score?.toStringAsFixed(1) ?? '—'}',
+      );
+    }
+    return parts.join(' - ');
+  }
+
+  Future<void> _showAttemptPicker() async {
+    final cs = Theme.of(context).colorScheme;
+    final picked = await AdaptiveSheet.show<int>(
+      context: context,
+      isScrollControlled: true,
+      // Konten scroll sendiri via DraggableScrollableSheet — pola yang sama
+      // seperti UserGuideSheet sehingga aman di phone maupun dialog
+      // tablet/desktop (Windows): tinggi selalu terbatas, tak ada
+      // Flexible/Expanded di dalam area tak terbatas.
+      selfScrolling: true,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx, _) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        builder: (_, controller) => SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Pilih Percobaan',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontFamily: kFontBold,
+                  fontSize: 15,
+                  color: cs.onSurface,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${_attempts.length} pengerjaan • terbaru ke terlama',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.separated(
+                  controller: controller,
+                  itemCount: _attempts.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (ctx, i) {
+                  final attempt = _attempts[i];
+                  final isSelected =
+                      attempt.responseId == _selectedResponseId;
+                  return ListTile(
+                    leading: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? cs.primary
+                            : cs.primaryContainer,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${i + 1}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: kFontBold,
+                            color: isSelected
+                                ? cs.onPrimary
+                                : cs.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    title: Row(
+                      children: [
+                        Text(
+                          _attemptTitle(attempt, i),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontFamily: kFontBold,
+                            fontSize: 13,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                        if (i == 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: cs.primaryContainer,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              'Terbaru',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: kFontBold,
+                                color: cs.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    subtitle: Text(
+                      _attemptSubtitle(attempt),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? Icon(Icons.check_circle, color: cs.primary)
+                        : Icon(
+                            Icons.chevron_right,
+                            color: cs.outline,
+                          ),
+                    onTap: () => Navigator.pop(ctx, attempt.responseId),
+                  );
+                },
+              ),
+            ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null && mounted) _selectAttempt(picked);
   }
 
   Widget _buildSummaryCard() {

@@ -28,6 +28,21 @@ void main() {
     });
   });
 
+  testWidgets('RichTextView menampilkan tag HTML dalam blok kode apa adanya',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RichTextView(
+          text:
+              '<pre><code class="language-html"><div class="box">Hi</div></code></pre>',
+        ),
+      ),
+    ));
+    expect(tester.takeException(), isNull);
+    // Tag harus tampil sebagai teks kode, bukan dimakan sebagai wysiwyg.
+    expect(find.textContaining('<div'), findsWidgets);
+  });
+
   testWidgets('RichTextView tidak crash pada array JSON non-Delta',
       (tester) async {
     await tester.pumpWidget(MaterialApp(

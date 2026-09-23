@@ -210,7 +210,10 @@ class _OtpScreenState extends State<OtpScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: 28),
-                                  OtpField(controller: _otpController),
+                                  OtpField(
+                                    controller: _otpController,
+                                    onSubmitted: _verify,
+                                  ),
                                   const SizedBox(height: 16),
                                   Align(
                                     alignment: Alignment.center,

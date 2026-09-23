@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/responsive.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/answer_fields.dart';
 import 'package:form_up/core/utils/form_zoom.dart';
@@ -23,6 +24,7 @@ class FormPreviewScreen extends StatefulWidget {
 
 class _FormPreviewScreenState extends State<FormPreviewScreen> {
   bool _loading = true;
+  String? _loadError;
   String _title = '';
   String _description = '';
   List<QuestionData> _questions = [];
@@ -49,7 +51,10 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final form = await FormService.getForm(widget.formId);
       final questions = await FormService.getQuestions(widget.formId);
@@ -61,9 +66,14 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
         final settings = form['settings'];
         _settings = settings is Map<String, dynamic> ? settings : null;
         _questions = questions;
+        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
+      if (AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -147,8 +157,33 @@ class _FormPreviewScreenState extends State<FormPreviewScreen> {
         ],
       ),
       body: _loading
-          ? const AppLoadingOverlay()
-          : ValueListenableBuilder<double>(
+          ? SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: centerPad(context,
+                  base: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                  wideMaxWidth: 860),
+              // Mirror layout asli: kartu header + kartu-kartu soal.
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SkeletonTitleCard(),
+                  SizedBox(height: 16),
+                  SkeletonList.preview(itemCount: 3),
+                ],
+              ),
+            )
+          : _loadError != null && _questions.isEmpty && _title.isEmpty
+              ? Center(
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(20),
+                    child: ConnectionErrorView(
+                      message: _loadError!,
+                      onRetry: _load,
+                    ),
+                  ),
+                )
+              : ValueListenableBuilder<double>(
               valueListenable: formZoom,
               builder: (context, zoom, _) => AuthBackground(
                 plain: true,

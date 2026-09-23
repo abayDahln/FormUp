@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/widgets/responsive.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
@@ -45,6 +46,7 @@ extension _HistSortExt on _HistorySort {
 
 class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
   bool _loading = true;
+  String? _loadError;
   PublicFormInfo? _info;
   List<MyAttempt> _attempts = [];
   _HistorySort _sort = _HistorySort.newest;
@@ -56,7 +58,10 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
   }
 
   Future<void> _load({bool refresh = false}) async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final attempts = await PublicFormService.getMyAttempts(widget.formLink, refresh: refresh);
       // Info form bisa gagal (mis. form sudah tidak published) — attempts
@@ -75,10 +80,15 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
         _info = info;
         _attempts = attempts;
         _loading = false;
+        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
+      if (AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     }
   }
@@ -105,8 +115,42 @@ class _HistoryFormDetailScreenState extends State<HistoryFormDetailScreen> {
         ),
       ),
       body: _loading
-          ? const AppLoadingOverlay()
-          : AuthBackground(plain: true,
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: centerPad(context,
+                  base: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  wideMaxWidth: 1000),
+              children: const [
+                // Mirror kartu info + daftar attempt di bawahnya.
+                SkeletonInfoCard(),
+                SizedBox(height: 16),
+                Row(
+                  children: [
+                    SkeletonBox(width: 180, height: 16, borderRadius: 8),
+                    Spacer(),
+                    SkeletonBox(width: 36, height: 36, borderRadius: 18),
+                  ],
+                ),
+                SizedBox(height: 12),
+                SkeletonList.attempts(itemCount: 3),
+              ],
+            )
+          : _loadError != null && _attempts.isEmpty
+              ? Center(
+                  child: AppRefreshIndicator(
+                    onRefresh: () => _load(refresh: true),
+                    indicatorColor: cs.primary,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(20),
+                      child: ConnectionErrorView(
+                        message: _loadError!,
+                        onRetry: () => _load(refresh: true),
+                      ),
+                    ),
+                  ),
+                )
+              : AuthBackground(plain: true,
               child: SafeArea(
                 child: AppRefreshIndicator(
                   indicatorColor: cs.primary,

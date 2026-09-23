@@ -6,28 +6,18 @@ import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
 import 'package:form_up/core/widgets/rich_editor.dart';
 
-/// Panel daftar aksi kelola form (edit, pratinjau, respons, setting, bagikan)
+/// Panel daftar aksi kelola form (edit, pratinjau, respons, bagikan).
+/// Pantauan live pindah ke tab Monitoring di layar Responden.
 class FormDetailActions extends StatelessWidget {
   final FormData form;
   final void Function(AppPage page, Map<String, dynamic> args) onPush;
   final Future<void> Function(FormData form) onShare;
-
-  /// Pantau Ujian hanya relevan untuk form tipe/mode ujian.
-  final bool showExamMonitoring;
-
-  /// Pantau Ujian hanya bisa dibuka bila form sudah terbit; saat draf
-  /// tombol tampil nonaktif (bukan hilang) agar tidak membingungkan.
-  final bool examMonitoringEnabled;
-  final String examMonitoringDisabledHint;
 
   const FormDetailActions({
     super.key,
     required this.form,
     required this.onPush,
     required this.onShare,
-    this.showExamMonitoring = true,
-    this.examMonitoringEnabled = true,
-    this.examMonitoringDisabledHint = 'Terbitkan form dulu untuk memantau ujian',
   });
 
   @override
@@ -45,14 +35,12 @@ class FormDetailActions extends StatelessWidget {
             _ActionTile(
               Icons.edit_outlined,
               'Edit Soal & Jawaban',
-              form.responseCount > 0
-                  ? () => showAuthToast(
-                        context,
-                        'Soal tidak dapat diubah karena form sudah memiliki respons',
-                        isError: true,
-                      )
-                  : () => onPush(AppPage.formQuestions, {'formId': form.id}),
-              locked: form.responseCount > 0,
+              () => onPush(AppPage.formQuestions, {
+                'formId': form.id,
+                // Soal dikunci bila sudah ada respons (layar tetap terbuka,
+                // hanya perubahan soal yang dinonaktifkan).
+                'lockedQuestions': form.responseCount > 0,
+              }),
             ),
             _divider(),
             _ActionTile(
@@ -70,19 +58,6 @@ class FormDetailActions extends StatelessWidget {
               }),
             ),
             _divider(),
-            if (showExamMonitoring) ...[
-              _ActionTile(
-                Icons.shield_outlined,
-                'Pantau Ujian',
-                () => onPush(AppPage.examMonitoring, {
-                  'formId': form.id,
-                  'title': richToPlainText(form.title),
-                }),
-                disabled: !examMonitoringEnabled,
-                disabledHint: examMonitoringDisabledHint,
-              ),
-              _divider(),
-            ],
             _ActionTile(
               Icons.feedback_outlined,
               'Lihat Umpan Balik',
@@ -90,12 +65,6 @@ class FormDetailActions extends StatelessWidget {
                 'formId': form.id,
                 'formTitle': richToPlainText(form.title),
               }),
-            ),
-            _divider(),
-            _ActionTile(
-              Icons.settings_outlined,
-              'Setting Form',
-              () => onPush(AppPage.formMaker, {'formId': form.id}),
             ),
             _divider(),
             _ActionTile(
@@ -157,22 +126,18 @@ class _ActionTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool locked;
   final bool danger;
-  final bool disabled;
-  final String? disabledHint;
 
-  const _ActionTile(this.icon, this.label, this.onTap, {this.locked = false, this.danger = false, this.disabled = false, this.disabledHint});
+  const _ActionTile(this.icon, this.label, this.onTap, {this.danger = false});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final color = danger ? kDangerColor : cs.primary;
-    final inactive = locked || disabled;
     return ListTile(
       leading: Icon(
-        locked ? Icons.lock_outline : icon,
-        color: inactive ? cs.onSurfaceVariant : color,
+        icon,
+        color: color,
       ),
       title: Text(
         label,
@@ -180,17 +145,11 @@ class _ActionTile extends StatelessWidget {
           fontSize: 14,
           fontWeight: danger ? FontWeight.bold : FontWeight.normal,
           fontFamily: danger ? kFontBold : null,
-          color: danger && !disabled ? kDangerColor : (inactive ? cs.onSurfaceVariant : cs.onSurface),
+          color: danger ? kDangerColor : cs.onSurface,
         ),
       ),
-      trailing: Icon(Icons.chevron_right, size: 18, color: inactive ? cs.outline : cs.onSurfaceVariant),
-      onTap: disabled
-          ? () {
-              if (disabledHint != null) {
-                showAuthToast(context, disabledHint!, isError: true);
-              }
-            }
-          : onTap,
+      trailing: Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
+      onTap: onTap,
     );
   }
 }

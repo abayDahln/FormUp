@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:form_up/core/widgets/responsive.dart';
-import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/app_refresh_indicator.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
+import 'package:form_up/core/widgets/loading_skeleton.dart';
 import 'package:form_up/core/theme.dart';
 import 'package:form_up/core/router/app_router.dart';
 import 'package:form_up/core/services/admin_service.dart';
@@ -191,6 +192,7 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
   String _query = '';
   List<AdminUserItem> _users = [];
   bool _loading = true;
+  String? _loadError;
   int _page = 1;
   int _totalPages = 1;
 
@@ -225,7 +227,10 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
   }
 
   Future<void> _load({int page = 1, bool refresh = false}) async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final result = await AdminService.getUsers(
         page: page,
@@ -241,9 +246,14 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
         _totalPages = result.total <= 0
             ? 1
             : (result.total / _pageSize).ceil();
+        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
+      if (AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -282,7 +292,13 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-                        child: Column(
+                        child: _loadError != null && _query.isEmpty
+                            ? ConnectionErrorView(
+                                message: _loadError!,
+                                onRetry: () => _load(refresh: true),
+                                bare: true,
+                              )
+                            : Column(
                           children: [
                             Icon(Icons.person_off_outlined, color: cs.onSurfaceVariant, size: 36),
                             const SizedBox(height: 10),
@@ -297,7 +313,13 @@ class _AdminUsersTabState extends State<_AdminUsersTab> {
                     ],
                   )
                 : _loading
-                    ? const AppLoadingOverlay()
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
+                        children: const [
+                          SkeletonList.admin(itemCount: 5),
+                        ],
+                      )
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -368,6 +390,7 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
   String _statusFilter = 'all';
   List<AdminFormItem> _forms = [];
   bool _loading = true;
+  String? _loadError;
   int _page = 1;
   int _totalPages = 1;
 
@@ -402,7 +425,10 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
   }
 
   Future<void> _load({int page = 1, bool refresh = false}) async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final result = await AdminService.getForms(
         page: page,
@@ -418,9 +444,14 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
         _totalPages = result.total <= 0
             ? 1
             : (result.total / _pageSize).ceil();
+        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
+      if (AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -516,7 +547,13 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-                        child: Column(
+                        child: _loadError != null && _query.isEmpty && _statusFilter == 'all'
+                            ? ConnectionErrorView(
+                                message: _loadError!,
+                                onRetry: () => _load(refresh: true),
+                                bare: true,
+                              )
+                            : Column(
                           children: [
                             Icon(Icons.folder_off_outlined, color: cs.onSurfaceVariant, size: 36),
                             const SizedBox(height: 10),
@@ -532,7 +569,13 @@ class _AdminFormsTabState extends State<_AdminFormsTab> {
                     ],
                   )
                 : _loading
-                    ? const AppLoadingOverlay()
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
+                        children: const [
+                          SkeletonList.admin(itemCount: 5),
+                        ],
+                      )
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -607,6 +650,7 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
   final _scrollController = ScrollController();
   List<AdminFeedbackItem> _feedbacks = [];
   bool _loading = true;
+  String? _loadError;
   int _page = 1;
   int _totalPages = 1;
 
@@ -623,7 +667,10 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
   }
 
   Future<void> _load({int page = 1, bool refresh = false}) async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final result =
           await AdminService.getFeedbacks(page: page, pageSize: _pageSize, refresh: refresh);
@@ -634,9 +681,14 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
         _totalPages = result.total <= 0
             ? 1
             : (result.total / _pageSize).ceil();
+        _loadError = null;
       });
     } catch (e) {
       if (!mounted) return;
+      if (AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -720,7 +772,13 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
                     children:  [
                       Padding(
                         padding: EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-                        child: Column(
+                        child: _loadError != null
+                            ? ConnectionErrorView(
+                                message: _loadError!,
+                                onRetry: () => _load(refresh: true),
+                                bare: true,
+                              )
+                            : Column(
                           children: [
                             Icon(Icons.forum_outlined, color: cs.onSurfaceVariant, size: 36),
                             SizedBox(height: 10),
@@ -731,7 +789,13 @@ class _AdminFeedbackTabState extends State<_AdminFeedbackTab> {
                     ],
                   )
                 : _loading
-                    ? const AppLoadingOverlay()
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: centerPad(context, base: const EdgeInsets.fromLTRB(20, 16, 20, 24)),
+                        children: const [
+                          SkeletonList.admin(itemCount: 5),
+                        ],
+                      )
                     : ListView.separated(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),

@@ -205,7 +205,6 @@ OTP untuk alur register 2 langkah (`/api/auth/register` → `/api/auth/verify-re
 ---
 
 ## 10. PasswordResetToken (OTP Reset Password)
-
 OTP untuk alur forgot/reset password (`/api/auth/forgot-password` → `/api/auth/reset-password`). Hanya dibuat jika user sudah terdaftar.
 
 | Field | Type | Required | Keterangan |
@@ -219,7 +218,28 @@ OTP untuk alur forgot/reset password (`/api/auth/forgot-password` → `/api/auth
 
 ---
 
-## 11. Entity Relationships
+## 11. GeminiApiKey (Redeem API Key)
+
+Stok API key Gemini yang dibagikan lewat kode redeem (satu key = satu
+kode, kode bisa dipakai banyak user). Diisi manual via SQL.
+
+| Field | Type | Required | Keterangan |
+|-------|------|----------|-----------|
+| id | int | Ya | Primary key (auto-increment) |
+| label | string(100) | Tidak | Label bebas, mis. "Kelas XII-A" |
+| api_key | string(500) | Ya | API key Gemini asli (plaintext, dikembalikan saat redeem) |
+| code_hash | string(200) | Ya | Hash kode redeem (PBKDF2 SHA256, format `salt.hash`) |
+| is_active | boolean | Ya | Default: true (false = kode ditolak) |
+| redeemed_count | int | Ya | Total redeem berhasil (default: 0) |
+| created_at | datetime | Tidak | Waktu dibuat |
+| updated_at | datetime | Tidak | Waktu terakhir diubah |
+
+`GeminiApiKeyRedemption` mencatat siapa menebus: `key_id` (FK),
+`user_id` (FK), `redeemed_at`. Unik per pasangan `(key_id, user_id)`.
+
+---
+
+## 12. Entity Relationships
 
 ```
 User (1) ---< (N) Form
@@ -243,13 +263,15 @@ Response (1) ---  (1) ResponseStatus
 OptionQuestion (1) ---< (N) RespondentAnswer
 
 RegistrationOtp — tanpa relasi (user belum terdaftar)
+
+GeminiApiKey (1) ---< (N) GeminiApiKeyRedemption >--- (N) User
 ```
 
 > Semua primary key menggunakan `int` auto-increment. Tidak ada UUID.
 
 ---
 
-## 12. Aturan Umum
+## 13. Aturan Umum
 
 | Aturan | Keterangan |
 |--------|-----------|

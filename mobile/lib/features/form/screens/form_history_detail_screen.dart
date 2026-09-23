@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:form_up/core/widgets/app_refresh_indicator.dart';
+import 'package:form_up/core/widgets/connection_error_view.dart';
 import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/widgets/app_loading_indicator.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
@@ -25,6 +27,7 @@ class FormHistoryDetailScreen extends StatefulWidget {
 
 class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
   bool _loading = true;
+  String? _loadError;
   PublicFormResult? _result;
 
   @override
@@ -34,7 +37,10 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
   }
 
   Future<void> _load({bool refresh = false}) async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final result = await PublicFormService.getResult(
         widget.formLink,
@@ -42,9 +48,16 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
         refresh: refresh,
       );
       if (!mounted) return;
-      setState(() => _result = result);
+      setState(() {
+        _result = result;
+        _loadError = null;
+      });
     } catch (e) {
       if (!mounted) return;
+      if (AuthService.isConnectionError(e)) {
+        setState(() => _loadError = AuthService.errorMessage(e));
+        return;
+      }
       showAuthToast(context, AuthService.errorMessage(e), isError: true);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -76,7 +89,20 @@ class _FormHistoryDetailScreenState extends State<FormHistoryDetailScreen> {
           ? const AppLoadingOverlay()
           : AuthBackground(plain: true,
               child: SafeArea(
-                child: _result == null
+                child: _loadError != null && _result == null
+                    ? AppRefreshIndicator(
+                        onRefresh: () => _load(refresh: true),
+                        child: SingleChildScrollView(
+                          physics:
+                              const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(20),
+                          child: ConnectionErrorView(
+                            message: _loadError!,
+                            onRetry: () => _load(refresh: true),
+                          ),
+                        ),
+                      )
+                    : _result == null
                     ?  Center(
                         child: Text(
                           "Hasil tidak tersedia.",

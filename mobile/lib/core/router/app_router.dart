@@ -8,8 +8,8 @@ import 'package:form_up/features/auth/screens/forgot_password_screen.dart';
 import 'package:form_up/features/auth/screens/otp_screen.dart';
 import 'package:form_up/features/auth/screens/reset_password_screen.dart';
 import 'package:form_up/features/home/screens/home_screen.dart';
-import 'package:form_up/features/form/screens/form_maker_screen.dart';
-import 'package:form_up/features/form/screens/form_template_chooser_screen.dart';
+import 'package:form_up/features/form/screens/form_editor_tabs_screen.dart';
+import 'package:form_up/features/form/screens/form_builder_screen.dart';
 import 'package:form_up/features/form_runner/screens/form_runner_screen.dart';
 import 'package:form_up/features/form/screens/form_history_detail_screen.dart';
 import 'package:form_up/features/form/screens/history_form_detail_screen.dart';
@@ -26,8 +26,6 @@ import 'package:form_up/features/admin/screens/admin_feedback_detail_screen.dart
 import 'package:form_up/core/services/admin_service.dart';
 import 'package:form_up/features/settings/settings_screen.dart';
 import 'package:form_up/features/form/screens/form_detail_screen.dart';
-import 'package:form_up/features/form/screens/exam_monitoring_screen.dart';
-import 'package:form_up/features/form/screens/form_questions_screen.dart';
 import 'package:form_up/features/form/screens/form_question_edit_screen.dart';
 import 'package:form_up/features/form/screens/form_feedbacks_screen.dart';
 import 'package:form_up/features/form_runner/screens/form_start_screen.dart';
@@ -47,7 +45,6 @@ enum AppPage {
   otp,
   resetPassword,
   home,
-  formTemplateChooser,
   formMaker,
   formQuestions,
   formQuestionEdit,
@@ -155,7 +152,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   List<AppRoute> get stack => List.unmodifiable(_stack);
 
   List<Page<void>> get _pages =>
-      [for (final route in _stack) AppPageBuilder(route, (_) => _build(route))];
+      [for (final route in _stack) AppPageBuilder(route, (context) => _build(route, context))];
 
   @override
   Widget build(BuildContext context) {
@@ -313,7 +310,7 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
   }
 
 
-  Widget _build(AppRoute route) {
+  Widget _build(AppRoute route, BuildContext context) {
     // D3: halaman admin hanya untuk ADMIN (deep-link/push langsung ditolak
     // di UI, bukan menunggu 403 server).
     if (_RouteGuardScreen.isAdminPage(route.page) &&
@@ -341,15 +338,31 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
         );
       case AppPage.home:
         return HomeScreen(username: _username);
-      case AppPage.formTemplateChooser:
-        return const FormTemplateChooserScreen();
       case AppPage.formMaker:
-        return FormMakerScreen(formId: route.args['formId'] as int?);
+        final makerId = route.args['formId'] as int?;
+        final makerLocked = route.args['lockedQuestions'] as bool? ?? false;
+        // Tablet/desktop: screen builder all-in-one (settings + accordion soal).
+        if (isTablet(context)) {
+          return FormBuilderScreen(
+              formId: makerId, questionsLocked: makerLocked);
+        }
+        // Phone: satu screen dua tab (Pengaturan | Soal).
+        return FormEditorTabsScreen(
+            formId: makerId, initialTab: 0, questionsLocked: makerLocked);
       case AppPage.formQuestions:
-        return FormQuestionsScreen(
-          formId: route.args['formId'] as int?,
-          isNew: route.args['isNew'] == true,
-        );
+        final questionFormId = route.args['formId'] as int?;
+        final questionsLocked =
+            route.args['lockedQuestions'] as bool? ?? false;
+        // Tablet/desktop: screen builder all-in-one (settings + accordion soal).
+        if (isTablet(context)) {
+          return FormBuilderScreen(
+              formId: questionFormId, questionsLocked: questionsLocked);
+        }
+        // Phone: satu screen dua tab, langsung ke tab Soal.
+        return FormEditorTabsScreen(
+            formId: questionFormId,
+            initialTab: 1,
+            questionsLocked: questionsLocked);
       case AppPage.formQuestionEdit:
         final editDraft = route.args['draft'];
         if (editDraft is! QuestionDraft) {
@@ -416,9 +429,12 @@ class AppRouterDelegate extends RouterDelegate<AppRoute> with ChangeNotifier {
           formTitle: fbTitle,
         );
       case AppPage.examMonitoring:
-        return ExamMonitoringScreen(
+        // Rute lawas "Pantau Ujian" dialihkan ke tab Monitoring di layar
+        // Responden (Monitoring Form — berlaku formulir & ujian).
+        return FormResponScreen(
           formId: route.args['formId'] as int? ?? 0,
           title: route.args['title'] as String? ?? '',
+          initialTab: 2,
         );
       case AppPage.respondentDetail:
         return RespondentDetailScreen(
@@ -479,7 +495,6 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       'otp' => const AppRoute(AppPage.otp),
       'reset-password' => const AppRoute(AppPage.resetPassword),
       'form-maker' => const AppRoute(AppPage.formMaker),
-      'form-template-chooser' => const AppRoute(AppPage.formTemplateChooser),
       'form-questions' => const AppRoute(AppPage.formQuestions),
       'form-question-edit' => const AppRoute(AppPage.formQuestionEdit),
       'form-runner' => const AppRoute(AppPage.formRunner),
@@ -511,7 +526,6 @@ class AppRouteParser extends RouteInformationParser<AppRoute> {
       AppPage.otp => 'otp',
       AppPage.resetPassword => 'reset-password',
       AppPage.home => 'home',
-      AppPage.formTemplateChooser => 'form-template-chooser',
       AppPage.formMaker => 'form-maker',
       AppPage.formQuestions => 'form-questions',
       AppPage.formQuestionEdit => 'form-question-edit',
