@@ -438,47 +438,57 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
     final cs = Theme.of(context).colorScheme;
     final picked = await AdaptiveSheet.show<int>(
       context: context,
+      isScrollControlled: true,
+      // Konten scroll sendiri via DraggableScrollableSheet — pola yang sama
+      // seperti UserGuideSheet sehingga aman di phone maupun dialog
+      // tablet/desktop (Windows): tinggi selalu terbatas, tak ada
+      // Flexible/Expanded di dalam area tak terbatas.
+      selfScrolling: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx, _) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.black26,
-                borderRadius: BorderRadius.circular(2),
+      builder: (ctx, _) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        builder: (_, controller) => SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Pilih Percobaan',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontFamily: kFontBold,
-                fontSize: 15,
-                color: cs.onSurface,
+              const SizedBox(height: 12),
+              Text(
+                'Pilih Percobaan',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontFamily: kFontBold,
+                  fontSize: 15,
+                  color: cs.onSurface,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${_attempts.length} pengerjaan • terbaru ke terlama',
-              style: TextStyle(
-                fontSize: 12,
-                color: cs.onSurfaceVariant,
+              const SizedBox(height: 4),
+              Text(
+                '${_attempts.length} pengerjaan • terbaru ke terlama',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: _attempts.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.separated(
+                  controller: controller,
+                  itemCount: _attempts.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (ctx, i) {
                   final attempt = _attempts[i];
                   final isSelected =
@@ -560,8 +570,8 @@ class _RespondentDetailScreenState extends State<RespondentDetailScreen> {
                 },
               ),
             ),
-            const SizedBox(height: 8),
-          ],
+            ],
+          ),
         ),
       ),
     );
