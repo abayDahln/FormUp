@@ -14,6 +14,7 @@ import 'package:form_up/core/services/form_service.dart';
 import 'package:form_up/core/services/network_status.dart';
 import 'package:form_up/core/services/user_service.dart';
 import 'package:form_up/core/router/app_router.dart';
+import 'package:form_up/core/widgets/redeem_api_key_sheet.dart';
 import 'package:form_up/features/profile/widgets/image_source_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -123,6 +124,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _openEditProfile() async {
     await AppRouter.of(context).push(AppPage.editProfile);
     if (mounted) _load(refresh: true);
+  }
+
+  /// Sheet redeem API key Gemini (kode dari guru/admin → salin/terapkan).
+  Future<void> _openRedeemApiKey() async {
+    await RedeemApiKeySheet.show(context);
   }
 
   @override
@@ -253,6 +259,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 label: 'Ubah Kata Sandi',
                 onTap: () =>
                     AppRouter.of(context).push(AppPage.changePassword),
+              ),
+              const SizedBox(height: 8),
+              const Divider(height: 1, indent: 52, color: Colors.black12),
+              const SizedBox(height: 8),
+              _MenuTile(
+                icon: Icons.key_outlined,
+                label: 'Dapatkan API Key',
+                onTap: _openRedeemApiKey,
               ),
             ],
           ),
@@ -530,6 +544,14 @@ if (_loading)
                       label: 'Ubah Kata Sandi',
                       onTap: () =>
                           AppRouter.of(context).push(AppPage.changePassword),
+                    ),
+                    const SizedBox(height: 8),
+                    const Divider(height: 1, indent: 52, color: Colors.black12),
+                    const SizedBox(height: 8),
+                    _MenuTile(
+                      icon: Icons.key_outlined,
+                      label: 'Dapatkan API Key',
+                      onTap: _openRedeemApiKey,
                     ),
                   ],
                 ),

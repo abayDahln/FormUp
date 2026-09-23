@@ -49,6 +49,10 @@ public partial class FormUpDbContext : DbContext
 
     public virtual DbSet<FormAttemptAllowance> FormAttemptAllowances { get; set; }
 
+    public virtual DbSet<GeminiApiKey> GeminiApiKeys { get; set; }
+
+    public virtual DbSet<GeminiApiKeyRedemption> GeminiApiKeyRedemptions { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Form>(entity =>
@@ -693,6 +697,74 @@ public partial class FormUpDbContext : DbContext
             entity.HasOne(e => e.Respondent)
                 .WithMany()
                 .HasForeignKey(e => e.RespondentId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GeminiApiKey>(entity =>
+        {
+            entity.ToTable("GeminiApiKey");
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id).HasColumnName("id");
+
+            entity.Property(e => e.Label)
+                .HasMaxLength(100)
+                .HasColumnName("label");
+
+            entity.Property(e => e.ApiKey)
+                .HasMaxLength(500)
+                .IsRequired()
+                .HasColumnName("api_key");
+
+            entity.Property(e => e.CodeHash)
+                .HasMaxLength(200)
+                .IsRequired()
+                .HasColumnName("code_hash");
+
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+
+            entity.Property(e => e.RedeemedCount)
+                .HasDefaultValue(0)
+                .HasColumnName("redeemed_count");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("(getutcdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("created_at");
+
+            entity.Property(e => e.UpdatedAt)
+                .HasColumnType("datetime")
+                .HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<GeminiApiKeyRedemption>(entity =>
+        {
+            entity.ToTable("GeminiApiKeyRedemption");
+            entity.HasKey(e => e.Id);
+
+            // Satu user tercatat sekali per key (redeem ulang idempoten).
+            entity.HasIndex(e => new { e.KeyId, e.UserId }, "IX__GeminiApiKeyRedemption__key_user")
+                .IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.KeyId).HasColumnName("key_id");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+
+            entity.Property(e => e.RedeemedAt)
+                .HasDefaultValueSql("(getutcdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("redeemed_at");
+
+            entity.HasOne(e => e.Key)
+                .WithMany(k => k.Redemptions)
+                .HasForeignKey(e => e.KeyId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

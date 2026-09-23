@@ -3,6 +3,7 @@ import 'package:form_up/core/widgets/responsive.dart';
 import 'package:form_up/core/services/ai_chat_history_service.dart';
 import 'package:form_up/core/services/gemini_service.dart';
 import 'package:form_up/core/widgets/auth_widgets.dart';
+import 'package:form_up/core/widgets/redeem_api_key_sheet.dart';
 
 class AiSettingsScreen extends StatefulWidget {
   const AiSettingsScreen({super.key});
@@ -110,11 +111,14 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
               ),
               const Divider(height: 1, indent: 16, endIndent: 16),
               ListTile(
-                leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(10)), child:  Icon(Icons.info_outline, color: cs.primary, size: 20)),
+                leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(10)), child:  Icon(Icons.card_giftcard_outlined, color: cs.primary, size: 20)),
                 title: const Text('Dapatkan API Key', style: TextStyle(fontSize: 14)),
-                subtitle:  Text('aistudio.google.com/app/apikey', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-                trailing:  Icon(Icons.open_in_new, size: 16, color: cs.onSurfaceVariant),
-                onTap: () => showAuthToast(context, 'Buka https://aistudio.google.com/app/apikey di browser'),
+                subtitle:  Text('Tebus dengan kode dari guru/admin', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                trailing:  Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
+                onTap: () async {
+                  await RedeemApiKeySheet.show(context);
+                  if (context.mounted) setState(() {});
+                },
               ),
             ]),
           ),
