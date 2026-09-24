@@ -1,0 +1,95 @@
+# Auto-deploy ke VPS setiap push ke main. Langkahnya MENIRU cara manual yang
+# sudah berjalan di VPS (jangan diubah urutannya tanpa cek history di sana):
+#
+# - Commit yang menyentuh api/**         -> docker build -t formup-api:latest ./api
+#                                          + docker compose up -d --force-recreate api
+#                                          (migrasi DB jalan otomatis saat startup,
+#                                           lihat Program.cs: db.Database.Migrate(),
+#                                           karena VPS TIDAK punya dotnet SDK)
+# - Commit yang menyentuh web/form-fe/** -> docker build -t formup-frontend ./web/form-fe
+#                                          + recreate container formup-frontend-app
+#                                          (FE bukan service compose, port host 5173)
+# - Commit lain (mis. mobile/**)         -> workflow tidak berjalan sama sekali
+#
+# SETUP SEKALI (di GitHub: Settings > Secrets and variables > Actions):
+#   Secrets:   VPS_HOST (76.13.217.73), VPS_USER (root), VPS_SSH_KEY
+#              (isi private key; public key-nya wajib sudah ada di
+#               /root/.ssh/authorized_keys VPS)
+#   Variables (optional): VPS_DIR (default /root/FormUp bila tidak diisi)
+#
+# PRASYARAT DI VPS: /root/FormUp sudah git clone + file .env production terisi
+#   (gitignored, tidak ikut git pull). Routing Cloudflare Tunnel tidak
+#   disentuh workflow ini.
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - 'web/form-fe/**'
+      - '.github/workflows/deploy-vps.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false # jangan batalkan deploy yang sedang jalan di VPS
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      be: ${{ steps.filter.outputs.be }}
+      fe: ${{ steps.filter.outputs.fe }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            be:
+              - 'api/**'
+            fe:
+              - 'web/form-fe/**'
+
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.be == 'true' || needs.changes.outputs.fe == 'true'
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          BE_CHANGED: ${{ needs.changes.outputs.be }}
+          FE_CHANGED: ${{ needs.changes.outputs.fe }}
+          VPS_DIR: ${{ vars.VPS_DIR }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 30m
+          envs: BE_CHANGED,FE_CHANGED,VPS_DIR
+          script: |
+            set -e
+            cd "${VPS_DIR:-/root/FormUp}"
+            echo "== git pull =="
+            git pull --ff-only
+
+            if [ "$BE_CHANGED" = "true" ]; then
+              echo "== backend: rebuild image + recreate service =="
+              docker build -t formup-api:latest ./api
+              docker compose up -d --force-recreate api
+            fi
+
+            if [ "$FE_CHANGED" = "true" ]; then
+              echo "== frontend: rebuild image + recreate container =="
+              docker build -t formup-frontend ./web/form-fe
+              docker rm -f formup-frontend-app
+              docker run -d --name formup-frontend-app -p 5173:80 --restart always formup-frontend
+            fi
+
+            echo "== bersih-bersih + status =="
+            docker image prune -f
+            docker ps --filter name=formup-api --filter name=formup-frontend-app

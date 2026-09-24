@@ -1,8 +1,24 @@
-name: Build Mobile (Android APK + Windows EXE)
+# Build installer mobile (Android APK + Windows EXE) setiap ada perubahan di mobile/.
+#
+# SETUP SEKALI (di GitHub: Settings > Secrets and variables > Actions > Secrets):
+#   API_BASE_URL - contoh: https://api.formup.my.id/api
+#
+# Secret disuntik lewat DUA jalur (kode mendukung keduanya):
+#   1. file mobile/.env (dibundel sebagai asset, dibaca flutter_dotenv)
+#   2. --dart-define saat flutter build (fallback bila .env tidak terbaca)
+# Tidak ada lagi URL hardcode di workflow ini — bila secret kosong, job
+# langsung gagal dengan pesan jelas (fail-fast).
+#
+# GEMINI_API_KEY sengaja TIDAK lewat sini: key Gemini disimpan per-user di
+# aplikasi (secure storage) dan bisa diubah dari menu setting.
+name: Build App (Android APK + Windows EXE)
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-app.yml'
   workflow_dispatch:
 
 env:
@@ -36,20 +52,14 @@ jobs:
           cache: true
 
       # .env WAJIB ada: pubspec memakai sebagai asset, build gagal tanpanya.
-      - name: Create .env
+      - name: Create .env from secrets
         working-directory: mobile
         env:
-          API_BASE_URL: ${{ vars.API_BASE_URL }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
         run: |
-          cat > .env <<'ENVEOF'
-          API_BASE_URL=__API_BASE_URL__
-          GEMINI_API_KEY=__GEMINI_API_KEY__
-          ENVEOF
-          sed -i "s#__API_BASE_URL__#${API_BASE_URL:-https://api.formup.my.id/api}#" .env
-          sed -i "s#__GEMINI_API_KEY__#${GEMINI_API_KEY:-}#" .env
-          echo "--- .env (key disamarkan) ---"
-          sed -E 's/(GEMINI_API_KEY=).*/\1***/' .env
+          : "${API_BASE_URL:?Secrets API_BASE_URL belum diisi (Settings > Secrets and variables > Actions).}"
+          printf 'API_BASE_URL=%s\n' "$API_BASE_URL" > .env
+          grep -q '^API_BASE_URL=.\+' .env && echo '.env OK (API_BASE_URL terisi)'
 
       - name: Flutter pub get
         working-directory: mobile
@@ -57,7 +67,11 @@ jobs:
 
       - name: Build APK
         working-directory: mobile
-        run: flutter build apk --release
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: >
+          flutter build apk --release
+          --dart-define=API_BASE_URL="$API_BASE_URL"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -84,21 +98,17 @@ jobs:
           cache: true
 
       # .env WAJIB ada: pubspec memakai sebagai asset, build gagal tanpanya.
-      - name: Create .env
+      - name: Create .env from secrets
         working-directory: mobile
         shell: pwsh
         env:
-          API_BASE_URL: ${{ vars.API_BASE_URL }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
         run: |
-          $api = $env:API_BASE_URL
-          if ([string]::IsNullOrWhiteSpace($api)) { $api = 'https://api.formup.my.id/api' }
+          if ([string]::IsNullOrWhiteSpace($env:API_BASE_URL)) { throw 'Secrets API_BASE_URL belum diisi (Settings > Secrets and variables > Actions).' }
           Set-Content -Path .env -Encoding utf8 -Value @(
-            "API_BASE_URL=$api"
-            "GEMINI_API_KEY=$($env:GEMINI_API_KEY)"
+            "API_BASE_URL=$($env:API_BASE_URL)"
           )
-          Write-Host '--- .env (key disamarkan) ---'
-          (Get-Content .env) -replace 'GEMINI_API_KEY=.*', 'GEMINI_API_KEY=***'
+          Write-Host '.env OK (API_BASE_URL terisi)'
 
       - name: Flutter pub get
         working-directory: mobile
@@ -115,7 +125,12 @@ jobs:
 
       - name: Build Windows
         working-directory: mobile
-        run: flutter build windows --release
+        shell: pwsh
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: >
+          flutter build windows --release
+          --dart-define="API_BASE_URL=$($env:API_BASE_URL)"
 
       - name: Install Inno Setup
         shell: pwsh

@@ -296,6 +296,14 @@ namespace FormUpAPI
 
             var app = builder.Build();
 
+            // Apply pending EF migrations at startup. The VPS has no .NET SDK,
+            // so `dotnet ef database update` cannot run on the host.
+            using (var scope = app.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<FormUpDbContext>();
+                db.Database.Migrate();
+            }
+
             // Bukti di log produksi: daftar origin efektif saat runtime.
             // Bila domain frontend tidak tercantum di sini, redeploy API
             // (build lama) atau perbaiki env ALLOWED_ORIGINS di host.
